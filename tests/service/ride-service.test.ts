@@ -1,0 +1,94 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { FakeBlePort } from '../../src/service/ble/fake-device';
+import { readRide } from '../../src/service/recorder';
+import { RideService } from '../../src/service/ride-service';
+import type { ServerMessage } from '../../src/shared/protocol';
+import type { Session } from '../../src/shared/session';
+
+const session: Session = { id: 's', name: 'Test', steps: [{ kind: 'erg', durationS: 100, ftpFraction: 0.5, label: 'A' }] };
+let dir: string; let t: number; let out: ServerMessage[];
+const make = () => { const svc = new RideService({ dir, ble: new FakeBlePort(), nowMs: () => t }); svc.subscribe((m) => out.push(m)); return svc; };
+const ticks = (svc: RideService, n: number) => { for (let i = 0; i < n; i++) { t += 1000; svc.tick(); } };
+beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-')); t = 1000; out = []; });
+
+const start = (svc: RideService, profileId = 'A') => svc.handle({ type: 'start', profileId, session, ftpW: 200 });
+const onlyRide = () => fs.readdirSync(dir).find((n) => n.startsWith('ride-'))!;
+
+test('records a sample per tick and finishes at the end', () => {
+  const svc = make(); start(svc); ticks(svc, 100);
+  const r = readRide(dir, onlyRide());
+  expect(r.samples).toHaveLength(100);
+  expect(r.meta.status).toBe('finished');
+});
+test('recovery keeps original profile regardless of active profile', () => {
+  const first = make(); start(first, 'A'); ticks(first, 10);
+  out = [];
+  const svc = make();
+  svc.subscribeActiveProfile('B');
+  const offer = out.find((m) => m.type === 'recovery-offer');
+  expect(offer && offer.type === 'recovery-offer' && offer.profileId).toBe('A');
+  svc.handle({ type: 'resume', rideId: onlyRide() });
+  ticks(svc, 1);
+  expect(readRide(dir, onlyRide()).meta.profileId).toBe('A');
+  expect(readRide(dir, onlyRide()).samples).toHaveLength(11);
+});
+test('open ride keeps recording after restart until the user decides', () => {
+  const first = make(); start(first); ticks(first, 10);
+  const svc = make(); ticks(svc, 5);
+  const r = readRide(dir, onlyRide());
+  expect(r.samples.map((s) => s.seq)).toEqual(Array.from({ length: 15 }, (_, i) => i));
+  expect(r.events.some((e) => e.type === 'resumed')).toBe(true);
+});
+test('discard-resume marks aborted and keeps samples', () => {
+  const first = make(); start(first); ticks(first, 10);
+  const svc = make();
+  svc.handle({ type: 'discard-resume', rideId: onlyRide() });
+  const r = readRide(dir, onlyRide());
+  expect(r.meta.status).toBe('aborted');
+  expect(r.samples).toHaveLength(10);
+});
+test('stop saves an aborted ride', () => {
+  const svc = make(); start(svc); ticks(svc, 3);
+  svc.handle({ type: 'stop' });
+  expect(readRide(dir, onlyRide()).meta.status).toBe('aborted');
+});
+test('ui subscriber failure does not affect ride', () => {
+  const svc = make(); svc.subscribe(() => { throw new Error('ui gone'); });
+  start(svc); ticks(svc, 5);
+  expect(readRide(dir, onlyRide()).samples).toHaveLength(5);
+});
+test('second start is refused while a ride is open', () => {
+  const svc = make(); start(svc); start(svc);
+  expect(fs.readdirSync(dir).filter((n) => n.startsWith('ride-'))).toHaveLength(1);
+  expect(out.some((m) => m.type === 'error')).toBe(true);
+});
+test('ride can start with no devices connected', () => {
+  const ble = new FakeBlePort(); ble.online = { trainer: false, hr: false, clicker: false };
+  const svc = new RideService({ dir, ble, nowMs: () => t });
+  start(svc); ticks(svc, 2);
+  expect(readRide(dir, onlyRide()).samples).toHaveLength(2);
+  svc.close();
+});
+test('mark is stored in ride events', () => {
+  const svc = make(); start(svc);
+  svc.handle({ type: 'mark', note: 'zu hart' });
+  expect(readRide(dir, onlyRide()).events.find((e) => e.type === 'marker')?.detail).toBe('zu hart');
+});
+test('lost trainer clears readings and logs device events', () => {
+  const ble = new FakeBlePort();
+  const svc = new RideService({ dir, ble, nowMs: () => t, retryMs: 5 });
+  start(svc);
+  return new Promise<void>((resolve) => setTimeout(() => {
+    ble.emit('trainer', Buffer.from([0x41, 0x00, 0x64, 0x00]));
+    ticks(svc, 1);
+    ble.drop('trainer');
+    ticks(svc, 1);
+    const r = readRide(dir, onlyRide());
+    expect(r.samples.map((x) => x.powerW)).toEqual([100, null]);
+    expect(r.events.some((e) => e.type === 'device-lost' && e.detail === 'trainer')).toBe(true);
+    svc.close();
+    resolve();
+  }, 20));
+});
