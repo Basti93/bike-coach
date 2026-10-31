@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
-import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
+import { COACH_PORT, type CoachClientMessage, type RideDetail } from '../shared/coach-protocol';
 
 export const useCoach = (profileId: string | null) => {
   const [state, setState] = useState<CoachState | null>(null);
   const [thinking, setThinking] = useState(false);
+  const [detail, setDetail] = useState<RideDetail | null>(null);
   const [together, setTogether] = useState<Together | null>(null);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
@@ -24,6 +25,7 @@ export const useCoach = (profileId: string | null) => {
       };
       ws.onmessage = (e) => {
         const m = JSON.parse(String(e.data));
+        if (m.type === 'ride-detail') setDetail(m.detail);
         if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setTogether(m.together ?? null); }
       };
       ws.onclose = () => {
@@ -38,5 +40,5 @@ export const useCoach = (profileId: string | null) => {
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { state, together, thinking, connected, send };
+  return { detail, state, together, thinking, connected, send };
 };

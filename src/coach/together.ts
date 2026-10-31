@@ -12,7 +12,8 @@ const PEAKS = [
 ];
 const WEEK = 7 * 86_400_000;
 const MONDAY_OFFSET = 4 * 86_400_000; // Der 1.1.1970 war ein Donnerstag.
-const weekOf = (ms: number): number => Math.floor((ms - MONDAY_OFFSET) / WEEK);
+export const weekOf = (ms: number): number => Math.floor((ms - MONDAY_OFFSET) / WEEK);
+export const weekStartMs = (week: number): number => week * WEEK + MONDAY_OFFSET;
 
 export type PersonStats = { profileId: string; name: string; ridesThisWeek: number; minutesThisWeek: number; streakWeeks: number; wordsLearned: number };
 export type Together = {

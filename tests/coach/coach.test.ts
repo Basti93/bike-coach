@@ -340,3 +340,12 @@ test('invented watts in the reason are replaced, rules persist and reach the pro
   await c.refresh('pa');
   expect(ask.mock.calls[1][0].prompt).toContain('Nie vor 7 Uhr planen');
 });
+test('ride detail reads real samples, only for the own rides', () => {
+  const c = make(); c.scanRides([A, B]);
+  const id = ride('pa', { seconds: 1200 }); c.scanRides([A, B]);
+  const d = c.rideDetail('pa', id);
+  expect(d?.points.length).toBeLessThanOrEqual(300);
+  expect(d?.points[0].powerW).toBe(130);
+  expect(c.rideDetail('pb', id)).toBeNull();
+});
+

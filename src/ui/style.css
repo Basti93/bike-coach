@@ -136,3 +136,23 @@ button.danger { background: transparent; color: var(--high); border: 1px solid v
 .word-tools { display: flex; gap: .4rem; }
 .word-tools button { padding: .3rem .6rem; font-size: .8rem; }
 .word-example { font-size: 1rem; margin-top: .2rem; }
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-bottom: 1rem; }
+.chart-readout { margin: 0 0 .5rem; color: var(--muted); }
+.chart-readout b { color: #fff; }
+.bars { display: flex; align-items: flex-end; height: 110px; border-bottom: 1px solid var(--line); }
+.bar-slot { flex: 1; height: 100%; display: flex; align-items: flex-end; padding: 0 3px; }
+.bar-slot:hover { background: rgba(255, 255, 255, .04); }
+.bar { width: 100%; background: var(--z2); border-radius: 4px 4px 0 0; }
+.rides { list-style: none; padding: 0; margin: 0; }
+.rides li { border-top: 1px solid var(--line); }
+button.ride-row { display: grid; grid-template-columns: 8rem 1fr 5rem 8rem; gap: .6rem; width: 100%; background: transparent; text-align: left; font-weight: 500; padding: .7rem .2rem; border-radius: 0; }
+.ride-name { font-weight: 700; }
+.ride-detail { padding: 0 .2rem 1rem; display: flex; flex-direction: column; gap: .8rem; }
+.ride-detail p { margin: 0; }
+.line-plot { position: relative; height: 90px; border-bottom: 1px solid var(--line); }
+.line-plot svg { width: 100%; height: 100%; display: block; }
+.line-plot path { fill: none; stroke: var(--z2); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.crosshair { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); pointer-events: none; }
+.stat-row .tile b { font-size: 2rem; white-space: nowrap; }
+main > section.card + section.card { margin-top: 1rem; }
+.bars-axis { display: flex; justify-content: space-between; font-size: .8rem; margin-top: .3rem; }

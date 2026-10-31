@@ -1,3 +1,5 @@
+import type { RideSummary } from '../../src/coach/metrics';
+import { rideStats } from '../../src/coach/stats';
 import { computeTogether } from '../../src/coach/together';
 import type { CoachState } from '../../src/coach/state';
 import { DUTCH_WORDS, learnedCount, nextWord, recordAnswer, type WordProgress } from '../../src/shared/language';
@@ -53,4 +55,13 @@ test('word list is usable: every card has translation and example containing con
   expect(DUTCH_WORDS.length).toBeGreaterThan(300);
   expect(new Set(DUTCH_WORDS.map((w) => w.nl)).size).toBe(DUTCH_WORDS.length);
   for (const w of DUTCH_WORDS) expect(w.de && w.example && w.exampleDe).toBeTruthy();
+});
+test('stats add up and faulty rides do not set records', () => {
+  const s = rideStats([
+    { startedAtMs: NOW - DAY, durationS: 1800, bestMinutePowerW: 200 },
+    { startedAtMs: NOW - 8 * DAY, durationS: 3600, bestMinutePowerW: 999, suspectData: true },
+  ] as RideSummary[], NOW);
+  expect(s).toMatchObject({ rides: 2, minutes: 90, longestMinutes: 60, bestMinuteW: 200 });
+  expect(s.weeks).toHaveLength(12);
+  expect(s.weeks.at(-1)?.minutes).toBe(30);
 });

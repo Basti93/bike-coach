@@ -6,7 +6,7 @@ export type RideSummary = {
   rideId: string; startedAtMs: number; status: 'finished' | 'aborted'; sessionId: string; ftpW: number; durationS: number;
   avgPowerW: number | null; normalizedPowerW: number | null; intensityFactor: number | null; tss: number;
   avgHrBpm: number | null; maxHrBpm: number | null; bestMinutePowerW: number | null; completedFraction: number;
-  suspectData?: boolean; intervalsPlanned?: number; intervalsDone?: number;
+  sessionName?: string; suspectData?: boolean; intervalsPlanned?: number; intervalsDone?: number;
 };
 
 const DAY_MS = 86_400_000;
@@ -89,6 +89,7 @@ export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: 
   const intensityFactor = np === null ? null : np / ftpW;
   const hours = powers.length / 3600;
   return {
+    ...(session ? { sessionName: session.name } : {}),
     rideId: meta.rideId, startedAtMs: meta.startedAtMs, status: meta.status === 'finished' ? 'finished' : 'aborted',
     sessionId: meta.sessionId, ftpW, durationS,
     avgPowerW: round(mean(powers)), normalizedPowerW: round(np),

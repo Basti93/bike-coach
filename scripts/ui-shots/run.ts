@@ -25,7 +25,7 @@ const coach = (over = {}) => ({
   feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null, ...over,
 });
 
-const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; wait?: number; fill?: boolean }[] = [
+const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
   { name: 'profile-estimate', ride: idle({ profiles: [] }), fill: true },
@@ -41,6 +41,8 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'coach-together', ride: idle(), coach: coach({ together: { people: [{ profileId: 'pa', name: 'Max', ridesThisWeek: 2, minutesThisWeek: 75, streakWeeks: 3, wordsLearned: 14 }, { profileId: 'pb', name: 'Lena', ridesThisWeek: 3, minutesThisWeek: 90, streakWeeks: 4, wordsLearned: 21 }], metres: 2240, lastRideMetres: 400, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' } } }), pick: true },
   { name: 'ride-word', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach() },
   { name: 'ride-word-reveal', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach(), wait: 6500 },
+  { name: 'history', ride: idle(), coach: coach({ feedback: { h1: 'right', h2: 'hard' }, detail: { rideId: 'h1', points: Array.from({ length: 200 }, (_, i) => ({ t: (i + 1) * 12, powerW: i % 40 < 12 ? 195 + (i % 5) : 110 + (i % 7), hrBpm: 120 + Math.round(30 * Math.sin(i / 12) ** 2) })) },
+    summaries: [{ rideId: 'h1', startedAtMs: Date.now() - 86400000, durationS: 2400, sessionName: 'Intervalle, 45 Minuten', status: 'finished', avgHrBpm: 140, maxHrBpm: 165, bestMinutePowerW: 201, intervalsPlanned: 4, intervalsDone: 3 }, { rideId: 'h2', startedAtMs: Date.now() - 86400000 * 9, durationS: 1800, sessionName: 'Locker, 30 Minuten', status: 'finished', avgHrBpm: 125, maxHrBpm: 140, bestMinutePowerW: 130 }, { rideId: 'h3', startedAtMs: Date.now() - 86400000 * 24, durationS: 3000, sessionName: 'Steigung, 40 Minuten', status: 'aborted', avgHrBpm: 132, maxHrBpm: 150, bestMinutePowerW: 180 }] }), pick: true, click: 'Verlauf', click2: /Intervalle/ },
   { name: 'ride-end', ride: ride(), click: 'Beenden' },
   { name: 'coach-route', ride: idle(), coach: coach({ next: { ...coach().next, session: STARTER_SESSIONS[2], source: 'rules' } }), pick: true },
   { name: 'ride-grade', ride: ride({ session: STARTER_SESSIONS[2], engine: engine({ targetW: null, gradePct: 4.5, gear: 7, label: 'Erster Anstieg', nextLabel: 'Erholung' }) }) },
@@ -68,7 +70,7 @@ const stub = () => {
         }
       }, 0);
     }
-    send() {} close() {} addEventListener() {}
+    send(raw: string) { const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
   };
 };
 
@@ -86,6 +88,7 @@ for (const s of shots) {
   if (s.pick) { await win.getByRole('button', { name: /Max/ }).first().click(); await win.waitForTimeout(150); }
   if (s.wait) await win.waitForTimeout(s.wait);
   if (s.click) { await win.getByRole('button', { name: s.click }).click(); await win.waitForTimeout(100); }
+  if (s.click2) { await win.getByRole('button', { name: s.click2 }).click(); await win.waitForTimeout(150); }
   if (s.fill) {
     await win.getByLabel('Name').fill('Lena');
     await win.getByLabel('Alter').fill('35');

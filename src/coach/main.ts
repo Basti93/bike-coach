@@ -81,6 +81,10 @@ wss.on('connection', (socket) => {
       if (m.type === 'note') { coach.note(m.profileId, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'adjust') coach.adjustNext(m.profileId, m.how);
       if (m.type === 'skip-ramp') coach.skipRamp(m.profileId);
+      if (m.type === 'ride-detail') {
+        const detail = coach.rideDetail(m.profileId, m.rideId);
+        if (detail) socket.send(JSON.stringify({ type: 'ride-detail', detail }));
+      }
       if (m.type === 'remove-rule') coach.removeRule(m.profileId, m.atMs);
       if (m.type === 'word-result') coach.wordResult(m.profileId, m.nl, m.knew);
       publish();

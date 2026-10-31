@@ -30,10 +30,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -57,7 +57,10 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
     <main>
       <div className="top">
         <h1>Hallo {profile.name}</h1>
-        <button className="ghost" onClick={onBack}>Profil wechseln</button>
+        <div className="row">
+          {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}
+          <button className="ghost" onClick={onBack}>Profil wechseln</button>
+        </div>
       </div>
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
       <div className="coach">

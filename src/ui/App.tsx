@@ -8,6 +8,7 @@ import { RecoveryDialog } from './views/RecoveryDialog';
 import { RideView } from './views/RideView';
 import { CoachView } from './views/CoachView';
 import { FeedbackView } from './views/FeedbackView';
+import { HistoryView } from './views/HistoryView';
 import { WordCard } from './views/WordCard';
 
 const CALM_FRACTION = 0.75;
@@ -16,6 +17,7 @@ const CALM_GRADE = 3;
 export const App = () => {
   const { click, state, offer, clearOffer, connected, send, error } = useRide();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [history, setHistory] = useState(false);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? null);
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
@@ -41,9 +43,9 @@ export const App = () => {
     <>
       {notice}
       {profile
-        ? (coach.state?.awaitingFeedback
+        ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
           ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />
-          : <CoachView together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+          : <CoachView onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );

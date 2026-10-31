@@ -3,11 +3,12 @@ import path from 'node:path';
 import { z } from 'zod';
 import { readMeta, readRide } from '../service/recorder';
 import type { Profile } from '../shared/profiles';
+import type { RideDetail } from '../shared/coach-protocol';
 import { DUTCH_WORDS, recordAnswer } from '../shared/language';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
-import { loadModel, summarizeRide } from './metrics';
+import { cleanSamples, loadModel, summarizeRide } from './metrics';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
 
@@ -19,6 +20,7 @@ const NUDGE_MIN_IF = 0.65;
 const RAISE_GAP_MS = 3 * 86_400_000;
 const LOWER_GAP_MS = 86_400_000;
 const TEXT_MAX = 400;
+const DETAIL_POINTS = 300;
 const MAX_RULES = 20;
 const MIN_RAMP_S = 480; // 5 Minuten Warmup plus mindestens 3 Minuten Rampe
 const COACH_FTP_MAX_CHANGE = 0.05;
@@ -125,6 +127,20 @@ export class Coach {
       if (!DUTCH_WORDS.some((w) => w.nl === nl)) return;
       s.wordProgress = recordAnswer(s.wordProgress ?? {}, nl, knew, this.deps.nowMs());
     });
+  }
+
+  /** Für die Kurven der Rückschau, nur für eigene Fahrten und ausgedünnt. */
+  rideDetail(profileId: string, rideId: string): RideDetail | null {
+    if (!this.state(profileId).summaries.some((r) => r.rideId === rideId)) return null;
+    const { samples } = cleanSamples(readRide(this.deps.ridesDir, rideId).samples);
+    const size = Math.max(1, Math.ceil(samples.length / DETAIL_POINTS));
+    const avg = (xs: (number | null)[]) => { const k = xs.filter((x): x is number => x !== null); return k.length ? Math.round(k.reduce((a, b) => a + b, 0) / k.length) : null; };
+    const points = [];
+    for (let i = 0; i < samples.length; i += size) {
+      const part = samples.slice(i, i + size);
+      points.push({ t: part.at(-1)!.rideElapsedS, powerW: avg(part.map((x) => x.powerW)), hrBpm: avg(part.map((x) => x.hrBpm)) });
+    }
+    return { rideId, points };
   }
 
   removeRule(profileId: string, atMs: number): void {
