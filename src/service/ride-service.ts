@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Profile } from '../shared/profiles';
 import type { ClientMessage, ServerMessage } from '../shared/protocol';
+import type { RideEvent } from '../shared/sample';
 import { parseSession, type Session } from '../shared/session';
 import { DeviceManager, type DeviceStatus, type Reading } from './ble/device-manager';
 import type { BlePort } from './ble/device-port';
 import { RideEngine } from './engine';
+import { exportFit } from './export/fit';
 import { readRide, RideRecorder } from './recorder';
 import { findOpenRides, resumePoint } from './recovery';
 
@@ -14,7 +16,7 @@ import { findOpenRides, resumePoint } from './recovery';
 export const DEFAULT_GRADE_PER_GEAR = 0.5;
 
 type Active = { recorder: RideRecorder; engine: RideEngine; session: Session; ftpW: number; recovered: boolean };
-type Deps = { dir: string; ble: BlePort; nowMs: () => number; gradePerGear?: number; retryMs?: number; onSample?: (line: object) => void; onRideChange?: (riding: boolean) => void };
+type Deps = { dir: string; ble: BlePort; nowMs: () => number; gradePerGear?: number; retryMs?: number; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void };
 
 export class RideService {
   private devices: DeviceManager;
@@ -53,9 +55,9 @@ export class RideService {
     const a = this.active;
     if (!a) { this.broadcastState(); return; }
     const { sample, command, events } = a.engine.tick(this.latest);
-    for (const e of events) a.recorder.event(e);
+    for (const e of events) this.logEvent(e);
     a.recorder.append(sample);
-    this.guard(() => this.deps.onSample?.(sample));
+    this.guard(() => this.deps.onLive?.(sample));
     if (a.engine.isDone()) { this.end('finished'); return; }
     this.guard(() => {
       if (command?.targetW !== undefined) this.devices.setTargetPower(command.targetW);
@@ -82,12 +84,12 @@ export class RideService {
         return;
       }
       case 'shift': a?.engine.shift(msg.dir); return;
-      case 'adjust': if (a) a.recorder.event(a.engine.adjustTarget(msg.deltaPct)); return;
-      case 'mark': a?.recorder.event({ wallClockMs: this.deps.nowMs(), type: 'marker', detail: msg.note }); return;
+      case 'adjust': if (a) this.logEvent(a.engine.adjustTarget(msg.deltaPct)); return;
+      case 'mark': this.logEvent({ wallClockMs: this.deps.nowMs(), type: 'marker', detail: msg.note }); return;
       case 'stop': if (a) this.end('aborted'); return;
       case 'resume': if (a) { a.recovered = false; } return;
       case 'discard-resume': if (a && a.recorder.getMeta().rideId === msg.rideId) this.end('aborted'); return;
-      case 'export-fit': return;
+      case 'export-fit': this.writeFit(msg.rideId); return;
       case 'save-profile': {
         const others = this.profiles().filter((x) => x.id !== msg.profile.id);
         const file = path.join(this.deps.dir, 'profiles.json');
@@ -108,10 +110,19 @@ export class RideService {
       if (status[kind] === 'searching') {
         this.latest = kind === 'hr' ? { ...this.latest, hrBpm: undefined } : { hrBpm: this.latest.hrBpm };
       }
-      this.active?.recorder.event({
-        wallClockMs: this.deps.nowMs(), type: status[kind] === 'searching' ? 'device-lost' : 'device-back', detail: kind,
-      });
+      this.logEvent({ wallClockMs: this.deps.nowMs(), type: status[kind] === 'searching' ? 'device-lost' : 'device-back', detail: kind });
     }
+  }
+
+  private logEvent(e: RideEvent): void {
+    this.active?.recorder.event(e);
+    this.guard(() => this.deps.onLive?.(e));
+  }
+
+  private writeFit(rideId: string): void {
+    const out = path.join(this.deps.dir, 'exports');
+    fs.mkdirSync(out, { recursive: true });
+    fs.writeFileSync(path.join(out, `${rideId}.fit`), exportFit(readRide(this.deps.dir, rideId)));
   }
 
   private profiles(): Profile[] {
@@ -143,8 +154,10 @@ export class RideService {
   }
 
   private end(status: 'finished' | 'aborted'): void {
+    const rideId = this.active?.recorder.getMeta().rideId;
     this.active?.recorder.finish(status);
     this.setActive(null);
+    if (rideId) this.guard(() => this.writeFit(rideId));
     this.broadcastState();
   }
 

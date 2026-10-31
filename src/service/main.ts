@@ -3,6 +3,7 @@ import { NobleBlePort } from './ble/noble-adapter';
 import type { BlePort, DeviceKind } from './ble/device-port';
 import fs from 'node:fs';
 import path from 'node:path';
+import { LiveLog } from './live-log';
 import { RideService } from './ride-service';
 import { SyncClient } from './sync';
 import { startWsServer } from './ws-server';
@@ -16,9 +17,11 @@ const fake = process.env.BIKE_FAKE_BLE === '1' ? new FakeBlePort() : null;
 const ble: BlePort = fake ?? new NobleBlePort(dir);
 
 const parent = (process as unknown as { parentPort?: { postMessage(m: unknown): void } }).parentPort;
+const live = new LiveLog(dir);
 const service = new RideService({
   dir, ble, nowMs,
   retryMs: fake ? 20 : undefined,
+  onLive: (l) => live.write(l),
   onRideChange: (riding) => parent?.postMessage({ riding }),
 });
 const wss = startWsServer(service, Number(process.env.BIKE_PORT ?? 7410));

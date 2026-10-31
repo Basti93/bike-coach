@@ -101,3 +101,18 @@ test('profiles persist across service restarts', () => {
   const state = out.find((m) => m.type === 'state');
   expect(state && state.type === 'state' && state.profiles).toEqual([{ id: 'p1', name: 'Anna', ftpW: 150 }]);
 });
+test('finished and stopped rides are exported as FIT automatically', () => {
+  const svc = make(); start(svc); ticks(svc, 100);
+  expect(fs.existsSync(path.join(dir, 'exports', `${onlyRide()}.fit`))).toBe(true);
+});
+test('export-fit writes a file for an earlier ride', () => {
+  const svc = make(); start(svc); ticks(svc, 100);
+  fs.rmSync(path.join(dir, 'exports'), { recursive: true });
+  svc.handle({ type: 'export-fit', rideId: onlyRide() });
+  expect(fs.existsSync(path.join(dir, 'exports', `${onlyRide()}.fit`))).toBe(true);
+});
+test('export failure does not lose the ride', () => {
+  fs.writeFileSync(path.join(dir, 'exports'), 'im Weg');
+  const svc = make(); start(svc); ticks(svc, 100);
+  expect(readRide(dir, onlyRide()).meta.status).toBe('finished');
+});
