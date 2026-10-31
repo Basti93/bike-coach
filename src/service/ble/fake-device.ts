@@ -7,6 +7,7 @@ export class FakeBlePort implements BlePort {
   connectAttempts = 0;
   private subs = new Map<DeviceKind, (b: Buffer) => void>();
   private disconnectCb: (kind: DeviceKind) => void = () => {};
+  private controlCb: (b: Buffer) => void = () => {};
   private connected = new Set<DeviceKind>();
 
   async connect(kind: DeviceKind): Promise<void> {
@@ -21,6 +22,8 @@ export class FakeBlePort implements BlePort {
     this.writes.push({ kind, bytes: [...b] });
   }
   onDisconnect(cb: (kind: DeviceKind) => void): void { this.disconnectCb = cb; }
+  onControl(cb: (b: Buffer) => void): void { this.controlCb = cb; }
+  emitControl(b: Buffer): void { this.controlCb(b); }
 
   emit(kind: DeviceKind, b: Buffer): void { if (this.connected.has(kind)) this.subs.get(kind)?.(b); }
   drop(kind: DeviceKind): void {

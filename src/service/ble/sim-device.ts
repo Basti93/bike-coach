@@ -22,6 +22,7 @@ export class SimBlePort implements BlePort {
   }
   async disconnect(kind: DeviceKind): Promise<void> { this.connected.delete(kind); }
   subscribe(kind: DeviceKind, cb: (b: Buffer) => void): void { this.subs.set(kind, cb); }
+  onControl(): void { /* Der Simulator entzieht die Kontrolle nie. */ }
   onDisconnect(): void {}
 
   async write(_kind: DeviceKind, b: Buffer): Promise<void> {

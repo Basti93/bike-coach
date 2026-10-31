@@ -6,7 +6,9 @@ export class ClaudeError extends Error {
   constructor(public kind: ClaudeErrorKind, message: string) { super(message); }
 }
 
-const LIMIT = /usage limit|rate limit|limit reached|hit your .*limit|too many requests|\b429\b/i;
+const LIMIT = /usage limit|limit reached|hit your .*limit/i;
+const NOT_PLAN_LIMIT = /not your usage limit/i;
+const isLimit = (text: string) => LIMIT.test(text) && !NOT_PLAN_LIMIT.test(text);
 const DEFAULT_TIMEOUT_MS = 180_000;
 const KILL_GRACE_MS = 2000;
 
@@ -21,6 +23,11 @@ export const findClaude = async (exec: (cmd: string) => Promise<string> = defaul
   return bin;
 };
 const defaultExec = async (cmd: string) => (await promisify(nodeExec)(cmd, { timeout: 10_000 })).stdout;
+
+type ClaudeOutput = { structured_output?: unknown; is_error?: boolean; subtype?: string; result?: unknown; errors?: unknown };
+const parseOutput = (stdout: string): ClaudeOutput | null => {
+  try { return JSON.parse(stdout) as ClaudeOutput; } catch { return null; }
+};
 
 export const askClaude = (input: {
   prompt: string; systemPrompt: string; schema: object; workDir: string; bin: string; timeoutMs?: number; model?: string; spawnFn?: typeof spawn;
@@ -51,19 +58,15 @@ export const askClaude = (input: {
   child.stderr?.on('data', (d) => { stderr += String(d); });
   child.on('error', (e: NodeJS.ErrnoException) => finish(() => reject(new ClaudeError(e.code === 'ENOENT' ? 'missing' : 'failed', e.message))));
   child.on('close', (code) => finish(() => {
-    // Nur Fehlerausgaben prüfen: Eine gültige Antwort darf „Limit“ oder die Zahl 429 enthalten.
-    if (code !== 0 && (LIMIT.test(stdout) || LIMIT.test(stderr))) return reject(new ClaudeError('limit', 'Das Plan-Limit ist erreicht.'));
-    if (code !== 0) return reject(new ClaudeError('failed', `claude endete mit Code ${code}: ${stderr.slice(0, 200)}`));
-    let parsed: { structured_output?: unknown; is_error?: boolean; result?: unknown };
-    try {
-      parsed = JSON.parse(stdout) as typeof parsed;
-    } catch {
-      return reject(new ClaudeError('invalid', 'Die Antwort war kein JSON.'));
+    // Erst das JSON auswerten: Eine gültige Antwort darf „Limit“ oder die Zahl 429 enthalten.
+    const parsed = parseOutput(stdout);
+    if (code !== 0 || parsed?.is_error) {
+      if (parsed?.subtype === 'error_max_structured_output_retries') return reject(new ClaudeError('invalid', 'Claude lieferte keine gültigen Daten.'));
+      const text = parsed ? `${String(parsed.result ?? '')} ${JSON.stringify(parsed.errors ?? '')} ${stderr}` : `${stdout} ${stderr}`;
+      if (isLimit(text)) return reject(new ClaudeError('limit', 'Das Plan-Limit ist erreicht.'));
+      return reject(new ClaudeError('failed', `claude endete mit Code ${code}: ${text.trim().slice(0, 200)}`));
     }
-    if (parsed.is_error) {
-      const text = String(parsed.result ?? '');
-      return reject(LIMIT.test(text) ? new ClaudeError('limit', 'Das Plan-Limit ist erreicht.') : new ClaudeError('failed', text.slice(0, 200)));
-    }
+    if (!parsed) return reject(new ClaudeError('invalid', 'Die Antwort war kein JSON.'));
     if (parsed.structured_output === undefined) return reject(new ClaudeError('invalid', 'Die Antwort enthielt keine strukturierten Daten.'));
     resolve(parsed.structured_output);
   }));

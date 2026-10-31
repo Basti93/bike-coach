@@ -41,3 +41,13 @@ test('timer time ignores gaps', () => {
 test('ride without samples still exports', () => {
   expect(() => decode(exportFit({ meta, samples: [], events: [] }))).not.toThrow();
 });
+
+test('timer events, average cadence and distance are written, pauses stop the timer', () => {
+  const events = [{ wallClockMs: T0 + 500, type: 'pause' as const }, { wallClockMs: T0 + 900, type: 'resume' as const }];
+  const { messages, errors } = decode(exportFit({ meta, samples: [sample(0, { cadenceRpm: 80, speedKph: 36 }), sample(1, { cadenceRpm: 90, speedKph: 36 })], events }));
+  expect(errors).toEqual([]);
+  const ev = messages.eventMesgs.filter((m: any) => m.event === 'timer').map((m: any) => m.eventType);
+  expect(ev).toEqual(['start', 'stopAll', 'start', 'stopAll']);
+  expect(messages.sessionMesgs[0].avgCadence).toBe(85);
+  expect(messages.sessionMesgs[0].totalDistance).toBeCloseTo(20, 0);
+});

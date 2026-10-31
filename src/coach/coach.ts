@@ -10,7 +10,7 @@ import { loadModel, summarizeRide } from './metrics';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, saveState, type CoachState, type Rating } from './state';
 
-const MIN_RAMP_S = 180;
+const MIN_RAMP_S = 480; // 5 Minuten Warmup plus mindestens 3 Minuten Rampe
 const COACH_FTP_MAX_CHANGE = 0.05;
 const COACH_FTP_INTERVAL_MS = 14 * 86_400_000;
 const PROMPT_WINDOW_MS = 28 * 86_400_000;

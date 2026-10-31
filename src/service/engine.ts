@@ -11,11 +11,14 @@ const CADENCE_FLOOR_RPM = 50;
 const AUTO_STEP_PCT = 5;
 const AUTO_MAX_PCT = 20;
 const RAMP_ID = 'ramp-test';
+// Wie Auuki: Pause nach 4 s mit 0 W, weiter ab über 40 W.
+const PAUSE_AFTER_S = 4;
+const RESUME_ABOVE_W = 40;
 
 export type EngineState = {
   stepIndex: number; stepRemainingS: number; rideElapsedS: number;
   targetW: number | null; gradePct: number | null; gear: number | null;
-  label: string; nextLabel: string | null; secondsToNext: number; autoReducedPct: number;
+  label: string; nextLabel: string | null; secondsToNext: number; autoReducedPct: number; paused: boolean;
 };
 export type TrainerCommand = { targetW?: number; gradePct?: number };
 export type EngineOptions = {
@@ -32,6 +35,8 @@ export class RideEngine {
   private autoStep = -1;
   private hrHighS = 0;
   private cadenceLowS = 0;
+  private paused = false;
+  private zeroPowerS = 0;
   private lastMs: number | null = null;
   private lastSent: string | null = null;
   private latest: Required<{ [K in keyof Reading]: number | null }> = { powerW: null, cadenceRpm: null, speedKph: null, hrBpm: null };
@@ -52,9 +57,12 @@ export class RideEngine {
       powerW: reading.powerW ?? null, cadenceRpm: reading.cadenceRpm ?? null,
       speedKph: reading.speedKph ?? null, hrBpm: reading.hrBpm ?? null,
     };
-    this.applyAutoReduction(now, events);
-    this.elapsedS += 1;
-    const targets = this.targets(this.elapsedS - 1);
+    this.updatePause(now, events);
+    if (!this.paused) {
+      this.applyAutoReduction(now, events);
+      this.elapsedS += 1;
+    }
+    const targets = this.targets(Math.max(0, this.paused ? this.elapsedS : this.elapsedS - 1));
     const sample: Sample = {
       seq: this.seq++, wallClockMs: now, rideElapsedS: this.elapsedS, ...this.latest,
       targetW: targets.targetW, gradePct: targets.gradePct, gear: targets.gradePct === null ? null : this.gear,
@@ -88,10 +96,26 @@ export class RideEngine {
       targetW: t.targetW, gradePct: t.gradePct, gear: t.gradePct === null ? null : this.gear,
       label: step.label, nextLabel: next?.label ?? null, secondsToNext: remainingS,
       autoReducedPct: index === this.autoStep ? this.autoPct : 0,
+      paused: this.paused,
     };
   }
 
   isDone(): boolean { return this.elapsedS >= this.totalS(); }
+
+  private updatePause(now: number, events: RideEvent[]): void {
+    const { powerW } = this.latest;
+    this.zeroPowerS = powerW === 0 ? this.zeroPowerS + 1 : 0;
+    if (!this.paused && this.zeroPowerS >= PAUSE_AFTER_S) {
+      this.paused = true;
+      this.hrHighS = 0;
+      this.cadenceLowS = 0;
+      events.push({ wallClockMs: now, type: 'pause' });
+    } else if (this.paused && powerW !== null && powerW > RESUME_ABOVE_W) {
+      this.paused = false;
+      this.zeroPowerS = 0;
+      events.push({ wallClockMs: now, type: 'resume' });
+    }
+  }
 
   /** Entscheidung ohne KI: Puls zu lange über der Grenze oder einbrechende Trittfrequenz. */
   private applyAutoReduction(now: number, events: RideEvent[]): void {

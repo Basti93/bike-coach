@@ -111,3 +111,49 @@ test('trainer writes never overlap', async () => {
   expect(port.writes.at(-1)!.bytes).toEqual([0x05, 0xC8, 0x00]);
   m.stop();
 });
+
+describe('Trainer entzieht die Kontrolle', () => {
+  const reqControl = [0x00];
+  const start = async () => {
+    const port = new FakeBlePort();
+    const m = new DeviceManager(port, { retryMs: 100 });
+    m.start();
+    await vi.advanceTimersByTimeAsync(10);
+    m.setTargetPower(200);
+    await settle();
+    port.writes.length = 0;
+    return { port, m };
+  };
+  test('control not permitted requests control and resends the target', async () => {
+    const { port, m } = await start();
+    port.emitControl(Buffer.from([0x80, 0x05, 0x05]));
+    await settle();
+    expect(port.writes.map((w) => w.bytes[0])).toEqual([reqControl[0], 0x05]);
+    m.stop();
+  });
+  test('machine status control lost does the same', async () => {
+    const { port, m } = await start();
+    port.emitControl(Buffer.from([0xff]));
+    await settle();
+    expect(port.writes[0].bytes).toEqual(reqControl);
+    m.stop();
+  });
+  test('success responses change nothing and repeats are limited', async () => {
+    const { port, m } = await start();
+    port.emitControl(Buffer.from([0x80, 0x05, 0x01]));
+    await settle();
+    expect(port.writes).toEqual([]);
+    port.emitControl(Buffer.from([0xff])); port.emitControl(Buffer.from([0xff]));
+    await settle();
+    expect(port.writes.filter((w) => w.bytes[0] === 0x00)).toHaveLength(1);
+    m.stop();
+  });
+  test('the clicker is not searched until it is supported', async () => {
+    const port = new FakeBlePort(); const spy = vi.spyOn(port, 'connect');
+    const m = new DeviceManager(port, { retryMs: 100 });
+    m.start();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(spy.mock.calls.map(([k]) => k)).not.toContain('clicker');
+    m.stop();
+  });
+});

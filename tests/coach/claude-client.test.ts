@@ -73,3 +73,16 @@ test('is_error without limit text fails', async () => {
   const { bin } = fake(`echo '{"is_error":true,"result":"kaputt"}'`);
   expect(await kind(ask(bin))).toBe('failed');
 });
+
+test('server throttling is not reported as the plan limit', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"result":"Server is temporarily limiting requests (not your usage limit)"}'; exit 1`);
+  expect(await kind(ask(bin))).toBe('failed');
+});
+test('exhausted structured output retries are invalid', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"subtype":"error_max_structured_output_retries","errors":["x"]}'; exit 1`);
+  expect(await kind(ask(bin))).toBe('invalid');
+});
+test('token count 429 on a failing call is not a limit', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"result":"kaputt","usage":{"input_tokens":429}}'; exit 1`);
+  expect(await kind(ask(bin))).toBe('failed');
+});

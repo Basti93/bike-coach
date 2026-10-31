@@ -24,6 +24,7 @@ export const RideView = ({ state, send, compact = false }: { state: StateMessage
       {engine.nextLabel && engine.secondsToNext <= WARN_BEFORE_S && (
         <div role="alert">In {engine.secondsToNext} s: {engine.nextLabel}</div>
       )}
+      {engine.paused && <div role="status">Pause. Tritt an, dann geht es weiter.</div>}
       {!compact && <h2>{engine.label}</h2>}
       {!compact && engine.autoReducedPct > 0 && <p role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</p>}
       <div className="grid">

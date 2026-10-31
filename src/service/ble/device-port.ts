@@ -5,4 +5,6 @@ export interface BlePort {
   subscribe(kind: DeviceKind, cb: (b: Buffer) => void): void;
   write(kind: DeviceKind, b: Buffer): Promise<void>;
   onDisconnect(cb: (kind: DeviceKind) => void): void;
+  /** Antworten des FTMS Control Point und Machine Status des Trainers. */
+  onControl(cb: (b: Buffer) => void): void;
 }

@@ -171,7 +171,7 @@ test('very short ramp attempt does not change FTP', () => {
 });
 test('reaching the ramp ceiling proposes the ramp again with the new FTP', () => {
   const c = make();
-  ride('pa', { session: rampTest(200), power: 300, seconds: rampTest(200).steps.length * 60 });
+  ride('pa', { session: rampTest(200), power: 300, seconds: rampTest(200).steps.reduce((t, x) => t + x.durationS, 0) });
   c.scanRides([A]);
   expect(c.state('pa').ftpW).toBe(225);
   expect(c.state('pa').next.session.id).toBe('ramp-test');

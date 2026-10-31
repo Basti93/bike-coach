@@ -158,3 +158,37 @@ describe('Absenken: Pausen und Anzeige', () => {
     expect(run(e, c, 10, { hrBpm: 180, cadenceRpm: 90 }).sample.targetW).toBe(200);
   });
 });
+describe('Pause', () => {
+  const session: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
+  const setup = () => { const c = clock(); return { c, e: new RideEngine({ session, ftpW: 200, gradePerGear: 0.5, nowMs: c.now }) }; };
+  const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => { const ev: string[] = []; let last; for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); ev.push(...last.events.map((x) => x.type)); } return { last: last!, ev }; };
+  test('zero power for 4 s pauses the clock and the step', () => {
+    const { c, e } = setup();
+    run(e, c, 10, { powerW: 150 });
+    const { ev } = run(e, c, 30, { powerW: 0 });
+    expect(ev).toContain('pause');
+    expect(e.state().paused).toBe(true);
+    expect(e.state().rideElapsedS).toBeLessThanOrEqual(14);
+  });
+  test('samples keep being recorded while paused', () => {
+    const { c, e } = setup();
+    const a = run(e, c, 10, { powerW: 0 }).last.sample.seq;
+    expect(run(e, c, 5, { powerW: 0 }).last.sample.seq).toBe(a + 5);
+  });
+  test('more than 40 W resumes where it stopped', () => {
+    const { c, e } = setup();
+    run(e, c, 10, { powerW: 0 });
+    const at = e.state().rideElapsedS;
+    expect(run(e, c, 3, { powerW: 20 }).last.sample.rideElapsedS).toBe(at);
+    const { ev } = run(e, c, 1, { powerW: 100 });
+    expect(ev).toContain('resume');
+    expect(e.state().paused).toBe(false);
+    expect(e.state().rideElapsedS).toBe(at + 1);
+  });
+  test('missing power never pauses', () => {
+    const { c, e } = setup();
+    run(e, c, 30, {});
+    expect(e.state().paused).toBe(false);
+    expect(e.state().rideElapsedS).toBe(30);
+  });
+});

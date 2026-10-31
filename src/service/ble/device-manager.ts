@@ -6,7 +6,10 @@ export type Reading = { powerW?: number; cadenceRpm?: number; speedKph?: number;
 export type DeviceStatus = Record<DeviceKind, 'connected' | 'searching'>;
 type TrainerCommand = { kind: 'power'; w: number } | { kind: 'grade'; pct: number };
 
-const KINDS: DeviceKind[] = ['trainer', 'hr', 'clicker'];
+// Der Clicker fehlt bewusst: Das Protokoll hängt vom Modell ab und ist noch nicht eingebaut.
+const KINDS: DeviceKind[] = ['trainer', 'hr'];
+const CONTROL_RETRY_MS = 2000;
+const RESULT_NOT_PERMITTED = 0x05;
 
 export class DeviceManager {
   private status: DeviceStatus = { trainer: 'searching', hr: 'searching', clicker: 'searching' };
@@ -20,12 +23,14 @@ export class DeviceManager {
   private writeRetryMs: number;
   private pendingCommand: TrainerCommand | null = null;
   private pumping = false;
+  private lastControlRequestMs = -Infinity;
 
   constructor(private port: BlePort, opts: { retryMs?: number; writeRetryMs?: number } = {}) {
     this.retryMs = opts.retryMs ?? 2000;
     this.writeRetryMs = opts.writeRetryMs ?? 500;
     port.subscribe('trainer', (b) => this.safely(() => this.readingCb(parseIndoorBikeData(b))));
     port.subscribe('hr', (b) => this.safely(() => this.readingCb({ hrBpm: parseHeartRate(b) })));
+    port.onControl((b) => this.safely(() => this.handleControl(b)));
     port.onDisconnect((kind) => {
       this.setStatus(kind, 'searching');
       this.schedule(kind);
@@ -76,6 +81,18 @@ export class DeviceManager {
     } finally {
       this.pumping = false;
     }
+  }
+
+  /** Hat der Trainer uns die Kontrolle entzogen, wirkte die Vorgabe sonst bis zum nächsten Abschnitt nicht. */
+  private handleControl(b: Buffer): void {
+    const lost = b[0] === 0xff || (b[0] === 0x80 && b[2] === RESULT_NOT_PERMITTED);
+    const now = Date.now();
+    if (!lost || now - this.lastControlRequestMs < CONTROL_RETRY_MS) return;
+    this.lastControlRequestMs = now;
+    void this.writeTrainer(encodeRequestControl()).then(() => {
+      this.pendingCommand = this.lastCommand;
+      return this.pump();
+    });
   }
 
   private wait(ms: number): Promise<void> {

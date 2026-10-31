@@ -35,10 +35,11 @@ test('hard yesterday leads to something easy, rested leads to intervals', () => 
 test('ramp starts at 50 % FTP, rises 1 min per step and ends at 150 %', () => {
   const r = rampTest(200);
   expect(r.id).toBe('ramp-test');
-  const f = r.steps.map((s) => (s.kind === 'erg' ? s.ftpFraction : 0));
+  const ramp = r.steps.slice(1);
+  const f = ramp.map((s) => (s.kind === 'erg' ? s.ftpFraction : 0));
   expect(f[0]).toBe(0.5);
   expect(f.at(-1)).toBeCloseTo(1.5);
-  expect(r.steps.every((s) => s.durationS === 60)).toBe(true);
+  expect(ramp.every((s) => s.durationS === 60)).toBe(true);
   expect(f.every((x, i) => i === 0 || x > f[i - 1])).toBe(true);
 });
 test('ftp from ramp is 75 % of best minute', () => {
@@ -83,4 +84,10 @@ test('ramp test cannot be adjusted', () => {
 test('a beginner with only one ride gets no intervals', () => {
   const s = ruleBasedSession(ctx([past(2.5, { sessionId: 'ramp-test', intensityFactor: 0.75, tss: 30, durationS: 900 })]));
   expect(s.session.steps.every((x) => x.kind === 'erg' && x.ftpFraction <= 0.75)).toBe(true);
+});
+
+test('ramp test starts with a five minute warmup', () => {
+  const s = rampTest(200);
+  expect(s.steps[0]).toMatchObject({ kind: 'erg', durationS: 300, label: 'Warmup' });
+  expect(s.steps[1].label).toBe('Rampe 50 %');
 });

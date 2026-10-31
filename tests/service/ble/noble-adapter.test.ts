@@ -57,3 +57,35 @@ test('drop during discovery fails the connect so it is retried, and frees the sc
   expect(lost).toEqual([]);
   expect(n.scans).toBe(0);
 });
+
+test('a hanging connect times out, disconnects and frees the queue', async () => {
+  const n = fakeNoble();
+  const port = new NobleBlePort(dir(), n, { connectTimeoutMs: 20 });
+  const disconnect = vi.fn(async () => {});
+  n.startScanningAsync = async () => {
+    const p = peripheral('1826');
+    p.connectAsync = () => new Promise(() => {});
+    p.disconnectAsync = disconnect;
+    setTimeout(() => n.emit('discover', p), 1);
+  };
+  await expect(port.connect('trainer')).rejects.toThrow();
+  expect(disconnect).toHaveBeenCalled();
+});
+test('control responses and machine status reach the control callback', async () => {
+  const n = fakeNoble();
+  const port = new NobleBlePort(dir(), n);
+  const got: number[][] = [];
+  port.onControl((b) => got.push([...b]));
+  const writer: any = Object.assign(new EventEmitter(), { uuid: '2ad9', subscribeAsync: async () => {} });
+  const status: any = Object.assign(new EventEmitter(), { uuid: '2ada', subscribeAsync: async () => {} });
+  const data: any = Object.assign(new EventEmitter(), { uuid: '2ad2', subscribeAsync: async () => {} });
+  n.startScanningAsync = async () => {
+    const p = peripheral('1826');
+    p.discoverSomeServicesAndCharacteristicsAsync = async () => ({ characteristics: [data, writer, status] });
+    setTimeout(() => n.emit('discover', p), 1);
+  };
+  await port.connect('trainer');
+  writer.emit('data', Buffer.from([0x80, 0x05, 0x05]));
+  status.emit('data', Buffer.from([0xff]));
+  expect(got).toEqual([[0x80, 0x05, 0x05], [0xff]]);
+});
