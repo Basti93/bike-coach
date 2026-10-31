@@ -11,11 +11,15 @@ type Options = { port?: number; devOrigin?: string; retryMs?: number };
  * damit keine fremde Webseite eine laufende Fahrt beenden kann.
  * Ein belegter Port wird erneut versucht; die Aufzeichnung läuft auch ohne Oberfläche.
  */
+export const originAllowed = (devOrigin?: string) => {
+  const allowed = new Set([undefined, 'file://', 'null', devOrigin]);
+  return ({ origin }: { origin?: string }): boolean => allowed.has(origin);
+};
+
 export const startWsServer = (service: RideService, opts: Options = {}): Server => {
   const port = opts.port ?? SERVICE_PORT;
-  const allowed = new Set([undefined, 'file://', 'null', opts.devOrigin]);
   const http = createServer();
-  const wss = new WebSocketServer({ server: http, verifyClient: ({ origin }: { origin?: string }) => allowed.has(origin) });
+  const wss = new WebSocketServer({ server: http, verifyClient: originAllowed(opts.devOrigin) });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listen = () => http.listen(port, '127.0.0.1');
   http.on('error', () => { timer = setTimeout(listen, opts.retryMs ?? 2000); });

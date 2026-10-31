@@ -25,3 +25,17 @@ test('lists rides per profile with latest status', async () => {
   await a.inject({ method: 'PUT', url: '/rides/r/meta', headers: auth, payload: { ...meta, status: 'finished' } });
   expect((await a.inject({ url: '/profiles/p/rides', headers: auth })).json()).toEqual([{ ...meta, status: 'finished' }]);
 });
+test('coach state is stored and returned, latest wins', async () => {
+  const a = app();
+  await a.inject({ method: 'PUT', url: '/profiles/p/coach', headers: auth, payload: { ftpW: 100 } });
+  await a.inject({ method: 'PUT', url: '/profiles/p/coach', headers: auth, payload: { ftpW: 120 } });
+  expect((await a.inject({ url: '/profiles/p/coach', headers: auth })).json()).toEqual({ ftpW: 120 });
+});
+test('coach route needs the token', async () => {
+  const a = app();
+  expect((await a.inject({ method: 'PUT', url: '/profiles/p/coach', payload: {} })).statusCode).toBe(401);
+  expect((await a.inject({ url: '/profiles/p/coach' })).statusCode).toBe(401);
+});
+test('unknown coach state is an empty object', async () => {
+  expect((await app().inject({ url: '/profiles/x/coach', headers: auth })).json()).toEqual({});
+});

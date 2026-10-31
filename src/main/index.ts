@@ -6,28 +6,29 @@ import { openFilmWindow } from './film-window';
 let blocker: number | null = null;
 let riding = false;
 let quitting = false;
-let failures = 0;
 const STABLE_RUN_MS = 60_000;
 
-/** Der Fahrdienst läuft unabhängig von den Fenstern und wird nach jedem Absturz sofort neu gestartet. */
-export const startService = (): UtilityProcess => {
+/** Fahrdienst und Coach laufen unabhängig von den Fenstern und voneinander, und jeder startet nach einem Absturz neu. */
+const supervise = (file: string, onMessage?: (m: { riding?: boolean }) => void, failures = { count: 0 }): UtilityProcess => {
   const startedAt = Date.now();
-  const child = utilityProcess.fork(path.join(__dirname, 'service.js'), [], {
-    env: { ...process.env, BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides') },
+  const child = utilityProcess.fork(path.join(__dirname, file), [], {
+    env: { ...process.env, BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides'), BIKE_COACH_DIR: path.join(app.getPath('userData'), 'coach') },
     stdio: 'inherit',
   });
-  child.on('message', (m: { riding?: boolean }) => {
-    if (typeof m.riding !== 'boolean') return;
-    riding = m.riding;
-    if (riding && blocker === null) blocker = powerSaveBlocker.start('prevent-display-sleep');
-    if (!riding && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
-  });
+  if (onMessage) child.on('message', onMessage);
   child.on('exit', () => {
     if (quitting) return;
-    failures = Date.now() - startedAt > STABLE_RUN_MS ? 0 : failures + 1;
-    setTimeout(startService, restartDelayMs(failures));
+    failures.count = Date.now() - startedAt > STABLE_RUN_MS ? 0 : failures.count + 1;
+    setTimeout(() => supervise(file, onMessage, failures), restartDelayMs(failures.count));
   });
   return child;
+};
+
+const onServiceMessage = (m: { riding?: boolean }): void => {
+  if (typeof m.riding !== 'boolean') return;
+  riding = m.riding;
+  if (riding && blocker === null) blocker = powerSaveBlocker.start('prevent-display-sleep');
+  if (!riding && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
 };
 
 const openMain = (): void => {
@@ -49,7 +50,8 @@ app.on('second-instance', () => {
 });
 
 void app.whenReady().then(() => {
-  startService();
+  supervise('service.js', onServiceMessage);
+  supervise('coach.js');
   openMain();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) openMain(); });
 });
