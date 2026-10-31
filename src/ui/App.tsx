@@ -39,7 +39,7 @@ export const App = () => {
     const calm = c !== null && !state.engine.paused
       && (state.engine.gradePct !== null ? state.engine.gradePct <= CALM_GRADE : (state.engine.targetW ?? Infinity) <= c.ftpW * CALM_FRACTION)
       && !(maxHr && (state.latest.hrBpm ?? 0) >= maxHr);
-    return <>{notice}{dialog}<RideView state={state} send={send} extra={calm && c ? <WordCard state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
+    return <>{notice}{dialog}<RideView state={state} send={send} extra={c ? <WordCard calm={calm} state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
   }
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
   return (

@@ -18,7 +18,7 @@ const speak = (text: string): void => {
 };
 
 /** Vokabeln in ruhigen Phasen: Niederländisch hören, Deutsch sehen, per Klick oder Taste J/N antworten. */
-export const WordCard = ({ state, send, click }: { state: CoachState; send: (m: CoachClientMessage) => void; click: { dir: 'up' | 'down'; n: number } | null }) => {
+export const WordCard = ({ calm, state, send, click }: { calm: boolean; state: CoachState; send: (m: CoachClientMessage) => void; click: { dir: 'up' | 'down'; n: number } | null }) => {
   const [phase, setPhase] = useState<Phase>('ask');
   const [word, setWord] = useState<Word | null>(() => nextWord(DUTCH_WORDS, state.wordProgress ?? {}, Date.now()));
   const [sound, setSound] = useState(true);
@@ -32,13 +32,16 @@ export const WordCard = ({ state, send, click }: { state: CoachState; send: (m: 
   };
   // Erst abrufen, dann aufdecken: Das Nachdenken ist der Teil, der beim Lernen wirkt.
   const answer = (knew: boolean) => {
-    if (phase !== 'reveal' || !word) return;
+    if (!calm || phase !== 'reveal' || !word) return;
     send({ type: 'word-result', profileId: state.profileId, nl: word.nl, knew });
     finish();
   };
 
   useEffect(() => {
-    if (hidden) return undefined;
+    if (hidden || !calm) {
+      window.speechSynthesis?.cancel();
+      return undefined;
+    }
     if (phase === 'ask' && word && sound) speak(word.nl);
     if (phase === 'reveal' && word && sound) speak(word.example);
     const after = phase === 'ask' ? ASK_MS : phase === 'reveal' ? ANSWER_MS : GAP_MS;
@@ -52,7 +55,7 @@ export const WordCard = ({ state, send, click }: { state: CoachState; send: (m: 
     }, after);
     return () => clearTimeout(timer);
     // Der Ablauf hängt nur an Phase und Wort, neue Coach-Stände sollen ihn nicht neu starten.
-  }, [phase, word, hidden, sound]);
+  }, [phase, word, hidden, sound, calm]);
 
   useEffect(() => {
     if (click && click.n !== seenClick.current) {
@@ -69,7 +72,7 @@ export const WordCard = ({ state, send, click }: { state: CoachState; send: (m: 
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  if (hidden || !word || phase === 'gap') return null;
+  if (!calm || hidden || !word || phase === 'gap') return null;
   return (
     <aside className="word" aria-live="polite">
       <div className="word-text">
