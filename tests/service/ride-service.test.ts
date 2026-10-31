@@ -92,3 +92,12 @@ test('lost trainer clears readings and logs device events', () => {
     resolve();
   }, 20));
 });
+test('profiles persist across service restarts', () => {
+  const first = make();
+  first.handle({ type: 'save-profile', profile: { id: 'p1', name: 'Anna', ftpW: 150 } });
+  out = [];
+  const svc = make();
+  t += 1000; svc.tick();
+  const state = out.find((m) => m.type === 'state');
+  expect(state && state.type === 'state' && state.profiles).toEqual([{ id: 'p1', name: 'Anna', ftpW: 150 }]);
+});

@@ -1,0 +1,16 @@
+:root { font-family: -apple-system, sans-serif; color: #f4f4f5; background: #111317; }
+body { margin: 0; }
+button { font: inherit; padding: .6rem 1rem; border: 0; border-radius: .5rem; background: #2a7de1; color: #fff; cursor: pointer; }
+button.secondary { background: #30343c; }
+main { padding: 1.5rem; max-width: 900px; margin: auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1rem 0; }
+.tile { background: #1c1f26; padding: 1rem; border-radius: .75rem; }
+.tile b { display: block; font-size: 2.6rem; font-variant-numeric: tabular-nums; }
+.film .tile b { font-size: 1.5rem; }
+.film { padding: .4rem; }
+.film .grid { grid-template-columns: 1fr 1fr; gap: .4rem; margin: .4rem 0; }
+.film .tile { padding: .4rem; }
+[role=alert] { background: #b45309; padding: .6rem 1rem; border-radius: .5rem; font-weight: 600; }
+[role=dialog] { background: #1c1f26; padding: 1.5rem; border-radius: .75rem; margin-bottom: 1rem; }
+.row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+input { font: inherit; padding: .5rem; border-radius: .4rem; border: 0; }

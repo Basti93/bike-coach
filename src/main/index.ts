@@ -23,12 +23,12 @@ export const startService = (): UtilityProcess => {
 };
 
 const openMain = (): void => {
-  const win = new BrowserWindow({ width: 1200, height: 800, title: 'Bike Coach', webPreferences: { preload: path.join(__dirname, '../preload/index.mjs') } });
+  const win = new BrowserWindow({ width: 1200, height: 800, title: 'Bike Coach' });
   const url = process.env.ELECTRON_RENDERER_URL;
   if (url) void win.loadURL(url);
   else void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   win.webContents.setWindowOpenHandler(({ url: u }) => {
-    if (u.includes('film')) { openFilmWindow(u); return { action: 'deny' }; }
+    if (u.endsWith('#film')) { openFilmWindow(u); return { action: 'deny' }; }
     return { action: 'deny' };
   });
 };

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Profile } from '../shared/profiles';
 import type { ClientMessage, ServerMessage } from '../shared/protocol';
 import { parseSession, type Session } from '../shared/session';
 import { DeviceManager, type DeviceStatus, type Reading } from './ble/device-manager';
@@ -87,6 +88,14 @@ export class RideService {
       case 'resume': if (a) { a.recovered = false; } return;
       case 'discard-resume': if (a && a.recorder.getMeta().rideId === msg.rideId) this.end('aborted'); return;
       case 'export-fit': return;
+      case 'save-profile': {
+        const others = this.profiles().filter((x) => x.id !== msg.profile.id);
+        const file = path.join(this.deps.dir, 'profiles.json');
+        fs.writeFileSync(`${file}.tmp`, JSON.stringify([...others, msg.profile]));
+        fs.renameSync(`${file}.tmp`, file);
+        this.broadcastState();
+        return;
+      }
     }
   }
 
@@ -103,6 +112,10 @@ export class RideService {
         wallClockMs: this.deps.nowMs(), type: status[kind] === 'searching' ? 'device-lost' : 'device-back', detail: kind,
       });
     }
+  }
+
+  private profiles(): Profile[] {
+    try { return JSON.parse(fs.readFileSync(path.join(this.deps.dir, 'profiles.json'), 'utf8')) as Profile[]; } catch { return []; }
   }
 
   private newEngine(session: Session, ftpW: number, extra: { resumeAtS?: number; startSeq?: number } = {}): RideEngine {
@@ -150,7 +163,7 @@ export class RideService {
     this.broadcast({
       type: 'state', ride: a?.recorder.getMeta() ?? null, engine: a?.engine.state() ?? null,
       devices: this.devices.getStatus(), latest: this.latest,
-      storageError: a?.recorder.hasStorageError() ?? false, recovered: a?.recovered ?? false,
+      storageError: a?.recorder.hasStorageError() ?? false, recovered: a?.recovered ?? false, profiles: this.profiles(),
     });
   }
   private broadcast(m: ServerMessage): void { for (const cb of this.subs) this.guard(() => cb(m)); }
