@@ -96,10 +96,10 @@ export class RideService {
           rideId, profileId: msg.profileId, sessionId: session.id, startedAtMs: this.deps.nowMs(), status: 'open',
         }, this.deps.recorderFs);
         const sessionFile = path.join(this.deps.dir, rideId, 'session.json');
-        fs.writeFileSync(`${sessionFile}.tmp`, JSON.stringify({ session, ftpW: msg.ftpW }));
+        fs.writeFileSync(`${sessionFile}.tmp`, JSON.stringify({ session, ftpW: msg.ftpW, maxHrBpm: msg.maxHrBpm }));
         fs.renameSync(`${sessionFile}.tmp`, sessionFile);
         this.guard(() => this.deps.onRideStart?.());
-        this.setActive({ recorder, engine: this.newEngine(session, msg.ftpW), session, ftpW: msg.ftpW, recovered: false });
+        this.setActive({ recorder, engine: this.newEngine(session, msg.ftpW, { maxHrBpm: msg.maxHrBpm }), session, ftpW: msg.ftpW, recovered: false });
         return;
       }
       case 'shift': a?.engine.shift(msg.dir); return;
@@ -149,7 +149,7 @@ export class RideService {
     try { return JSON.parse(fs.readFileSync(path.join(this.deps.dir, 'profiles.json'), 'utf8')) as Profile[]; } catch { return []; }
   }
 
-  private newEngine(session: Session, ftpW: number, extra: { resumeAtS?: number; startSeq?: number } = {}): RideEngine {
+  private newEngine(session: Session, ftpW: number, extra: { resumeAtS?: number; startSeq?: number; maxHrBpm?: number } = {}): RideEngine {
     return new RideEngine({ session, ftpW, gradePerGear: this.deps.gradePerGear ?? DEFAULT_GRADE_PER_GEAR, nowMs: this.deps.nowMs, ...extra });
   }
 
@@ -160,9 +160,9 @@ export class RideService {
     for (const old of others) this.guard(() => { RideRecorder.open(this.deps.dir, old.rideId).finish('aborted'); });
     if (!meta) return;
     const recorder = RideRecorder.open(this.deps.dir, meta.rideId, this.deps.recorderFs);
-    let stored: { session: Session; ftpW: number };
+    let stored: { session: Session; ftpW: number; maxHrBpm?: number };
     try {
-      stored = JSON.parse(fs.readFileSync(path.join(this.deps.dir, meta.rideId, 'session.json'), 'utf8')) as { session: Session; ftpW: number };
+      stored = JSON.parse(fs.readFileSync(path.join(this.deps.dir, meta.rideId, 'session.json'), 'utf8')) as typeof stored;
     } catch {
       recorder.finish('aborted'); // Einheit unbekannt: Die Daten bleiben erhalten, weiterfahren geht nicht.
       return;
@@ -177,7 +177,7 @@ export class RideService {
     }
     recorder.event({ wallClockMs: now, type: 'resumed', detail: `${point.resumeAtS}` });
     this.setActive({
-      recorder, engine: this.newEngine(stored.session, stored.ftpW, point), session: stored.session, ftpW: stored.ftpW,
+      recorder, engine: this.newEngine(stored.session, stored.ftpW, { ...point, maxHrBpm: stored.maxHrBpm }), session: stored.session, ftpW: stored.ftpW,
       recovered: true, paused: now - lastMs > LONG_DOWNTIME_MS,
     });
   }

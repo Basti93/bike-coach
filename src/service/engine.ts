@@ -5,6 +5,12 @@ import type { Reading } from './ble/device-manager';
 import { effectiveGrade, MAX_GEAR, MIN_GEAR, NEUTRAL_GEAR } from './gears';
 
 const GAP_THRESHOLD_MS = 5000;
+const HR_HOLD_S = 30;
+const CADENCE_HOLD_S = 20;
+const CADENCE_FLOOR_RPM = 50;
+const AUTO_STEP_PCT = 5;
+const AUTO_MAX_PCT = 20;
+const RAMP_ID = 'ramp-test';
 
 export type EngineState = {
   stepIndex: number; stepRemainingS: number; rideElapsedS: number;
@@ -13,7 +19,7 @@ export type EngineState = {
 };
 export type TrainerCommand = { targetW?: number; gradePct?: number };
 export type EngineOptions = {
-  session: Session; ftpW: number; gradePerGear: number; resumeAtS?: number; startSeq?: number; nowMs: () => number;
+  session: Session; ftpW: number; gradePerGear: number; resumeAtS?: number; startSeq?: number; nowMs: () => number; maxHrBpm?: number;
 };
 
 export class RideEngine {
@@ -22,6 +28,10 @@ export class RideEngine {
   private gear = NEUTRAL_GEAR;
   private adjustPct = 0;
   private adjustedStep = -1;
+  private autoPct = 0;
+  private autoStep = -1;
+  private hrHighS = 0;
+  private cadenceLowS = 0;
   private lastMs: number | null = null;
   private lastSent: string | null = null;
   private latest: Required<{ [K in keyof Reading]: number | null }> = { powerW: null, cadenceRpm: null, speedKph: null, hrBpm: null };
@@ -42,6 +52,7 @@ export class RideEngine {
       powerW: reading.powerW ?? null, cadenceRpm: reading.cadenceRpm ?? null,
       speedKph: reading.speedKph ?? null, hrBpm: reading.hrBpm ?? null,
     };
+    this.applyAutoReduction(now, events);
     this.elapsedS += 1;
     const targets = this.targets(this.elapsedS - 1);
     const sample: Sample = {
@@ -81,6 +92,24 @@ export class RideEngine {
 
   isDone(): boolean { return this.elapsedS >= this.totalS(); }
 
+  /** Entscheidung ohne KI: Puls zu lange über der Grenze oder einbrechende Trittfrequenz. */
+  private applyAutoReduction(now: number, events: RideEvent[]): void {
+    const { step, index } = this.position(this.elapsedS);
+    if (step.kind !== 'erg' || this.opts.session.id === RAMP_ID) return;
+    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; }
+    const { hrBpm, cadenceRpm } = this.latest;
+    const limit = this.opts.maxHrBpm;
+    this.hrHighS = limit !== undefined && hrBpm !== null && hrBpm > limit ? this.hrHighS + 1 : 0;
+    this.cadenceLowS = cadenceRpm !== null && cadenceRpm < CADENCE_FLOOR_RPM ? this.cadenceLowS + 1 : 0;
+    const cause = this.hrHighS > HR_HOLD_S - 1 ? 'hr' : this.cadenceLowS > CADENCE_HOLD_S - 1 ? 'cadence' : null;
+    if (!cause) return;
+    this.hrHighS = 0;
+    this.cadenceLowS = 0;
+    if (this.autoPct >= AUTO_MAX_PCT) return;
+    this.autoPct += AUTO_STEP_PCT;
+    events.push({ wallClockMs: now, type: 'target-adjust', detail: `auto:${cause}` });
+  }
+
   private totalS(): number { return this.opts.session.steps.reduce((sum, s) => sum + s.durationS, 0); }
 
   private position(atS: number): { step: Step; index: number; remainingS: number } {
@@ -100,7 +129,8 @@ export class RideEngine {
       return { targetW: null, gradePct: effectiveGrade(step.gradePct, step.scale, this.gear, this.opts.gradePerGear) };
     }
     const base = step.ftpFraction * this.opts.ftpW;
-    const factor = index === this.adjustedStep ? 1 + this.adjustPct / 100 : 1;
+    const manual = index === this.adjustedStep ? 1 + this.adjustPct / 100 : 1;
+    const factor = manual * (index === this.autoStep ? 1 - this.autoPct / 100 : 1);
     return { targetW: Math.round(clampTargetW(base * factor, this.opts.ftpW)), gradePct: null };
   }
 }

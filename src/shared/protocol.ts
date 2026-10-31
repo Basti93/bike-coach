@@ -5,7 +5,7 @@ import type { Profile } from './profiles';
 import type { Session } from './session';
 
 export type ClientMessage =
-  | { type: 'start'; profileId: string; session: Session; ftpW: number }
+  | { type: 'start'; profileId: string; session: Session; ftpW: number; maxHrBpm?: number }
   | { type: 'shift'; dir: 'up' | 'down' }
   | { type: 'adjust'; deltaPct: number }
   | { type: 'mark'; note?: string }

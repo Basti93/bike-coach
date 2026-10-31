@@ -86,3 +86,54 @@ test('a new step does not inherit an earlier adjustment', () => {
   e.adjustTarget(5);
   expect(run(e, c, 1).sample.targetW).toBe(105);
 });
+describe('Absenken während der Fahrt', () => {
+  const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
+  const auto = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170, ...extra });
+  const feed = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => {
+    let last; const events: string[] = [];
+    for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); events.push(...last.events.map((x) => `${x.type}:${x.detail}`)); }
+    return { last: last!, events };
+  };
+  test('heart rate above limit for 30 s lowers target by 5 %', () => {
+    const c = clock(); const e = auto(c);
+    expect(feed(e, c, 29, { hrBpm: 175, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
+    const { last, events } = feed(e, c, 2, { hrBpm: 175, cadenceRpm: 90 });
+    expect(last.sample.targetW).toBe(190);
+    expect(events).toContain('target-adjust:auto:hr');
+  });
+  test('short spike does nothing', () => {
+    const c = clock(); const e = auto(c);
+    feed(e, c, 20, { hrBpm: 175, cadenceRpm: 90 });
+    feed(e, c, 5, { hrBpm: 150, cadenceRpm: 90 });
+    expect(feed(e, c, 20, { hrBpm: 175, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
+  });
+  test('cadence collapse lowers target', () => {
+    const c = clock(); const e = auto(c);
+    const { last, events } = feed(e, c, 21, { cadenceRpm: 40 });
+    expect(last.sample.targetW).toBe(190);
+    expect(events).toContain('target-adjust:auto:cadence');
+  });
+  test('reduction stops at 20 %', () => {
+    const c = clock(); const e = auto(c);
+    expect(feed(e, c, 500, { hrBpm: 190, cadenceRpm: 90 }).last.sample.targetW).toBe(160);
+  });
+  test('missing readings never reduce', () => {
+    const c = clock(); const e = auto(c);
+    expect(feed(e, c, 200, {}).last.sample.targetW).toBe(200);
+  });
+  test('no pulse limit means no pulse reduction', () => {
+    const c = clock(); const e = auto(c, { maxHrBpm: undefined });
+    expect(feed(e, c, 100, { hrBpm: 200, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
+  });
+  test('ramp test is never reduced', () => {
+    const c = clock();
+    const e = new RideEngine({ session: { ...long, id: 'ramp-test' }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    expect(feed(e, c, 100, { hrBpm: 190, cadenceRpm: 30 }).last.sample.targetW).toBe(200);
+  });
+  test('a new step starts without the reduction', () => {
+    const c = clock();
+    const e = new RideEngine({ session: { ...long, steps: [{ ...long.steps[0], durationS: 40 }, { ...long.steps[0], durationS: 100 }] }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    feed(e, c, 35, { hrBpm: 190, cadenceRpm: 90 });
+    expect(feed(e, c, 6, { hrBpm: 150, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
+  });
+});
