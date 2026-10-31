@@ -1,0 +1,62 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { askClaude, ClaudeError, findClaude } from '../../src/coach/claude-client';
+
+const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'claude-'));
+const fake = (body: string) => {
+  const d = dir();
+  const bin = path.join(d, 'claude');
+  fs.writeFileSync(bin, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  return { bin, d };
+};
+const ask = (bin: string, timeoutMs?: number) => askClaude({ prompt: 'p', systemPrompt: 's', schema: { type: 'object' }, workDir: dir(), bin, timeoutMs });
+const kind = async (p: Promise<unknown>) => { try { await p; return 'ok'; } catch (e) { return (e as ClaudeError).kind; } };
+
+test('returns structured_output', async () => {
+  const { bin } = fake(`echo '{"result":"","structured_output":{"a":1}}'`);
+  expect(await ask(bin)).toEqual({ a: 1 });
+});
+test('never passes --bare, disables tools and closes stdin', async () => {
+  const { bin, d } = fake(`echo "$@" > ${'$'}(dirname "$0")/args; cat > ${'$'}(dirname "$0")/stdin; echo '{"structured_output":{}}'`);
+  await ask(bin);
+  const args = fs.readFileSync(path.join(d, 'args'), 'utf8');
+  expect(args).not.toContain('--bare');
+  expect(args).toContain('-p');
+  expect(args).toContain('--tools');
+  expect(args).toContain('--json-schema');
+  expect(args).toContain('--no-session-persistence');
+  expect(fs.readFileSync(path.join(d, 'stdin'), 'utf8')).toBe('');
+});
+test('kills the process at the timeout and reports timeout', async () => {
+  const { bin } = fake('sleep 30');
+  const start = Date.now();
+  expect(await kind(ask(bin, 100))).toBe('timeout');
+  expect(Date.now() - start).toBeLessThan(3000);
+});
+test('rate limit output is reported as limit', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"result":"You have hit your usage limit"}'; exit 1`);
+  expect(await kind(ask(bin))).toBe('limit');
+});
+test('missing structured_output is reported as invalid', async () => {
+  const { bin } = fake(`echo '{"result":"nur Text"}'`);
+  expect(await kind(ask(bin))).toBe('invalid');
+});
+test('garbage output is reported as invalid', async () => {
+  const { bin } = fake('echo hallo');
+  expect(await kind(ask(bin))).toBe('invalid');
+});
+test('non-zero exit is reported as failed', async () => {
+  const { bin } = fake('echo kaputt >&2; exit 3');
+  expect(await kind(ask(bin))).toBe('failed');
+});
+test('unstartable binary is reported as missing, not thrown from spawn', async () => {
+  expect(await kind(ask('/nicht/da/claude'))).toBe('missing');
+});
+test('findClaude uses the login shell result', async () => {
+  expect(await findClaude(async () => '/opt/x/claude\n')).toBe('/opt/x/claude');
+});
+test('findClaude reports missing when the shell finds nothing', async () => {
+  expect(await kind(findClaude(async () => ''))).toBe('missing');
+  expect(await kind(findClaude(async () => { throw new Error('x'); }))).toBe('missing');
+});

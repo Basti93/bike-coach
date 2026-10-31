@@ -12,6 +12,7 @@
     "test": "vitest run --exclude 'tests/chaos/**'",
     "test:chaos": "vitest run tests/chaos",
     "typecheck": "tsc --noEmit",
+    "coach:check": "tsx scripts/coach-check.ts",
     "live:adjust": "tsx scripts/live-adjust.ts",
     "live:mark": "tsx scripts/live-mark.ts",
     "live:undo": "tsx scripts/live-undo.ts"
