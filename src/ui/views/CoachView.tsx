@@ -6,6 +6,7 @@ import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
 import { rampTest } from '../../coach/rules';
+import { SessionFacts, StepList, TrainingCard } from './TrainingCard';
 import { WorkoutBar } from './WorkoutBar';
 
 const NOTICE: Record<string, string> = {
@@ -22,7 +23,7 @@ const KEPT: Record<string, string> = {
   invalid: 'Der letzte Vorschlag von Claude passte nicht zu den Leitplanken. Die Einheit bleibt.',
   failed: 'Claude war gerade nicht erreichbar. Die Einheit bleibt, der Coach versucht es später erneut.',
 };
-const minutes = (s: Session) => Math.round(s.steps.reduce((a, x) => a + x.durationS, 0) / 60);
+type Choice = { session: Session; why: string; tag: string };
 
 type Props = {
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
@@ -31,6 +32,7 @@ type Props = {
 
 export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, sendCoach, onBack }: Props) => {
   const [note, setNote] = useState('');
+  const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
   const start = (session: Session) => sendRide({ type: 'start', profileId: profile.id, session, ftpW, ...(profile.maxHrBpm ? { maxHrBpm: profile.maxHrBpm } : {}) });
   const next = state?.next;
@@ -41,7 +43,13 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
     sendCoach({ type: 'note', profileId: profile.id, text: note.trim() });
     setNote('');
   };
-  const total = next ? minutes(next.session) : 0;
+  const library: Choice[] = [
+    ...(state?.alternatives ?? []).map((a) => ({ session: a.session, why: a.why, tag: 'Vom Coach' })),
+    ...STARTER_SESSIONS.map((session) => ({ session, why: session.description ?? '', tag: 'Standard' })),
+    ...(isRamp ? [] : [{ session: rampTest(ftpW), why: 'Misst deine FTP genauer als die Schätzung. Bis du nicht mehr kannst.', tag: 'Test' }]),
+  ];
+  const shown = picked ?? (next ? { session: next.session, why: next.reason, tag: '' } : null);
+  const shownRamp = shown?.session.id === 'ramp-test';
   return (
     <main>
       <div className="top">
@@ -51,20 +59,22 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
       <div className="coach">
         <div className="stack">
-          {next && (
+          {shown && (
             <section className="card next">
-              <h3>Deine nächste Einheit</h3>
-              <h2>{next.session.name}</h2>
-              <p className="muted">{isRamp ? `bis zu ${total} Minuten` : `${total} Minuten`} · FTP {ftpW} W</p>
-              <WorkoutBar session={next.session} />
-              <p>{next.reason}</p>
-              {isRamp && <p className="muted">Nach dem Warmup wird es jede Minute schwerer. Fahre, bis es nicht mehr geht, und drücke dann „Beenden“. Das Ergebnis wird gespeichert.</p>}
-              {state.lastError && <p className="notice" role="status">{next.source === 'rules' ? NOTICE[state.lastError] : KEPT[state.lastError]}</p>}
-              {thinking && <p className="muted">Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
+              <h3>{picked ? 'Deine Auswahl' : 'Deine nächste Einheit'}</h3>
+              <h2>{shown.session.name}</h2>
+              <WorkoutBar session={shown.session} />
+              <SessionFacts session={shown.session} ftpW={ftpW} />
+              <p>{shown.why}</p>
+              {shownRamp && <p className="muted">Nach dem Warmup wird es jede Minute schwerer. Fahre, bis es nicht mehr geht, und drücke dann „Beenden“. Das Ergebnis wird gespeichert.</p>}
+              {!picked && state?.lastError && <p className="notice" role="status">{next?.source === 'rules' ? NOTICE[state.lastError] : KEPT[state.lastError]}</p>}
+              {!picked && thinking && <p className="muted">Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
+              <StepList session={shown.session} ftpW={ftpW} />
               <div className="row">
-                <button className="go" onClick={() => start(next.session)}>Los</button>
-                {isRamp && <button className="secondary" onClick={() => sendCoach({ type: 'skip-ramp', profileId: profile.id })}>Überspringen</button>}
-                {!isRamp && (
+                <button className="go" onClick={() => start(shown.session)}>Los</button>
+                {picked && next && <button className="secondary" onClick={() => setPicked(null)}>Zurück zum Vorschlag</button>}
+                {!picked && isRamp && <button className="secondary" onClick={() => sendCoach({ type: 'skip-ramp', profileId: profile.id })}>Überspringen</button>}
+                {!picked && !isRamp && (
                   <>
                     <button className="secondary" onClick={() => adjust('easier')}>Leichter</button>
                     <button className="secondary" onClick={() => adjust('harder')}>Härter</button>
@@ -74,13 +84,15 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
               </div>
             </section>
           )}
-          <details className="card" open={!state}>
-            <summary>Andere Einheit wählen</summary>
-            <div className="starters">
-              {STARTER_SESSIONS.map((s) => <button key={s.id} className="starter" onClick={() => start(s)}>{s.name}</button>)}
-              {!isRamp && <button className="starter" onClick={() => start(rampTest(ftpW))}>Rampentest: FTP genau messen</button>}
+          <section>
+            <h3>Andere Trainings</h3>
+            <div className="trainings">
+              {library.map((t) => (
+                <TrainingCard key={t.session.id} session={t.session} ftpW={ftpW} tag={t.tag} why={t.why} selected={picked?.session.id === t.session.id}
+                  onPick={() => { setPicked(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+              ))}
             </div>
-          </details>
+          </section>
         </div>
         {state && (
           <div className="stack">

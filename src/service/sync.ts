@@ -39,6 +39,7 @@ export class SyncClient {
     const { meta, samples, events } = readRide(this.opts.dir, rideId);
     const { lastSeq, eventCount } = (await (await this.call(`/rides/${rideId}/progress`)).json()) as { lastSeq: number; eventCount: number };
     await this.call(`/rides/${rideId}/meta`, 'PUT', meta);
+    if (meta.status === 'discarded') return true; // Der Server erfährt nur das Verwerfen, die Daten bleiben lokal.
     const missing = samples.filter((s) => s.seq > lastSeq);
     const size = this.opts.batchSize ?? 500;
     for (let i = 0; i < missing.length; i += size) {

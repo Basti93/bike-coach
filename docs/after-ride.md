@@ -16,3 +16,4 @@ Quellen: Auuki, GoldenCheetah, qdomyos-zwift, BikeControl, clickbridge, wattroom
 - Offen: automatisches Ende des Rampentests (wattroom), Pflichtfelder für den Garmin-Upload, Eigenheiten von noble unter macOS.
 - Clicker: Zwift Click erste Generation eingebaut, Verhalten nach BikeControl und zwiftplay, kein Code übernommen. Am echten Gerät ungeprüft. Sehr alte Firmware ist laut zwiftplay verschlüsselt, dann vorher in der Zwift-Companion-App aktualisieren.
 - FTP ohne Test: Der Rampentest ist optional, die Schätzung steht in `docs/ftp-estimate.md`. Formeln nur aus Abstracts und Zweitquellen, Kette nicht validiert, Fehler eher über ±22 %. Die Nachzieh-Regel (+5 %/−10 %) ist eigene Setzung.
+- Fahrten unter 5 Minuten zählen nicht als Training (eigene Setzung). Verworfene Fahrten bleiben lokal auf der Platte (Status `discarded`), zählen aber nicht, ohne FIT und ohne weiteren Upload. Der Server-Filter dafür ist noch nicht auf dem Heimserver eingespielt.

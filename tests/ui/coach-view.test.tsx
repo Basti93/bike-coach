@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { CoachState } from '../../src/coach/state';
 import { CoachView } from '../../src/ui/views/CoachView';
 
@@ -19,6 +19,8 @@ test('start uses coach session, coach FTP and the pulse limit', () => {
 });
 test('without the coach you can still ride a starter session', () => {
   const ride = view(null);
-  fireEvent.click(screen.getByText('Locker, 30 Minuten'));
+  fireEvent.click(within(screen.getByText('Locker, 30 Minuten').closest('article')!).getByText('Auswählen'));
+  expect(ride).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('Los'));
   expect(ride.mock.calls[0][0]).toMatchObject({ type: 'start', ftpW: 150 });
 });

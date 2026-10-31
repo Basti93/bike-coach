@@ -10,6 +10,7 @@ export type ClientMessage =
   | { type: 'adjust'; deltaPct: number }
   | { type: 'mark'; note?: string }
   | { type: 'stop' }
+  | { type: 'discard' }
   | { type: 'resume'; rideId: string }
   | { type: 'discard-resume'; rideId: string }
   | { type: 'export-fit'; rideId: string }

@@ -2,7 +2,7 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import type { RideEvent, Sample } from '../shared/sample';
 
-export type RideStatus = 'open' | 'finished' | 'aborted';
+export type RideStatus = 'open' | 'finished' | 'aborted' | 'discarded';
 export type RideMeta = { rideId: string; profileId: string; sessionId: string; startedAtMs: number; status: RideStatus };
 type Fs = typeof nodeFs;
 

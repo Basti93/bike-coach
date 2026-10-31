@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
 import { WorkoutBar } from './WorkoutBar';
 
@@ -16,6 +16,7 @@ const powerClass = (power: number | null | undefined, target: number | null): st
 };
 
 export const RideView = ({ state, send, compact = false }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean }) => {
+  const [ending, setEnding] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowUp') send({ type: 'shift', dir: 'up' });
@@ -95,8 +96,22 @@ export const RideView = ({ state, send, compact = false }: { state: StateMessage
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: 5 })}>Härter +5 %</button>
         <button className="secondary" onClick={() => window.open('#film', 'film')}>Film-Modus</button>
         <span className="spacer" />
-        <button className="ghost" onClick={() => { if (window.confirm('Fahrt beenden? Sie wird gespeichert.')) send({ type: 'stop' }); }}>Beenden</button>
+        <button className="ghost" onClick={() => setEnding(true)}>Beenden</button>
       </footer>
+      {ending && (
+        <div className="overlay">
+          <div role="dialog" className="card dialog">
+            <h2>Training beenden?</h2>
+            <p>Beim Verwerfen zählt diese Fahrt nicht: keine Bewertung, keine Änderung am Plan, kein Export.</p>
+            <div className="row">
+              <button onClick={() => { setEnding(false); send({ type: 'stop' }); }}>Speichern und beenden</button>
+              <button className="secondary" onClick={() => setEnding(false)}>Weiterfahren</button>
+              <span className="spacer" />
+              <button className="danger" onClick={() => { setEnding(false); send({ type: 'discard' }); }}>Verwerfen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

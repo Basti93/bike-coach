@@ -47,7 +47,7 @@ export const buildServer = (opts: { dbPath: string; token: string }): FastifyIns
   app.get<{ Params: Params }>('/rides/:rideId/samples', async (req) =>
     jsonRows(db.prepare('SELECT json FROM samples WHERE ride_id = ? ORDER BY seq').all(req.params.rideId)));
   app.get<{ Params: { id: string } }>('/profiles/:id/rides', async (req) =>
-    jsonRows(db.prepare('SELECT json FROM rides WHERE profile_id = ?').all(req.params.id)));
+    jsonRows(db.prepare("SELECT json FROM rides WHERE profile_id = ? AND json_extract(json, '$.status') IS NOT 'discarded'").all(req.params.id)));
   app.put<{ Params: { id: string }; Body: unknown }>('/profiles/:id/coach', async (req) => {
     db.prepare('INSERT INTO coach VALUES (?, ?) ON CONFLICT(profile_id) DO UPDATE SET json = excluded.json').run(req.params.id, JSON.stringify(req.body));
     return { ok: true };

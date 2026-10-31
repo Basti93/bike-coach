@@ -6,6 +6,9 @@ import type { RideSummary } from './metrics';
 import { RAMP_ID } from './guardrails';
 import { ruleBasedSession } from './rules';
 
+/** Kürzere Fahrten sind Probefahrten oder Fehlstarts und zählen nicht als Training (eigene Setzung). */
+export const MIN_COUNTED_S = 300;
+
 export type Rating = 'easy' | 'right' | 'hard';
 export type CoachState = {
   profileId: string; ftpW: number; ftpCapW?: number;
@@ -13,6 +16,7 @@ export type CoachState = {
   phase: { name: string; weeksLeft: number; goal: string };
   ftpForecast: { weeksAhead: number; ftpW: number }[];
   next: { session: Session; reason: string; source: 'claude' | 'rules' };
+  alternatives?: { session: Session; why: string }[];
   changes: { atMs: number; text: string }[];
   notes: { atMs: number; text: string; reply?: string }[];
   feedback: Record<string, Rating>;
@@ -42,6 +46,14 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
     const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
     // Der Rampentest ist nicht mehr Pflicht: Ältere Stände ohne Fahrt starten mit einer normalen Einheit.
     if (s.next.session.id === RAMP_ID && s.summaries.length === 0) s.next = initial(profileId, s.ftpW, nowMs).next;
+    // Ältere Stände: Bereits gezählte Kurzfahrten herausnehmen und neu planen lassen.
+    const counted = s.summaries.filter((r) => r.durationS >= MIN_COUNTED_S);
+    if (counted.length !== s.summaries.length) {
+      if (s.awaitingFeedback && !counted.some((r) => r.rideId === s.awaitingFeedback)) s.awaitingFeedback = null;
+      s.summaries = counted;
+      s.dirty = true;
+      s.dirtySinceMs ??= nowMs;
+    }
     return s;
   } catch {
     fs.copyFileSync(f, `${f}.broken`);

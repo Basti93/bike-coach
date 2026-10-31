@@ -26,7 +26,7 @@ beforeEach(() => {
   coachDir = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-'));
   now = NOW; n = 0;
 });
-const ride = (profileId: string, opts: { status?: 'open' | 'finished' | 'aborted'; session?: Session; power?: number; seconds?: number; ftpW?: number; at?: number } = {}) => {
+const ride = (profileId: string, opts: { status?: 'open' | 'finished' | 'aborted' | 'discarded'; session?: Session; power?: number; seconds?: number; ftpW?: number; at?: number } = {}) => {
   const rideId = `ride-${1000 + n++}`;
   const startedAtMs = opts.at ?? now - 3600_000;
   const session = opts.session ?? good;
@@ -277,4 +277,23 @@ test('rating adjusts an unverified FTP within the cap, a ramp result stays', () 
   const ramped = c.state('pa').ftpW;
   c.feedback('pa', c.state('pa').awaitingFeedback!, 'easy');
   expect(c.state('pa').ftpW).toBe(ramped);
+});
+
+test('test rides and discarded rides never count as training', () => {
+  const c = make();
+  ride('pa', { seconds: 8 }); ride('pa', { status: 'discarded' });
+  const before = c.state.bind(c);
+  c.scanRides([A]);
+  expect(before('pa').summaries).toEqual([]);
+  expect(before('pa').awaitingFeedback).toBeNull();
+  expect(before('pa').dirty).toBe(false);
+});
+test('coach alternatives pass the guardrails, are cleared by the next ride', async () => {
+  const bad: Session = { id: 'x', name: 'Zu hart', steps: [{ kind: 'erg', durationS: 1800, ftpFraction: 1.3, label: 'Hart' }] };
+  const c = make(async () => answer({ alternatives: [{ session: good, why: 'Passt' }, { session: bad, why: 'Nein' }] }));
+  c.scanRides([A]); c.note('pa', 'Hallo');
+  await c.refresh('pa');
+  expect(c.state('pa').alternatives?.map((a) => a.session.id)).toEqual(['coach-alt-0']);
+  ride('pa'); c.scanRides([A]);
+  expect(c.state('pa').alternatives).toEqual([]);
 });

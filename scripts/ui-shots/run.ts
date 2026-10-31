@@ -25,7 +25,7 @@ const coach = (over = {}) => ({
   feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null, ...over,
 });
 
-const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; fill?: boolean }[] = [
+const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
   { name: 'profile-estimate', ride: idle({ profiles: [] }), fill: true },
@@ -37,6 +37,8 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'feedback', ride: idle(), coach: coach({ awaitingFeedback: 'r1' }), pick: true },
   { name: 'ride', ride: ride() },
   { name: 'ride-warn', ride: ride({ engine: engine({ stepRemainingS: 9, secondsToNext: 9 }) }) },
+  { name: 'coach-cards', ride: idle(), coach: coach({ alternatives: [{ session: { id: 'coach-alt-0', name: 'Hügelrunde', steps: [{ kind: 'erg', durationS: 420, ftpFraction: 0.5, label: 'Warmup' }, { kind: 'grade', durationS: 480, gradePct: 3, scale: 1, label: 'Anrollen' }, { kind: 'grade', durationS: 240, gradePct: -2, scale: 1, label: 'Abfahrt' }, { kind: 'grade', durationS: 720, gradePct: 5, scale: 1, label: 'Hauptanstieg' }, { kind: 'grade', durationS: 300, gradePct: -3, scale: 1, label: 'Abfahrt' }] }, why: 'Abwechslung, wenn du Lust auf Berge hast.' }] }), pick: true, height: 1400 },
+  { name: 'ride-end', ride: ride(), click: 'Beenden' },
   { name: 'coach-route', ride: idle(), coach: coach({ next: { ...coach().next, session: STARTER_SESSIONS[2], source: 'rules' } }), pick: true },
   { name: 'ride-grade', ride: ride({ session: STARTER_SESSIONS[2], engine: engine({ targetW: null, gradePct: 4.5, gear: 7, label: 'Erster Anstieg', nextLabel: 'Erholung' }) }) },
   { name: 'ride-pause', ride: ride({ engine: engine({ paused: true }), latest: { ...latest, powerW: 0, cadenceRpm: 0 } }) },
@@ -79,6 +81,7 @@ for (const s of shots) {
   await win.reload();
   await win.waitForTimeout(150);
   if (s.pick) { await win.getByRole('button', { name: /Max/ }).first().click(); await win.waitForTimeout(150); }
+  if (s.click) { await win.getByRole('button', { name: s.click }).click(); await win.waitForTimeout(100); }
   if (s.fill) {
     await win.getByLabel('Name').fill('Lena');
     await win.getByLabel('Alter').fill('35');

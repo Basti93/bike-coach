@@ -20,7 +20,7 @@ type Active = {
   /** Wartet nach langem Stillstand auf die Entscheidung des Nutzers und zählt keine Zeit. */
   paused?: boolean;
   /** Fahrt ist zu Ende, aber noch nicht vollständig gespeichert. */
-  ending?: 'finished' | 'aborted';
+  ending?: 'finished' | 'aborted' | 'discarded';
 };
 const STALE_READING_MS = 3000;
 const CRASH_GAP_MS = 5000;
@@ -106,6 +106,7 @@ export class RideService {
       case 'adjust': if (a) this.logEvent(a.engine.adjustTarget(msg.deltaPct)); return;
       case 'mark': this.logEvent({ wallClockMs: this.deps.nowMs(), type: 'marker', detail: msg.note }); return;
       case 'stop': if (a) this.end('aborted'); return;
+      case 'discard': if (a) this.end('discarded'); return;
       case 'resume': if (a) { a.recovered = false; a.paused = false; } return;
       case 'discard-resume': if (a && a.recorder.getMeta().rideId === msg.rideId) this.end('aborted'); return;
       case 'export-fit': checkRideId(msg.rideId); this.writeFit(msg.rideId); return;
@@ -187,7 +188,7 @@ export class RideService {
     this.guard(() => this.deps.onRideChange?.(a !== null));
   }
 
-  private end(status: 'finished' | 'aborted'): void {
+  private end(status: 'finished' | 'aborted' | 'discarded'): void {
     const a = this.active;
     if (!a) return;
     a.ending ??= status;
@@ -198,7 +199,7 @@ export class RideService {
     if (a.recorder.finish(a.ending!)) {
       const { rideId } = a.recorder.getMeta();
       this.setActive(null);
-      this.guard(() => this.writeFit(rideId));
+      if (a.ending !== 'discarded') this.guard(() => this.writeFit(rideId));
     }
     this.broadcastState();
   }

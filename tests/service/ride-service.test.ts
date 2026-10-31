@@ -54,6 +54,14 @@ test('stop saves an aborted ride', () => {
   svc.handle({ type: 'stop' });
   expect(readRide(dir, onlyRide()).meta.status).toBe('aborted');
 });
+test('discarded ride keeps its data on disk, marked and without FIT', () => {
+  const svc = make(); start(svc); ticks(svc, 3);
+  svc.handle({ type: 'discard' });
+  const { meta, samples } = readRide(dir, onlyRide());
+  expect(meta.status).toBe('discarded');
+  expect(samples.length).toBeGreaterThan(0);
+  expect(fs.existsSync(path.join(dir, 'exports'))).toBe(false);
+});
 test('ui subscriber failure does not affect ride', () => {
   const svc = make(); svc.subscribe(() => { throw new Error('ui gone'); });
   start(svc); ticks(svc, 5);
