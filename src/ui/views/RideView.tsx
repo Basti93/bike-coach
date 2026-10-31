@@ -37,7 +37,7 @@ export const RideView = ({ state, send, compact = false }: { state: StateMessage
       </div>
       {!compact && (
         <>
-          <p>Trainer: {devices.trainer === 'connected' ? 'verbunden' : 'sucht…'} · Puls: {devices.hr === 'connected' ? 'verbunden' : 'sucht…'}</p>
+          <p>Trainer: {devices.trainer === 'connected' ? 'verbunden' : 'sucht…'} · Puls: {devices.hr === 'connected' ? 'verbunden' : 'sucht…'} · Clicker: {devices.clicker === 'connected' ? 'verbunden' : 'sucht…'}</p>
           <div className="row">
             <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: -5 })}>Leichter −5 %</button>
             <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: 5 })}>Härter +5 %</button>

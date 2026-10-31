@@ -89,3 +89,44 @@ test('control responses and machine status reach the control callback', async ()
   status.emit('data', Buffer.from([0xff]));
   expect(got).toEqual([[0x80, 0x05, 0x05], [0xff]]);
 });
+
+const clickPeripheral = (mfr = Buffer.from([0x4a, 0x09, 0x09])) => {
+  const p: any = new EventEmitter();
+  p.id = 'click'; p.advertisement = { manufacturerData: mfr };
+  p.connectAsync = async () => {};
+  const async = Object.assign(new EventEmitter(), { uuid: '0000000219ca465186e5fa29dcdd09d1', subscribeAsync: vi.fn(async () => {}) });
+  const rx = Object.assign(new EventEmitter(), { uuid: '0000000319ca465186e5fa29dcdd09d1', writeAsync: vi.fn(async () => {}) });
+  const tx = Object.assign(new EventEmitter(), { uuid: '0000000419ca465186e5fa29dcdd09d1', subscribeAsync: vi.fn(async () => {}) });
+  p.discoverSomeServicesAndCharacteristicsAsync = async () => ({ characteristics: [async, rx, tx] });
+  return { p, async, rx, tx };
+};
+test('the click gets the RideOn handshake and its buttons arrive', async () => {
+  const n = fakeNoble(); const c = clickPeripheral();
+  n.startScanningAsync = async () => { setTimeout(() => n.emit('discover', c.p), 1); };
+  const port = new NobleBlePort(dir(), n);
+  const got: number[][] = [];
+  port.subscribe('clicker', (b) => got.push([...b]));
+  await port.connect('clicker');
+  expect(c.rx.writeAsync).toHaveBeenCalledWith(Buffer.from('RideOn'), true);
+  expect(c.tx.subscribeAsync).toHaveBeenCalled();
+  c.async.emit('data', Buffer.from([0x37, 0x08, 0x00, 0x10, 0x01]));
+  expect(got).toEqual([[0x37, 0x08, 0x00, 0x10, 0x01]]);
+});
+test('other Zwift controllers are not taken for the click', async () => {
+  const n = fakeNoble(); const other = clickPeripheral(Buffer.from([0x4a, 0x09, 0x0a]));
+  n.startScanningAsync = async () => { setTimeout(() => n.emit('discover', other.p), 1); };
+  const port = new NobleBlePort(dir(), n, { clickerScanMs: 20 });
+  await expect(port.connect('clicker')).rejects.toThrow();
+});
+test('the trainer goes ahead of a waiting clicker and strap', async () => {
+  const n = fakeNoble();
+  const order: string[] = [];
+  const orig = n.startScanningAsync;
+  n.startScanningAsync = async (a: string[]) => { order.push(a[0] ?? 'clicker'); return orig(a.length ? a : ['x']); };
+  const port = new NobleBlePort(dir(), n, { clickerScanMs: 20 });
+  const a = port.connect('hr').catch(() => {});
+  const b = port.connect('clicker').catch(() => {});
+  const c = port.connect('trainer').catch(() => {});
+  await Promise.all([a, b, c]);
+  expect(order).toEqual(['180d', '1826', 'clicker']);
+});

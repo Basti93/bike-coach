@@ -148,12 +148,47 @@ describe('Trainer entzieht die Kontrolle', () => {
     expect(port.writes.filter((w) => w.bytes[0] === 0x00)).toHaveLength(1);
     m.stop();
   });
-  test('the clicker is not searched until it is supported', async () => {
-    const port = new FakeBlePort(); const spy = vi.spyOn(port, 'connect');
+
+});
+
+describe('Zwift Click', () => {
+  const PLUS = Buffer.from([0x37, 0x08, 0x00, 0x10, 0x01]);
+  const MINUS = Buffer.from([0x37, 0x08, 0x01, 0x10, 0x00]);
+  const IDLE = Buffer.from([0x37, 0x08, 0x01, 0x10, 0x01]);
+  const start = async () => {
+    const port = new FakeBlePort(); port.online.clicker = true;
     const m = new DeviceManager(port, { retryMs: 100 });
+    const clicks: string[] = [];
+    m.onClick((d) => clicks.push(d));
     m.start();
     await vi.advanceTimersByTimeAsync(10);
-    expect(spy.mock.calls.map(([k]) => k)).not.toContain('clicker');
+    return { port, m, clicks };
+  };
+  test('plus shifts up, minus shifts down', async () => {
+    const { port, m, clicks } = await start();
+    port.emit('clicker', PLUS); port.emit('clicker', IDLE); port.emit('clicker', MINUS);
+    expect(clicks).toEqual(['up', 'down']);
+    m.stop();
+  });
+  test('repeated frames of a held button count once', async () => {
+    const { port, m, clicks } = await start();
+    port.emit('clicker', PLUS); port.emit('clicker', PLUS); port.emit('clicker', PLUS);
+    expect(clicks).toEqual(['up']);
+    m.stop();
+  });
+  test('a dropped clicker does not swallow the next press', async () => {
+    const { port, m, clicks } = await start();
+    port.emit('clicker', PLUS);
+    port.drop('clicker'); port.online.clicker = true;
+    await vi.advanceTimersByTimeAsync(150);
+    port.emit('clicker', PLUS);
+    expect(clicks).toEqual(['up', 'up']);
+    m.stop();
+  });
+  test('garbage from the clicker changes nothing', async () => {
+    const { port, m, clicks } = await start();
+    port.emit('clicker', Buffer.from([0x37, 0xff])); port.emit('clicker', Buffer.from('RideOn'));
+    expect(clicks).toEqual([]);
     m.stop();
   });
 });

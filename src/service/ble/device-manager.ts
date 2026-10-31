@@ -1,13 +1,13 @@
 import type { BlePort, DeviceKind } from './device-port';
 import { encodeRequestControl, encodeSimulation, encodeTargetPower, parseIndoorBikeData } from './ftms-codec';
+import { parseClick } from './click-codec';
 import { parseHeartRate } from './hr-codec';
 
 export type Reading = { powerW?: number; cadenceRpm?: number; speedKph?: number; hrBpm?: number };
 export type DeviceStatus = Record<DeviceKind, 'connected' | 'searching'>;
 type TrainerCommand = { kind: 'power'; w: number } | { kind: 'grade'; pct: number };
 
-// Der Clicker fehlt bewusst: Das Protokoll hängt vom Modell ab und ist noch nicht eingebaut.
-const KINDS: DeviceKind[] = ['trainer', 'hr'];
+const KINDS: DeviceKind[] = ['trainer', 'hr', 'clicker'];
 const CONTROL_RETRY_MS = 2000;
 const RESULT_NOT_PERMITTED = 0x05;
 
@@ -23,6 +23,7 @@ export class DeviceManager {
   private writeRetryMs: number;
   private pendingCommand: TrainerCommand | null = null;
   private pumping = false;
+  private held = { plus: false, minus: false };
   private lastControlRequestMs = -Infinity;
 
   constructor(private port: BlePort, opts: { retryMs?: number; writeRetryMs?: number } = {}) {
@@ -30,8 +31,10 @@ export class DeviceManager {
     this.writeRetryMs = opts.writeRetryMs ?? 500;
     port.subscribe('trainer', (b) => this.safely(() => this.readingCb(parseIndoorBikeData(b))));
     port.subscribe('hr', (b) => this.safely(() => this.readingCb({ hrBpm: parseHeartRate(b) })));
+    port.subscribe('clicker', (b) => this.safely(() => this.handleClick(b)));
     port.onControl((b) => this.safely(() => this.handleControl(b)));
     port.onDisconnect((kind) => {
+      if (kind === 'clicker') this.held = { plus: false, minus: false };
       this.setStatus(kind, 'searching');
       this.schedule(kind);
     });
@@ -81,6 +84,16 @@ export class DeviceManager {
     } finally {
       this.pumping = false;
     }
+  }
+
+  /** Der Click wiederholt Meldungen, solange eine Taste gedrückt ist. Nur das Drücken zählt. */
+  private handleClick(b: Buffer): void {
+    const now = parseClick(b);
+    if (!now) return;
+    const before = this.held;
+    this.held = now;
+    if (now.plus && !before.plus) this.clickCb('up');
+    if (now.minus && !before.minus) this.clickCb('down');
   }
 
   /** Hat der Trainer uns die Kontrolle entzogen, wirkte die Vorgabe sonst bis zum nächsten Abschnitt nicht. */

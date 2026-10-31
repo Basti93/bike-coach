@@ -14,4 +14,4 @@ Quellen: Auuki, GoldenCheetah, qdomyos-zwift, BikeControl, clickbridge, wattroom
 
 - Eigene Setzung ohne Vorbild: automatische Absenkung (20 s, 30 s, 5 %, −20 %), Intervalle ab 3 Fahrten in 28 Tagen, 0,5 % Steigung je Gang.
 - Offen: automatisches Ende des Rampentests (wattroom), Pflichtfelder für den Garmin-Upload, Eigenheiten von noble unter macOS.
-- Clicker: Modell klären, dann Protokoll nachbauen. BikeControl und clickbridge nur als Vorbild, Lizenzen erlauben keine Übernahme.
+- Clicker: Zwift Click erste Generation eingebaut, Verhalten nach BikeControl und zwiftplay, kein Code übernommen. Am echten Gerät ungeprüft. Sehr alte Firmware ist laut zwiftplay verschlüsselt, dann vorher in der Zwift-Companion-App aktualisieren.

@@ -2,12 +2,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { BlePort, DeviceKind } from './device-port';
 
-const SERVICES: Partial<Record<DeviceKind, { service: string; notify: string; write?: string; status?: string }>> = {
-  trainer: { service: '1826', notify: '2ad2', write: '2ad9', status: '2ada' },
-  hr: { service: '180d', notify: '2a37' },
+type Spec = { services: string[]; notify: string; write?: string; status?: string; indicate?: string; handshake?: { char: string; bytes: Buffer } };
+const clickUuid = (n: number) => `0000000${n}19ca465186e5fa29dcdd09d1`;
+const SERVICES: Partial<Record<DeviceKind, Spec>> = {
+  trainer: { services: ['1826'], notify: '2ad2', write: '2ad9', status: '2ada' },
+  hr: { services: ['180d'], notify: '2a37' },
+  // Laut BikeControl und zwiftplay: Tasten auf 0002, Antworten auf 0004, RideOn auf 0003 startet die Meldungen.
+  clicker: {
+    services: [clickUuid(1), 'fc82'], notify: clickUuid(2), indicate: clickUuid(4),
+    handshake: { char: clickUuid(3), bytes: Buffer.from('RideOn') },
+  },
 };
+// Zwift Inc., Gerätetyp BC1 = Click der ersten Generation. Der Click wirbt nicht verlässlich mit seinem Dienst.
+const ZWIFT_COMPANY = [0x4a, 0x09];
+const CLICK_V1 = 0x09;
+const isClickV1 = (p: any): boolean => {
+  const m: Buffer | undefined = p.advertisement?.manufacturerData;
+  return !!m && m[0] === ZWIFT_COMPANY[0] && m[1] === ZWIFT_COMPANY[1] && m[2] === CLICK_V1;
+};
+const PRIORITY: Record<DeviceKind, number> = { trainer: 0, hr: 1, clicker: 2 };
 const SCAN_TIMEOUT_MS = 10_000;
 const CONNECT_TIMEOUT_MS = 15_000;
+// Der Click schläft meist: kurz suchen, damit er Trainer und Gurt nicht aufhält.
+const CLICKER_SCAN_MS = 4000;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
@@ -24,20 +41,34 @@ export class NobleBlePort implements BlePort {
   private known: Partial<Record<DeviceKind, string>> = {};
   private knownFile: string;
   private noble: any;
-  private queue: Promise<unknown> = Promise.resolve();
+  private waiting: { kind: DeviceKind; run: () => void }[] = [];
+  private busy = false;
+  private clickerScanMs: number;
 
-  constructor(dataDir: string, nobleImpl?: unknown, opts: { connectTimeoutMs?: number } = {}) {
+  constructor(dataDir: string, nobleImpl?: unknown, opts: { connectTimeoutMs?: number; clickerScanMs?: number } = {}) {
+    this.clickerScanMs = opts.clickerScanMs ?? CLICKER_SCAN_MS;
     this.connectTimeoutMs = opts.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
     this.noble = nobleImpl;
     this.knownFile = path.join(dataDir, 'devices.json');
     try { this.known = JSON.parse(fs.readFileSync(this.knownFile, 'utf8')); } catch { /* erster Start */ }
   }
 
-  /** Nacheinander, weil ein neuer Scan den laufenden ersetzt und sich die Geräte sonst gegenseitig aushungern. */
+  /**
+   * Nacheinander, weil ein neuer Scan den laufenden ersetzt und sich die Geräte sonst gegenseitig
+   * aushungern. Der Trainer kommt zuerst dran, damit eine laufende Fahrt ihn schnell zurückbekommt.
+   */
   connect(kind: DeviceKind): Promise<void> {
-    const run = this.queue.then(() => this.connectNow(kind));
-    this.queue = run.catch(() => {});
-    return run;
+    return new Promise((resolve, reject) => {
+      this.waiting.push({ kind, run: () => { this.connectNow(kind).then(resolve, reject).finally(() => { this.busy = false; this.next(); }); } });
+      this.next();
+    });
+  }
+
+  private next(): void {
+    if (this.busy || this.waiting.length === 0) return;
+    this.waiting.sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind]);
+    this.busy = true;
+    this.waiting.shift()!.run();
   }
 
   private async connectNow(kind: DeviceKind): Promise<void> {
@@ -45,7 +76,7 @@ export class NobleBlePort implements BlePort {
     if (!spec) throw new Error(`${kind} wird in Stufe 1 nicht verbunden`);
     this.noble ??= ((await import('@stoprocent/noble')) as any).default;
     await this.noble.waitForPoweredOnAsync(SCAN_TIMEOUT_MS);
-    const peripheral = await this.find(kind, spec.service);
+    const peripheral = await this.find(kind, spec.services);
     let ready = false;
     let dropped = false;
     peripheral.once('disconnect', () => {
@@ -76,10 +107,11 @@ export class NobleBlePort implements BlePort {
     fs.writeFileSync(this.knownFile, JSON.stringify(this.known));
   }
 
-  private async setUp(kind: DeviceKind, spec: { service: string; notify: string; write?: string; status?: string }, peripheral: any): Promise<void> {
+  private async setUp(kind: DeviceKind, spec: Spec, peripheral: any): Promise<void> {
     await peripheral.connectAsync();
     const { characteristics } = await peripheral.discoverSomeServicesAndCharacteristicsAsync(
-      [spec.service], [spec.notify, ...(spec.write ? [spec.write] : []), ...(spec.status ? [spec.status] : [])],
+      spec.services,
+      [spec.notify, spec.write, spec.status, spec.indicate, spec.handshake?.char].filter(Boolean),
     );
     const notify = characteristics.find((c: any) => c.uuid === spec.notify);
     notify.on('data', (b: Buffer) => this.subs.get(kind)?.(b));
@@ -95,6 +127,11 @@ export class NobleBlePort implements BlePort {
       status.on('data', (b: Buffer) => this.controlCb(b));
       await status.subscribeAsync().catch(() => {});
     }
+    if (spec.indicate) await characteristics.find((c: any) => c.uuid === spec.indicate)?.subscribeAsync();
+    if (spec.handshake) {
+      const { char, bytes } = spec.handshake;
+      await characteristics.find((c: any) => c.uuid === char).writeAsync(bytes, true);
+    }
   }
 
   async disconnect(kind: DeviceKind): Promise<void> { await this.peripherals.get(kind)?.disconnectAsync(); }
@@ -108,16 +145,18 @@ export class NobleBlePort implements BlePort {
     await writer.writeAsync(b, false);
   }
 
-  private async find(kind: DeviceKind, service: string): Promise<any> {
-    await this.noble.startScanningAsync([service], false);
+  private async find(kind: DeviceKind, services: string[]): Promise<any> {
+    const clicker = kind === 'clicker';
+    await this.noble.startScanningAsync(clicker ? [] : services, false);
     try {
       return await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           this.noble.removeListener('discover', onDiscover);
           reject(new Error(`${kind} nicht gefunden`));
-        }, SCAN_TIMEOUT_MS);
+        }, clicker ? this.clickerScanMs : SCAN_TIMEOUT_MS);
         const onDiscover = (p: any) => {
           if (this.known[kind] && p.id !== this.known[kind]) return;
+          if (clicker && !isClickV1(p)) return;
           clearTimeout(timer);
           this.noble.removeListener('discover', onDiscover);
           resolve(p);
