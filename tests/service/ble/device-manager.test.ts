@@ -31,8 +31,8 @@ test('reconnect re-requests control and resends last target', async () => {
   port.writes = [];
   port.online.trainer = true;
   await vi.advanceTimersByTimeAsync(150);
-  expect(port.writes.map((w) => w.bytes[0])).toEqual([0x00, 0x07, 0x05]);
-  expect(port.writes[2].bytes).toEqual([0x05, 0xC8, 0x00]);
+  expect(port.writes.map((w) => w.bytes[0])).toEqual([0x00, 0x05]);
+  expect(port.writes[1].bytes).toEqual([0x05, 0xC8, 0x00]);
   m.stop();
 });
 test('commands while disconnected are kept, latest wins', async () => {
@@ -69,5 +69,45 @@ test('write failure on trainer does not throw', async () => {
   await settle();
   expect(() => m.setTargetPower(100)).not.toThrow();
   await settle();
+  m.stop();
+});
+test('failed trainer write is retried until it succeeds', async () => {
+  const port = new FakeBlePort();
+  const m = new DeviceManager(port, { retryMs: 100, writeRetryMs: 50 });
+  m.start();
+  await settle();
+  const real = port.write.bind(port); let fails = 2;
+  port.write = async (k, b) => { if (b[0] === 0x05 && fails-- > 0) throw new Error('gatt'); return real(k, b); };
+  m.setTargetPower(200);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(port.writes.filter((w) => w.bytes[0] === 0x05).map((w) => w.bytes[1])).toEqual([0xC8]);
+  m.stop();
+});
+test('a newer target replaces one still being retried', async () => {
+  const port = new FakeBlePort();
+  const m = new DeviceManager(port, { retryMs: 100, writeRetryMs: 50 });
+  m.start();
+  await settle();
+  const real = port.write.bind(port); let block = true;
+  port.write = async (k, b) => { if (block) throw new Error('gatt'); return real(k, b); };
+  m.setTargetPower(100);
+  await vi.advanceTimersByTimeAsync(20);
+  m.setTargetPower(200);
+  block = false;
+  await vi.advanceTimersByTimeAsync(200);
+  expect(port.writes.filter((w) => w.bytes[0] === 0x05).map((w) => w.bytes[1])).toEqual([0xC8]);
+  m.stop();
+});
+test('trainer writes never overlap', async () => {
+  const port = new FakeBlePort();
+  const m = new DeviceManager(port, { retryMs: 100 });
+  m.start();
+  await settle();
+  const real = port.write.bind(port); let inFlight = 0; let max = 0;
+  port.write = async (k, b) => { inFlight++; max = Math.max(max, inFlight); await new Promise((r) => setTimeout(r, 10)); inFlight--; return real(k, b); };
+  m.setTargetPower(100); m.setGrade(3); m.setTargetPower(200);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(max).toBe(1);
+  expect(port.writes.at(-1)!.bytes).toEqual([0x05, 0xC8, 0x00]);
   m.stop();
 });

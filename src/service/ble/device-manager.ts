@@ -1,5 +1,5 @@
 import type { BlePort, DeviceKind } from './device-port';
-import { encodeRequestControl, encodeSimulation, encodeStart, encodeTargetPower, parseIndoorBikeData } from './ftms-codec';
+import { encodeRequestControl, encodeSimulation, encodeTargetPower, parseIndoorBikeData } from './ftms-codec';
 import { parseHeartRate } from './hr-codec';
 
 export type Reading = { powerW?: number; cadenceRpm?: number; speedKph?: number; hrBpm?: number };
@@ -17,9 +17,13 @@ export class DeviceManager {
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private stopped = false;
   private retryMs: number;
+  private writeRetryMs: number;
+  private pendingCommand: TrainerCommand | null = null;
+  private pumping = false;
 
-  constructor(private port: BlePort, opts: { retryMs?: number } = {}) {
+  constructor(private port: BlePort, opts: { retryMs?: number; writeRetryMs?: number } = {}) {
     this.retryMs = opts.retryMs ?? 2000;
+    this.writeRetryMs = opts.writeRetryMs ?? 500;
     port.subscribe('trainer', (b) => this.safely(() => this.readingCb(parseIndoorBikeData(b))));
     port.subscribe('hr', (b) => this.safely(() => this.readingCb({ hrBpm: parseHeartRate(b) })));
     port.onDisconnect((kind) => {
@@ -47,7 +51,38 @@ export class DeviceManager {
 
   private send(c: TrainerCommand): void {
     this.lastCommand = c;
-    if (this.status.trainer === 'connected') this.writeTrainer(this.encode(c));
+    this.pendingCommand = c;
+    void this.pump();
+  }
+
+  /**
+   * Immer nur ein Schreibvorgang, der neueste Befehl gewinnt, und ein fehlgeschlagener
+   * wird wiederholt. Befehle gehen nur bei Änderungen raus, ein verlorener bliebe sonst
+   * bis zum nächsten Abschnitt ohne Wirkung. Das Verhalten folgt dem bewährten Auuki.
+   */
+  private async pump(): Promise<void> {
+    if (this.pumping) return;
+    this.pumping = true;
+    try {
+      while (this.pendingCommand && this.status.trainer === 'connected' && !this.stopped) {
+        const c = this.pendingCommand;
+        try {
+          await this.port.write('trainer', this.encode(c));
+          if (this.pendingCommand === c) this.pendingCommand = null;
+        } catch {
+          await this.wait(this.writeRetryMs);
+        }
+      }
+    } finally {
+      this.pumping = false;
+    }
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const t = setTimeout(() => { this.timers.delete(t); resolve(); }, ms);
+      this.timers.add(t);
+    });
   }
   private encode(c: TrainerCommand): Buffer {
     return c.kind === 'power' ? encodeTargetPower(c.w) : encodeSimulation(c.pct);
@@ -66,8 +101,8 @@ export class DeviceManager {
     this.setStatus(kind, 'connected');
     if (kind === 'trainer') {
       await this.writeTrainer(encodeRequestControl());
-      await this.writeTrainer(encodeStart());
-      if (this.lastCommand) await this.writeTrainer(this.encode(this.lastCommand));
+      this.pendingCommand = this.lastCommand;
+      await this.pump();
     }
   }
   private schedule(kind: DeviceKind): void {

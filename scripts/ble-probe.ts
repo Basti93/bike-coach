@@ -1,6 +1,6 @@
 /* Wegwerf-Prüfprogramm für den Gerätetest (Plan Task 2). */
 import noble from '@stoprocent/noble';
-import { encodeRequestControl, encodeSimulation, encodeStart, encodeTargetPower, parseIndoorBikeData } from '../src/service/ble/ftms-codec';
+import { encodeRequestControl, encodeSimulation, encodeTargetPower, parseIndoorBikeData } from '../src/service/ble/ftms-codec';
 import { parseHeartRate } from '../src/service/ble/hr-codec';
 
 const n = noble as any;
@@ -22,7 +22,6 @@ const setup = async (p: any) => {
       control = c;
       await c.subscribeAsync().catch(() => {});
       await c.writeAsync(encodeRequestControl(), false);
-      await c.writeAsync(encodeStart(), false);
       log('Trainer unter Kontrolle');
     } else if (/zwift|click/i.test(name) && c.properties.includes('notify')) {
       c.on('data', (b: Buffer) => log('Clicker roh', c.uuid, b.toString('hex')));
