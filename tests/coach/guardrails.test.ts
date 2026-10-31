@@ -1,4 +1,4 @@
-import { checkSession, type CoachContext } from '../../src/coach/guardrails';
+import { checkSession, tssCap, type CoachContext } from '../../src/coach/guardrails';
 import type { RideSummary } from '../../src/coach/metrics';
 import type { Session, Step } from '../../src/shared/session';
 
@@ -52,3 +52,17 @@ test('estimated load may not exceed 1.5 times the strongest recent ride', () => 
   const c = ctx([past(2, { tss: 40 })]);
   expect(checkSession(session(warm, erg(100, 0.7)), c).ok).toBe(false);
 });
+
+test('climbs count as hard work, weekly load and 48 hours are enforced', () => {
+  const steep: Session = { id: 's', name: 'S', steps: [
+    { kind: 'erg', durationS: 300, ftpFraction: 0.5, label: 'W' },
+    { kind: 'grade', durationS: 1200, gradePct: 12, scale: 1, label: 'Wand' },
+  ] };
+  const ride = (hoursAgo: number, over: object = {}) => past(hoursAgo / 24, over as Partial<RideSummary>);
+  const regular = { ftpW: 200, nowMs: NOW, summaries: [ride(24 * 3, { intensityFactor: 0.6, tss: 30 })] };
+  expect(checkSession(steep, regular).ok).toBe(false);
+  const easy: Session = { ...steep, steps: [steep.steps[0], { kind: 'grade', durationS: 1200, gradePct: 7, scale: 1, label: 'Berg' }] };
+  expect(checkSession(easy, { ...regular, summaries: [ride(40, { intensityFactor: 0.9, tss: 30 })] }).ok).toBe(false);
+  expect(tssCap({ ...regular, summaries: [ride(24, { tss: 290, intensityFactor: 0.6 })] })).toBe(25);
+});
+

@@ -10,6 +10,7 @@ export const LIMITS = {
   minGrade: -5, maxGrade: 12, minScale: 0.5, maxScale: 1.2,
   hardRideIf: 0.85, easyFraction: 0.75, breakDays: 14, gentleMaxS: 45 * 60,
   maxTss: 120, tssGrowth: 1.5, minTssCap: 50,
+  hardGapMs: 48 * 3_600_000, weekMinTss: 300, weekMaxTss: 700, weekGrowth: 1.3, weekFloorTss: 25,
 } as const;
 
 const DAY_MS = 86_400_000;
@@ -19,7 +20,7 @@ export const estimateTss = (session: Session): number =>
 
 /** Sanftes Programm: nach harter Fahrt, langer Pause oder ganz ohne Historie. */
 export const mustBeEasy = (ctx: CoachContext): boolean => {
-  const hardRecently = ctx.summaries.some((r) => ctx.nowMs - r.startedAtMs < DAY_MS && (r.intensityFactor ?? 0) >= LIMITS.hardRideIf);
+  const hardRecently = ctx.summaries.some((r) => ctx.nowMs - r.startedAtMs < LIMITS.hardGapMs && (r.intensityFactor ?? 0) >= LIMITS.hardRideIf);
   return hardRecently || mustBeGentle(ctx);
 };
 export const mustBeGentle = (ctx: CoachContext): boolean => {
@@ -29,7 +30,16 @@ export const mustBeGentle = (ctx: CoachContext): boolean => {
 export const tssCap = (ctx: CoachContext): number => {
   const recent = ctx.summaries.filter((r) => ctx.nowMs - r.startedAtMs < 28 * DAY_MS).map((r) => r.tss);
   const strongest = recent.length ? Math.max(...recent) : 0;
-  return Math.min(LIMITS.maxTss, Math.max(LIMITS.minTssCap, strongest * LIMITS.tssGrowth));
+  const single = Math.min(LIMITS.maxTss, Math.max(LIMITS.minTssCap, strongest * LIMITS.tssGrowth));
+  return Math.min(single, Math.max(LIMITS.weekFloorTss, weekBudget(ctx)));
+};
+/** Was in den letzten 7 Tagen noch frei ist. Die Grenze wächst mit dem Schnitt der drei Wochen davor. */
+const weekBudget = (ctx: CoachContext): number => {
+  const age = (r: RideSummary) => ctx.nowMs - r.startedAtMs;
+  const sum = (rs: RideSummary[]) => rs.reduce((a, r) => a + r.tss, 0);
+  const week = sum(ctx.summaries.filter((r) => age(r) < 7 * DAY_MS));
+  const before = sum(ctx.summaries.filter((r) => age(r) >= 7 * DAY_MS && age(r) < 28 * DAY_MS)) / 3;
+  return Math.min(LIMITS.weekMaxTss, Math.max(LIMITS.weekMinTss, before * LIMITS.weekGrowth)) - week;
 };
 
 const violation = (session: Session, ctx: CoachContext): string | null => {
@@ -44,9 +54,9 @@ const violation = (session: Session, ctx: CoachContext): string | null => {
     if (s.kind === 'grade') {
       if (s.gradePct < LIMITS.minGrade || s.gradePct > LIMITS.maxGrade) return 'Steigung außerhalb von -5 bis 12 %.';
       if (s.scale < LIMITS.minScale || s.scale > LIMITS.maxScale) return 'Skalierung außerhalb von 0,5 bis 1,2.';
-      continue;
     }
-    const f = s.ftpFraction;
+    // Bei Steigungen ist das eine Schätzung der Anstrengung, die gleichen Grenzen gelten trotzdem.
+    const f = stepIntensity(s);
     if (f > LIMITS.maxFraction) return 'Abschnitt über 130 % FTP.';
     if (s.durationS >= 5 * 60 && f > LIMITS.maxFractionFrom5Min) return 'Ab 5 Minuten höchstens 105 % FTP.';
     if (s.durationS >= 20 * 60 && f > LIMITS.maxFractionFrom20Min) return 'Ab 20 Minuten höchstens 95 % FTP.';

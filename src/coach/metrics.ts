@@ -1,10 +1,12 @@
 import type { RideMeta } from '../service/recorder';
 import type { Sample } from '../shared/sample';
+import type { Session } from '../shared/session';
 
 export type RideSummary = {
   rideId: string; startedAtMs: number; status: 'finished' | 'aborted'; sessionId: string; ftpW: number; durationS: number;
   avgPowerW: number | null; normalizedPowerW: number | null; intensityFactor: number | null; tss: number;
   avgHrBpm: number | null; maxHrBpm: number | null; bestMinutePowerW: number | null; completedFraction: number;
+  suspectData?: boolean; intervalsPlanned?: number; intervalsDone?: number;
 };
 
 const DAY_MS = 86_400_000;
@@ -22,8 +24,64 @@ const rollingMeans = (xs: number[], size: number): number[] => {
   return out;
 };
 
-export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: number; plannedS: number }): RideSummary => {
-  const { meta, samples, ftpW, plannedS } = input;
+const MAX_POWER_W = 2500;
+const MIN_HR = 25;
+const MAX_HR = 240;
+const SPIKE_MIN_W = 400;
+const SPIKE_FACTOR = 2.5;
+const SPIKE_WINDOW = 5;
+const SPIKE_MAX_S = 2;
+const SUSPECT_SHARE = 0.05;
+
+const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+
+/** Entfernt nur für die Auswertung unmögliche Werte und kurze Spitzen. Echte Nullen und Sprints bleiben, die Rohdaten auf der Platte auch. */
+export const cleanSamples = (samples: Sample[]): { samples: Sample[]; removed: number } => {
+  let removed = 0;
+  const ranged = samples.map((s) => {
+    const badPower = s.powerW !== null && (s.powerW < 0 || s.powerW > MAX_POWER_W);
+    const badHr = s.hrBpm !== null && (s.hrBpm < MIN_HR || s.hrBpm > MAX_HR);
+    if (badPower || badHr) removed++;
+    return { ...s, powerW: badPower ? null : s.powerW, hrBpm: badHr ? null : s.hrBpm };
+  });
+  const isSpike = (i: number): boolean => {
+    const p = ranged[i].powerW;
+    if (p === null || p < SPIKE_MIN_W) return false;
+    const around = ranged.slice(Math.max(0, i - SPIKE_WINDOW), i + SPIKE_WINDOW + 1).flatMap((s, j) => (s.powerW === null || s === ranged[i] ? [] : [s.powerW]));
+    return p > SPIKE_FACTOR * Math.max(median(around), 1);
+  };
+  const out = ranged.map((s) => ({ ...s }));
+  for (let i = 0; i < ranged.length; ) {
+    let end = i;
+    while (end < ranged.length && isSpike(end)) end++;
+    if (end > i && end - i <= SPIKE_MAX_S) { for (let j = i; j < end; j++) out[j].powerW = null; removed += end - i; }
+    i = Math.max(end, i + 1);
+  }
+  return { samples: out, removed };
+};
+
+const HARD_STEP = 0.85;
+const ERG_LAG_S = 15;
+const DONE_SHARE = 0.9;
+/** Soll und Ist je hartem Abschnitt: Die Gesamtbelastung verdeckt sonst fehlende Wiederholungen. */
+const countIntervals = (session: Session, samples: Sample[], ftpW: number): { intervalsPlanned: number; intervalsDone: number } => {
+  let start = 0, intervalsPlanned = 0, intervalsDone = 0;
+  for (const step of session.steps) {
+    const end = start + step.durationS;
+    if (step.kind === 'erg' && step.ftpFraction >= HARD_STEP) {
+      intervalsPlanned++;
+      const inStep = samples.filter((x) => x.rideElapsedS > start + ERG_LAG_S && x.rideElapsedS <= end && x.powerW !== null);
+      const avg = mean(inStep.map((x) => x.powerW as number));
+      if (avg !== null && inStep.length >= (step.durationS - ERG_LAG_S) * DONE_SHARE && avg >= step.ftpFraction * ftpW * DONE_SHARE) intervalsDone++;
+    }
+    start = end;
+  }
+  return { intervalsPlanned, intervalsDone };
+};
+
+export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: number; plannedS: number; session?: Session }): RideSummary => {
+  const { meta, ftpW, plannedS, session } = input;
+  const { samples, removed } = cleanSamples(input.samples);
   const powers = samples.map((s) => s.powerW).filter((p): p is number => p !== null);
   const hrs = samples.map((s) => s.hrBpm).filter((h): h is number => h !== null);
   const durationS = samples.at(-1)?.rideElapsedS ?? 0;
@@ -39,6 +97,8 @@ export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: 
     avgHrBpm: round(mean(hrs)), maxHrBpm: hrs.length ? Math.max(...hrs) : null,
     bestMinutePowerW: powers.length ? Math.round(Math.max(...rollingMeans(powers, 60))) : null,
     completedFraction: plannedS > 0 ? Math.min(1, durationS / plannedS) : 0,
+    ...(removed > samples.length * SUSPECT_SHARE ? { suspectData: true } : {}),
+    ...(session ? countIntervals(session, samples, ftpW) : {}),
   };
 };
 

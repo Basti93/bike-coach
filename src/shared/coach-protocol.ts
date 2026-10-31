@@ -5,6 +5,7 @@ export type CoachClientMessage =
   | { type: 'feedback'; profileId: string; rideId: string; rating: Rating }
   | { type: 'skip-feedback'; profileId: string } | { type: 'skip-ramp'; profileId: string }
   | { type: 'note'; profileId: string; text: string }
+  | { type: 'remove-rule'; profileId: string; atMs: number }
   | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' };
 export type CoachServerMessage = { type: 'coach-state'; state: CoachState; thinking: boolean };
 export const COACH_PORT = 7411;

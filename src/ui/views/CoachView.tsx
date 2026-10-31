@@ -114,6 +114,16 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
               </form>
               {state.notes.slice(-3).map((n, i) => <p className="note" key={i}>{n.text}{n.reply && <span className="reply">{n.reply}</span>}</p>)}
             </section>
+            {(state.rules?.length ?? 0) > 0 && (
+              <section className="card">
+                <h3>Das merkt sich der Coach</h3>
+                <ul className="rules">
+                  {state.rules!.map((r) => (
+                    <li key={r.atMs}><span>{r.text}</span><button className="ghost" onClick={() => sendCoach({ type: 'remove-rule', profileId: profile.id, atMs: r.atMs })}>Entfernen</button></li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {state.changes.length > 0 && (
               <section className="card">
                 <h3>Was der Coach geändert hat</h3>

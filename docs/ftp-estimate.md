@@ -15,7 +15,7 @@ Der Rampentest ist optional. Ohne ihn schätzt die App die FTP. Geprüft am 31.1
 
 Beispiel: 35 Jahre, Mann, 80 kg, 180 cm, Aktivität 3, 5 km in 28 Minuten: rechnerisch 129 W, Start 101 W. Ohne Laufzeit: 167 W, Start 139 W.
 
-**Nachziehen:** Solange kein Rampentest vorliegt, hebt „Zu leicht“ die FTP um 5 %, „Zu hart“ senkt sie um 10 %, innerhalb der Obergrenze. Die Regel ist eigene Annahme, angelehnt an [RPE und Schwellen](https://pubmed.ncbi.nlm.nih.gov/35507232/).
+**Nachziehen:** Solange kein Rampentest vorliegt, hebt „Zu leicht“ die FTP um 5 %, „Zu hart“ senkt sie um 10 %, innerhalb der Obergrenze. „Zu leicht“ zählt nur nach mindestens 20 Minuten mit IF ab 0,65 und frühestens 3 Tage nach der letzten Änderung, „Zu hart“ frühestens nach 1 Tag. Die Regel ist eigene Annahme, angelehnt an [RPE und Schwellen](https://pubmed.ncbi.nlm.nih.gov/35507232/).
 
 **Geschlecht:** Für Jackson nötig. „Keine Angabe“ rechnet wie „Frau“ (Annahme, vorsichtig).
 

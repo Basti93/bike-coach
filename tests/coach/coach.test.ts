@@ -262,23 +262,32 @@ test('already processed rides are not read again', () => {
   spy.mockRestore();
 });
 
-test('rating adjusts an unverified FTP within the cap, a ramp result stays', () => {
+test('rating moves an unverified FTP only after a meaningful ride, a ramp result stays', () => {
   const c = make(); const P = { ...A, ftpCapW: 215 };
-  const id = ride('pa'); c.scanRides([P]);
-  c.feedback('pa', id, 'easy');
+  c.scanRides([P]);
+  const relaxed = ride('pa', { power: 100 }); c.scanRides([P]);
+  c.feedback('pa', relaxed, 'easy');
+  expect(c.state('pa').ftpW).toBe(200);
+  const real = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', real, 'easy');
   expect(c.state('pa').ftpW).toBe(210);
-  const id2 = ride('pa'); c.scanRides([P]);
-  c.feedback('pa', id2, 'easy');
+  const tooSoon = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', tooSoon, 'easy');
+  expect(c.state('pa').ftpW).toBe(210);
+  now += 4 * DAY;
+  const capped = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', capped, 'easy');
   expect(c.state('pa').ftpW).toBe(215);
-  const id3 = ride('pa'); c.scanRides([P]);
-  c.feedback('pa', id3, 'hard');
+  now += 4 * DAY;
+  const hard = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', hard, 'hard');
   expect(c.state('pa').ftpW).toBe(194);
+  now += 4 * DAY;
   ride('pa', { session: rampTest(200), power: 260, seconds: 900 }); c.scanRides([P]);
   const ramped = c.state('pa').ftpW;
   c.feedback('pa', c.state('pa').awaitingFeedback!, 'easy');
   expect(c.state('pa').ftpW).toBe(ramped);
 });
-
 test('test rides and discarded rides never count as training', () => {
   const c = make();
   ride('pa', { seconds: 8 }); ride('pa', { status: 'discarded' });
@@ -296,4 +305,38 @@ test('coach alternatives pass the guardrails, are cleared by the next ride', asy
   expect(c.state('pa').alternatives?.map((a) => a.session.id)).toEqual(['coach-alt-0']);
   ride('pa'); c.scanRides([A]);
   expect(c.state('pa').alternatives).toEqual([]);
+});
+test('absurd coach answers cannot reach the plan', async () => {
+  const absurd: Session = { id: 'x', name: 'Unsinn', steps: [{ kind: 'erg', durationS: 3_600_000, ftpFraction: 9, label: 'Ewig' }] };
+  const ask = vi.fn(async () => answer({
+    session: absurd, ftpChangeW: 99999, reason: 'x'.repeat(5000), change: 'y'.repeat(5000),
+    phase: { name: 'n'.repeat(500), weeksLeft: 1e9, goal: 'g' }, ftpForecast: [{ weeksAhead: 4, ftpW: 99999 }],
+  }));
+  const c = make(ask); c.scanRides([A]); c.note('pa', 'Hallo');
+  await c.refresh('pa');
+  const s = c.state('pa');
+  expect(ask).toHaveBeenCalledTimes(2);
+  expect(s.next.source).toBe('rules');
+  expect(s.ftpW).toBeLessThanOrEqual(210);
+  expect(s.ftpForecast).toEqual([]);
+  expect(s.phase.weeksLeft).toBeLessThanOrEqual(52);
+  expect(s.phase.name.length).toBeLessThanOrEqual(40);
+});
+test('a rejected proposal gets one retry with the reason', async () => {
+  const hard: Session = { ...good, steps: [good.steps[0], { kind: 'erg', durationS: 3000, ftpFraction: 1.2, label: 'Zu hart' }] };
+  const ask = vi.fn<(i: { prompt: string }) => Promise<unknown>>().mockResolvedValueOnce(answer({ session: hard })).mockResolvedValue(answer());
+  const c = make(ask); c.scanRides([A]); c.note('pa', 'Hallo');
+  await c.refresh('pa');
+  expect(ask.mock.calls[1][0].prompt).toContain('abgelehnt');
+  expect(c.state('pa').next.source).toBe('claude');
+});
+test('invented watts in the reason are replaced, rules persist and reach the prompt', async () => {
+  const ask = vi.fn<(i: { prompt: string }) => Promise<unknown>>().mockResolvedValue(answer({ reason: 'Du hast zuletzt 480 W getreten.', newRule: 'Nie vor 7 Uhr planen' }));
+  const c = make(ask); c.scanRides([A]); c.note('pa', 'Hallo');
+  await c.refresh('pa');
+  expect(c.state('pa').next.reason).not.toContain('480');
+  expect(c.state('pa').rules?.[0].text).toBe('Nie vor 7 Uhr planen');
+  c.note('pa', 'Noch was');
+  await c.refresh('pa');
+  expect(ask.mock.calls[1][0].prompt).toContain('Nie vor 7 Uhr planen');
 });

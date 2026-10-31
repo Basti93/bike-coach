@@ -1,4 +1,4 @@
-import { loadModel, summarizeRide, type RideSummary } from '../../src/coach/metrics';
+import { cleanSamples, loadModel, summarizeRide, type RideSummary } from '../../src/coach/metrics';
 import type { RideMeta } from '../../src/service/recorder';
 import type { Sample } from '../../src/shared/sample';
 
@@ -43,3 +43,25 @@ test('hard block produces fatigue above fitness, so form is negative', () => {
 test('no rides gives zero load and null daysSinceLastRide', () => {
   expect(loadModel([], DAY)).toEqual({ fitness: 0, fatigue: 0, form: 0, last7dTss: 0, last28dTss: 0, ridesLast28d: 0, daysSinceLastRide: null });
 });
+
+const series = (powers: (number | null)[]) => powers.map((powerW, i) => ({ seq: i, wallClockMs: i * 1000, rideElapsedS: i + 1, powerW, cadenceRpm: 80, speedKph: 30, hrBpm: 140, targetW: 150, gradePct: null, gear: null }));
+test('sensor faults are ignored, real zeros and sprints stay', () => {
+  const faulty = series([...Array(120).fill(150), 3000, 1800, ...Array(120).fill(150)]);
+  const r = summarizeRide({ meta: { rideId: 'r', profileId: 'p', sessionId: 's', startedAtMs: 0, status: 'finished' }, samples: faulty, ftpW: 200, plannedS: 242 });
+  expect(r.bestMinutePowerW).toBe(150);
+  const real = cleanSamples(series([...Array(30).fill(150), ...Array(20).fill(900), 0, 0, ...Array(30).fill(150)]));
+  expect(real.removed).toBe(0);
+  expect(real.samples[50].powerW).toBe(0);
+});
+test('ride with many faults is marked, intervals are counted against the plan', () => {
+  const meta = { rideId: 'r', profileId: 'p', sessionId: 's', startedAtMs: 0, status: 'finished' as const };
+  expect(summarizeRide({ meta, samples: series(Array(100).fill(9999)), ftpW: 200, plannedS: 100 }).suspectData).toBe(true);
+  const session = { id: 's', name: 's', steps: [
+    { kind: 'erg' as const, durationS: 60, ftpFraction: 0.5, label: 'W' },
+    { kind: 'erg' as const, durationS: 60, ftpFraction: 1, label: 'H' },
+    { kind: 'erg' as const, durationS: 60, ftpFraction: 1, label: 'H' },
+  ] };
+  const r = summarizeRide({ meta, samples: series([...Array(120).fill(200), ...Array(60).fill(120)]), ftpW: 200, plannedS: 180, session });
+  expect(r).toMatchObject({ intervalsPlanned: 2, intervalsDone: 1 });
+});
+

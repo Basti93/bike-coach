@@ -118,3 +118,6 @@ main.film { padding: .5rem; height: 100vh; display: flex; flex-direction: column
 .steps ol { list-style: none; padding: 0; margin: .5rem 0 0; }
 .steps li { display: flex; justify-content: space-between; padding: .2rem 0; color: var(--text, #fff); border-top: 1px solid var(--line); }
 button.danger { background: transparent; color: var(--high); border: 1px solid var(--high); }
+.rules { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+.rules li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
+.rules button { padding: .25rem .6rem; font-size: .8rem; }

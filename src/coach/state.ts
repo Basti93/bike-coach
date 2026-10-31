@@ -17,6 +17,7 @@ export type CoachState = {
   ftpForecast: { weeksAhead: number; ftpW: number }[];
   next: { session: Session; reason: string; source: 'claude' | 'rules' };
   alternatives?: { session: Session; why: string }[];
+  rules?: { atMs: number; text: string }[];
   changes: { atMs: number; text: string }[];
   notes: { atMs: number; text: string; reply?: string }[];
   feedback: Record<string, Rating>;
