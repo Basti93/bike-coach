@@ -31,7 +31,9 @@ export const answerSchema = z.object({
   noteReply: z.string().optional(),
   ftpChangeW: z.number().optional(),
 });
-export const answerJsonSchema = z.toJSONSchema(answerSchema) as object;
+// `claude` lehnt das Feld $schema ab, das zod automatisch einträgt.
+const { $schema: _ignored, ...answerProps } = z.toJSONSchema(answerSchema);
+export const answerJsonSchema: object = answerProps;
 
 export const SYSTEM_PROMPT = `Du bist Radsport-Coach für eine freizeitfahrende Person auf einem Indoor-Trainer.
 Ziel: regelmäßig und gern fahren, Fitness langsam steigern. Es gibt keinen Kalender. Verpasste Tage werden nie nachgeholt und nie als Versäumnis formuliert.

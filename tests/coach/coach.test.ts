@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Coach } from '../../src/coach/coach';
+import { answerJsonSchema, Coach } from '../../src/coach/coach';
 import { ClaudeError } from '../../src/coach/claude-client';
 import { checkSession } from '../../src/coach/guardrails';
 import { rampTest } from '../../src/coach/rules';
@@ -223,4 +223,9 @@ test('state is reloaded after a restart', async () => {
   const c2 = make(); c2.scanRides([A]);
   expect(c2.state('pa').next.session.id).toBe('ki');
   expect(c2.state('pa').summaries).toHaveLength(1);
+});
+
+test('the schema has no $schema key, which the claude command rejects', () => {
+  expect(answerJsonSchema).not.toHaveProperty('$schema');
+  expect(answerJsonSchema).toHaveProperty('properties.session');
 });
