@@ -4,9 +4,9 @@ export const TogetherCard = ({ together }: { together: Together }) => {
   const { peak, people, line } = together;
   return (
     <section className="card together">
-      <h3>Zusammen</h3>
+      <h3>Euer Berg</h3>
       <p className="peak-title">Auf dem Weg zum <b>{peak.name}</b></p>
-      <div className="peak-bar" role="img" aria-label={`${peak.done} von ${peak.total} Höhenmetern`}><div style={{ width: `${Math.min(100, (peak.done / peak.total) * 100)}%` }} /></div>
+      <div className="peak-bar" role="img" aria-label={`${peak.done} von ${peak.total} Höhenmetern`}><div style={{ width: `${Math.min(100, (peak.done / peak.total) * 100)}%` }}><span className="fox" aria-hidden="true">🦊</span></div></div>
       <p className="muted">{peak.done} von {peak.total} Höhenmetern. Jede Minute zählt 10 Höhenmeter, für alle gleich.</p>
       {line && <p>{line}</p>}
       <table className="people">

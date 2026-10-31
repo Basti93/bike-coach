@@ -36,9 +36,9 @@ const streak = (s: CoachState, nowMs: number): number => {
 const friendlyLine = (people: PersonStats[]): string | null => {
   if (people.length < 2) return null;
   const [a, b] = [...people].sort((x, y) => y.ridesThisWeek - x.ridesThisWeek);
-  if (a.ridesThisWeek === 0) return 'Neue Woche, neues Glück. Wer fängt an?';
-  if (a.ridesThisWeek === b.ridesThisWeek) return `Gleichstand diese Woche. ${a.name} und ${b.name} bleiben sich auf den Fersen.`;
-  return `${a.name} legt diese Woche vor. ${b.name}, das Rad wartet schon.`;
+  if (a.ridesThisWeek === 0) return 'Eine neue Woche wartet. Wer tritt zuerst in die Pedale?';
+  if (a.ridesThisWeek === b.ridesThisWeek) return `Gleichstand diese Woche. ${a.name} und ${b.name} sind ein gutes Team.`;
+  return `${a.name} legt diese Woche vor. ${b.name}, dein Rad freut sich schon auf dich.`;
 };
 
 /** Nur Dinge, die beide gleich beeinflussen können. Watt und FTP kommen hier bewusst nicht vor. */

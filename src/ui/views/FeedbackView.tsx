@@ -5,12 +5,12 @@ export const FeedbackView = ({ profileId, rideId, send, together }: { profileId:
   const rate = (rating: 'easy' | 'right' | 'hard') => send({ type: 'feedback', profileId, rideId, rating });
   return (
     <main className="center">
-      <p className="muted">Fahrt gespeichert.{together ? ` Das waren ${together.lastRideMetres} Höhenmeter auf dem Weg zum ${together.peak.name}.` : ''}</p>
-      <h1>Wie war die Fahrt?</h1>
+      <p className="muted">Schön gemacht, deine Fahrt ist gespeichert.{together ? ` Das waren ${together.lastRideMetres} Höhenmeter auf dem Weg zum ${together.peak.name}.` : ''}</p>
+      <h1>Wie war’s heute?</h1>
       <div className="choices">
-        <button className="choice" onClick={() => rate('easy')}>Zu leicht</button>
-        <button className="choice" onClick={() => rate('right')}>Genau richtig</button>
-        <button className="choice" onClick={() => rate('hard')}>Zu hart</button>
+        <button className="choice" onClick={() => rate('easy')}><span aria-hidden="true">🌱 </span>Zu leicht</button>
+        <button className="choice" onClick={() => rate('right')}><span aria-hidden="true">🍂 </span>Genau richtig</button>
+        <button className="choice" onClick={() => rate('hard')}><span aria-hidden="true">🔥 </span>Zu hart</button>
       </div>
       <button className="ghost" onClick={() => send({ type: 'skip-feedback', profileId })}>Überspringen</button>
     </main>

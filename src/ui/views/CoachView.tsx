@@ -25,6 +25,11 @@ const KEPT: Record<string, string> = {
   invalid: 'Der letzte Vorschlag von Claude passte nicht zu den Leitplanken. Die Einheit bleibt.',
   failed: 'Claude war gerade nicht erreichbar. Die Einheit bleibt, der Coach versucht es später erneut.',
 };
+const greeting = (): string => {
+  const h = new Date().getHours();
+  return h < 11 ? 'Guten Morgen' : h < 18 ? 'Schön, dich zu sehen' : 'Guten Abend';
+};
+
 type Choice = { session: Session; why: string; tag: string };
 
 type Props = {
@@ -56,7 +61,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
   return (
     <main>
       <div className="top">
-        <h1>Hallo {profile.name}</h1>
+        <h1>{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
         <div className="row">
           {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
           {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}

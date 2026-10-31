@@ -86,7 +86,7 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
       </section>
       <section className="card">
         <h3>Deine Fahrten</h3>
-        {rides.length === 0 && <p className="muted">Noch keine Fahrt. Die erste steht gleich hier.</p>}
+        {rides.length === 0 && <p className="muted">Noch ganz leer hier. Deine erste Fahrt wartet schon.</p>}
         <ul className="rides">
           {rides.map((r) => (
             <li key={r.rideId}>

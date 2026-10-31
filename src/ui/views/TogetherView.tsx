@@ -33,7 +33,7 @@ export const TogetherView = ({ together, onBack }: { together: Together; onBack:
       </section>
       <section className="card">
         <h3>Zuletzt gefahren</h3>
-        {together.recent.length === 0 && <p className="muted">Noch keine Fahrt. Wer fängt an?</p>}
+        {together.recent.length === 0 && <p className="muted">Noch keine Fahrt. Wer fängt an? 🍁</p>}
         <ul className="rides">
           {together.recent.map((r, i) => (
             <li key={i} className="recent"><span>{date(r.startedAtMs)}</span><b>{r.name}</b><span>{r.sessionName ?? 'Fahrt'}</span><span>{r.minutes} Min.</span></li>
