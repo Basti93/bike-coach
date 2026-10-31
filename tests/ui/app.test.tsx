@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { App } from '../../src/ui/App';
 
 afterEach(cleanup);
+vi.mock('../../src/ui/useCoach', () => ({ useCoach: () => ({ state: null, thinking: false, connected: false, send: () => {} }) }));
 vi.mock('../../src/ui/useRide', () => ({ useRide: () => ({
   state: { type: 'state', ride: null, engine: null, devices: {}, latest: {}, storageError: false, recovered: false, profiles: [] },
   offer: null, clearOffer: () => {}, connected: true, send: () => {}, error: 'Speicher voll',

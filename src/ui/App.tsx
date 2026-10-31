@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import type { Profile } from '../shared/profiles';
+import { useCoach } from './useCoach';
 import { useRide } from './useRide';
 import { FilmView } from './views/FilmView';
 import { ProfileView } from './views/ProfileView';
 import { RecoveryDialog } from './views/RecoveryDialog';
 import { RideView } from './views/RideView';
-import { SessionView } from './views/SessionView';
+import { CoachView } from './views/CoachView';
+import { FeedbackView } from './views/FeedbackView';
 
 export const App = () => {
   const { state, offer, clearOffer, connected, send, error } = useRide();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const coach = useCoach(profile?.id ?? null);
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
   const dialog = offer && (
@@ -26,7 +29,12 @@ export const App = () => {
     <>
       {notice}
       {profile
-        ? <SessionView profile={profile} send={send} onBack={() => setProfile(null)} />
+        ? (
+          <>
+            {coach.state?.awaitingFeedback && <FeedbackView profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />}
+            <CoachView profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />
+          </>
+        )
         : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );
