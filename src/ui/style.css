@@ -121,3 +121,18 @@ button.danger { background: transparent; color: var(--high); border: 1px solid v
 .rules { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
 .rules li { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
 .rules button { padding: .25rem .6rem; font-size: .8rem; }
+.peak-title { margin: 0 0 .5rem; font-size: 1.15rem; }
+.peak-bar { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; }
+.peak-bar div { height: 100%; background: var(--good); border-radius: 6px; }
+.together p { margin: .6rem 0; }
+.people { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: .4rem; }
+.people th, .people td { text-align: left; padding: .3rem .4rem .3rem 0; font-weight: 500; }
+.people thead th { color: var(--muted); font-size: .75rem; }
+.word { display: flex; align-items: center; gap: 1.2rem; background: var(--card); border: 1px solid var(--accent); border-radius: .8rem; padding: .7rem 1rem; }
+.word-text { flex: 1; display: flex; flex-direction: column; }
+.word-text b { font-size: 2.2rem; }
+.word-de { font-size: 1.3rem; }
+.word-de.covered { color: var(--muted); }
+.word-tools { display: flex; gap: .4rem; }
+.word-tools button { padding: .3rem .6rem; font-size: .8rem; }
+.word-example { font-size: 1rem; margin-top: .2rem; }

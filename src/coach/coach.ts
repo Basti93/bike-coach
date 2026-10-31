@@ -3,6 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { readMeta, readRide } from '../service/recorder';
 import type { Profile } from '../shared/profiles';
+import { DUTCH_WORDS, recordAnswer } from '../shared/language';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
@@ -116,6 +117,13 @@ export class Coach {
       if (s.next.session.id !== RAMP_ID) return;
       s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       this.markDirty(s);
+    });
+  }
+
+  wordResult(profileId: string, nl: string, knew: boolean): void {
+    this.update(profileId, (s) => {
+      if (!DUTCH_WORDS.some((w) => w.nl === nl)) return;
+      s.wordProgress = recordAnswer(s.wordProgress ?? {}, nl, knew, this.deps.nowMs());
     });
   }
 

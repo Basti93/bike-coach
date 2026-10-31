@@ -45,7 +45,10 @@ export class RideService {
       this.latest = { ...this.latest, ...r };
       for (const key of Object.keys(r) as (keyof Reading)[]) this.latestAt[key] = this.deps.nowMs();
     });
-    this.devices.onClick((dir) => this.active?.engine.shift(dir));
+    this.devices.onClick((dir) => {
+      this.active?.engine.shift(dir);
+      for (const cb of this.subs) this.guard(() => cb({ type: 'click', dir }));
+    });
     this.devices.start();
     this.guard(() => this.recoverOpenRide());
   }

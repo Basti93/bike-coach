@@ -25,7 +25,7 @@ const coach = (over = {}) => ({
   feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null, ...over,
 });
 
-const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; fill?: boolean }[] = [
+const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
   { name: 'profile-estimate', ride: idle({ profiles: [] }), fill: true },
@@ -38,6 +38,9 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'ride', ride: ride() },
   { name: 'ride-warn', ride: ride({ engine: engine({ stepRemainingS: 9, secondsToNext: 9 }) }) },
   { name: 'coach-cards', ride: idle(), coach: coach({ rules: [{ atMs: 1, text: 'Morgens lieber kurze Einheiten' }], alternatives: [{ session: { id: 'coach-alt-0', name: 'Hügelrunde', steps: [{ kind: 'erg', durationS: 420, ftpFraction: 0.5, label: 'Warmup' }, { kind: 'grade', durationS: 480, gradePct: 3, scale: 1, label: 'Anrollen' }, { kind: 'grade', durationS: 240, gradePct: -2, scale: 1, label: 'Abfahrt' }, { kind: 'grade', durationS: 720, gradePct: 5, scale: 1, label: 'Hauptanstieg' }, { kind: 'grade', durationS: 300, gradePct: -3, scale: 1, label: 'Abfahrt' }] }, why: 'Abwechslung, wenn du Lust auf Berge hast.' }] }), pick: true, height: 1400 },
+  { name: 'coach-together', ride: idle(), coach: coach({ together: { people: [{ profileId: 'pa', name: 'Max', ridesThisWeek: 2, minutesThisWeek: 75, streakWeeks: 3, wordsLearned: 14 }, { profileId: 'pb', name: 'Lena', ridesThisWeek: 3, minutesThisWeek: 90, streakWeeks: 4, wordsLearned: 21 }], metres: 2240, lastRideMetres: 400, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' } } }), pick: true },
+  { name: 'ride-word', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach() },
+  { name: 'ride-word-reveal', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach(), wait: 6500 },
   { name: 'ride-end', ride: ride(), click: 'Beenden' },
   { name: 'coach-route', ride: idle(), coach: coach({ next: { ...coach().next, session: STARTER_SESSIONS[2], source: 'rules' } }), pick: true },
   { name: 'ride-grade', ride: ride({ session: STARTER_SESSIONS[2], engine: engine({ targetW: null, gradePct: 4.5, gear: 7, label: 'Erster Anstieg', nextLabel: 'Erholung' }) }) },
@@ -58,7 +61,7 @@ const stub = () => {
       setTimeout(() => {
         if (this.coach && !w.__coach) { this.readyState = 3; this.onclose?.(); return; }
         this.onopen?.();
-        if (this.coach) this.onmessage?.({ data: JSON.stringify({ type: 'coach-state', state: w.__coach, thinking: false }) });
+        if (this.coach) this.onmessage?.({ data: JSON.stringify({ type: 'coach-state', state: w.__coach, thinking: false, together: (w.__coach as { together?: unknown }).together }) });
         else {
           this.onmessage?.({ data: JSON.stringify(w.__ride) });
           if (w.__offer) this.onmessage?.({ data: JSON.stringify({ type: 'recovery-offer', ...(w.__offer as object) }) });
@@ -81,6 +84,7 @@ for (const s of shots) {
   await win.reload();
   await win.waitForTimeout(150);
   if (s.pick) { await win.getByRole('button', { name: /Max/ }).first().click(); await win.waitForTimeout(150); }
+  if (s.wait) await win.waitForTimeout(s.wait);
   if (s.click) { await win.getByRole('button', { name: s.click }).click(); await win.waitForTimeout(100); }
   if (s.fill) {
     await win.getByLabel('Name').fill('Lena');

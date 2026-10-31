@@ -4,18 +4,23 @@ import { WorkoutBar } from './WorkoutBar';
 
 const fmtMin = (s: number) => `${Math.round(s / 60)} Min.`;
 
-/** Die Eckdaten einer Einheit, damit man vor dem Start weiß, was kommt. */
-export const SessionFacts = ({ session, ftpW }: { session: Session; ftpW: number }) => {
+const effort = (session: Session): string => {
+  const hard = session.steps.some((s) => (s.kind === 'erg' ? s.ftpFraction > 0.9 : s.gradePct > 7));
+  const totalH = session.steps.reduce((a, s) => a + s.durationS, 0) / 3600;
+  const intensity = Math.sqrt(estimateTss(session) / 100 / totalH);
+  if (hard || intensity > 0.85) return 'hart';
+  return intensity > 0.68 ? 'mittel' : 'locker';
+};
+
+/** Das Wichtigste auf einen Blick: wie lange und wie anstrengend. */
+export const SessionFacts = ({ session }: { session: Session; ftpW: number }) => {
   const totalS = session.steps.reduce((a, s) => a + s.durationS, 0);
-  const ergs = session.steps.flatMap((s) => (s.kind === 'erg' ? [s.ftpFraction] : []));
   const grades = session.steps.flatMap((s) => (s.kind === 'grade' ? [s.gradePct] : []));
   return (
     <dl className="facts">
       <div><dt>Dauer</dt><dd>{fmtMin(totalS)}</dd></div>
-      <div><dt>Belastung</dt><dd>{Math.round(estimateTss(session))} TSS</dd></div>
-      {grades.length > 0
-        ? <div><dt>Steilste Stelle</dt><dd>{Math.max(...grades).toLocaleString('de-DE')} %</dd></div>
-        : <div><dt>Bis zu</dt><dd>{Math.round(Math.max(...ergs) * ftpW)} W</dd></div>}
+      <div><dt>Anstrengung</dt><dd>{session.id === 'ramp-test' ? 'bis zum Limit' : effort(session)}</dd></div>
+      {grades.length > 0 && <div><dt>Steilste Stelle</dt><dd>{Math.max(...grades).toLocaleString('de-DE')} %</dd></div>}
     </dl>
   );
 };

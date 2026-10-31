@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CoachState } from '../../coach/state';
+import type { Together } from '../../coach/together';
 import type { CoachClientMessage } from '../../shared/coach-protocol';
 import type { Profile } from '../../shared/profiles';
 import type { ClientMessage } from '../../shared/protocol';
@@ -7,6 +8,7 @@ import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
 import { rampTest } from '../../coach/rules';
 import { SessionFacts, StepList, TrainingCard } from './TrainingCard';
+import { TogetherCard } from './TogetherCard';
 import { WorkoutBar } from './WorkoutBar';
 
 const NOTICE: Record<string, string> = {
@@ -26,11 +28,12 @@ const KEPT: Record<string, string> = {
 type Choice = { session: Session; why: string; tag: string };
 
 type Props = {
+  together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void;
 };
 
-export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, sendCoach, onBack }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -96,15 +99,11 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
         </div>
         {state && (
           <div className="stack">
+            {together && <TogetherCard together={together} />}
             <section className="card">
               <h3>Dein Plan</h3>
-              <div className="ftp">{state.ftpW}<small>W FTP{state.ftpHistory.some((h) => h.source === 'ramp') ? '' : ', geschätzt'}</small></div>
-              {state.ftpForecast.length > 0 && (
-                <div className="forecast">
-                  {state.ftpForecast.map((f) => <span key={f.weeksAhead}><b>{f.ftpW} W</b>in {f.weeksAhead} Wochen</span>)}
-                </div>
-              )}
               <p className="note"><b>{state.phase.name}</b>{state.phase.weeksLeft > 0 ? `, noch etwa ${state.phase.weeksLeft} Wochen` : ''}. {state.phase.goal}</p>
+              <p className="muted">FTP {state.ftpW} W{state.ftpHistory.some((h) => h.source === 'ramp') ? '' : ', geschätzt'}</p>
             </section>
             <section className="card">
               <h3>Hinweis an den Coach</h3>

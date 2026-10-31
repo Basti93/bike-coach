@@ -8,6 +8,7 @@ import type { Profile } from '../shared/profiles';
 import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
+import { computeTogether } from './together';
 import type { CoachState } from './state';
 
 const dir = process.env.BIKE_DATA_DIR;
@@ -51,10 +52,14 @@ const wss = new WebSocketServer({
 });
 const subs = new Map<WebSocket, string>();
 const lastSent = new Map<WebSocket, string>();
+const together = () => {
+  const all = profiles();
+  return computeTogether(all, all.flatMap((p) => { try { return [coach.state(p.id)]; } catch { return []; } }), Date.now());
+};
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together() });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* Profil oder Verbindung weg */ }
   }
@@ -77,6 +82,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'adjust') coach.adjustNext(m.profileId, m.how);
       if (m.type === 'skip-ramp') coach.skipRamp(m.profileId);
       if (m.type === 'remove-rule') coach.removeRule(m.profileId, m.atMs);
+      if (m.type === 'word-result') coach.wordResult(m.profileId, m.nl, m.knew);
       publish();
     } catch { /* ungültige Nachricht ignorieren */ }
   });

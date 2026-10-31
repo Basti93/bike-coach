@@ -21,5 +21,5 @@ export type StateMessage = {
   type: 'state'; ride: RideMeta | null; engine: EngineState | null; devices: DeviceStatus;
   latest: Reading; storageError: boolean; recovered: boolean; profiles: Profile[]; session: Session | null;
 };
-export type ServerMessage = StateMessage | RecoveryOffer | { type: 'error'; message: string };
+export type ServerMessage = StateMessage | RecoveryOffer | { type: 'click'; dir: 'up' | 'down' } | { type: 'error'; message: string };
 export const SERVICE_PORT = 7410;

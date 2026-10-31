@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
 import { WorkoutBar } from './WorkoutBar';
 
@@ -15,7 +15,7 @@ const powerClass = (power: number | null | undefined, target: number | null): st
   return 'good';
 };
 
-export const RideView = ({ state, send, compact = false }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean }) => {
+export const RideView = ({ state, send, compact = false, extra }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode }) => {
   const [ending, setEnding] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,6 +72,7 @@ export const RideView = ({ state, send, compact = false }: { state: StateMessage
       {banners}
       {devices.trainer !== 'connected' && <div className="banner warn" role="status">Trainer wird gesucht. Die Fahrt läuft weiter und ist gespeichert.</div>}
       {engine.autoReducedPct > 0 && <div className="banner info" role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</div>}
+      {extra}
       <section className="hero">
         <div className="hero-tile">
           <span className="label">{isGrade ? 'Steigung' : 'Vorgabe'}</span>
