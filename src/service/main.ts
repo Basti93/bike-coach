@@ -18,7 +18,7 @@ const service = new RideService({
   retryMs: fake ? 20 : undefined,
   onRideChange: (riding) => parent?.postMessage({ riding }),
 });
-startWsServer(service, Number(process.env.BIKE_PORT ?? 7410));
+const wss = startWsServer(service, Number(process.env.BIKE_PORT ?? 7410));
 setInterval(() => service.tick(), 1000 / scale);
 
 if (fake) {
@@ -33,4 +33,4 @@ if (fake) {
     if (cmd === 'back') fake.online[kind as DeviceKind] = true;
   });
 }
-process.stdout.write('ready\n');
+wss.once('listening', () => process.stdout.write('ready\n'));
