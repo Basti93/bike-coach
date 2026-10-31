@@ -9,6 +9,7 @@ import { RideView } from './views/RideView';
 import { CoachView } from './views/CoachView';
 import { FeedbackView } from './views/FeedbackView';
 import { HistoryView } from './views/HistoryView';
+import { TogetherView } from './views/TogetherView';
 import { WordCard } from './views/WordCard';
 
 const CALM_FRACTION = 0.75;
@@ -18,7 +19,8 @@ export const App = () => {
   const { click, state, offer, clearOffer, connected, send, error } = useRide();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState(false);
-  const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? null);
+  const [overview, setOverview] = useState(false);
+  const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
   const dialog = offer && (
@@ -39,14 +41,15 @@ export const App = () => {
       && !(maxHr && (state.latest.hrBpm ?? 0) >= maxHr);
     return <>{notice}{dialog}<RideView state={state} send={send} extra={calm && c ? <WordCard state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
   }
+  if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
   return (
     <>
       {notice}
       {profile
         ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
           ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />
-          : <CoachView onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
-        : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
+          : <CoachView onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+        : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );
 };

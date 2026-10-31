@@ -156,3 +156,8 @@ button.ride-row { display: grid; grid-template-columns: 8rem 1fr 5rem 8rem; gap:
 .stat-row .tile b { font-size: 2rem; white-space: nowrap; }
 main > section.card + section.card { margin-top: 1rem; }
 .bars-axis { display: flex; justify-content: space-between; font-size: .8rem; margin-top: .3rem; }
+main > section.card + section.card, main > .together + section.card { margin-top: 1rem; }
+.rhythm { width: 100%; border-collapse: separate; border-spacing: 3px; }
+.rhythm th { text-align: left; font-weight: 500; padding-right: .8rem; white-space: nowrap; width: 1%; }
+.rhythm .cell { height: 26px; border-radius: 4px; background: var(--line); }
+.recent { display: grid; grid-template-columns: 8rem 7rem 1fr 5rem; gap: .6rem; padding: .55rem .2rem; }

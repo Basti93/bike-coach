@@ -25,6 +25,11 @@ const coach = (over = {}) => ({
   feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null, ...over,
 });
 
+const TOGETHER = {
+  people: [{ profileId: 'pa', name: 'Max', ridesThisWeek: 2, minutesThisWeek: 75, streakWeeks: 3, wordsLearned: 14, weeks: [0, 0, 40, 60, 0, 30, 45, 0, 60, 90, 45, 75] }, { profileId: 'pb', name: 'Lena', ridesThisWeek: 3, minutesThisWeek: 90, streakWeeks: 4, wordsLearned: 21, weeks: [30, 0, 0, 45, 30, 0, 60, 30, 45, 60, 80, 90] }],
+  recent: [{ name: 'Lena', startedAtMs: Date.now() - 3600000 * 20, sessionName: 'Locker, 30 Minuten', minutes: 30 }, { name: 'Max', startedAtMs: Date.now() - 86400000 * 2, sessionName: 'Intervalle, 45 Minuten', minutes: 45 }, { name: 'Lena', startedAtMs: Date.now() - 86400000 * 3, sessionName: 'Steigung, 40 Minuten', minutes: 40 }],
+  metres: 2240, lastRideMetres: 300, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' },
+};
 const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
@@ -38,7 +43,8 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'ride', ride: ride() },
   { name: 'ride-warn', ride: ride({ engine: engine({ stepRemainingS: 9, secondsToNext: 9 }) }) },
   { name: 'coach-cards', ride: idle(), coach: coach({ rules: [{ atMs: 1, text: 'Morgens lieber kurze Einheiten' }], alternatives: [{ session: { id: 'coach-alt-0', name: 'Hügelrunde', steps: [{ kind: 'erg', durationS: 420, ftpFraction: 0.5, label: 'Warmup' }, { kind: 'grade', durationS: 480, gradePct: 3, scale: 1, label: 'Anrollen' }, { kind: 'grade', durationS: 240, gradePct: -2, scale: 1, label: 'Abfahrt' }, { kind: 'grade', durationS: 720, gradePct: 5, scale: 1, label: 'Hauptanstieg' }, { kind: 'grade', durationS: 300, gradePct: -3, scale: 1, label: 'Abfahrt' }] }, why: 'Abwechslung, wenn du Lust auf Berge hast.' }] }), pick: true, height: 1400 },
-  { name: 'coach-together', ride: idle(), coach: coach({ together: { people: [{ profileId: 'pa', name: 'Max', ridesThisWeek: 2, minutesThisWeek: 75, streakWeeks: 3, wordsLearned: 14 }, { profileId: 'pb', name: 'Lena', ridesThisWeek: 3, minutesThisWeek: 90, streakWeeks: 4, wordsLearned: 21 }], metres: 2240, lastRideMetres: 400, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' } } }), pick: true },
+  { name: 'together-page', ride: idle(), coach: coach({ together: TOGETHER }), click: 'Gemeinsame Übersicht' },
+  { name: 'coach-together', ride: idle(), coach: coach({ together: { recent: [], people: [{ profileId: 'pa', name: 'Max', ridesThisWeek: 2, minutesThisWeek: 75, streakWeeks: 3, wordsLearned: 14, weeks: [] }, { profileId: 'pb', name: 'Lena', ridesThisWeek: 3, minutesThisWeek: 90, streakWeeks: 4, wordsLearned: 21, weeks: [] }], metres: 2240, lastRideMetres: 400, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' } } }), pick: true },
   { name: 'ride-word', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach() },
   { name: 'ride-word-reveal', ride: ride({ engine: engine({ targetW: 100, label: 'Locker', nextLabel: 'Hart' }) }), coach: coach(), wait: 6500 },
   { name: 'history', ride: idle(), coach: coach({ feedback: { h1: 'right', h2: 'hard' }, detail: { rideId: 'h1', points: Array.from({ length: 200 }, (_, i) => ({ t: (i + 1) * 12, powerW: i % 40 < 12 ? 195 + (i % 5) : 110 + (i % 7), hrBpm: 120 + Math.round(30 * Math.sin(i / 12) ** 2) })) },
