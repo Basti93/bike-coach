@@ -1,28 +1,49 @@
+# Heimserver: Regeln in ~/SERVER.md. Aufbau wie anderes Projekt, aber ohne Funnel: nur im Tailnet erreichbar.
+# Variablen per Compose-Interpolation aus ./.env (chmod 600). Kein env_file, damit api den Tailscale-Key nicht sieht.
 name: bike-coach
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   api:
     build: .
-    env_file: .env
+    restart: unless-stopped
+    logging: *default-logging
     environment:
       DB_PATH: /data/bike-coach.db
+      SYNC_TOKEN: ${SYNC_TOKEN:?SYNC_TOKEN in .env setzen}
     ports:
       - "127.0.0.1:7002:7002"
     volumes:
       - data:/data
     mem_limit: 256m
-    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
   tailscale:
-    image: tailscale/tailscale
+    # Eigener Knoten (SERVER.md Regel 3a), gleiche Version wie anderes Projekt. Kein Host-Port.
+    image: tailscale/tailscale:v1.76.1
+    restart: unless-stopped
+    logging: *default-logging
     hostname: bike-coach
-    env_file: .env
     environment:
-      TS_STATE_DIR: /var/lib/tailscale
+      TS_HOSTNAME: bike-coach
       TS_USERSPACE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_SERVE_CONFIG: /config/serve.json
     volumes:
-      - ./tailscale-state:/var/lib/tailscale
+      - tsstate:/var/lib/tailscale
       - ./serve.json:/config/serve.json:ro
+    depends_on:
+      - api
     mem_limit: 128m
-    restart: unless-stopped
+
 volumes:
   data:
+  tsstate:
