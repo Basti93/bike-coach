@@ -11,3 +11,10 @@ Der Nutzer sitzt auf dem Rad und diktiert Feedback mit der macOS-Diktierfunktion
 - Erlaubt: `src/ui/**` und `npm run live:adjust -- <deltaPct>`; die Leitplanken begrenzen den Wert.
 - Jede Änderung ist ein eigener Commit mit Präfix `live:`. Rückgängig: `npm run live:undo`.
 - Größere Umbauten kommen nach `docs/after-ride.md` und werden nach der Fahrt umgesetzt.
+
+## Betrieb
+
+- Ohne Rad testen: `npm run dev:sim` simuliert Trainer und Gurt.
+- Daten: `~/Library/Application Support/bike-coach/rides/`, FIT-Dateien unter `rides/exports/`.
+- Sync zum Heimserver: `~/Library/Application Support/bike-coach/config.json` mit `{"syncUrl": "...", "syncToken": "..."}`. Ohne die Datei läuft alles lokal.
+- Andere Geräte koppeln: `rides/devices.json` löschen, solange keine Fahrt läuft.

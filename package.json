@@ -6,6 +6,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:sim": "BIKE_SIM=1 electron-vite dev",
     "build": "electron-vite build",
     "probe": "tsx scripts/ble-probe.ts",
     "test": "vitest run --exclude 'tests/chaos/**'",

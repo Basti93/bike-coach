@@ -57,3 +57,21 @@ test('undo refuses when no live commit exists', () => {
   fs.writeFileSync(path.join(repo, 'a'), '1'); git('add', '.'); git('commit', '-qm', 'base');
   expect(() => undoLastLive(repo)).toThrow(/live:/);
 });
+test('a new ride starts with an empty live log, a resumed one keeps it', () => {
+  const dir = temp(); let t = 0;
+  const log = new LiveLog(dir);
+  const opts = { dir, ble: new FakeBlePort(), nowMs: () => t, onLive: (l: object) => log.write(l), onRideStart: () => log.reset() };
+  const short = { ...session, steps: [{ ...session.steps[0], durationS: 1 }] };
+  const svc = new RideService(opts);
+  svc.handle({ type: 'start', profileId: 'A', session: short, ftpW: 200 });
+  t += 1000; svc.tick();
+  svc.handle({ type: 'start', profileId: 'A', session, ftpW: 200 });
+  const file = path.join(dir, 'live', 'current.jsonl');
+  expect(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '').toBe('');
+  t += 1000; svc.tick();
+  const before = fs.readFileSync(file, 'utf8');
+  new RideService(opts).close();
+  expect(fs.readFileSync(file, 'utf8').startsWith(before)).toBe(true);
+  expect(before).not.toBe('');
+  svc.close();
+});

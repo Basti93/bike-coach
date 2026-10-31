@@ -1,4 +1,4 @@
-import { app, BrowserWindow, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'node:path';
 import { restartDelayMs } from './backoff';
 import { openFilmWindow } from './film-window';
@@ -19,7 +19,7 @@ export const startService = (): UtilityProcess => {
   child.on('message', (m: { riding?: boolean }) => {
     if (typeof m.riding !== 'boolean') return;
     riding = m.riding;
-    if (riding && blocker === null) blocker = powerSaveBlocker.start('prevent-app-suspension');
+    if (riding && blocker === null) blocker = powerSaveBlocker.start('prevent-display-sleep');
     if (!riding && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
   });
   child.on('exit', () => {
@@ -56,6 +56,10 @@ void app.whenReady().then(() => {
 // Das Schließen der Fenster beendet weder Dienst noch App, damit eine laufende Fahrt weiterläuft.
 app.on('window-all-closed', () => { if (!riding && process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', (e) => {
-  if (riding) { e.preventDefault(); return; }
+  if (riding) {
+    e.preventDefault();
+    dialog.showErrorBox('Fahrt läuft', 'Bitte beende zuerst die Fahrt. Sie bleibt gespeichert, auch wenn der Mac ausgeht.');
+    return;
+  }
   quitting = true;
 });

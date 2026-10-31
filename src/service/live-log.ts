@@ -5,6 +5,9 @@ import path from 'node:path';
 export class LiveLog {
   private file: string;
   constructor(dir: string) { this.file = path.join(dir, 'live', 'current.jsonl'); }
+  reset(): void {
+    try { fs.rmSync(this.file, { force: true }); } catch { /* bewusst ignoriert */ }
+  }
   write(line: object): void {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });

@@ -1,5 +1,6 @@
 import { FakeBlePort } from './ble/fake-device';
 import { NobleBlePort } from './ble/noble-adapter';
+import { SimBlePort } from './ble/sim-device';
 import type { BlePort, DeviceKind } from './ble/device-port';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +15,9 @@ const scale = Number(process.env.BIKE_TIME_SCALE ?? 1);
 const started = Date.now();
 const nowMs = () => started + (Date.now() - started) * scale;
 const fake = process.env.BIKE_FAKE_BLE === '1' ? new FakeBlePort() : null;
-const ble: BlePort = fake ?? new NobleBlePort(dir);
+const sim = process.env.BIKE_SIM === '1' ? new SimBlePort() : null;
+const ble: BlePort = fake ?? sim ?? new NobleBlePort(dir);
+if (sim) setInterval(() => sim.step(1), 1000 / scale);
 
 const parent = (process as unknown as { parentPort?: { postMessage(m: unknown): void } }).parentPort;
 const live = new LiveLog(dir);
@@ -22,6 +25,7 @@ const service = new RideService({
   dir, ble, nowMs,
   retryMs: fake ? 20 : undefined,
   onLive: (l) => live.write(l),
+  onRideStart: () => live.reset(),
   onRideChange: (riding) => parent?.postMessage({ riding }),
 });
 const wss = startWsServer(service, {

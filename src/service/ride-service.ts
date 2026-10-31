@@ -27,7 +27,7 @@ const CRASH_GAP_MS = 5000;
 const LONG_DOWNTIME_MS = 5 * 60 * 1000;
 const RIDE_ID = /^ride-[\w-]+$/;
 const checkRideId = (id: string): void => { if (!RIDE_ID.test(id)) throw new Error('Ungültige Fahrt-ID.'); };
-type Deps = { dir: string; ble: BlePort; nowMs: () => number; gradePerGear?: number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void };
+type Deps = { dir: string; ble: BlePort; nowMs: () => number; gradePerGear?: number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void; onRideStart?: () => void };
 
 export class RideService {
   private devices: DeviceManager;
@@ -98,6 +98,7 @@ export class RideService {
         const sessionFile = path.join(this.deps.dir, rideId, 'session.json');
         fs.writeFileSync(`${sessionFile}.tmp`, JSON.stringify({ session, ftpW: msg.ftpW }));
         fs.renameSync(`${sessionFile}.tmp`, sessionFile);
+        this.guard(() => this.deps.onRideStart?.());
         this.setActive({ recorder, engine: this.newEngine(session, msg.ftpW), session, ftpW: msg.ftpW, recovered: false });
         return;
       }
