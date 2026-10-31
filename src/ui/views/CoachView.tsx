@@ -63,6 +63,7 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
               {thinking && <p className="muted">Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
               <div className="row">
                 <button className="go" onClick={() => start(next.session)}>Los</button>
+                {isRamp && <button className="secondary" onClick={() => sendCoach({ type: 'skip-ramp', profileId: profile.id })}>Überspringen</button>}
                 {!isRamp && (
                   <>
                     <button className="secondary" onClick={() => adjust('easier')}>Leichter</button>

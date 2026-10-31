@@ -1,4 +1,5 @@
 import type { Session, Step } from '../../shared/session';
+import { hasRoute, RouteProfile } from './RouteProfile';
 
 const intensity = (s: Step): number => (s.kind === 'erg' ? s.ftpFraction : 0.55 + Math.max(0, s.gradePct) * 0.06);
 const zone = (i: number): string => {
@@ -11,6 +12,7 @@ const zone = (i: number): string => {
 
 /** Das Profil der Einheit: Breite ist Dauer, Höhe und Farbe sind die Belastung. */
 export const WorkoutBar = ({ session, elapsedS }: { session: Session; elapsedS?: number }) => {
+  if (hasRoute(session)) return <RouteProfile session={session} elapsedS={elapsedS} />;
   const total = session.steps.reduce((a, s) => a + s.durationS, 0);
   const max = Math.max(1.1, ...session.steps.map(intensity));
   return (

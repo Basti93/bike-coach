@@ -99,6 +99,14 @@ export class Coach {
       this.markDirty(s);
     });
   }
+  skipRamp(profileId: string): void {
+    this.update(profileId, (s) => {
+      if (s.next.session.id !== RAMP_ID) return;
+      s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
+      this.markDirty(s);
+    });
+  }
+
   adjustNext(profileId: string, how: 'easier' | 'harder' | 'shorter'): void {
     this.update(profileId, (s) => {
       s.next = { ...s.next, session: adjustSession(s.next.session, how, this.context(s)) };
@@ -199,7 +207,8 @@ export class Coach {
       x.processedRides.push(name);
       x.awaitingFeedback = name;
       if (meta.sessionId === RAMP_ID) this.applyRamp(x, summary);
-      if (x.next.session.id !== RAMP_ID) x.next = { ...ruleBasedSession(this.context(x)), source: 'rules' };
+      // Eine andere Einheit gefahren: Ein vorgeschlagener Rampentest ist damit übersprungen.
+      if (x.next.session.id !== RAMP_ID || meta.sessionId !== RAMP_ID) x.next = { ...ruleBasedSession(this.context(x)), source: 'rules' };
       this.markDirty(x);
     });
   }

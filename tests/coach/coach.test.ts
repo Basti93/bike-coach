@@ -169,6 +169,8 @@ test('reaching the ramp ceiling proposes the ramp again with the new FTP', () =>
   c.scanRides([A]);
   expect(c.state('pa').ftpW).toBe(225);
   expect(c.state('pa').next.session.id).toBe('ramp-test');
+  c.skipRamp('pa');
+  expect(c.state('pa').next.session.id).not.toBe('ramp-test');
 });
 test('ai FTP change is limited to 5 % and to once in 14 days', async () => {
   const c = make(async () => answer({ ftpChangeW: 50 })); afterRamp(c);

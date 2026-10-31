@@ -75,6 +75,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'skip-feedback') { coach.skipFeedback(m.profileId); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'note') { coach.note(m.profileId, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'adjust') coach.adjustNext(m.profileId, m.how);
+      if (m.type === 'skip-ramp') coach.skipRamp(m.profileId);
       publish();
     } catch { /* ungültige Nachricht ignorieren */ }
   });
