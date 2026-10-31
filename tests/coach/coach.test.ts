@@ -229,3 +229,39 @@ test('the schema has no $schema key, which the claude command rejects', () => {
   expect(answerJsonSchema).not.toHaveProperty('$schema');
   expect(answerJsonSchema).toHaveProperty('properties.session');
 });
+
+test('coach stopped during a call retries after restart', async () => {
+  const hang = make(() => new Promise(() => {}));
+  afterRamp(hang);
+  void hang.refresh('pa');
+  await new Promise((r) => setTimeout(r, 10));
+  const restarted = make(); restarted.scanRides([A]);
+  expect(restarted.state('pa').dirty).toBe(true);
+});
+test('a note arriving during a call triggers another call', async () => {
+  let release!: (v: unknown) => void;
+  const ask = vi.fn(() => new Promise<unknown>((r) => { release = r; }));
+  const c = make(ask);
+  afterRamp(c);
+  const run = c.refresh('pa');
+  await new Promise((r) => setTimeout(r, 10));
+  c.note('pa', 'Knie zwickt');
+  release(answer());
+  await new Promise((r) => setTimeout(r, 10));
+  expect(ask).toHaveBeenCalledTimes(2);
+  release(answer());
+  await run;
+  expect(c.state('pa').dirty).toBe(false);
+});
+test('finished call clears dirty', async () => {
+  const c = make(); afterRamp(c);
+  await c.refresh('pa');
+  expect(c.state('pa').dirty).toBe(false);
+});
+test('already processed rides are not read again', () => {
+  const c = make(); const id = ride('pa'); c.scanRides([A]);
+  const spy = vi.spyOn(fs, 'readFileSync');
+  c.scanRides([A]);
+  expect(spy.mock.calls.filter(([f]) => String(f).includes(path.join(id, 'samples.jsonl')))).toEqual([]);
+  spy.mockRestore();
+});

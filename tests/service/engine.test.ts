@@ -137,3 +137,24 @@ describe('Absenken während der Fahrt', () => {
     expect(feed(e, c, 6, { hrBpm: 150, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
   });
 });
+describe('Absenken: Pausen und Anzeige', () => {
+  const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
+  const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => { let last; for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); } return last!; };
+  test('not pedalling is a pause, not a collapse', () => {
+    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+    expect(run(e, c, 60, { cadenceRpm: 0, powerW: 0 }).sample.targetW).toBe(200);
+  });
+  test('state reports the automatic reduction', () => {
+    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+    expect(e.state().autoReducedPct).toBe(0);
+    run(e, c, 21, { cadenceRpm: 40 });
+    expect(e.state().autoReducedPct).toBe(5);
+  });
+  test('counters restart with a new step', () => {
+    const c = clock();
+    const steps = [{ kind: 'erg' as const, durationS: 25, ftpFraction: 1, label: 'A' }, { kind: 'erg' as const, durationS: 100, ftpFraction: 1, label: 'B' }];
+    const e = new RideEngine({ session: { ...long, steps }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    run(e, c, 26, { hrBpm: 180, cadenceRpm: 90 });
+    expect(run(e, c, 10, { hrBpm: 180, cadenceRpm: 90 }).sample.targetW).toBe(200);
+  });
+});

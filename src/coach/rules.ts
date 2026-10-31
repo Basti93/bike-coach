@@ -23,6 +23,8 @@ const fitToCap = (session: Session, ctx: CoachContext): Session => {
   return s;
 };
 
+const MIN_RIDES_FOR_INTERVALS = 3;
+
 export const ruleBasedSession = (ctx: CoachContext): { session: Session; reason: string } => {
   const model = loadModel(ctx.summaries, ctx.nowMs);
   if (mustBeGentle(ctx)) {
@@ -32,7 +34,8 @@ export const ruleBasedSession = (ctx: CoachContext): { session: Session; reason:
     return { session: fitToCap(steady('regel-erholung', 'Lockere Erholung', 25, 0.55), ctx), reason: 'Du hast zuletzt viel geleistet, heute darf es locker sein, damit die Form ankommt.' };
   }
   const hardInLastDays = ctx.summaries.some((r: RideSummary) => ctx.nowMs - r.startedAtMs < 2 * 86_400_000 && (r.intensityFactor ?? 0) >= 0.8);
-  if (!hardInLastDays && model.form > -10) {
+  const ridesLastMonth = ctx.summaries.filter((r: RideSummary) => ctx.nowMs - r.startedAtMs < 28 * 86_400_000).length;
+  if (!hardInLastDays && model.form > -10 && ridesLastMonth >= MIN_RIDES_FOR_INTERVALS) {
     const candidate = intervals(4);
     if (checkSession(candidate, ctx).ok) return { session: candidate, reason: 'Du bist gut erholt, heute passen ein paar kräftige Intervalle.' };
     const shorter = intervals(2);

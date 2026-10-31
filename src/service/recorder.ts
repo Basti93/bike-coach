@@ -104,6 +104,9 @@ export class RideRecorder {
   }
 }
 
+export const readMeta = (dir: string, rideId: string): RideMeta =>
+  JSON.parse(nodeFs.readFileSync(path.join(dir, rideId, 'meta.json'), 'utf8')) as RideMeta;
+
 export const readRide = (dir: string, rideId: string): { meta: RideMeta; samples: Sample[]; events: RideEvent[] } => {
   const rideDir = path.join(dir, rideId);
   return {

@@ -79,3 +79,9 @@ test('feedback can be skipped', () => {
   fireEvent.click(screen.getByText('Überspringen'));
   expect(send).toHaveBeenCalledWith({ type: 'skip-feedback', profileId: 'pa' });
 });
+test('failed planning is explained even when the session came from claude', () => {
+  view(state({ lastError: 'limit' }));
+  const t = screen.getByRole('status').textContent!;
+  expect(t).toContain('Limit');
+  expect(t).not.toContain('Regelwerk');
+});

@@ -8,7 +8,7 @@ afterEach(cleanup);
 const base: StateMessage = {
   type: 'state',
   ride: { rideId: 'r', profileId: 'A', sessionId: 's', startedAtMs: 1, status: 'open' },
-  engine: { stepIndex: 0, stepRemainingS: 125, rideElapsedS: 10, targetW: 150, gradePct: null, gear: null, label: 'Warmup', nextLabel: 'Anstieg', secondsToNext: 125 },
+  engine: { stepIndex: 0, stepRemainingS: 125, rideElapsedS: 10, targetW: 150, gradePct: null, gear: null, label: 'Warmup', nextLabel: 'Anstieg', secondsToNext: 125, autoReducedPct: 0 },
   devices: { trainer: 'connected', hr: 'connected', clicker: 'searching' },
   latest: { powerW: 148, hrBpm: 130, cadenceRpm: 85 },
   storageError: false, recovered: false, profiles: [],
@@ -51,4 +51,8 @@ test('m key sets a marker', () => {
   const send = view();
   fireEvent.keyDown(window, { key: 'm' });
   expect(send).toHaveBeenCalledWith({ type: 'mark' });
+});
+test('shows the automatic reduction', () => {
+  view({ engine: { ...base.engine!, autoReducedPct: 10 } });
+  expect(document.body.textContent).toContain('automatisch um 10 % gesenkt');
 });

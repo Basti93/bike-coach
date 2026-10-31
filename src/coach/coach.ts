@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { readRide } from '../service/recorder';
+import { readMeta, readRide } from '../service/recorder';
 import type { Profile } from '../shared/profiles';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
@@ -125,11 +125,16 @@ export class Coach {
   private async refreshOnce(profileId: string): Promise<void> {
     const s = this.state(profileId);
     if (s.next.session.id === RAMP_ID) { this.update(profileId, (x) => { x.dirty = false; x.dirtySinceMs = null; }); return; }
-    this.update(profileId, (x) => { x.dirty = false; x.dirtySinceMs = null; x.lastAttemptMs = this.deps.nowMs(); });
+    // dirty bleibt bis zum Ergebnis gesetzt: Endet der Prozess mitten im Aufruf, wird nachgeholt.
+    this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
       const raw = await this.deps.ask({ prompt: this.buildPrompt(s), systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema });
-      this.update(profileId, (x) => this.applyAnswer(x, raw, answeredNotes));
+      this.update(profileId, (x) => {
+        this.applyAnswer(x, raw, answeredNotes);
+        x.dirty = false;
+        x.dirtySinceMs = null;
+      });
     } catch (e) {
       this.update(profileId, (x) => {
         x.lastError = e instanceof ClaudeError ? e.kind : 'failed';
@@ -177,9 +182,10 @@ export class Coach {
   }
 
   private scanRide(name: string): void {
-    const { meta, samples } = readRide(this.deps.ridesDir, name);
+    const meta = readMeta(this.deps.ridesDir, name);
     const s = this.states.get(meta.profileId);
     if (!s || meta.status === 'open' || s.processedRides.includes(name)) return;
+    const { samples } = readRide(this.deps.ridesDir, name);
     const { session, ftpW } = JSON.parse(fs.readFileSync(path.join(this.deps.ridesDir, name, 'session.json'), 'utf8')) as { session: Session; ftpW: number };
     const plannedS = session.steps.reduce((a, x) => a + x.durationS, 0);
     const summary = summarizeRide({ meta, samples, ftpW, plannedS });

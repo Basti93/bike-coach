@@ -79,3 +79,8 @@ test('ramp test cannot be adjusted', () => {
   expect(adjustSession(rampTest(200), 'easier', rested).id).toBe('ramp-test');
   expect(adjustSession(rampTest(200), 'easier', rested).steps).toHaveLength(rampTest(200).steps.length);
 });
+
+test('a beginner with only one ride gets no intervals', () => {
+  const s = ruleBasedSession(ctx([past(2.5, { sessionId: 'ramp-test', intensityFactor: 0.75, tss: 30, durationS: 900 })]));
+  expect(s.session.steps.every((x) => x.kind === 'erg' && x.ftpFraction <= 0.75)).toBe(true);
+});

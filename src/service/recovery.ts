@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Sample } from '../shared/sample';
-import { readRide, type RideMeta } from './recorder';
+import { readMeta, type RideMeta } from './recorder';
 
 export const findOpenRides = (dir: string): RideMeta[] => {
   if (!fs.existsSync(dir)) return [];
@@ -9,7 +9,7 @@ export const findOpenRides = (dir: string): RideMeta[] => {
   for (const name of fs.readdirSync(dir)) {
     if (!fs.existsSync(path.join(dir, name, 'meta.json'))) continue;
     try {
-      const { meta } = readRide(dir, name);
+      const meta = readMeta(dir, name);
       if (meta.status === 'open') open.push(meta);
     } catch { /* unlesbare Fahrt darf den Start nicht verhindern */ }
   }

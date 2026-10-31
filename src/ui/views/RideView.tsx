@@ -25,6 +25,7 @@ export const RideView = ({ state, send, compact = false }: { state: StateMessage
         <div role="alert">In {engine.secondsToNext} s: {engine.nextLabel}</div>
       )}
       {!compact && <h2>{engine.label}</h2>}
+      {!compact && engine.autoReducedPct > 0 && <p role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</p>}
       <div className="grid">
         <div className="tile">Vorgabe<b data-testid="target">{target}</b></div>
         <div className="tile">Leistung<b data-testid="power">{value(latest.powerW)} W</b></div>

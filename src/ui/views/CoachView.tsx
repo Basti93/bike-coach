@@ -13,6 +13,13 @@ const NOTICE: Record<string, string> = {
   invalid: 'Der Vorschlag von Claude passte nicht zu den Leitplanken. Diese Einheit stammt vom Regelwerk.',
   failed: 'Claude war gerade nicht erreichbar. Diese Einheit stammt vom Regelwerk, der Coach versucht es später erneut.',
 };
+const KEPT: Record<string, string> = {
+  limit: 'Das Limit deines Claude-Plans ist gerade erreicht. Die Einheit bleibt, der Coach berücksichtigt Neues beim nächsten Versuch.',
+  missing: 'Claude wurde auf diesem Mac nicht gefunden. Die Einheit bleibt, bis der Coach wieder planen kann.',
+  timeout: 'Claude hat nicht rechtzeitig geantwortet. Die Einheit bleibt, der Coach versucht es später erneut.',
+  invalid: 'Der letzte Vorschlag von Claude passte nicht zu den Leitplanken. Die Einheit bleibt.',
+  failed: 'Claude war gerade nicht erreichbar. Die Einheit bleibt, der Coach versucht es später erneut.',
+};
 const minutes = (s: Session) => Math.round(s.steps.reduce((a, x) => a + x.durationS, 0) / 60);
 
 type Props = {
@@ -41,7 +48,7 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
           <h2>{next.session.name} · {minutes(next.session)} Minuten</h2>
           <p>{next.reason}</p>
           {isRamp && <p>Die Rampe wird jede Minute schwerer. Fahre, bis es nicht mehr geht, und drücke dann „Beenden“. Das Ergebnis wird gespeichert.</p>}
-          {next.source === 'rules' && state.lastError && <p role="status">{NOTICE[state.lastError]}</p>}
+          {state.lastError && <p role="status">{next.source === 'rules' ? NOTICE[state.lastError] : KEPT[state.lastError]}</p>}
           {thinking && <p>Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
           <div className="row">
             <button onClick={() => start(next.session)}>Los</button>

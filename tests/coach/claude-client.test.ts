@@ -60,3 +60,16 @@ test('findClaude reports missing when the shell finds nothing', async () => {
   expect(await kind(findClaude(async () => ''))).toBe('missing');
   expect(await kind(findClaude(async () => { throw new Error('x'); }))).toBe('missing');
 });
+
+test('a successful answer mentioning a limit or 429 stays valid', async () => {
+  const { bin } = fake(`echo '{"is_error":false,"usage":{"input_tokens":429},"structured_output":{"reason":"limit reached"}}'`);
+  await expect(ask(bin)).resolves.toEqual({ reason: 'limit reached' });
+});
+test('is_error with exit code 0 and limit text is a limit', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"result":"You have hit your usage limit"}'`);
+  expect(await kind(ask(bin))).toBe('limit');
+});
+test('is_error without limit text fails', async () => {
+  const { bin } = fake(`echo '{"is_error":true,"result":"kaputt"}'`);
+  expect(await kind(ask(bin))).toBe('failed');
+});

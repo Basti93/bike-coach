@@ -15,7 +15,7 @@ const RAMP_ID = 'ramp-test';
 export type EngineState = {
   stepIndex: number; stepRemainingS: number; rideElapsedS: number;
   targetW: number | null; gradePct: number | null; gear: number | null;
-  label: string; nextLabel: string | null; secondsToNext: number;
+  label: string; nextLabel: string | null; secondsToNext: number; autoReducedPct: number;
 };
 export type TrainerCommand = { targetW?: number; gradePct?: number };
 export type EngineOptions = {
@@ -87,6 +87,7 @@ export class RideEngine {
       stepIndex: index, stepRemainingS: remainingS, rideElapsedS: this.elapsedS,
       targetW: t.targetW, gradePct: t.gradePct, gear: t.gradePct === null ? null : this.gear,
       label: step.label, nextLabel: next?.label ?? null, secondsToNext: remainingS,
+      autoReducedPct: index === this.autoStep ? this.autoPct : 0,
     };
   }
 
@@ -95,12 +96,12 @@ export class RideEngine {
   /** Entscheidung ohne KI: Puls zu lange über der Grenze oder einbrechende Trittfrequenz. */
   private applyAutoReduction(now: number, events: RideEvent[]): void {
     const { step, index } = this.position(this.elapsedS);
+    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.cadenceLowS = 0; }
     if (step.kind !== 'erg' || this.opts.session.id === RAMP_ID) return;
-    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; }
     const { hrBpm, cadenceRpm } = this.latest;
     const limit = this.opts.maxHrBpm;
     this.hrHighS = limit !== undefined && hrBpm !== null && hrBpm > limit ? this.hrHighS + 1 : 0;
-    this.cadenceLowS = cadenceRpm !== null && cadenceRpm < CADENCE_FLOOR_RPM ? this.cadenceLowS + 1 : 0;
+    this.cadenceLowS = cadenceRpm !== null && cadenceRpm > 0 && cadenceRpm < CADENCE_FLOOR_RPM ? this.cadenceLowS + 1 : 0;
     const cause = this.hrHighS > HR_HOLD_S - 1 ? 'hr' : this.cadenceLowS > CADENCE_HOLD_S - 1 ? 'cadence' : null;
     if (!cause) return;
     this.hrHighS = 0;

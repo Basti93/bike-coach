@@ -30,3 +30,13 @@ test('rides with unreadable meta are skipped', () => {
   fs.writeFileSync(path.join(dir, 'bad', 'meta.json'), '{"rideId":');
   expect(findOpenRides(dir)).toEqual([]);
 });
+
+test('looking for open rides does not read samples', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const rec = RideRecorder.create(dir, { rideId: 'a', profileId: 'p', sessionId: 's', startedAtMs: 1, status: 'open' });
+  rec.append(sample(0));
+  const spy = vi.spyOn(fs, 'readFileSync');
+  expect(findOpenRides(dir).map((m) => m.rideId)).toEqual(['a']);
+  expect(spy.mock.calls.filter(([f]) => String(f).includes('samples'))).toEqual([]);
+  spy.mockRestore();
+});
