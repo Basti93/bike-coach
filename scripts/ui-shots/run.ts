@@ -25,10 +25,12 @@ const coach = (over = {}) => ({
   feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null, ...over,
 });
 
-const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string }[] = [
+const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
+  { name: 'profile-estimate', ride: idle({ profiles: [] }), fill: true },
   { name: 'coach', ride: idle(), coach: coach(), pick: true },
+  { name: 'coach-estimated', ride: idle(), coach: coach({ ftpW: 139, ftpHistory: [{ atMs: Date.now(), ftpW: 139, source: 'manual' }], changes: [], notes: [] }), pick: true },
   { name: 'coach-ramp', ride: idle(), coach: coach({ next: { session: rampTest(150), reason: 'Der Rampentest zeigt, wo du gerade stehst. Danach richtet sich alles nach deinen Werten.', source: 'rules' }, phase: { name: 'Einstieg', weeksLeft: 0, goal: 'Die eigene Leistung kennenlernen' }, ftpForecast: [], changes: [], notes: [], ftpHistory: [], ftpW: 150 }), pick: true },
   { name: 'coach-limit', ride: idle(), coach: coach({ lastError: 'limit', next: { ...coach().next, source: 'rules' } }), pick: true },
   { name: 'coach-offline', ride: idle(), coach: null, pick: true },
@@ -76,6 +78,15 @@ for (const s of shots) {
   await win.reload();
   await win.waitForTimeout(150);
   if (s.pick) { await win.getByRole('button', { name: /Max/ }).first().click(); await win.waitForTimeout(150); }
+  if (s.fill) {
+    await win.getByLabel('Name').fill('Lena');
+    await win.getByLabel('Alter').fill('35');
+    await win.getByLabel('Größe (cm)').fill('180');
+    await win.getByLabel('Gewicht (kg)').fill('80');
+    await win.getByLabel('Geschlecht').selectOption('male');
+    await win.getByLabel('Wie aktiv').selectOption('3');
+    await win.waitForTimeout(100);
+  }
   await win.screenshot({ path: path.join(out, `${s.name}.png`) });
   console.log(s.name);
 }

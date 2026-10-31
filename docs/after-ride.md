@@ -15,3 +15,4 @@ Quellen: Auuki, GoldenCheetah, qdomyos-zwift, BikeControl, clickbridge, wattroom
 - Eigene Setzung ohne Vorbild: automatische Absenkung (20 s, 30 s, 5 %, −20 %), Intervalle ab 3 Fahrten in 28 Tagen, 0,5 % Steigung je Gang.
 - Offen: automatisches Ende des Rampentests (wattroom), Pflichtfelder für den Garmin-Upload, Eigenheiten von noble unter macOS.
 - Clicker: Zwift Click erste Generation eingebaut, Verhalten nach BikeControl und zwiftplay, kein Code übernommen. Am echten Gerät ungeprüft. Sehr alte Firmware ist laut zwiftplay verschlüsselt, dann vorher in der Zwift-Companion-App aktualisieren.
+- FTP ohne Test: Der Rampentest ist optional, die Schätzung steht in `docs/ftp-estimate.md`. Formeln nur aus Abstracts und Zweitquellen, Kette nicht validiert, Fehler eher über ±22 %. Die Nachzieh-Regel (+5 %/−10 %) ist eigene Setzung.

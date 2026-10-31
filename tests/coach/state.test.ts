@@ -4,10 +4,10 @@ import path from 'node:path';
 import { loadState, saveState } from '../../src/coach/state';
 
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'state-'));
-test('new profile starts with the ramp test and the given FTP', () => {
+test('new profile starts with a normal session and the given FTP', () => {
   const s = loadState(dir(), 'p', 150, 1000);
   expect(s.ftpW).toBe(150);
-  expect(s.next.session.id).toBe('ramp-test');
+  expect(s.next.session.id).not.toBe('ramp-test');
   expect(s.ftpHistory).toEqual([{ atMs: 1000, ftpW: 150, source: 'manual' }]);
 });
 test('state survives a restart', () => {

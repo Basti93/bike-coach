@@ -10,6 +10,9 @@ import { loadModel, summarizeRide } from './metrics';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, saveState, type CoachState, type Rating } from './state';
 
+const RAISE_UNVERIFIED = 1.05;
+const LOWER_UNVERIFIED = 0.9;
+const MIN_FTP_W = 50;
 const MIN_RAMP_S = 480; // 5 Minuten Warmup plus mindestens 3 Minuten Rampe
 const COACH_FTP_MAX_CHANGE = 0.05;
 const COACH_FTP_INTERVAL_MS = 14 * 86_400_000;
@@ -72,6 +75,7 @@ export class Coach {
   scanRides(profiles: Profile[]): void {
     for (const p of profiles) {
       if (!this.states.has(p.id)) this.states.set(p.id, loadState(this.deps.coachDir, p.id, p.ftpW, this.deps.nowMs()));
+      this.states.get(p.id)!.ftpCapW = p.ftpCapW;
     }
     if (!fs.existsSync(this.deps.ridesDir)) return;
     for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-')).sort(byStart)) {
@@ -82,6 +86,7 @@ export class Coach {
   feedback(profileId: string, rideId: string, rating: Rating): void {
     this.update(profileId, (s) => {
       s.feedback[rideId] = rating;
+      this.adjustUnverifiedFtp(s, rating);
       if (s.awaitingFeedback === rideId) s.awaitingFeedback = null;
       this.markDirty(s);
     });
@@ -129,7 +134,7 @@ export class Coach {
     this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
-      const raw = await this.deps.ask({ prompt: this.buildPrompt(s), systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema });
+      const raw = await this.deps.ask({ prompt: `${this.buildPrompt(s)}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema });
       this.update(profileId, (x) => {
         this.applyAnswer(x, raw, answeredNotes);
         x.dirty = false;
@@ -209,6 +214,19 @@ export class Coach {
     s.next = hitCeiling
       ? { session: rampTest(ftpW), reason: 'Du bist bis ganz nach oben gekommen. Ein zweiter Test zeigt deinen echten Wert.', source: 'rules' }
       : { ...ruleBasedSession(this.context(s)), source: 'rules' };
+  }
+
+  /** Ohne Rampentest ist die FTP nur geschätzt. Die Bewertung zieht sie nach (eigene Regel, siehe docs/ftp-estimate.md). */
+  private adjustUnverifiedFtp(s: CoachState, rating: Rating): void {
+    if (rating === 'right' || s.ftpHistory.some((h) => h.source === 'ramp')) return;
+    const raw = s.ftpW * (rating === 'easy' ? RAISE_UNVERIFIED : LOWER_UNVERIFIED);
+    const ftpW = Math.round(Math.max(MIN_FTP_W, Math.min(s.ftpCapW ?? Infinity, raw)));
+    if (ftpW === s.ftpW) return;
+    const now = this.deps.nowMs();
+    s.ftpW = ftpW;
+    s.ftpHistory.push({ atMs: now, ftpW, source: 'coach' });
+    this.addChange(s, `Nach deiner Bewertung liegt deine FTP jetzt bei ${ftpW} W.`, now);
+    if (s.next.session.id !== RAMP_ID) s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
   }
 
   private context(s: CoachState): CoachContext { return { ftpW: s.ftpW, summaries: s.summaries, nowMs: this.deps.nowMs() }; }

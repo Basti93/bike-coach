@@ -32,7 +32,9 @@ main.center { min-height: 100vh; display: flex; flex-direction: column; align-it
 .choices { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
 button.choice { font-size: 1.4rem; padding: 1.6rem 2.6rem; background: var(--card); border: 1px solid var(--line); min-width: 12rem; }
 button.choice:hover { border-color: var(--accent); }
-.form { display: flex; flex-direction: column; gap: .9rem; width: 24rem; text-align: left; }
+.form { display: flex; flex-direction: column; gap: .8rem; width: 34rem; max-width: 100%; text-align: left; }
+.form-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+select { font: inherit; padding: .6rem .7rem; border-radius: .5rem; border: 1px solid var(--line); background: #0e1014; color: inherit; width: 100%; }
 .form label { display: flex; flex-direction: column; gap: .3rem; color: var(--muted); font-size: .95rem; }
 
 /* Coach */

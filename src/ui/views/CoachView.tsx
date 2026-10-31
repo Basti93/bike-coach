@@ -5,6 +5,7 @@ import type { Profile } from '../../shared/profiles';
 import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
+import { rampTest } from '../../coach/rules';
 import { WorkoutBar } from './WorkoutBar';
 
 const NOTICE: Record<string, string> = {
@@ -52,7 +53,7 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
         <div className="stack">
           {next && (
             <section className="card next">
-              <h3>{isRamp ? 'Erster Schritt' : 'Deine nächste Einheit'}</h3>
+              <h3>Deine nächste Einheit</h3>
               <h2>{next.session.name}</h2>
               <p className="muted">{isRamp ? `bis zu ${total} Minuten` : `${total} Minuten`} · FTP {ftpW} W</p>
               <WorkoutBar session={next.session} />
@@ -76,6 +77,7 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
             <summary>Andere Einheit wählen</summary>
             <div className="starters">
               {STARTER_SESSIONS.map((s) => <button key={s.id} className="starter" onClick={() => start(s)}>{s.name}</button>)}
+              {!isRamp && <button className="starter" onClick={() => start(rampTest(ftpW))}>Rampentest: FTP genau messen</button>}
             </div>
           </details>
         </div>
@@ -83,7 +85,7 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
           <div className="stack">
             <section className="card">
               <h3>Dein Plan</h3>
-              <div className="ftp">{state.ftpW}<small>W FTP</small></div>
+              <div className="ftp">{state.ftpW}<small>W FTP{state.ftpHistory.some((h) => h.source === 'ramp') ? '' : ', geschätzt'}</small></div>
               {state.ftpForecast.length > 0 && (
                 <div className="forecast">
                   {state.ftpForecast.map((f) => <span key={f.weeksAhead}><b>{f.ftpW} W</b>in {f.weeksAhead} Wochen</span>)}

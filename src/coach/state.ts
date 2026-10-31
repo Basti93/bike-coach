@@ -3,11 +3,12 @@ import path from 'node:path';
 import type { Session } from '../shared/session';
 import type { ClaudeErrorKind } from './claude-client';
 import type { RideSummary } from './metrics';
-import { rampTest } from './rules';
+import { RAMP_ID } from './guardrails';
+import { ruleBasedSession } from './rules';
 
 export type Rating = 'easy' | 'right' | 'hard';
 export type CoachState = {
-  profileId: string; ftpW: number;
+  profileId: string; ftpW: number; ftpCapW?: number;
   ftpHistory: { atMs: number; ftpW: number; source: 'manual' | 'ramp' | 'coach' }[];
   phase: { name: string; weeksLeft: number; goal: string };
   ftpForecast: { weeksAhead: number; ftpW: number }[];
@@ -28,8 +29,8 @@ const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComp
 
 const initial = (profileId: string, ftpW: number, nowMs: number): CoachState => ({
   profileId, ftpW, ftpHistory: [{ atMs: nowMs, ftpW, source: 'manual' }],
-  phase: { name: 'Einstieg', weeksLeft: 0, goal: 'Die eigene Leistung kennenlernen' }, ftpForecast: [],
-  next: { session: rampTest(ftpW), reason: 'Der Rampentest zeigt, wo du gerade stehst. Danach richtet sich alles nach deinen Werten.', source: 'rules' },
+  phase: { name: 'Einstieg', weeksLeft: 0, goal: 'Locker anfangen und die Belastung kennenlernen' }, ftpForecast: [],
+  next: { ...ruleBasedSession({ ftpW, summaries: [], nowMs }), source: 'rules' },
   changes: [], notes: [], feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null,
   dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null,
 });
@@ -38,7 +39,10 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
   const f = file(dir, profileId);
   if (!fs.existsSync(f)) return initial(profileId, initialFtpW, nowMs);
   try {
-    return JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
+    const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
+    // Der Rampentest ist nicht mehr Pflicht: Ältere Stände ohne Fahrt starten mit einer normalen Einheit.
+    if (s.next.session.id === RAMP_ID && s.summaries.length === 0) s.next = initial(profileId, s.ftpW, nowMs).next;
+    return s;
   } catch {
     fs.copyFileSync(f, `${f}.broken`);
     return initial(profileId, initialFtpW, nowMs);

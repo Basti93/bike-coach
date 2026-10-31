@@ -46,15 +46,10 @@ const afterRamp = (c: Coach, p = A) => {
   c.scanRides([p]);
 };
 
-test('first start proposes the ramp test', () => {
+test('first start offers a gentle ride, the ramp test is optional', () => {
   const c = make(); c.scanRides([A]);
-  expect(c.state('pa').next.session.id).toBe('ramp-test');
-});
-test('no call happens before the first ramp test', async () => {
-  const ask = vi.fn(async () => answer());
-  const c = make(ask); c.scanRides([A]);
-  await c.refresh('pa');
-  expect(ask).not.toHaveBeenCalled();
+  expect(c.state('pa').next.session.id).not.toBe('ramp-test');
+  expect(checkSession(c.state('pa').next.session, { ftpW: 200, summaries: [], nowMs: NOW }).ok).toBe(true);
 });
 test('new finished ride is summarized once and awaits feedback', () => {
   const c = make();
@@ -167,7 +162,6 @@ test('very short ramp attempt does not change FTP', () => {
   ride('pa', { session: rampTest(200), power: 260, seconds: 60 });
   c.scanRides([A]);
   expect(c.state('pa').ftpW).toBe(200);
-  expect(c.state('pa').next.session.id).toBe('ramp-test');
 });
 test('reaching the ramp ceiling proposes the ramp again with the new FTP', () => {
   const c = make();
@@ -264,4 +258,21 @@ test('already processed rides are not read again', () => {
   c.scanRides([A]);
   expect(spy.mock.calls.filter(([f]) => String(f).includes(path.join(id, 'samples.jsonl')))).toEqual([]);
   spy.mockRestore();
+});
+
+test('rating adjusts an unverified FTP within the cap, a ramp result stays', () => {
+  const c = make(); const P = { ...A, ftpCapW: 215 };
+  const id = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', id, 'easy');
+  expect(c.state('pa').ftpW).toBe(210);
+  const id2 = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', id2, 'easy');
+  expect(c.state('pa').ftpW).toBe(215);
+  const id3 = ride('pa'); c.scanRides([P]);
+  c.feedback('pa', id3, 'hard');
+  expect(c.state('pa').ftpW).toBe(194);
+  ride('pa', { session: rampTest(200), power: 260, seconds: 900 }); c.scanRides([P]);
+  const ramped = c.state('pa').ftpW;
+  c.feedback('pa', c.state('pa').awaitingFeedback!, 'easy');
+  expect(c.state('pa').ftpW).toBe(ramped);
 });
