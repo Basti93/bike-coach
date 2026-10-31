@@ -1,0 +1,5 @@
+{
+  "TCP": { "443": { "HTTPS": true } },
+  "Web": { "bike-coach.<tailnet>.ts.net:443": { "Handlers": { "/": { "Proxy": "http://api:7002" } } } },
+  "AllowFunnel": { "bike-coach.<tailnet>.ts.net:443": false }
+}

@@ -1,0 +1,26 @@
+name: bike-coach
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DB_PATH: /data/bike-coach.db
+    ports:
+      - "127.0.0.1:7002:7002"
+    volumes:
+      - ./data:/data
+    mem_limit: 256m
+    restart: unless-stopped
+  tailscale:
+    image: tailscale/tailscale
+    hostname: bike-coach
+    env_file: .env
+    environment:
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./tailscale-state:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
+    mem_limit: 128m
+    restart: unless-stopped
