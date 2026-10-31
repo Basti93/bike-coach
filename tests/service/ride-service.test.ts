@@ -116,3 +116,73 @@ test('export failure does not lose the ride', () => {
   const svc = make(); start(svc); ticks(svc, 100);
   expect(readRide(dir, onlyRide()).meta.status).toBe('finished');
 });
+const failingFs = (state: { failing: boolean }) => ({ ...fs,
+  writeSync: (fd: number, data: string) => { if (state.failing) throw new Error('ENOSPC'); return fs.writeSync(fd, data); },
+  writeFileSync: (f: string, data: string) => { if (state.failing) throw new Error('ENOSPC'); return fs.writeFileSync(f, data); },
+}) as unknown as typeof fs;
+test('ride ending on a full disk keeps retrying without losing samples', () => {
+  const state = { failing: false };
+  const svc = new RideService({ dir, ble: new FakeBlePort(), nowMs: () => t, recorderFs: failingFs(state) });
+  svc.handle({ type: 'start', profileId: 'A', session: { ...session, steps: [{ ...session.steps[0], durationS: 3 }] }, ftpW: 200 });
+  ticks(svc, 1);
+  state.failing = true;
+  ticks(svc, 4);
+  expect(readRide(dir, onlyRide()).meta.status).toBe('open');
+  expect(svc.isRiding()).toBe(true);
+  state.failing = false;
+  ticks(svc, 1);
+  const r = readRide(dir, onlyRide());
+  expect(r.meta.status).toBe('finished');
+  expect(r.samples.map((s) => s.seq)).toEqual([0, 1, 2]);
+  expect(svc.isRiding()).toBe(false);
+  svc.close();
+});
+test('corrupt session file does not stop the service from starting', () => {
+  const first = make(); start(first); ticks(first, 5);
+  fs.writeFileSync(path.join(dir, onlyRide(), 'session.json'), '{"session":');
+  const svc = make();
+  expect(svc.isRiding()).toBe(false);
+  const r = readRide(dir, onlyRide());
+  expect(r.meta.status).toBe('aborted');
+  expect(r.samples).toHaveLength(5);
+});
+test('session file is written atomically', () => {
+  const svc = make(); start(svc);
+  expect(fs.readdirSync(path.join(dir, onlyRide()))).not.toContain('session.json.tmp');
+  expect(fs.readdirSync(path.join(dir, onlyRide()))).toContain('session.json');
+});
+test('frozen readings are not recorded as live data', () => {
+  const ble = new FakeBlePort();
+  const svc = new RideService({ dir, ble, nowMs: () => t, retryMs: 5 });
+  start(svc);
+  return new Promise<void>((resolve) => setTimeout(() => {
+    ble.emit('trainer', Buffer.from([0x41, 0x00, 0x64, 0x00]));
+    ticks(svc, 5);
+    expect(readRide(dir, onlyRide()).samples.map((x) => x.powerW)).toEqual([100, 100, 100, null, null]);
+    svc.close();
+    resolve();
+  }, 20));
+});
+test('downtime after a crash is marked as a gap', () => {
+  const first = make(); start(first); ticks(first, 5);
+  t += 60_000;
+  make();
+  const gap = readRide(dir, onlyRide()).events.filter((e) => e.type === 'gap-start' || e.type === 'gap-end');
+  expect(gap.map((e) => e.type)).toEqual(['gap-start', 'gap-end']);
+});
+test('after a long downtime the ride waits for a decision and counts no time', () => {
+  const first = make(); start(first); ticks(first, 5);
+  t += 24 * 3600 * 1000;
+  const svc = make(); ticks(svc, 10);
+  expect(readRide(dir, onlyRide()).samples).toHaveLength(5);
+  svc.handle({ type: 'resume', rideId: onlyRide() });
+  ticks(svc, 1);
+  expect(readRide(dir, onlyRide()).samples.at(-1)!.rideElapsedS).toBe(6);
+});
+test('invalid rideId and invalid profile are refused', () => {
+  const svc = make(); out = [];
+  svc.handle({ type: 'export-fit', rideId: '../../evil' });
+  svc.handle({ type: 'save-profile', profile: { id: 'x' } as never });
+  expect(out.filter((m) => m.type === 'error')).toHaveLength(2);
+  expect(fs.existsSync(path.join(dir, 'profiles.json'))).toBe(false);
+});

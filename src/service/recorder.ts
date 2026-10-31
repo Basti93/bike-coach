@@ -28,6 +28,8 @@ export class RideRecorder {
   private samplesFd: number;
   private eventsFd: number;
   private rideDir: string;
+  private metaFailed = false;
+  private closed = false;
 
   private constructor(dir: string, private meta: RideMeta, private fs: Fs) {
     this.rideDir = path.join(dir, meta.rideId);
@@ -38,7 +40,7 @@ export class RideRecorder {
   static create(dir: string, meta: RideMeta, fs: Fs = nodeFs): RideRecorder {
     nodeFs.mkdirSync(path.join(dir, meta.rideId), { recursive: true });
     const rec = new RideRecorder(dir, meta, fs);
-    rec.writeMeta();
+    rec.writeMeta(meta);
     return rec;
   }
 
@@ -51,15 +53,29 @@ export class RideRecorder {
 
   append(sample: Sample): void { this.write(this.samplesFd, sample); }
   event(e: RideEvent): void { this.write(this.eventsFd, e); }
-  hasStorageError(): boolean { return this.pending.length > 0; }
+  hasStorageError(): boolean { return this.pending.length > 0 || this.metaFailed; }
   getMeta(): RideMeta { return this.meta; }
 
-  finish(status: Exclude<RideStatus, 'open'>): void {
+  /**
+   * Schließt die Fahrt nur ab, wenn wirklich alles auf der Platte liegt.
+   * Sonst bleibt sie offen, und der Aufrufer versucht es später erneut.
+   */
+  finish(status: Exclude<RideStatus, 'open'>): boolean {
+    if (this.closed) return true;
     this.flush();
+    if (this.pending.length > 0) return false;
+    try {
+      this.writeMeta({ ...this.meta, status });
+    } catch {
+      this.metaFailed = true;
+      return false;
+    }
+    this.metaFailed = false;
     this.meta = { ...this.meta, status };
-    this.writeMeta();
+    this.closed = true;
     nodeFs.closeSync(this.samplesFd);
     nodeFs.closeSync(this.eventsFd);
+    return true;
   }
 
   private write(fd: number, value: unknown): void {
@@ -81,9 +97,9 @@ export class RideRecorder {
     }
   }
 
-  private writeMeta(): void {
+  private writeMeta(meta: RideMeta): void {
     const target = path.join(this.rideDir, 'meta.json');
-    nodeFs.writeFileSync(`${target}.tmp`, JSON.stringify(this.meta));
+    this.fs.writeFileSync(`${target}.tmp`, JSON.stringify(meta));
     nodeFs.renameSync(`${target}.tmp`, target);
   }
 }

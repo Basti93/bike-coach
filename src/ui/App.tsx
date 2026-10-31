@@ -8,7 +8,7 @@ import { RideView } from './views/RideView';
 import { SessionView } from './views/SessionView';
 
 export const App = () => {
-  const { state, offer, clearOffer, connected, send } = useRide();
+  const { state, offer, clearOffer, connected, send, error } = useRide();
   const [profile, setProfile] = useState<Profile | null>(null);
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
@@ -20,8 +20,14 @@ export const App = () => {
       onClose={clearOffer}
     />
   );
-  if (state?.engine) return <>{dialog}<RideView state={state} send={send} /></>;
-  return profile
-    ? <SessionView profile={profile} send={send} onBack={() => setProfile(null)} />
-    : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />;
+  const notice = error && <div role="alert">{error}</div>;
+  if (state?.engine) return <>{notice}{dialog}<RideView state={state} send={send} /></>;
+  return (
+    <>
+      {notice}
+      {profile
+        ? <SessionView profile={profile} send={send} onBack={() => setProfile(null)} />
+        : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
+    </>
+  );
 };

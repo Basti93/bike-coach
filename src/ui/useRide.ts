@@ -5,6 +5,7 @@ export const useRide = () => {
   const [state, setState] = useState<StateMessage | null>(null);
   const [offer, setOffer] = useState<RecoveryOffer | null>(null);
   const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export const useRide = () => {
         const m = JSON.parse(String(e.data));
         if (m.type === 'state') setState(m);
         if (m.type === 'recovery-offer') setOffer(m);
+        if (m.type === 'error') setError(m.message);
       };
       ws.onclose = () => {
         setConnected(false);
@@ -29,7 +31,8 @@ export const useRide = () => {
   }, []);
 
   const send = (m: ClientMessage) => {
+    setError(null);
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { state, offer, clearOffer: () => setOffer(null), connected, send };
+  return { state, offer, clearOffer: () => setOffer(null), connected, send, error };
 };

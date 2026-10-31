@@ -21,18 +21,36 @@ export class NobleBlePort implements BlePort {
   private known: Partial<Record<DeviceKind, string>> = {};
   private knownFile: string;
   private noble: any;
+  private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, nobleImpl?: unknown) {
+    this.noble = nobleImpl;
     this.knownFile = path.join(dataDir, 'devices.json');
     try { this.known = JSON.parse(fs.readFileSync(this.knownFile, 'utf8')); } catch { /* erster Start */ }
   }
 
-  async connect(kind: DeviceKind): Promise<void> {
+  /** Nacheinander, weil ein neuer Scan den laufenden ersetzt und sich die Geräte sonst gegenseitig aushungern. */
+  connect(kind: DeviceKind): Promise<void> {
+    const run = this.queue.then(() => this.connectNow(kind));
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  private async connectNow(kind: DeviceKind): Promise<void> {
     const spec = SERVICES[kind];
     if (!spec) throw new Error(`${kind} wird in Stufe 1 nicht verbunden`);
     this.noble ??= ((await import('@stoprocent/noble')) as any).default;
     await this.noble.waitForPoweredOnAsync(SCAN_TIMEOUT_MS);
     const peripheral = await this.find(kind, spec.service);
+    let ready = false;
+    let dropped = false;
+    peripheral.once('disconnect', () => {
+      dropped = true;
+      if (!ready) return;
+      this.peripherals.delete(kind);
+      this.writers.delete(kind);
+      this.disconnectCb(kind);
+    });
     await peripheral.connectAsync();
     const { characteristics } = await peripheral.discoverSomeServicesAndCharacteristicsAsync(
       [spec.service], [spec.notify, ...(spec.write ? [spec.write] : [])],
@@ -45,11 +63,8 @@ export class NobleBlePort implements BlePort {
       await writer.subscribeAsync().catch(() => {});
       this.writers.set(kind, writer);
     }
-    peripheral.once('disconnect', () => {
-      this.peripherals.delete(kind);
-      this.writers.delete(kind);
-      this.disconnectCb(kind);
-    });
+    if (dropped) throw new Error(`${kind} während der Verbindung verloren`);
+    ready = true;
     this.peripherals.set(kind, peripheral);
     this.known[kind] = peripheral.id;
     fs.writeFileSync(this.knownFile, JSON.stringify(this.known));

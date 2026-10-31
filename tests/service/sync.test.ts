@@ -57,3 +57,23 @@ test('finished ride status reaches server', async () => {
   expect(rides[0].status).toBe('finished');
   await app.close();
 });
+test('finished rides are not requested again, even after a restart', async () => {
+  const { dir, rec } = setup(); const { app, baseUrl } = await serve();
+  rec.append(sample(0)); rec.finish('finished');
+  await new SyncClient({ baseUrl, token: 't', dir }).syncAll();
+  const real = globalThis.fetch; let calls = 0;
+  globalThis.fetch = (async (...a: Parameters<typeof fetch>) => { calls++; return real(...a); }) as typeof fetch;
+  await new SyncClient({ baseUrl, token: 't', dir }).syncAll();
+  globalThis.fetch = real;
+  expect(calls).toBe(0);
+  await app.close();
+});
+test('one unreadable ride does not stop the others', async () => {
+  const { dir, rec } = setup(); const { app, baseUrl } = await serve();
+  rec.append(sample(0));
+  fs.mkdirSync(path.join(dir, 'a-bad'));
+  fs.writeFileSync(path.join(dir, 'a-bad', 'meta.json'), '{');
+  await new SyncClient({ baseUrl, token: 't', dir }).syncAll();
+  expect(await remote(baseUrl)).toHaveLength(1);
+  await app.close();
+});

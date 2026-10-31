@@ -1,13 +1,17 @@
 import { app, BrowserWindow, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'node:path';
+import { restartDelayMs } from './backoff';
 import { openFilmWindow } from './film-window';
 
 let blocker: number | null = null;
 let riding = false;
 let quitting = false;
+let failures = 0;
+const STABLE_RUN_MS = 60_000;
 
 /** Der Fahrdienst läuft unabhängig von den Fenstern und wird nach jedem Absturz sofort neu gestartet. */
 export const startService = (): UtilityProcess => {
+  const startedAt = Date.now();
   const child = utilityProcess.fork(path.join(__dirname, 'service.js'), [], {
     env: { ...process.env, BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides') },
     stdio: 'inherit',
@@ -18,7 +22,11 @@ export const startService = (): UtilityProcess => {
     if (riding && blocker === null) blocker = powerSaveBlocker.start('prevent-app-suspension');
     if (!riding && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
   });
-  child.on('exit', () => { if (!quitting) startService(); });
+  child.on('exit', () => {
+    if (quitting) return;
+    failures = Date.now() - startedAt > STABLE_RUN_MS ? 0 : failures + 1;
+    setTimeout(startService, restartDelayMs(failures));
+  });
   return child;
 };
 
@@ -32,6 +40,13 @@ const openMain = (): void => {
     return { action: 'deny' };
   });
 };
+
+// Zwei Instanzen würden in dieselbe Fahrt schreiben.
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) win.focus(); else openMain();
+});
 
 void app.whenReady().then(() => {
   startService();

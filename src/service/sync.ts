@@ -13,17 +13,29 @@ export class SyncClient {
     if (this.running) return;
     this.running = true;
     try {
+      const done = this.loadDone();
       for (const name of fs.readdirSync(this.opts.dir)) {
-        if (fs.existsSync(path.join(this.opts.dir, name, 'meta.json'))) await this.syncRide(name);
+        if (done.has(name) || !fs.existsSync(path.join(this.opts.dir, name, 'meta.json'))) continue;
+        try {
+          if (await this.syncRide(name)) {
+            done.add(name);
+            this.saveDone(done);
+          }
+        } catch { /* Beim nächsten Lauf erneut; eine defekte Fahrt hält die anderen nicht auf. */ }
       }
-    } catch {
-      /* Server nicht erreichbar: beim nächsten Lauf erneut */
     } finally {
       this.running = false;
     }
   }
 
-  private async syncRide(rideId: string): Promise<void> {
+  private loadDone(): Set<string> {
+    try { return new Set(JSON.parse(fs.readFileSync(this.doneFile(), 'utf8')) as string[]); } catch { return new Set(); }
+  }
+  private saveDone(done: Set<string>): void { fs.writeFileSync(this.doneFile(), JSON.stringify([...done])); }
+  private doneFile(): string { return path.join(this.opts.dir, 'synced.json'); }
+
+  /** Liefert true, wenn die Fahrt abgeschlossen und vollständig übertragen ist. */
+  private async syncRide(rideId: string): Promise<boolean> {
     const { meta, samples, events } = readRide(this.opts.dir, rideId);
     const { lastSeq, eventCount } = (await (await this.call(`/rides/${rideId}/progress`)).json()) as { lastSeq: number; eventCount: number };
     await this.call(`/rides/${rideId}/meta`, 'PUT', meta);
@@ -35,6 +47,7 @@ export class SyncClient {
     if (events.length > eventCount) {
       await this.call(`/rides/${rideId}/events`, 'POST', { startIndex: eventCount, events: events.slice(eventCount) });
     }
+    return meta.status !== 'open';
   }
 
   private async call(url: string, method = 'GET', body?: unknown): Promise<Response> {

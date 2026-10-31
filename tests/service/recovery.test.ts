@@ -24,3 +24,9 @@ test('foreign entries in the data dir are ignored', () => {
   fs.writeFileSync(path.join(dir, 'profiles.json'), '[]');
   expect(findOpenRides(dir)).toEqual([]);
 });
+test('rides with unreadable meta are skipped', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  fs.mkdirSync(path.join(dir, 'bad'));
+  fs.writeFileSync(path.join(dir, 'bad', 'meta.json'), '{"rideId":');
+  expect(findOpenRides(dir)).toEqual([]);
+});

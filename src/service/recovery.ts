@@ -8,8 +8,10 @@ export const findOpenRides = (dir: string): RideMeta[] => {
   const open: RideMeta[] = [];
   for (const name of fs.readdirSync(dir)) {
     if (!fs.existsSync(path.join(dir, name, 'meta.json'))) continue;
-    const { meta } = readRide(dir, name);
-    if (meta.status === 'open') open.push(meta);
+    try {
+      const { meta } = readRide(dir, name);
+      if (meta.status === 'open') open.push(meta);
+    } catch { /* unlesbare Fahrt darf den Start nicht verhindern */ }
   }
   return open;
 };

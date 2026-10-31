@@ -51,3 +51,21 @@ test('write failure buffers and retries without throwing', () => {
   expect(rec.hasStorageError()).toBe(false);
   expect(readRide(dir, 'r1').samples.map((s) => s.seq)).toEqual([0, 1, 2]);
 });
+const flakyFs = (state: { failing: boolean }) => ({ ...fs,
+  writeSync: (fd: number, data: string) => { if (state.failing) throw Object.assign(new Error('full'), { code: 'ENOSPC' }); return fs.writeSync(fd, data); },
+  writeFileSync: (f: string, data: string) => { if (state.failing) throw Object.assign(new Error('full'), { code: 'ENOSPC' }); return fs.writeFileSync(f, data); },
+}) as unknown as typeof fs;
+test('finish keeps buffered samples and stays open while writes fail', () => {
+  const state = { failing: false };
+  const rec = RideRecorder.create(dir, meta, flakyFs(state));
+  rec.append(sample(0));
+  state.failing = true;
+  rec.append(sample(1));
+  expect(rec.finish('finished')).toBe(false);
+  expect(readRide(dir, 'r1').meta.status).toBe('open');
+  state.failing = false;
+  expect(rec.finish('finished')).toBe(true);
+  const r = readRide(dir, 'r1');
+  expect(r.meta.status).toBe('finished');
+  expect(r.samples.map((s) => s.seq)).toEqual([0, 1]);
+});

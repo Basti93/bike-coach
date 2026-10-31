@@ -24,8 +24,13 @@ const service = new RideService({
   onLive: (l) => live.write(l),
   onRideChange: (riding) => parent?.postMessage({ riding }),
 });
-const wss = startWsServer(service, Number(process.env.BIKE_PORT ?? 7410));
-setInterval(() => service.tick(), 1000 / scale);
+const wss = startWsServer(service, {
+  port: Number(process.env.BIKE_PORT ?? 7410),
+  devOrigin: process.env.ELECTRON_RENDERER_URL ? new URL(process.env.ELECTRON_RENDERER_URL).origin : undefined,
+});
+setInterval(() => {
+  try { service.tick(); } catch (e) { console.error('Fahrtakt-Fehler', e); }
+}, 1000 / scale);
 
 /** Sync ist optional: Ohne Einstellungen fährt man rein lokal. Er läuft getrennt vom Fahrtakt. */
 const syncConfig = (): { syncUrl?: string; syncToken?: string } => {
