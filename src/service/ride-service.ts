@@ -227,7 +227,7 @@ export class RideService {
     this.broadcast({
       type: 'state', ride: a?.recorder.getMeta() ?? null, engine: a?.engine.state() ?? null,
       devices: this.devices.getStatus(), latest: this.freshReadings(),
-      storageError: a?.recorder.hasStorageError() ?? false, recovered: a?.recovered ?? false, profiles: this.profiles(),
+      storageError: a?.recorder.hasStorageError() ?? false, recovered: a?.recovered ?? false, profiles: this.profiles(), session: a?.session ?? null,
     });
   }
   private broadcast(m: ServerMessage): void { for (const cb of this.subs) this.guard(() => cb(m)); }

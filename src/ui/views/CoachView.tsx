@@ -5,6 +5,7 @@ import type { Profile } from '../../shared/profiles';
 import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
+import { WorkoutBar } from './WorkoutBar';
 
 const NOTICE: Record<string, string> = {
   limit: 'Das Limit deines Claude-Plans ist gerade erreicht. Diese Einheit stammt vom Regelwerk, der Coach versucht es später erneut.',
@@ -39,57 +40,74 @@ export const CoachView = ({ profile, state, thinking, coachConnected, sendRide, 
     sendCoach({ type: 'note', profileId: profile.id, text: note.trim() });
     setNote('');
   };
+  const total = next ? minutes(next.session) : 0;
   return (
     <main>
-      <h1>Hallo {profile.name}</h1>
-      {!state && <p role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
-      {next && (
-        <section>
-          <h2>{next.session.name} · {minutes(next.session)} Minuten</h2>
-          <p>{next.reason}</p>
-          {isRamp && <p>Die Rampe wird jede Minute schwerer. Fahre, bis es nicht mehr geht, und drücke dann „Beenden“. Das Ergebnis wird gespeichert.</p>}
-          {state.lastError && <p role="status">{next.source === 'rules' ? NOTICE[state.lastError] : KEPT[state.lastError]}</p>}
-          {thinking && <p>Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
-          <div className="row">
-            <button onClick={() => start(next.session)}>Los</button>
-            {!isRamp && (
-              <>
-                <button className="secondary" onClick={() => adjust('easier')}>Leichter</button>
-                <button className="secondary" onClick={() => adjust('harder')}>Härter</button>
-                <button className="secondary" onClick={() => adjust('shorter')}>Kürzer</button>
-              </>
-            )}
-          </div>
-        </section>
-      )}
-      <details open={!state}>
-        <summary>Andere Einheit wählen</summary>
-        <div className="row">{STARTER_SESSIONS.map((s) => <button key={s.id} className="secondary" onClick={() => start(s)}>{s.name}</button>)}</div>
-      </details>
-      {state && (
-        <>
-          <section>
-            <h3>Dein Plan</h3>
-            <p>Phase: {state.phase.name}{state.phase.weeksLeft > 0 ? `, noch etwa ${state.phase.weeksLeft} Wochen` : ''}. {state.phase.goal}</p>
-            <p>FTP jetzt: {state.ftpW} W{state.ftpForecast.map((f) => `, in ${f.weeksAhead} Wochen etwa ${f.ftpW} W`).join('')}</p>
-          </section>
-          <section>
-            <h3>Hinweis an den Coach</h3>
-            <div className="row">
-              <input aria-label="Hinweis an den Coach" placeholder="zum Beispiel: Knie zwickt" value={note} onChange={(e) => setNote(e.target.value)} />
-              <button className="secondary" onClick={sendNote}>Senden</button>
-            </div>
-            {state.notes.slice(-3).map((n) => <p key={n.atMs}>{n.text}{n.reply ? ` → ${n.reply}` : ''}</p>)}
-          </section>
-          {state.changes.length > 0 && (
-            <section>
-              <h3>Was der Coach geändert hat</h3>
-              <ul>{[...state.changes].reverse().slice(0, 10).map((c) => <li key={c.atMs}>{c.text}</li>)}</ul>
+      <div className="top">
+        <h1>Hallo {profile.name}</h1>
+        <button className="ghost" onClick={onBack}>Profil wechseln</button>
+      </div>
+      {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
+      <div className="coach">
+        <div className="stack">
+          {next && (
+            <section className="card next">
+              <h3>{isRamp ? 'Erster Schritt' : 'Deine nächste Einheit'}</h3>
+              <h2>{next.session.name}</h2>
+              <p className="muted">{isRamp ? `bis zu ${total} Minuten` : `${total} Minuten`} · FTP {ftpW} W</p>
+              <WorkoutBar session={next.session} />
+              <p>{next.reason}</p>
+              {isRamp && <p className="muted">Nach dem Warmup wird es jede Minute schwerer. Fahre, bis es nicht mehr geht, und drücke dann „Beenden“. Das Ergebnis wird gespeichert.</p>}
+              {state.lastError && <p className="notice" role="status">{next.source === 'rules' ? NOTICE[state.lastError] : KEPT[state.lastError]}</p>}
+              {thinking && <p className="muted">Der Coach denkt gerade nach. Fahren kannst du trotzdem jederzeit.</p>}
+              <div className="row">
+                <button className="go" onClick={() => start(next.session)}>Los</button>
+                {!isRamp && (
+                  <>
+                    <button className="secondary" onClick={() => adjust('easier')}>Leichter</button>
+                    <button className="secondary" onClick={() => adjust('harder')}>Härter</button>
+                    <button className="secondary" onClick={() => adjust('shorter')}>Kürzer</button>
+                  </>
+                )}
+              </div>
             </section>
           )}
-        </>
-      )}
-      <p><button className="secondary" onClick={onBack}>Profil wechseln</button></p>
+          <details className="card" open={!state}>
+            <summary>Andere Einheit wählen</summary>
+            <div className="starters">
+              {STARTER_SESSIONS.map((s) => <button key={s.id} className="starter" onClick={() => start(s)}>{s.name}</button>)}
+            </div>
+          </details>
+        </div>
+        {state && (
+          <div className="stack">
+            <section className="card">
+              <h3>Dein Plan</h3>
+              <div className="ftp">{state.ftpW}<small>W FTP</small></div>
+              {state.ftpForecast.length > 0 && (
+                <div className="forecast">
+                  {state.ftpForecast.map((f) => <span key={f.weeksAhead}><b>{f.ftpW} W</b>in {f.weeksAhead} Wochen</span>)}
+                </div>
+              )}
+              <p className="note"><b>{state.phase.name}</b>{state.phase.weeksLeft > 0 ? `, noch etwa ${state.phase.weeksLeft} Wochen` : ''}. {state.phase.goal}</p>
+            </section>
+            <section className="card">
+              <h3>Hinweis an den Coach</h3>
+              <form className="note-form" onSubmit={(e) => { e.preventDefault(); sendNote(); }}>
+                <input aria-label="Hinweis an den Coach" placeholder="z. B. Knie zwickt" value={note} onChange={(e) => setNote(e.target.value)} />
+                <button type="submit" className="secondary">Senden</button>
+              </form>
+              {state.notes.slice(-3).map((n, i) => <p className="note" key={i}>{n.text}{n.reply && <span className="reply">{n.reply}</span>}</p>)}
+            </section>
+            {state.changes.length > 0 && (
+              <section className="card">
+                <h3>Was der Coach geändert hat</h3>
+                <ul className="changes">{[...state.changes].reverse().slice(0, 5).map((c, i) => <li key={i}>{c.text}</li>)}</ul>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
     </main>
   );
 };

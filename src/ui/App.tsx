@@ -29,12 +29,9 @@ export const App = () => {
     <>
       {notice}
       {profile
-        ? (
-          <>
-            {coach.state?.awaitingFeedback && <FeedbackView profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />}
-            <CoachView profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />
-          </>
-        )
+        ? (coach.state?.awaitingFeedback
+          ? <FeedbackView profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />
+          : <CoachView profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );

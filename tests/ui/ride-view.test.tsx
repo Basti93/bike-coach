@@ -6,7 +6,7 @@ import type { StateMessage } from '../../src/shared/protocol';
 
 afterEach(cleanup);
 const base: StateMessage = {
-  type: 'state',
+  type: 'state', session: null,
   ride: { rideId: 'r', profileId: 'A', sessionId: 's', startedAtMs: 1, status: 'open' },
   engine: { stepIndex: 0, stepRemainingS: 125, rideElapsedS: 10, targetW: 150, gradePct: null, gear: null, label: 'Warmup', nextLabel: 'Anstieg', secondsToNext: 125, autoReducedPct: 0, paused: false },
   devices: { trainer: 'connected', hr: 'connected', clicker: 'searching' },
