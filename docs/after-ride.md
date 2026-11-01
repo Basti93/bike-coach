@@ -28,3 +28,7 @@ Quellen: Auuki, GoldenCheetah, qdomyos-zwift, BikeControl, clickbridge, wattroom
 - Lehren aus Domestique, Apex Velo Lab, Enduragent und ai-cycling-coach (nur Ideen, kein Code): Sensorfilter nur für die Auswertung (bis 2500 W, Puls 25 bis 240, Spitzen bis 2 s über dem 2,5-Fachen des Umfelds und über 400 W), Soll/Ist je Intervall, ein zweiter KI-Versuch, Wochengrenze, gemerkte Regeln. Alle Schwellen sind eigene Setzungen, nicht an echten Fahrten geprüft.
 - Zusammen: Jede Fahrminute zählt 10 Höhenmeter (Spielregel, keine Messung), Berge und Höhen sind gerundete Richtwerte. Rangliste ohne Watt und FTP.
 - Niederländisch: siehe `docs/language.md`. Die Sprachausgabe ist am echten Mac zu prüfen. Klicks beantworten nur außerhalb von Steigungen, dort schalten sie.
+
+## Garmin-Erholung (01.11.2026)
+
+Eigene Setzungen, an echten Wochen zu prüfen: Ruhepuls ≥ 5 bpm über dem 28-Tage-Median an 2 Tagen in Folge, Belastung anderer Sportarten der letzten 3 Tage über dem 1,5-Fachen des Mittels (ab 100 Punkten, damit ein einzelner normaler Lauf nicht warnt), Schlaf unter 5 h nur mit Schlafdaten. Bei „careful“ schlägt das Regelwerk Erholung vor, die KI bekommt die Bewertung als Hinweis. Das Ergebnis wird 5 Minuten zwischengespeichert.

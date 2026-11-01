@@ -1,7 +1,7 @@
 import { parseSession, type Session, type Step } from '../shared/session';
 import { loadModel, type RideSummary } from './metrics';
 
-export type CoachContext = { ftpW: number; summaries: RideSummary[]; nowMs: number };
+export type CoachContext = { ftpW: number; summaries: RideSummary[]; nowMs: number; careful?: boolean };
 export const RAMP_ID = 'ramp-test';
 
 export const LIMITS = {

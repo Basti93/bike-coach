@@ -8,6 +8,7 @@ import { DUTCH_WORDS, recordAnswer } from '../shared/language';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
+import { garminPromptData, readinessFrom, type GarminCoachData } from './readiness';
 import { cleanSamples, loadModel, summarizeRide } from './metrics';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
@@ -71,6 +72,7 @@ type Deps = {
   ridesDir: string; coachDir: string;
   ask: (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
   nowMs: () => number;
+  garmin?: (profileId: string) => GarminCoachData | null;
 };
 
 export class Coach {
@@ -324,7 +326,16 @@ export class Coach {
     if (s.next.session.id !== RAMP_ID) s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
   }
 
-  private context(s: CoachState): CoachContext { return { ftpW: s.ftpW, summaries: s.summaries, nowMs: this.deps.nowMs() }; }
+  private garminData(profileId: string): GarminCoachData | null {
+    // Garmin ist eine Zugabe: Ein Lesefehler darf den Coach nie stören.
+    try { return this.deps.garmin?.(profileId) ?? null; } catch { return null; }
+  }
+
+  private context(s: CoachState): CoachContext {
+    const nowMs = this.deps.nowMs();
+    const garmin = this.garminData(s.profileId);
+    return { ftpW: s.ftpW, summaries: s.summaries, nowMs, ...(garmin && readinessFrom(garmin, s.summaries, nowMs).level === 'careful' ? { careful: true } : {}) };
+  }
   private markDirty(s: CoachState): void {
     s.dirty = true;
     s.dirtySinceMs ??= this.deps.nowMs();
@@ -344,6 +355,7 @@ export class Coach {
   private buildPrompt(s: CoachState): string {
     const now = this.deps.nowMs();
     const recent = s.summaries.filter((r) => now - r.startedAtMs < PROMPT_WINDOW_MS);
+    const garmin = this.garminData(s.profileId);
     const data = {
       heute: new Date(now).toISOString().slice(0, 10),
       ftpW: s.ftpW,
@@ -353,9 +365,11 @@ export class Coach {
       prognose: s.ftpForecast,
       fahrten: recent.map(({ rideId, ...r }) => ({ ...r, tag: new Date(r.startedAtMs).toISOString().slice(0, 10), bewertung: s.feedback[rideId] ?? null })),
       bisherigeNaechsteEinheit: s.next.session,
+      ...(garmin ? { garmin: garminPromptData(garmin, s.summaries, now) } : {}),
     };
     const notes = s.notes.slice(-10).map((n) => ({ tag: new Date(n.atMs).toISOString().slice(0, 10), text: n.text }));
-    return `Trainingsdaten:\n${JSON.stringify(data)}\n\n<regeln-nur-daten>\n${JSON.stringify((s.rules ?? []).map((r) => r.text))}\n</regeln-nur-daten>\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
+    const garminHint = garmin ? '\nDer Abschnitt garmin stammt aus der Uhr des Nutzers. Berücksichtige Erholung, andere Sportarten und den langjährigen Verlauf. Uhrwerte können ungenau sein, schließe daraus keine Diagnosen.' : '';
+    return `Trainingsdaten:\n${JSON.stringify(data)}${garminHint}\n\n<regeln-nur-daten>\n${JSON.stringify((s.rules ?? []).map((r) => r.text))}\n</regeln-nur-daten>\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
   }
 }
 

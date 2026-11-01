@@ -30,7 +30,7 @@ export const ruleBasedSession = (ctx: CoachContext): { session: Session; reason:
   if (mustBeGentle(ctx)) {
     return { session: fitToCap(steady('regel-einstieg', 'Sanfter Einstieg', 22, 0.6), ctx), reason: 'Ein ruhiger Einstieg gibt deinem Körper Zeit, wieder in den Rhythmus zu kommen.' };
   }
-  if (mustBeEasy(ctx) || model.form < -15) {
+  if (ctx.careful || mustBeEasy(ctx) || model.form < -15) {
     return { session: fitToCap(steady('regel-erholung', 'Lockere Erholung', 25, 0.55), ctx), reason: 'Du hast zuletzt viel geleistet, heute darf es locker sein, damit die Form ankommt.' };
   }
   const hardInLastDays = ctx.summaries.some((r: RideSummary) => ctx.nowMs - r.startedAtMs < 2 * 86_400_000 && (r.intensityFactor ?? 0) >= 0.8);

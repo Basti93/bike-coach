@@ -8,3 +8,4 @@ export type GarminActivity = {
 };
 export type GarminBody = { birthDate: string | null; sex: 'male' | 'female' | 'unknown'; heightCm: number | null; weightKg: number | null; ftpW: number | null; ftpStale: boolean; maxHrSeen: number | null };
 export type GarminProgress = { activities: number; activitiesComplete: boolean; daysDone: number; daysTotal: number; filesDone: number; filesTotal: number };
+export type GarminReadiness = { level: 'normal' | 'careful' | 'unknown'; reasons: string[] };

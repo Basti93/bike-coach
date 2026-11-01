@@ -9,6 +9,8 @@ import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
 import { GarminLink } from './garmin';
+import { GarminDb } from './garmin-db';
+import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
@@ -23,8 +25,24 @@ const RETRY_MS = 30 * 60_000;
 const workDir = path.join(coachDir, 'work');
 fs.mkdirSync(workDir, { recursive: true });
 
+const GARMIN_CACHE_MS = 5 * 60_000;
+const GARMIN_DAYS = 60;
+const garminCache = new Map<string, { atMs: number; data: GarminCoachData | null }>();
+const garminData = (profileId: string): GarminCoachData | null => {
+  if (!/^[A-Za-z0-9-]+$/.test(profileId)) return null;
+  const now = Date.now();
+  const cached = garminCache.get(profileId);
+  if (cached && now - cached.atMs < GARMIN_CACHE_MS) return cached.data;
+  const db = new GarminDb(path.join(dir, '..', 'garmin', 'data', profileId, 'garmin.db'));
+  const activities = db.activities(0);
+  const days = db.days(new Date(now - GARMIN_DAYS * 86_400_000).toISOString().slice(0, 10));
+  const data = activities.length || days.length ? { activities, days, body: db.body() } : null;
+  garminCache.set(profileId, { atMs: now, data });
+  return data;
+};
+
 const coach = new Coach({
-  ridesDir: dir, coachDir, nowMs: () => Date.now(),
+  ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
 
@@ -75,10 +93,16 @@ const together = () => {
   const all = profiles();
   return computeTogether(all, all.flatMap((p) => { try { return [coach.state(p.id)]; } catch { return []; } }), Date.now());
 };
+const readinessOf = (profileId: string) => {
+  try {
+    const data = garminData(profileId);
+    return data ? readinessFrom(data, coach.state(profileId).summaries, Date.now()) : null;
+  } catch { return null; }
+};
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* Profil oder Verbindung weg */ }
   }
