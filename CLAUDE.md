@@ -1,25 +1,25 @@
 # Bike Coach
 
-Spec: `docs/superpowers/specs/2026-10-31-bike-coach-design.md`. Oberste Regel: Eine Fahrt geht nie verloren.
+Spec: `docs/superpowers/specs/2026-10-31-bike-coach-design.md`. Top rule: A ride is never lost.
 
-## Live-Verbesserung während einer Fahrt
+## Live improvement during a ride
 
-Der Nutzer sitzt auf dem Rad und diktiert Feedback mit der macOS-Diktierfunktion ins Terminal.
+The user is on the bike and dictates feedback into the terminal using macOS dictation.
 
-- Live lesen: `~/Library/Application Support/bike-coach/rides/live/current.jsonl` (Sekundenwerte, Markierungen, Ereignisse). Markierungen setzt der Nutzer mit Taste `m`.
-- Tabu bei offener Fahrt: `src/service/**`, `src/shared/**`, `src/main/**`. Keine Neustarts des Dienstes, kein `npm install`.
-- Erlaubt: `src/ui/**` und `npm run live:adjust -- <deltaPct>`; die Leitplanken begrenzen den Wert.
-- Jede Änderung ist ein eigener Commit mit Präfix `live:`. Rückgängig: `npm run live:undo`.
-- Größere Umbauten kommen nach `docs/after-ride.md` und werden nach der Fahrt umgesetzt.
+- Read live: `~/Library/Application Support/bike-coach/rides/live/current.jsonl` (per-second values, markers, events). The user sets markers with the `m` key.
+- Off-limits while a ride is open: `src/service/**`, `src/shared/**`, `src/main/**`. No restarts of the service, no `npm install`.
+- Allowed: `src/ui/**` and `npm run live:adjust -- <deltaPct>`; the guardrails limit the value.
+- Every change is its own commit with the prefix `live:`. To undo: `npm run live:undo`.
+- Larger rework goes into `docs/after-ride.md` and is implemented after the ride.
 
-## Betrieb
+## Operation
 
-- Ohne Rad testen: `npm run dev:sim` simuliert Trainer und Gurt.
-- Daten: `~/Library/Application Support/bike-coach/rides/`, FIT-Dateien unter `rides/exports/`.
-- Sync zum Heimserver: `~/Library/Application Support/bike-coach/config.json` mit `{"syncUrl": "...", "syncToken": "..."}`. Ohne die Datei läuft alles lokal.
-- Andere Geräte koppeln: `rides/devices.json` löschen, solange keine Fahrt läuft.
+- Test without a bike: `npm run dev:sim` simulates the trainer and strap.
+- Data: `~/Library/Application Support/bike-coach/rides/`, FIT files under `rides/exports/`.
+- Sync to the home server: `~/Library/Application Support/bike-coach/config.json` with `{"syncUrl": "...", "syncToken": "..."}`. Without the file, everything runs locally.
+- To pair other devices: delete `rides/devices.json` while no ride is running.
 
-## Mac-App
+## Mac app
 
-- Bauen und nach `/Applications` installieren: `npm run app`, nie bei offener Fahrt. Die App nutzt denselben Datenordner wie `npm run dev`; beide gleichzeitig verhindert die Einzelinstanz-Sperre.
-- Live-Verbesserung an der Oberfläche während einer Fahrt geht nur mit `npm run dev`. In der gepackten App kann Claude Live-Daten lesen und `live:adjust` nutzen, aber die Oberfläche nicht ändern.
+- Build and install to `/Applications`: `npm run app`, never during an open ride. The app uses the same data folder as `npm run dev`; the single-instance lock prevents both running at the same time.
+- Live improvement of the interface during a ride only works with `npm run dev`. In the packaged app, Claude can read live data and use `live:adjust`, but cannot change the interface.

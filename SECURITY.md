@@ -1,10 +1,10 @@
-# Sicherheit
+# Security
 
-Bitte Sicherheitslücken nicht als öffentliches Issue melden, sondern über [GitHubs private Meldung](https://github.com/Basti93/bike-coach/security/advisories/new).
+Please do not report security issues as a public issue. Use [GitHub's private reporting](https://github.com/Basti93/bike-coach/security/advisories/new) instead.
 
-## Was die App schützt
+## What the app protects
 
-- Fahrdienst und Coach lauschen nur auf `127.0.0.1` und prüfen die Herkunft der Verbindung. Andere Programme auf demselben Mac können sie erreichen, wenn sie keine Herkunft mitschicken.
-- Das Garmin-Passwort geht nur per Standardeingabe an das Hilfsprogramm und wird nicht gespeichert. Der Zugangstoken liegt unverschlüsselt im Datenordner.
-- Fahrten, Gesundheits- und Garmin-Daten liegen unverschlüsselt im Datenordner. Der Coach gibt Trainingsdaten, Hinweise und Garmin-Werte an `claude` und damit an Anthropic weiter.
-- Der optionale Sync-Server ist per Token geschützt und nur für ein privates Tailnet gedacht. Er ist nicht dafür gebaut, offen im Internet zu stehen.
+- The ride service and coach listen only on `127.0.0.1` and check the origin of the connection. Other programs on the same Mac can reach them if they send no origin.
+- The Garmin password goes to the helper program only via standard input and is not stored. The access token is stored unencrypted in the data folder.
+- Rides, health data and Garmin data are stored unencrypted in the data folder. The coach passes training data, notes and Garmin values to `claude` and thereby to Anthropic.
+- The optional sync server is protected by a token and intended only for a private tailnet. It is not built to be openly exposed on the internet.

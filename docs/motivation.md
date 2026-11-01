@@ -1,23 +1,23 @@
-# Motivation im Coach: Grundlagen und Grenzen
+# Motivation in the coach: foundations and limits
 
-Stand 01.11.2026, aus einer kurzen Recherche über Zusammenfassungen, die Volltexte habe ich nicht gelesen.
+As of 2026-11-01, from a short search through summaries; I did not read the full texts.
 
-## Was die Forschung trägt
+## What the research supports
 
-- **Eigene Gründe halten länger.** Teixeira et al. 2012 (Übersicht über 66 Studien): Autonome Motivation hängt beständig mit Bewegung zusammen, Freude am Tun sagt langes Dranbleiben besser voraus, einsichtige Gründe eher den Anfang. Die meisten Studien sind nicht experimentell. Daher: Der Coach greift die eigenen Worte der Person auf, statt Ziele vorzugeben. https://pmc.ncbi.nlm.nih.gov/articles/PMC3441783/
-- **Gespräche per Software können etwas bringen, aber wenig.** Eine Metaanalyse von 2025 zu Chatbots findet einen kleinen Effekt (SMD 0,20, 95 %-KI 0,04–0,37) bei deutlicher Streuung. Eine Studie mit Motivational Interviewing per Chatbot in der Hausarztversorgung sah Verbesserungen auch nach 9 Monaten. Daher: offene Fragen, keine Belehrung, keine großen Erwartungen. https://repository.eduhk.hk/en/publications/motivational-interviewing-chatbot-improves-lifestyle-in-primary-h/
-- **Sprachmodelle halten sich meist an die Gesprächsregeln, nicht immer.** GPTCoach: rund 6,7 % der bewerteten Äußerungen passten nicht zu Motivational Interviewing. Einzelne Studie ohne Wirkungsmessung. Daher: Die Fragen stehen fest im Code, nur die aufmunternden Worte kommen von der KI. https://arxiv.org/pdf/2405.06061
+- **Your own reasons last longer.** Teixeira et al. 2012 (review of 66 studies): autonomous motivation is consistently associated with exercise; enjoyment of the activity better predicts long-term adherence, while reasoned motives better predict getting started. Most of the studies are not experimental. Therefore: the coach picks up the person's own words instead of prescribing goals. https://pmc.ncbi.nlm.nih.gov/articles/PMC3441783/
+- **Conversations through software can help, but only a little.** A 2025 meta-analysis on chatbots finds a small effect (SMD 0.20, 95% CI 0.04–0.37) with considerable variation. One study of motivational interviewing by chatbot in primary care saw improvements even after 9 months. Therefore: open questions, no lecturing, no great expectations. https://repository.eduhk.hk/en/publications/motivational-interviewing-chatbot-improves-lifestyle-in-primary-h/
+- **Language models mostly follow the conversation rules, but not always.** GPTCoach: around 6.7% of the rated utterances did not fit motivational interviewing. A single study with no measurement of effect. Therefore: the questions are fixed in the code, and only the encouraging words come from the AI. https://arxiv.org/pdf/2405.06061
 
-## Eigene Setzungen, nicht belegt
+## Own settings, not evidenced
 
-- Keine Serie, die reißen kann. Die Belege zu Serien sind gemischt (sie können wiederholtes Verhalten fördern, ein Abriss kann demotivieren), die gefundenen Quellen sind schwach.
-- Höchstens eine Frage alle 3 Tage, Wiederholung nach 90 Tagen, immer überspringbar.
-- Offene Beschwerde: Abschnitte nur bis 75 % FTP, bis die Person sie selbst beendet. Die Erkennung nach Stichworten kann danebenliegen; Fehlalarm kostet einen Klick.
+- No streak that can break. The evidence on streaks is mixed (they can encourage repeated behaviour, a break can demotivate), and the sources found are weak.
+- At most one question every 3 days, repetition after 90 days, always skippable.
+- Open complaint: segments only up to 75% FTP until the person ends it themselves. Detection by keywords can be wrong; a false alarm costs one click.
 
-## Nicht gefunden
+## Not found
 
-Belastbare Studien zu Nachsicht nach ausgelassenen Einheiten und dazu, wie viel Autonomieunterstützung allein bewirkt. Ob das alles hier wirkt, zeigt erst die Nutzung.
+Solid studies on leniency after missed sessions and on how much autonomy support achieves on its own. Whether all this works here will only show through use.
 
-## Nicht das Ziel
+## Not the goal
 
-Der Coach stellt keine Diagnosen. Bei ernsten Beschwerden rät er zu ärztlichem Rat.
+The coach does not make diagnoses. For serious complaints, it advises seeking medical advice.

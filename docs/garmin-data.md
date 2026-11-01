@@ -1,47 +1,47 @@
-# Garmin-Datenbank
+# Garmin database
 
-Eine eigenständige SQLite-Datei pro Profil: `~/Library/Application Support/bike-coach/garmin/data/<profileId>/garmin.db`. Sie enthält Garmins Rohdaten als JSON. Neue Auswertungen brauchen daher keinen neuen Abruf. Das Programm `scripts/garmin/garmin_sync.py` kennt die App nicht, die App liest die Datei nur.
+A standalone SQLite file per profile: `~/Library/Application Support/bike-coach/garmin/data/<profileId>/garmin.db`. It contains Garmin's raw data as JSON, so new analyses need no new fetch. The program `scripts/garmin/garmin_sync.py` knows nothing about the app, and the app only reads the file.
 
-## Aufruf
+## Usage
 
 ```bash
 V="$HOME/Library/Application Support/bike-coach/garmin"
 "$V/venv/bin/python" scripts/garmin/garmin_sync.py --tokens "$V/tokens/<profileId>" --db "$V/data/<profileId>/garmin.db"
 ```
 
-| Option | Wirkung |
+| Option | Effect |
 |---|---|
-| `--max-days 30` | Ältere Tage je Lauf |
-| `--max-files 20` | Original-Dateien je Lauf |
-| `--reset activities\|daily\|files` | Datenstrom zurückspulen, Daten bleiben und werden überschrieben |
-| `--force` | Pause nach einer Sperre übergehen |
+| `--max-days 30` | Older days per run |
+| `--max-files 20` | Original files per run |
+| `--reset activities\|daily\|files` | Rewind a data stream; data is kept and gets overwritten |
+| `--force` | Skip the pause after a block |
 
-Exit-Codes: `0` fertig, `10` Neuanmeldung nötig, `11` Sperre, `12` sonstiger Fehler, z. B. kein Netz. Tests: `npm run test:garmin`.
+Exit codes: `0` done, `10` new login required, `11` block, `12` other error, e.g. no network. Tests: `npm run test:garmin`.
 
-## Ablauf
+## Flow
 
-Ein Lauf holt Profil, FTP und Geräte, dann die Aktivitäten, dann die letzten 3 Tage und ältere Tage, zuletzt Original-Dateien. Tage warten, bis alle Aktivitäten da sind, Dateien warten auf alle Tage. Jeder Eintrag wird sofort gespeichert. Der Lauf ist beliebig wiederholbar und setzt am Stand aus `sync_state` fort. Tage, die zwischen zwei Läufen liegen, etwa weil der Rechner aus war, holt der Strom `forward` nach. Ein fehlender Einzelwert steht in `fetch_errors` und wird höchstens 3-mal versucht.
+A run fetches profile, FTP and devices, then the activities, then the last 3 days and older days, and finally original files. Days wait until all activities are in, files wait for all days. Each entry is saved immediately. The run can be repeated any number of times and resumes from the state in `sync_state`. Days that fall between two runs, for example because the computer was off, are caught up by the `forward` stream. A missing single value is recorded in `fetch_errors` and tried at most 3 times.
 
-## Tabellen
+## Tables
 
-| Tabelle | Inhalt |
+| Table | Contents |
 |---|---|
-| `daily(date, endpoint, json, fetched_at)` | Tageswerte. Endpunkte: `stats`, `sleep`, `hrv`, `max_metrics`, `training_status`, `training_readiness` |
-| `activities(activity_id, start_time, sport, json, fetched_at)` | Aktivitäten, `start_time` in GMT |
-| `activity_files(activity_id, format, data, fetched_at)` | Original-Datei als ZIP mit der FIT-Datei |
-| `singletons(name, json, fetched_at)` | Aktueller Stand von `profile`, `ftp`, `devices` |
-| `sync_state(stream, cursor, complete, updated_at)` | Stand je Strom, `pause` enthält das Ende einer Sperre |
-| `fetch_errors(key, error, attempts, at)` | Einzelfehler |
-| `sync_runs(id, started_at, ended_at, status, stats)` | Protokoll der Läufe |
+| `daily(date, endpoint, json, fetched_at)` | Daily values. Endpoints: `stats`, `sleep`, `hrv`, `max_metrics`, `training_status`, `training_readiness` |
+| `activities(activity_id, start_time, sport, json, fetched_at)` | Activities, `start_time` in GMT |
+| `activity_files(activity_id, format, data, fetched_at)` | Original file as a ZIP containing the FIT file |
+| `singletons(name, json, fetched_at)` | Current state of `profile`, `ftp`, `devices` |
+| `sync_state(stream, cursor, complete, updated_at)` | State per stream, `pause` holds the end of a block |
+| `fetch_errors(key, error, attempts, at)` | Individual errors |
+| `sync_runs(id, started_at, ended_at, status, stats)` | Log of the runs |
 
-## Beispiele
+## Examples
 
 ```sql
--- Stunden je Jahr und Sportart
-SELECT substr(start_time, 1, 4) AS jahr, sport, ROUND(SUM(json_extract(json, '$.duration')) / 3600, 1) AS stunden
-FROM activities GROUP BY jahr, sport ORDER BY jahr, stunden DESC;
+-- Hours per year and sport
+SELECT substr(start_time, 1, 4) AS year, sport, ROUND(SUM(json_extract(json, '$.duration')) / 3600, 1) AS hours
+FROM activities GROUP BY year, sport ORDER BY year, hours DESC;
 
--- Ruhepuls der letzten 30 Tage
+-- Resting heart rate over the last 30 days
 SELECT date, json_extract(json, '$.restingHeartRate') FROM daily
 WHERE endpoint = 'stats' ORDER BY date DESC LIMIT 30;
 ```

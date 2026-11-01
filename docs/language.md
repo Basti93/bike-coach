@@ -1,17 +1,17 @@
-# Niederländisch auf dem Rad
+# Dutch on the bike
 
-Ziel ist kein Sprachkurs, sondern dass die ruhigen Minuten nebenbei etwas bringen. Fertige Bausteine statt Eigenbau.
+The goal is not a language course, but for the quiet minutes to yield something on the side. Ready-made components rather than building our own.
 
-| Baustein | Woher | Stand der Belege |
+| Component | Source | State of the evidence |
 |---|---|---|
-| Wiederholungsplan | [`ts-fsrs`](https://github.com/open-spaced-repetition/ts-fsrs) (MIT), Standardparameter, Ziel 90 % Erinnerung | [Benchmark](https://github.com/open-spaced-repetition/srs-benchmark): sagt das Erinnern besser voraus als SM-2. Hier nur über Zweitquellen gelesen, nicht nachgeprüft, und misst Vorhersage, nicht Lernerfolg |
-| Verteilt statt am Stück | Grundidee von FSRS | Kim & Webb 2022, Meta-Analyse zu zweiter Sprache, nur [über eine Arbeit zitiert](https://ir.lib.uwo.ca/etd/8600/) gesehen, Volltext nicht gelesen; Studien meist mit Karteikarten |
-| Erst abrufen, dann aufdecken | 6 Sekunden Nachdenken vor der Lösung | Gut belegter Testing-Effekt, hier aus Fachwissen, in dieser Recherche nicht nachgeschlagen. Die 6 Sekunden sind eigene Setzung |
-| Lernen beim lockeren Fahren | Nur bis 75 % FTP oder 3 % Steigung, nicht über der eigenen Pulsgrenze | Schmidt-Kassow 2013 und weitere kleine Studien, [zusammengefasst bei Amico & Schaefer 2020](https://www.frontiersin.org/article/10.3389/fpsyg.2020.00684/full): leichtes bis moderates Radfahren beim Lernen half. Wenige Teilnehmende, keine Studie zu genau diesem Ablauf |
-| Häufigste Wörter zuerst | [FrequencyWords](https://github.com/hermitdave/FrequencyWords), Untertitel, Inhalt CC-BY-SA-4.0 | Prinzip nach Nation, aus Fachwissen, in dieser Recherche nicht nachgeschlagen |
-| Übersetzung und Beispielsatz | Einmalig von Claude erzeugt (`scripts/build-dutch-words.ts`), 683 Karten in `src/shared/dutch-words.json` | Stichprobe von 44 Karten ohne Fehler. **Nicht muttersprachlich geprüft**, einzelne Fehler sind möglich |
-| Hören | Systemstimme `nl-NL`, spricht Wort und Satz | Am echten Mac ungeprüft |
+| Review schedule | [`ts-fsrs`](https://github.com/open-spaced-repetition/ts-fsrs) (MIT), default parameters, target 90% retention | [Benchmark](https://github.com/open-spaced-repetition/srs-benchmark): predicts recall better than SM-2. Only read via secondary sources here, not verified, and it measures prediction, not learning success |
+| Spaced rather than massed | Basic idea of FSRS | Kim & Webb 2022, meta-analysis on second languages, only seen [cited in another work](https://ir.lib.uwo.ca/etd/8600/), full text not read; studies mostly with flashcards |
+| Recall first, then reveal | 6 seconds of thinking before the answer | Well-documented testing effect, here from background knowledge, not looked up in this research. The 6 seconds are an own setting |
+| Learning during easy riding | Only up to 75% FTP or 3% grade, not above your own heart rate limit | Schmidt-Kassow 2013 and other small studies, [summarised in Amico & Schaefer 2020](https://www.frontiersin.org/article/10.3389/fpsyg.2020.00684/full): light to moderate cycling while learning helped. Few participants, no study of exactly this procedure |
+| Most frequent words first | [FrequencyWords](https://github.com/hermitdave/FrequencyWords), subtitles, content CC-BY-SA-4.0 | Principle after Nation, from background knowledge, not looked up in this research |
+| Translation and example sentence | Generated once by Claude (`scripts/build-dutch-words.ts`), 683 cards in `src/shared/dutch-words.json` | Sample of 44 cards without errors. **Not checked by a native speaker**, individual errors are possible |
+| Listening | System voice `nl-NL`, speaks word and sentence | Not verified on the real Mac |
 
-Eigene Setzungen ohne Beleg: höchstens 15 neue Wörter pro Tag, „gelernt“ ab 7 Tagen Stabilität, Abstände der Karte während der Fahrt. Nicht beantwortete Karten zählen weder als gewusst noch als falsch.
+Own settings without evidence: at most 15 new words per day, "learned" from 7 days of stability, spacing of cards during the ride. Unanswered cards count neither as known nor as wrong.
 
-Offen: Nachsprechen wird nicht geprüft, nur das Verstehen wird abgefragt, nicht das aktive Sagen. Laut Spezifikation kommen Videos erst auf höherem Niveau.
+Open: Repeating aloud is not checked; only understanding is tested, not active speaking. According to the spec, videos only come at a higher level.

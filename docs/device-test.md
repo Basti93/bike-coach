@@ -1,15 +1,15 @@
-# Gerätetest (Stufe 0)
+# Device test (Stage 0)
 
-Noch nicht durchgeführt. Vorläufig gelten: Bibliothek `@stoprocent/noble`, `GRADE_PER_GEAR` 0,5, Schalten per Tastatur.
+Not yet carried out. Provisional values: library `@stoprocent/noble`, `GRADE_PER_GEAR` 0.5, shifting by keyboard.
 
 ## Auuki (Task 1)
-- Firmware Hub One:
-- Zwift Cog oder Kassette:
-- Clicker-Modell (v1/v2):
-- ERG (Reaktion, Stabilität):
-- Steigung (Gefühl):
+- Hub One firmware:
+- Zwift Cog or cassette:
+- Clicker model (v1/v2):
+- ERG (response, stability):
+- Grade (feel):
 
-## Prüfprogramm (Task 2, `npm run probe`)
-- 20 Minuten stabil:
-- Gang-Stufe (0,5 % oder 1 %):
-- Clicker lesbar:
+## Probe program (Task 2, `npm run probe`)
+- Stable for 20 minutes:
+- Gear step (0.5% or 1%):
+- Clicker readable:

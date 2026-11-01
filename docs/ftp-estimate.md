@@ -1,24 +1,24 @@
-# FTP-Schätzung ohne Test
+# FTP estimate without a test
 
-Der Rampentest ist optional. Ohne ihn schätzt die App die FTP. Geprüft am 31.10.2026; die Volltexte von Jackson, Nes, Hawley, Daniels und ACSM lagen nicht vor, nur Abstracts und Zweitquellen. **Die Rechnung ist eine Orientierung, kein validiertes Verfahren.** Der Fehler liegt eher über ±22 %.
+The ramp test is optional. Without it, the app estimates the FTP. Checked on 2026-10-31; the full texts of Jackson, Nes, Hawley, Daniels and ACSM were not available, only abstracts and secondary sources. **The calculation is a rough guide, not a validated method.** The error is more likely above ±22%.
 
-| Schritt | Rechnung | Grundlage |
+| Step | Calculation | Basis |
 |---|---|---|
-| VO2max aus Profil | 56,363 + 1,921·Aktivität − 0,381·Alter − 0,754·BMI + 10,987·(Mann) | [Jackson 1990](https://www.bisp-surf.de/Record/PU199205048504), R 0,78, SEE 5,6, ungenau ab 55. [Koeffizienten](https://websites.umich.edu/~exphysio/mvs.240/AdditonalLabs/PredVOmax.nonex.data3.5.pdf) aus Zweitquelle |
-| VO2max aus 5 km | Daniels/Gilbert VDOT | [Formel](https://rundida.com/tools/vdot-calculator/) nur auf Blog-Niveau, keine Validierung für Laien gefunden |
-| Kleinerer Wert von beiden | | Annahme |
-| Rad-Abschlag ×0,90 | | Annahme. Anhalt nur bei Sportlern: [Läufer 10,5 %](https://lida.sport-iat.de/ta/Record/4001929?lng=en), [Triathleten 7 %](https://pubmed.ncbi.nlm.nih.gov/2355824/) |
-| Maximale Leistung | (VO2 − 7)·kg / 1,8 / 6 | [ACSM, Swain 2000](https://read.qxmd.com/read/10907754/energy-cost-calculations-for-exercise-prescription-an-update). Gilt submaximal bis 200 W, die Anwendung am Maximum ist Annahme |
-| FTP = 75 % davon | | Annahme aus Coaching-Quellen. Nicht validiert, siehe auch [Grenzen von FTP-Tests](https://pubmed.ncbi.nlm.nih.gov/29801189/) |
-| Startwert: VO2 − 5,6 | | Annahme: Der untere Rand ist Vorsicht, keine Empfehlung einer Quelle |
-| Obergrenze ohne Test | 2,78 W/kg (Mann), 2,35 W/kg (sonst) | Stufe „Fair“ [nach Allen/Coggan über Garmin](https://www8.garmin.com/manuals/webhelp/GUID-3A4F9C4A-8735-46C0-8DA9-65F11400B150/EN-US/GUID-1F58FA8E-09FF-4E51-B9B4-C4B83ED1D6CE.html). Wahl der Stufe ist Annahme |
+| VO2max from profile | 56.363 + 1.921·activity − 0.381·age − 0.754·BMI + 10.987·(male) | [Jackson 1990](https://www.bisp-surf.de/Record/PU199205048504), R 0.78, SEE 5.6, imprecise from 55. [Coefficients](https://websites.umich.edu/~exphysio/mvs.240/AdditonalLabs/PredVOmax.nonex.data3.5.pdf) from a secondary source |
+| VO2max from 5 km | Daniels/Gilbert VDOT | [Formula](https://rundida.com/tools/vdot-calculator/) only at blog level, no validation for recreational athletes found |
+| Lower of the two values | | Assumption |
+| Cycling discount ×0.90 | | Assumption. Reference points only in athletes: [runners 10.5%](https://lida.sport-iat.de/ta/Record/4001929?lng=en), [triathletes 7%](https://pubmed.ncbi.nlm.nih.gov/2355824/) |
+| Maximum power | (VO2 − 7)·kg / 1.8 / 6 | [ACSM, Swain 2000](https://read.qxmd.com/read/10907754/energy-cost-calculations-for-exercise-prescription-an-update). Applies submaximally up to 200 W, the application at maximum is an assumption |
+| FTP = 75% of that | | Assumption from coaching sources. Not validated, see also [limits of FTP tests](https://pubmed.ncbi.nlm.nih.gov/29801189/) |
+| Starting value: VO2 − 5.6 | | Assumption: the lower bound is caution, not a recommendation from any source |
+| Upper limit without a test | 2.78 W/kg (male), 2.35 W/kg (otherwise) | "Fair" level [according to Allen/Coggan via Garmin](https://www8.garmin.com/manuals/webhelp/GUID-3A4F9C4A-8735-46C0-8DA9-65F11400B150/EN-US/GUID-1F58FA8E-09FF-4E51-B9B4-C4B83ED1D6CE.html). The choice of level is an assumption |
 
-Beispiel: 35 Jahre, Mann, 80 kg, 180 cm, Aktivität 3, 5 km in 28 Minuten: rechnerisch 129 W, Start 101 W. Ohne Laufzeit: 167 W, Start 139 W.
+Example: 35 years old, male, 80 kg, 180 cm, activity 3, 5 km in 28 minutes: calculated 129 W, start 101 W. Without a run time: 167 W, start 139 W.
 
-**Nachziehen:** Solange kein Rampentest vorliegt, hebt „Zu leicht“ die FTP um 5 %, „Zu hart“ senkt sie um 10 %, innerhalb der Obergrenze. „Zu leicht“ zählt nur nach mindestens 20 Minuten mit IF ab 0,65 und frühestens 3 Tage nach der letzten Änderung, „Zu hart“ frühestens nach 1 Tag. Die Regel ist eigene Annahme, angelehnt an [RPE und Schwellen](https://pubmed.ncbi.nlm.nih.gov/35507232/).
+**Adjustment:** As long as there is no ramp test, "Zu leicht" ("too easy") raises the FTP by 5% and "Zu hart" ("too hard") lowers it by 10%, within the upper limit. "Zu leicht" only counts after at least 20 minutes with an IF of 0.65 or more and no sooner than 3 days after the last change, "Zu hart" no sooner than after 1 day. The rule is an own assumption, loosely based on [RPE and thresholds](https://pubmed.ncbi.nlm.nih.gov/35507232/).
 
-**Geschlecht:** Für Jackson nötig. „Keine Angabe“ rechnet wie „Frau“ (Annahme, vorsichtig).
+**Sex:** Required for Jackson. "Keine Angabe" ("not specified") calculates like "Frau" ("female") (assumption, cautious).
 
-**Sicherheit:** Inaktive ohne Symptome oder Vorerkrankung beginnen laut [ACSM](https://digitalcommons.uri.edu/kinesiology_facpubs/180) leicht bis moderat ohne Freigabe, bei Symptomen vorher ärztlich abklären.
+**Safety:** According to [ACSM](https://digitalcommons.uri.edu/kinesiology_facpubs/180), inactive people with no symptoms or pre-existing condition can start at light to moderate intensity without clearance; with symptoms, get medical advice first.
 
-Verworfen: Matthews 1999 (nur 36 % korrekte Quintile), Nes 2011 (braucht Taille und Ruhepuls), Cooper-Test (überschätzt bei Untrainierten). „Wie lange kannst du laufen“ fließt nicht ein, dafür gibt es keine belegte Umrechnung.
+Rejected: Matthews 1999 (only 36% correct quintiles), Nes 2011 (needs waist and resting heart rate), Cooper test (overestimates in untrained people). "Wie lange kannst du laufen" ("How long can you run") is not factored in, because there is no evidence-based conversion for it.

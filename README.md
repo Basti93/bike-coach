@@ -1,84 +1,86 @@
 # Bike Coach
 
-*An indoor cycling app for macOS: controls a smart trainer over Bluetooth, records every ride crash-safe and plans the next session with an AI coach. The app, docs and code comments are in German.*
+A Mac app for indoor cycling training. It controls the smart trainer over Bluetooth, records every ride crash-safe and plans the next session with an AI coach.
 
-Eine Mac-App für das Indoor-Training auf dem Rad. Sie steuert den Trainer per Bluetooth, zeichnet jede Fahrt absturzsicher auf und plant mit einem KI-Coach die nächste Einheit.
+The code and docs are in English. The app's interface and coach texts are in German.
 
-Oberste Regel: Eine Fahrt geht nie verloren. Die Fahrt hängt weder an Internet, Heimserver und KI noch an der Oberfläche.
+Top rule: A ride is never lost. A ride depends neither on the internet, the home server or the AI, nor on the interface.
 
-## Was die App kann
+## What the app does
 
-- **Fahren:** Wattvorgabe am Trainer, Steigungsabschnitte mit sanftem Einstieg, Puls und Trittfrequenz live, Übersicht mit Diagrammen nach der Fahrt, FIT-Export.
-- **Coach:** Plant die nächste Einheit innerhalb fester Leitplanken, antwortet auf Hinweise, merkt sich Beschwerden und Beweggründe. Ohne KI übernimmt ein Regelwerk.
-- **Puls:** Fünf Zonen aus dem Maximalpuls, Anzeige während der Fahrt, Absenkung der Watt in Abschnitten mit gesetzter Zone. Der Puls senkt die Vorgabe nur, er erhöht sie nie.
-- **Garmin (optional):** Erholung, andere Sportarten und Profilwerte aus Garmin Connect. Der Zugang ist inoffiziell und kann jederzeit brechen.
-- **Mehr:** Niederländisch-Vokabeln in ruhigen Phasen, mehrere Profile, gemeinsame Übersicht, Film-Modus.
+- **Riding:** Power targets on the trainer, climb segments with a gentle start, live heart rate and cadence, an overview with charts after the ride, FIT export.
+- **Coach:** Plans the next session within fixed guardrails, responds to notes, remembers complaints and motivations. Without AI, a rule set takes over.
+- **Heart rate:** Five zones from maximum heart rate, display during the ride, power reduction in segments with a set zone. Heart rate only lowers the target, it never raises it.
+- **Garmin (optional):** Recovery, other sports and profile values from Garmin Connect. The access is unofficial and can break at any time.
+- **More:** Dutch vocabulary in quiet phases, multiple profiles, a shared overview, movie mode.
 
-Die Trainingsempfehlungen sind keine medizinische Beratung. Grenzen und eigene Setzungen stehen in [`docs/hr-zones.md`](docs/hr-zones.md), [`docs/motivation.md`](docs/motivation.md) und [`docs/ftp-estimate.md`](docs/ftp-estimate.md).
+The training recommendations are not medical advice. Limits and own settings are described in [`docs/hr-zones.md`](docs/hr-zones.md), [`docs/motivation.md`](docs/motivation.md) and [`docs/ftp-estimate.md`](docs/ftp-estimate.md).
 
-## Voraussetzungen
+## Requirements
 
-- macOS auf Apple-Chip und Node.js. Entwickelt wurde mit Node 26.
-- Ein Bluetooth-FTMS-Trainer. Geprüft mit Zwift Hub One, Polar-Brustgurt und Zwift Click.
-- Für die KI: [Claude Code](https://claude.com/claude-code) als `claude` im Pfad.
-- Für Garmin, optional:
+- macOS on Apple silicon and Node.js. Developed with Node 26.
+- A Bluetooth FTMS trainer. Built for Zwift Hub One, Polar chest strap and Zwift Click.
+- For the AI: [Claude Code](https://claude.com/claude-code) as `claude` on the path.
+- For Garmin, optional:
 
   ```bash
   V="$HOME/Library/Application Support/bike-coach/garmin"
   python3 -m venv "$V/venv" && "$V/venv/bin/pip" install garminconnect==0.3.20
   ```
 
-## Starten
+## Getting started
 
 ```bash
 npm install
-npm run dev       # mit echten Geräten
-npm run dev:sim   # ohne Rad: simuliert Trainer und Gurt
+npm run dev       # with real devices
+npm run dev:sim   # without a bike: simulates trainer and strap
 ```
 
-Als fertige App bauen und nach `/Applications` installieren, nie bei offener Fahrt:
+To build the finished app and install it to `/Applications`, never during an open ride:
 
 ```bash
 npm run app
 ```
 
-Die App ist nur ad hoc signiert und daher für den eigenen Mac gedacht. Es gibt bewusst keine fertigen Downloads, siehe [`NOTICE.md`](NOTICE.md).
+The app is only ad hoc signed and is therefore meant for your own Mac. There are deliberately no prebuilt downloads, see [`NOTICE.md`](NOTICE.md).
 
-## Prüfen
+## Checks
 
 ```bash
-npm test            # Haupttests
-npm run test:chaos  # Absturz- und Ausfalltests
-npm run test:garmin # Garmin-Abruf (Python)
+npm test            # main tests
+npm run test:chaos  # crash and failure tests
+npm run test:garmin # Garmin fetch (Python)
 npm run typecheck
 ```
 
-## Daten
+## Data
 
-Alles liegt lokal in `~/Library/Application Support/bike-coach/`: Fahrten unter `rides/`, FIT-Dateien unter `rides/exports/`, Coach-Stände unter `coach/`, Garmin-Daten unter `garmin/`. Eine `config.json` mit `syncUrl` und `syncToken` schaltet den optionalen Abgleich mit einem eigenen Server ein ([`server/`](server)). Ohne sie läuft alles lokal.
+Everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
 
-Ein Backup dieser lokalen Daten macht die App nicht. Die Skripte unter `server/mac/` holen nur die Sicherungen des Servers ab.
+The app does not back up this local data. The scripts under `server/mac/` only fetch the server's backups.
 
-## Aufbau
+## Structure
 
-| Ordner | Inhalt |
+| Folder | Contents |
 |---|---|
-| `src/main` | Electron-Hauptprozess, überwacht die Dienste und startet sie neu |
-| `src/service` | Fahrdienst: Bluetooth, Aufzeichnung, Fahrlogik |
-| `src/coach` | Coach, Garmin-Anbindung, Auswertung |
-| `src/ui` | Oberfläche (React) |
-| `src/shared` | Gemeinsame Typen und Regeln |
-| `scripts/garmin` | Garmin-Abruf in Python |
-| `server` | Optionaler Sync-Server (Docker, SQLite) |
+| `src/main` | Electron main process, monitors the services and restarts them |
+| `src/service` | Ride service: Bluetooth, recording, ride logic |
+| `src/coach` | Coach, Garmin integration, analysis |
+| `src/ui` | Interface (React) |
+| `src/shared` | Shared types and rules |
+| `scripts/garmin` | Garmin fetch in Python |
+| `server` | Optional sync server (Docker, SQLite) |
 
-Regeln für Änderungen während einer laufenden Fahrt stehen in [`CLAUDE.md`](CLAUDE.md).
+Rules for changes during a running ride are in [`CLAUDE.md`](CLAUDE.md).
 
-## Mitmachen
+## Contributing
 
-Siehe [`CONTRIBUTING.md`](CONTRIBUTING.md). Sicherheitslücken bitte nach [`SECURITY.md`](SECURITY.md) melden.
+This is a personal project shared as is. Contributions are not being accepted: issues are off and pull requests are limited to collaborators. Forks are welcome under the licence.
 
-## Lizenz
+To get in touch, write to the owner through their GitHub profile: https://github.com/Basti93. Please report security issues as described in [`SECURITY.md`](SECURITY.md).
 
-Der eigene Code steht unter der [MIT-Lizenz](LICENSE). Ausgenommen sind die Wortliste und Abhängigkeiten, siehe [`NOTICE.md`](NOTICE.md).
+## Licence
 
-Dieses Projekt ist unabhängig und steht in keiner Verbindung zu Garmin, Zwift, Polar oder Anthropic. Die Markennamen gehören ihren Inhabern.
+The project's own code is under the [MIT licence](LICENSE). The word list and dependencies are excepted, see [`NOTICE.md`](NOTICE.md).
+
+This project is independent and not affiliated with Garmin, Zwift, Polar or Anthropic. The trademarks belong to their owners.
