@@ -12,7 +12,7 @@ const STABLE_RUN_MS = 60_000;
 const supervise = (file: string, onMessage?: (m: { riding?: boolean }) => void, failures = { count: 0 }): UtilityProcess => {
   const startedAt = Date.now();
   const child = utilityProcess.fork(path.join(__dirname, file), [], {
-    env: { ...process.env, BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides'), BIKE_COACH_DIR: path.join(app.getPath('userData'), 'coach') },
+    env: { ...process.env, BIKE_GARMIN_SCRIPT: path.join(app.getAppPath(), 'scripts', 'garmin', 'bridge.py'), BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides'), BIKE_COACH_DIR: path.join(app.getPath('userData'), 'coach') },
     stdio: 'inherit',
   });
   if (onMessage) child.on('message', onMessage);

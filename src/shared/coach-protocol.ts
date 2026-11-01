@@ -1,7 +1,14 @@
 import type { CoachState, Rating } from '../coach/state';
 import type { Together } from '../coach/together';
 
+export type GarminStatus =
+  | { state: 'idle' | 'connecting' | 'needs-mfa' | 'connected' }
+  | { state: 'failed'; reason: 'credentials' | 'rate-limit' | 'setup' | 'failed' };
+
 export type CoachClientMessage =
+  | { type: 'garmin-login'; profileId: string; email: string; password: string }
+  | { type: 'garmin-mfa'; profileId: string; code: string }
+  | { type: 'garmin-disconnect'; profileId: string }
   | { type: 'subscribe'; profileId: string }
   | { type: 'feedback'; profileId: string; rideId: string; rating: Rating }
   | { type: 'skip-feedback'; profileId: string } | { type: 'skip-ramp'; profileId: string }
@@ -11,5 +18,5 @@ export type CoachClientMessage =
   | { type: 'word-result'; profileId: string; nl: string; knew: boolean }
   | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null }[] };
-export type CoachServerMessage = { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; together: Together };
+export type CoachServerMessage = { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; together: Together; garmin?: GarminStatus };
 export const COACH_PORT = 7411;

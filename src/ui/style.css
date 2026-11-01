@@ -180,3 +180,7 @@ main > section.card + section.card, main > .together + section.card { margin-top
 .heart.beating { animation: heartbeat 1s ease-in-out infinite; }
 @keyframes heartbeat { 0%, 45%, 100% { transform: scale(1); } 15% { transform: scale(1.35); } 30% { transform: scale(.95); } }
 @media (prefers-reduced-motion: reduce) { .heart.beating { animation: none; } }
+
+/* Garmin-Verbindung auf der Profilseite */
+.garmin { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.garmin-form { margin-bottom: 1rem; }

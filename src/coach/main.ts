@@ -8,6 +8,7 @@ import type { Profile } from '../shared/profiles';
 import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
+import { GarminLink } from './garmin';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
 
@@ -45,6 +46,14 @@ const pushToServer = (s: CoachState): void => {
   }).then((r) => { if (r.ok) lastSynced.set(s.profileId, body); }).catch(() => { /* beim nächsten Lauf erneut */ });
 };
 
+const garminDir = path.join(dir, '..', 'garmin');
+const garmin = new GarminLink({
+  baseDir: garminDir,
+  python: path.join(garminDir, 'venv', 'bin', 'python'),
+  script: process.env.BIKE_GARMIN_SCRIPT ?? path.resolve('scripts', 'garmin', 'bridge.py'),
+  onUpdate: () => publish(),
+});
+
 const http = createServer();
 const wss = new WebSocketServer({
   server: http,
@@ -59,7 +68,7 @@ const together = () => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together() });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* Profil oder Verbindung weg */ }
   }
@@ -74,6 +83,10 @@ wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
       const m = JSON.parse(String(raw)) as CoachClientMessage;
+      // Anmeldedaten werden nur weitergereicht, nie gespeichert oder zurückgesendet.
+      if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
+      if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
+      if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }

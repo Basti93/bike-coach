@@ -1,5 +1,13 @@
 # Nach der Fahrt umsetzen
 
+## Profil aus dem Garmin-Export (Wunsch vom 01.11.2026, wartet auf das echte ZIP)
+
+- Neues Profil: Garmin-ZIP wählen, Werte vorausfüllen, nur Fehlendes fragen. Das Handformular bleibt als Weg ohne Garmin.
+- Die Vorschau zeigt jeden Wert mit Herkunft und bleibt änderbar, gespeichert wird erst nach Bestätigung.
+- FTP und Pulsgrenze nie stillschweigend übernehmen: Beide steuern das Training und die Sicherheit. Die Vorsichtsregel der Schätzung (Startwert, `ftpCapW`) bleibt auch mit Garmin-Daten bestehen.
+- Rohdaten nur lokal, kein Heimserver-Sync, dem Coach nur knappe Tageswerte. Jede Person importiert den eigenen Export.
+- Welche Felder im Export stehen, ist ungeprüft: erst am echten ZIP festlegen.
+
 
 ## Einschätzung Coach (31.10.2026, Probelauf ohne echte Fahrt)
 
