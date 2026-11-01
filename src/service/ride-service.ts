@@ -13,7 +13,6 @@ import { readRide, RideRecorder } from './recorder';
 import { findOpenRides, resumePoint } from './recovery';
 
 /** Bis zum Gerätetest (Plan Task 2) vorläufiger Wert. */
-export const DEFAULT_GRADE_PER_GEAR = 0.5;
 
 type Active = {
   recorder: RideRecorder; engine: RideEngine; session: Session; ftpW: number; recovered: boolean;
@@ -27,7 +26,7 @@ const CRASH_GAP_MS = 5000;
 const LONG_DOWNTIME_MS = 5 * 60 * 1000;
 const RIDE_ID = /^ride-[\w-]+$/;
 const checkRideId = (id: string): void => { if (!RIDE_ID.test(id)) throw new Error('Ungültige Fahrt-ID.'); };
-type Deps = { dir: string; ble: BlePort; nowMs: () => number; gradePerGear?: number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void; onRideStart?: () => void };
+type Deps = { dir: string; ble: BlePort; nowMs: () => number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void; onRideStart?: () => void };
 
 export class RideService {
   private devices: DeviceManager;
@@ -46,7 +45,6 @@ export class RideService {
       for (const key of Object.keys(r) as (keyof Reading)[]) this.latestAt[key] = this.deps.nowMs();
     });
     this.devices.onClick((dir) => {
-      this.active?.engine.shift(dir);
       for (const cb of this.subs) this.guard(() => cb({ type: 'click', dir }));
     });
     this.devices.start();
@@ -80,7 +78,6 @@ export class RideService {
     if (a.engine.isDone()) { this.end('finished'); return; }
     this.guard(() => {
       if (command?.targetW !== undefined) this.devices.setTargetPower(command.targetW);
-      if (command?.gradePct !== undefined) this.devices.setGrade(command.gradePct);
     });
     this.broadcastState();
   }
@@ -99,13 +96,12 @@ export class RideService {
           rideId, profileId: msg.profileId, sessionId: session.id, startedAtMs: this.deps.nowMs(), status: 'open',
         }, this.deps.recorderFs);
         const sessionFile = path.join(this.deps.dir, rideId, 'session.json');
-        fs.writeFileSync(`${sessionFile}.tmp`, JSON.stringify({ session, ftpW: msg.ftpW, maxHrBpm: msg.maxHrBpm }));
+        fs.writeFileSync(`${sessionFile}.tmp`, JSON.stringify({ session, ftpW: msg.ftpW, maxHrBpm: msg.maxHrBpm, hrMaxBpm: msg.hrMaxBpm }));
         fs.renameSync(`${sessionFile}.tmp`, sessionFile);
         this.guard(() => this.deps.onRideStart?.());
-        this.setActive({ recorder, engine: this.newEngine(session, msg.ftpW, { maxHrBpm: msg.maxHrBpm }), session, ftpW: msg.ftpW, recovered: false });
+        this.setActive({ recorder, engine: this.newEngine(session, msg.ftpW, { maxHrBpm: msg.maxHrBpm, hrMaxBpm: msg.hrMaxBpm }), session, ftpW: msg.ftpW, recovered: false });
         return;
       }
-      case 'shift': a?.engine.shift(msg.dir); return;
       case 'adjust': if (a) this.logEvent(a.engine.adjustTarget(msg.deltaPct)); return;
       case 'mark': this.logEvent({ wallClockMs: this.deps.nowMs(), type: 'marker', detail: msg.note }); return;
       case 'stop': if (a) this.end('aborted'); return;
@@ -123,6 +119,15 @@ export class RideService {
         this.devices.connect(msg.kind);
         this.broadcastState();
         break;
+      case 'delete-profile': {
+        // Nur der Profileintrag geht: Fahrten bleiben auf der Platte, eine Fahrt geht nie verloren.
+        if (a && a.recorder.profileId === msg.profileId) throw new Error('Das Profil fährt gerade und kann nicht gelöscht werden.');
+        const file = path.join(this.deps.dir, 'profiles.json');
+        fs.writeFileSync(`${file}.tmp`, JSON.stringify(this.profiles().filter((x) => x.id !== msg.profileId)));
+        fs.renameSync(`${file}.tmp`, file);
+        this.broadcastState();
+        return;
+      }
       case 'save-profile': {
         const profile = parseProfile(msg.profile);
         const others = this.profiles().filter((x) => x.id !== profile.id);
@@ -164,8 +169,8 @@ export class RideService {
     try { return JSON.parse(fs.readFileSync(path.join(this.deps.dir, 'profiles.json'), 'utf8')) as Profile[]; } catch { return []; }
   }
 
-  private newEngine(session: Session, ftpW: number, extra: { resumeAtS?: number; startSeq?: number; maxHrBpm?: number } = {}): RideEngine {
-    return new RideEngine({ session, ftpW, gradePerGear: this.deps.gradePerGear ?? DEFAULT_GRADE_PER_GEAR, nowMs: this.deps.nowMs, ...extra });
+  private newEngine(session: Session, ftpW: number, extra: { resumeAtS?: number; startSeq?: number; maxHrBpm?: number; hrMaxBpm?: number } = {}): RideEngine {
+    return new RideEngine({ session, ftpW, nowMs: this.deps.nowMs, ...extra });
   }
 
   /** Eine offene Fahrt zeichnet nach dem Neustart sofort weiter; der Nutzer entscheidet danach. */
@@ -175,7 +180,7 @@ export class RideService {
     for (const old of others) this.guard(() => { RideRecorder.open(this.deps.dir, old.rideId).finish('aborted'); });
     if (!meta) return;
     const recorder = RideRecorder.open(this.deps.dir, meta.rideId, this.deps.recorderFs);
-    let stored: { session: Session; ftpW: number; maxHrBpm?: number };
+    let stored: { session: Session; ftpW: number; maxHrBpm?: number; hrMaxBpm?: number };
     try {
       stored = JSON.parse(fs.readFileSync(path.join(this.deps.dir, meta.rideId, 'session.json'), 'utf8')) as typeof stored;
     } catch {
@@ -192,7 +197,7 @@ export class RideService {
     }
     recorder.event({ wallClockMs: now, type: 'resumed', detail: `${point.resumeAtS}` });
     this.setActive({
-      recorder, engine: this.newEngine(stored.session, stored.ftpW, { ...point, maxHrBpm: stored.maxHrBpm }), session: stored.session, ftpW: stored.ftpW,
+      recorder, engine: this.newEngine(stored.session, stored.ftpW, { ...point, maxHrBpm: stored.maxHrBpm, hrMaxBpm: stored.hrMaxBpm }), session: stored.session, ftpW: stored.ftpW,
       recovered: true, paused: now - lastMs > LONG_DOWNTIME_MS,
     });
   }

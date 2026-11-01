@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { hrMaxFor } from '../shared/hr-zones';
 import type { Profile } from '../shared/profiles';
 import { useCoach } from './useCoach';
 import { useLanguageLearning } from './useLanguageLearning';
@@ -18,7 +19,6 @@ import { TogetherView } from './views/TogetherView';
 import { WordCard } from './views/WordCard';
 
 const CALM_FRACTION = 0.75;
-const CALM_GRADE = 3;
 
 export const App = () => {
   const ride = useRide();
@@ -57,13 +57,16 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (state?.engine) {
     // Sprache nur in ruhigen Phasen, nie in harten Abschnitten oder über der eigenen Pulsgrenze.
     const c = coach.state;
-    const maxHr = state.profiles.find((p) => p.id === state.ride?.profileId)?.maxHrBpm;
+    const rideProfile = state.profiles.find((p) => p.id === state.ride?.profileId);
+    const maxHr = rideProfile?.maxHrBpm;
+    const rideHrMax = rideProfile ? hrMaxFor(rideProfile, Date.now())?.bpm : undefined;
     const calm = c !== null && !state.engine.paused
-      && (state.engine.gradePct !== null ? state.engine.gradePct <= CALM_GRADE : (state.engine.targetW ?? Infinity) <= c.ftpW * CALM_FRACTION)
+      && state.session?.steps[state.engine.stepIndex]?.kind !== 'grade'
+      && (state.engine.targetW ?? Infinity) <= c.ftpW * CALM_FRACTION
       && !(maxHr && (state.latest.hrBpm ?? 0) >= maxHr);
-    return <>{notice}{dialog}<RideView state={state} send={send} tools={languageToggle} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
+    return <>{notice}{dialog}<RideView state={state} send={send} hrMaxBpm={rideHrMax} tools={languageToggle} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={click} /> : null} /></>;
   }
-  if (editing && profile) return <>{notice}<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setEditing(false)} /></>;
+  if (editing && profile) return <>{notice}<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setEditing(false)} onDeleted={() => { setEditing(false); setProfile(null); }} /></>;
   const showHealth = (range: HealthRange): void => {
     setHealth(range);
     if (profile) coach.send({ type: 'garmin-health', profileId: profile.id, rangeDays: range });
@@ -76,7 +79,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       {notice}
       {profile
         ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
-          ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />
+          ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
           : <CoachView onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>

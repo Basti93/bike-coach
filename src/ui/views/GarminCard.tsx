@@ -29,11 +29,11 @@ export const GarminCard = ({ profileId, status, sync, send }: { profileId: strin
   const reauth = sync?.problem === 'reauth';
   if (status.state === 'connected' && !reauth) {
     return (
-      <section className="card garmin">
-        <span className="dot on">Garmin verbunden</span>
-        {sync && <span className="muted" role="status">{syncText(sync)}</span>}
+      <details className="card garmin-later">
+        <summary><span className="dot on">Garmin verbunden</span></summary>
+        {sync && <p className="muted" role="status">{syncText(sync)}</p>}
         <button className="ghost" onClick={() => send({ type: 'garmin-disconnect', profileId })}>Trennen</button>
-      </section>
+      </details>
     );
   }
   if (status.state === 'connecting') return <section className="card garmin" role="status">Garmin wird verbunden…</section>;

@@ -35,3 +35,28 @@ test('the health page is offered only with a connected Garmin', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Gesundheit' }));
   expect(onHealth).toHaveBeenCalled();
 });
+
+test('the next ride comes before everything else, the Garmin login does not push it down', () => {
+  const garmin = { state: 'idle' } as const;
+  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={garmin} />);
+  const go = screen.getByText('Los');
+  const connect = screen.getByText('Garmin verbinden', { selector: 'summary' });
+  expect(go.compareDocumentPosition(connect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(connect.closest('details')?.open).toBe(false);
+});
+test('a connected Garmin is one small line after the plan, details on request', () => {
+  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={{ state: 'connected' }} />);
+  const line = screen.getByText('Garmin verbunden');
+  expect(line.closest('details')?.open).toBe(false);
+  expect(screen.getByText('Los').compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+test('a Garmin that needs a new login stays in view', () => {
+  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={{ state: 'connected' }} garminSync={{ running: false, complete: true, lastRunMs: null, problem: 'reauth' } as never} />);
+  expect(screen.getByText('Los').compareDocumentPosition(screen.getByRole('button', { name: /verbinden/i })) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+});
+test('the note to the coach sits with the coach words, before the next ride', () => {
+  view(state);
+  const field = screen.getByRole('textbox', { name: 'Hinweis an den Coach' });
+  expect(field.closest('.encouragement')).toBeTruthy();
+  expect(field.compareDocumentPosition(screen.getByText('Los')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

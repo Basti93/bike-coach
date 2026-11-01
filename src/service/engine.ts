@@ -1,16 +1,20 @@
 import { clampTargetW } from '../shared/guardrails';
 import type { RideEvent, Sample } from '../shared/sample';
-import type { Session, Step } from '../shared/session';
+import { stepFtpFraction, type Session, type Step } from '../shared/session';
+import { zoneBounds } from '../shared/hr-zones';
 import type { Reading } from './ble/device-manager';
-import { effectiveGrade, MAX_GEAR, MIN_GEAR, NEUTRAL_GEAR } from './gears';
 
 const GAP_THRESHOLD_MS = 5000;
 const HR_HOLD_S = 30;
+// Der Puls folgt der Leistung verzögert, siehe docs/hr-zones.md.
+const HR_ZONE_SETTLE_S = 180;
+const HR_ZONE_HOLD_S = 60;
 const CADENCE_HOLD_S = 20;
 const CADENCE_FLOOR_RPM = 50;
 const AUTO_STEP_PCT = 5;
 const AUTO_MAX_PCT = 20;
 const RAMP_ID = 'ramp-test';
+const CLIMB_ENTRY_S = 25;
 // Wie Auuki: Pause nach 4 s mit 0 W, weiter ab über 40 W.
 const PAUSE_AFTER_S = 4;
 const RESUME_ABOVE_W = 40;
@@ -20,20 +24,20 @@ export type EngineState = {
   targetW: number | null; gradePct: number | null; gear: number | null;
   label: string; nextLabel: string | null; secondsToNext: number; autoReducedPct: number; paused: boolean;
 };
-export type TrainerCommand = { targetW?: number; gradePct?: number };
+export type TrainerCommand = { targetW: number };
 export type EngineOptions = {
-  session: Session; ftpW: number; gradePerGear: number; resumeAtS?: number; startSeq?: number; nowMs: () => number; maxHrBpm?: number;
+  session: Session; ftpW: number; resumeAtS?: number; startSeq?: number; nowMs: () => number; maxHrBpm?: number; hrMaxBpm?: number;
 };
 
 export class RideEngine {
   private elapsedS: number;
   private seq: number;
-  private gear = NEUTRAL_GEAR;
   private adjustPct = 0;
   private adjustedStep = -1;
   private autoPct = 0;
   private autoStep = -1;
   private hrHighS = 0;
+  private hrZoneHighS = 0;
   private cadenceLowS = 0;
   private paused = false;
   private zeroPowerS = 0;
@@ -65,18 +69,13 @@ export class RideEngine {
     const targets = this.targets(Math.max(0, this.paused ? this.elapsedS : this.elapsedS - 1));
     const sample: Sample = {
       seq: this.seq++, wallClockMs: now, rideElapsedS: this.elapsedS, ...this.latest,
-      targetW: targets.targetW, gradePct: targets.gradePct, gear: targets.gradePct === null ? null : this.gear,
+      targetW: targets, gradePct: null, gear: null,
     };
-    const command: TrainerCommand = targets.gradePct === null ? { targetW: targets.targetW! } : { gradePct: targets.gradePct };
+    const command: TrainerCommand = { targetW: targets };
     const key = JSON.stringify(command);
     const changed = key !== this.lastSent;
     this.lastSent = key;
     return { sample, command: changed ? command : null, events };
-  }
-
-  shift(dir: 'up' | 'down'): void {
-    if (this.position(this.elapsedS).step.kind !== 'grade') return;
-    this.gear = Math.min(MAX_GEAR, Math.max(MIN_GEAR, this.gear + (dir === 'up' ? 1 : -1)));
   }
 
   adjustTarget(deltaPct: number): RideEvent {
@@ -93,7 +92,7 @@ export class RideEngine {
     const t = this.targets(at);
     return {
       stepIndex: index, stepRemainingS: remainingS, rideElapsedS: this.elapsedS,
-      targetW: t.targetW, gradePct: t.gradePct, gear: t.gradePct === null ? null : this.gear,
+      targetW: t, gradePct: null, gear: null,
       label: step.label, nextLabel: next?.label ?? null, secondsToNext: remainingS,
       autoReducedPct: index === this.autoStep ? this.autoPct : 0,
       paused: this.paused,
@@ -119,16 +118,20 @@ export class RideEngine {
 
   /** Entscheidung ohne KI: Puls zu lange über der Grenze oder einbrechende Trittfrequenz. */
   private applyAutoReduction(now: number, events: RideEvent[]): void {
-    const { step, index } = this.position(this.elapsedS);
-    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.cadenceLowS = 0; }
-    if (step.kind !== 'erg' || this.opts.session.id === RAMP_ID) return;
+    const { step, index, remainingS } = this.position(this.elapsedS);
+    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.hrZoneHighS = 0; this.cadenceLowS = 0; }
+    if (this.opts.session.id === RAMP_ID) return;
     const { hrBpm, cadenceRpm } = this.latest;
     const limit = this.opts.maxHrBpm;
     this.hrHighS = limit !== undefined && hrBpm !== null && hrBpm > limit ? this.hrHighS + 1 : 0;
     this.cadenceLowS = cadenceRpm !== null && cadenceRpm > 0 && cadenceRpm < CADENCE_FLOOR_RPM ? this.cadenceLowS + 1 : 0;
-    const cause = this.hrHighS > HR_HOLD_S - 1 ? 'hr' : this.cadenceLowS > CADENCE_HOLD_S - 1 ? 'cadence' : null;
+    const zoneTop = step.hrZone && this.opts.hrMaxBpm ? zoneBounds(step.hrZone, this.opts.hrMaxBpm).toBpm : null;
+    const settled = step.durationS - remainingS >= HR_ZONE_SETTLE_S;
+    this.hrZoneHighS = zoneTop !== null && settled && hrBpm !== null && hrBpm > zoneTop ? this.hrZoneHighS + 1 : 0;
+    const cause = this.hrHighS > HR_HOLD_S - 1 ? 'hr' : this.hrZoneHighS >= HR_ZONE_HOLD_S ? 'hr-zone' : this.cadenceLowS > CADENCE_HOLD_S - 1 ? 'cadence' : null;
     if (!cause) return;
     this.hrHighS = 0;
+    this.hrZoneHighS = 0;
     this.cadenceLowS = 0;
     if (this.autoPct >= AUTO_MAX_PCT) return;
     this.autoPct += AUTO_STEP_PCT;
@@ -148,14 +151,19 @@ export class RideEngine {
     return { step: steps[steps.length - 1], index: steps.length - 1, remainingS: 0 };
   }
 
-  private targets(atS: number): { targetW: number | null; gradePct: number | null } {
-    const { step, index } = this.position(atS);
-    if (step.kind === 'grade') {
-      return { targetW: null, gradePct: effectiveGrade(step.gradePct, step.scale, this.gear, this.opts.gradePerGear) };
-    }
-    const base = step.ftpFraction * this.opts.ftpW;
+  private targets(atS: number): number {
+    const { step, index, remainingS } = this.position(atS);
     const manual = index === this.adjustedStep ? 1 + this.adjustPct / 100 : 1;
     const factor = manual * (index === this.autoStep ? 1 - this.autoPct / 100 : 1);
-    return { targetW: Math.round(clampTargetW(base * factor, this.opts.ftpW)), gradePct: null };
+    return Math.round(clampTargetW(this.entryFraction(step, index, step.durationS - remainingS) * this.opts.ftpW * factor, this.opts.ftpW));
+  }
+
+  /** In Steigungen geht es sanft hinein: linear vom vorigen Abschnitt zum Ziel. */
+  private entryFraction(step: Step, index: number, inStepS: number): number {
+    const goal = stepFtpFraction(step);
+    const previous = this.opts.session.steps[index - 1];
+    if (step.kind !== 'grade' || step.sudden || !previous || inStepS >= CLIMB_ENTRY_S) return goal;
+    const from = stepFtpFraction(previous);
+    return from + (goal - from) * (inStepS / CLIMB_ENTRY_S);
   }
 }

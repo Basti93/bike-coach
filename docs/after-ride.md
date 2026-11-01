@@ -1,5 +1,17 @@
 # Nach der Fahrt umsetzen
 
+## Wünsche aus der Testfahrt (01.11.2026)
+
+1. **Sanfter Übergang, plötzlich nur auf Wunsch:** Steigungen laufen jetzt über eine Wattvorgabe und beginnen mit 25 s Rampe (am Rad noch ungeprüft). Offen: Einstellung pro Abschnitt für einen plötzlichen Anstieg, vom Coach wählbar, mit Hinweis vorher.
+2. **Hinweise, was Plus und Minus bewirken:** Nur noch für Vokabeln nötig: „Plus: Wusste ich · Minus: Nochmal“ nach dem Aufdecken, davor „Gleich kannst du antworten“.
+3. **Puls als Teil des Trainings statt nur als Anzeige:**
+   - Pulszonen aus Garmin-Daten vorschlagen, Bestätigung auf der Profilseite. Die Pulsgrenze ist keine medizinische Grenze.
+   - Zielzone pro Abschnitt mit Live-Anzeige, lockere Einheiten kann der Coach ganz nach Puls steuern.
+   - Bleibt der Puls zu lange über Zone oder Grenze, sinken die Watt in kleinen Schritten mit Ansage und bleiben übersteuerbar. Über `maxHrBpm` senkt die Engine heute schon nach 30 s um je 5 %, höchstens 20 %, seit dem Umbau auch in Steigungen.
+   - Der Coach bekommt je Abschnitt Zeit in der Zone, Anstieg bei gleicher Leistung und Erholung nach harten Abschnitten.
+   - Ohne Gurt läuft die Fahrt nach Watt weiter, die Regelung pausiert, die App zeigt das offen an.
+4. **Trittfrequenz (Vorschlag, kein fester Auftrag):** Zielbereiche pro Abschnitt und Coach-Auswertung. Heute nur Anzeige und Aufzeichnung, nicht in `RideSummary`.
+
 ## Profil aus dem Garmin-Export (Wunsch vom 01.11.2026, wartet auf das echte ZIP)
 
 - Neues Profil: Garmin-ZIP wählen, Werte vorausfüllen, nur Fehlendes fragen. Das Handformular bleibt als Weg ohne Garmin.
@@ -27,8 +39,12 @@ Quellen: Auuki, GoldenCheetah, qdomyos-zwift, BikeControl, clickbridge, wattroom
 - Fahrten unter 5 Minuten zählen nicht als Training (eigene Setzung). Verworfene Fahrten bleiben lokal auf der Platte (Status `discarded`), zählen aber nicht, ohne FIT und ohne weiteren Upload. Der Server-Filter dafür ist noch nicht auf dem Heimserver eingespielt.
 - Lehren aus Domestique, Apex Velo Lab, Enduragent und ai-cycling-coach (nur Ideen, kein Code): Sensorfilter nur für die Auswertung (bis 2500 W, Puls 25 bis 240, Spitzen bis 2 s über dem 2,5-Fachen des Umfelds und über 400 W), Soll/Ist je Intervall, ein zweiter KI-Versuch, Wochengrenze, gemerkte Regeln. Alle Schwellen sind eigene Setzungen, nicht an echten Fahrten geprüft.
 - Zusammen: Jede Fahrminute zählt 10 Höhenmeter (Spielregel, keine Messung), Berge und Höhen sind gerundete Richtwerte. Rangliste ohne Watt und FTP.
-- Niederländisch: siehe `docs/language.md`. Die Sprachausgabe ist am echten Mac zu prüfen. Klicks beantworten nur außerhalb von Steigungen, dort schalten sie.
+- Niederländisch: siehe `docs/language.md`. Die Sprachausgabe ist am echten Mac zu prüfen. In Steigungen erscheinen keine Vokabeln.
 
 ## Garmin-Erholung (01.11.2026)
 
 Eigene Setzungen, an echten Wochen zu prüfen: Ruhepuls ≥ 5 bpm über dem 28-Tage-Median an 2 Tagen in Folge, Belastung anderer Sportarten der letzten 3 Tage über dem 1,5-Fachen des Mittels (ab 100 Punkten, damit ein einzelner normaler Lauf nicht warnt), Schlaf unter 5 h nur mit Schlafdaten. Bei „careful“ schlägt das Regelwerk Erholung vor, die KI bekommt die Bewertung als Hinweis. Das Ergebnis wird 5 Minuten zwischengespeichert.
+
+## Motivation durch den Coach (gebaut am 01.11.2026)
+
+Grundlagen und eigene Setzungen in `docs/motivation.md`. Offen: Mit echter KI und über echte Wochen prüfen, ob die Worte passen und die Nachfragen nicht nerven.

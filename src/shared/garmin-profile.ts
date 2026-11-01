@@ -64,24 +64,24 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
   }
   const maxHrBpm = body.maxHrSeen !== null && body.maxHrSeen >= MIN_HR && body.maxHrSeen <= MAX_HR ? body.maxHrSeen : null;
   const missing = [
-    !body.birthDate && 'Geburtsdatum', body.sex === 'unknown' && 'Geschlecht', !body.heightCm && 'Größe', !body.weightKg && 'Gewicht', !ftp && 'FTP', !maxHrBpm && 'Pulsgrenze',
+    !body.birthDate && 'Geburtsdatum', body.sex === 'unknown' && 'Geschlecht', !body.heightCm && 'Größe', !body.weightKg && 'Gewicht', !ftp && 'FTP', !maxHrBpm && 'Maximalpuls',
   ].filter((x): x is string => typeof x === 'string');
   return { birthDate: body.birthDate, sex: body.sex, heightCm: body.heightCm, weightKg: body.weightKg, activity, run5kMin, ftp, maxHrBpm, missing };
 };
 
-export type ReviewKey = 'birthDate' | 'sex' | 'heightCm' | 'weightKg' | 'ftpW' | 'maxHrBpm';
+export type ReviewKey = 'birthDate' | 'sex' | 'heightCm' | 'weightKg' | 'ftpW' | 'hrMaxBpm';
 export type ReviewField = { key: ReviewKey; label: string; garmin: string; origin: 'Garmin' | 'Schätzung' | 'Deine Fahrten'; own: string | null; selected: boolean };
 
 /** Nur was fehlt oder abweicht. Leeres wird vorgeschlagen, Eigenes nie, und Training und Sicherheit entscheidest immer du. */
 export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion): ReviewField[] => {
-  const SENSITIVE: ReviewKey[] = ['ftpW', 'maxHrBpm'];
+  const SENSITIVE: ReviewKey[] = ['ftpW', 'hrMaxBpm'];
   const rows: [ReviewKey, string, string | number | null, string | number | undefined][] = [
     ['birthDate', 'Geburtsdatum', s.birthDate, profile.birthDate],
     ['sex', 'Geschlecht', s.sex === 'unknown' ? null : s.sex, profile.sex],
     ['heightCm', 'Größe', s.heightCm, profile.heightCm],
     ['weightKg', 'Gewicht', s.weightKg, profile.weightKg],
     ['ftpW', 'FTP', s.ftp?.startW ?? null, ftpW],
-    ['maxHrBpm', 'Pulsgrenze', s.maxHrBpm, profile.maxHrBpm],
+    ['hrMaxBpm', 'Maximalpuls', s.maxHrBpm, profile.hrMaxBpm],
   ];
   return rows.flatMap(([key, label, garmin, own]) => {
     if (garmin === null || String(garmin) === String(own ?? '')) return [];

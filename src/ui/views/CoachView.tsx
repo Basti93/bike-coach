@@ -1,4 +1,7 @@
 import { useState, type ReactNode } from 'react';
+import { hrMaxFor } from '../../shared/hr-zones';
+import { CoachLog } from './CoachLog';
+import { Encouragement, MotivationCard } from './MotivationCard';
 import type { CoachState } from '../../coach/state';
 import type { Together } from '../../coach/together';
 import type { CoachClientMessage, GarminStatus, GarminSyncInfo } from '../../shared/coach-protocol';
@@ -47,7 +50,9 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
-  const start = (session: Session) => sendRide({ type: 'start', profileId: profile.id, session, ftpW, ...(profile.maxHrBpm ? { maxHrBpm: profile.maxHrBpm } : {}) });
+  const hrMax = hrMaxFor(profile, Date.now());
+  const garminAside = garmin?.state === 'connected' && garminSync?.problem !== 'reauth';
+  const start = (session: Session) => sendRide({ type: 'start', profileId: profile.id, session, ftpW, ...(profile.maxHrBpm ? { maxHrBpm: profile.maxHrBpm } : {}), ...(hrMax ? { hrMaxBpm: hrMax.bpm } : {}) });
   const next = state?.next;
   const isRamp = next?.session.id === 'ramp-test';
   const adjust = (how: 'easier' | 'harder' | 'shorter') => sendCoach({ type: 'adjust', profileId: profile.id, how });
@@ -64,9 +69,9 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
   const shown = picked ?? (next ? { session: next.session, why: next.reason, tag: '' } : null);
   const shownRamp = shown?.session.id === 'ramp-test';
   return (
-    <main>
+    <main className="home">
       <div className="top">
-        <h1>{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
+        <h1>{profile.avatar && <span aria-hidden="true">{profile.avatar} </span>}{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
         <div className="row">
           {tools}
           {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
@@ -77,8 +82,17 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
         </div>
       </div>
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
+      {state && (
+        <Encouragement state={state}>
+          <form className="note-form" onSubmit={(e) => { e.preventDefault(); sendNote(); }}>
+            <input aria-label="Hinweis an den Coach" placeholder="Sag deinem Coach etwas, z. B. Knie zwickt" value={note} onChange={(e) => setNote(e.target.value)} />
+            <button type="submit" className="secondary">Senden</button>
+          </form>
+          <CoachLog notes={state.notes} changes={state.changes} />
+        </Encouragement>
+      )}
       <ReadinessNote readiness={garminReadiness} />
-      {garmin && coachConnected && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
+      {garmin && coachConnected && !garminAside && garmin.state !== 'idle' && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
       {onReviewGarmin && <GarminProfileBanner profile={profile} ftpW={ftpW} suggestion={garminSuggestion} onReview={onReviewGarmin} />}
       <div className="coach">
         <div className="stack">
@@ -107,31 +121,15 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </div>
             </section>
           )}
-          <section>
-            <h3>Andere Trainings</h3>
-            <div className="trainings">
-              {library.map((t) => (
-                <TrainingCard key={t.session.id} session={t.session} ftpW={ftpW} tag={t.tag} why={t.why} selected={picked?.session.id === t.session.id}
-                  onPick={() => { setPicked(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-              ))}
-            </div>
-          </section>
         </div>
         {state && (
           <div className="stack">
+            <MotivationCard state={state} send={sendCoach} />
             {together && <TogetherCard together={together} />}
             <section className="card">
               <h3>Dein Plan</h3>
               <p className="note"><b>{state.phase.name}</b>{state.phase.weeksLeft > 0 ? `, noch etwa ${state.phase.weeksLeft} Wochen` : ''}. {state.phase.goal}</p>
               <p className="muted">FTP {state.ftpW} W{state.ftpHistory.some((h) => h.source === 'ramp') ? '' : ', geschätzt'}</p>
-            </section>
-            <section className="card">
-              <h3>Hinweis an den Coach</h3>
-              <form className="note-form" onSubmit={(e) => { e.preventDefault(); sendNote(); }}>
-                <input aria-label="Hinweis an den Coach" placeholder="z. B. Knie zwickt" value={note} onChange={(e) => setNote(e.target.value)} />
-                <button type="submit" className="secondary">Senden</button>
-              </form>
-              {state.notes.slice(-3).map((n, i) => <p className="note" key={i}>{n.text}{n.reply && <span className="reply">{n.reply}</span>}</p>)}
             </section>
             {(state.rules?.length ?? 0) > 0 && (
               <section className="card">
@@ -143,15 +141,25 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
                 </ul>
               </section>
             )}
-            {state.changes.length > 0 && (
-              <section className="card">
-                <h3>Was der Coach geändert hat</h3>
-                <ul className="changes">{[...state.changes].reverse().slice(0, 5).map((c, i) => <li key={i}>{c.text}</li>)}</ul>
-              </section>
+            {garmin && coachConnected && garminAside && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
+            {garmin && coachConnected && garmin.state === 'idle' && (
+              <details className="card garmin-later">
+                <summary>Garmin verbinden</summary>
+                <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />
+              </details>
             )}
           </div>
         )}
       </div>
+      <section className="library">
+        <h3>Andere Trainings</h3>
+        <div className="trainings">
+          {library.map((t) => (
+            <TrainingCard key={t.session.id} session={t.session} ftpW={ftpW} tag={t.tag} why={t.why} selected={picked?.session.id === t.session.id}
+              onPick={() => { setPicked(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+          ))}
+        </div>
+      </section>
     </main>
   );
 };

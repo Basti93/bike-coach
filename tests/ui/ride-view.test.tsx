@@ -41,11 +41,20 @@ test('recovery dialog names the original profile', () => {
   fireEvent.click(screen.getByText('Weiterfahren'));
   expect(resume).toHaveBeenCalledWith({ type: 'resume', rideId: 'r' });
 });
-test('arrow keys send shift messages', () => {
-  const send = view();
-  fireEvent.keyDown(window, { key: 'ArrowUp' });
-  fireEvent.keyDown(window, { key: 'ArrowDown' });
-  expect(send.mock.calls.map((c) => c[0])).toEqual([{ type: 'shift', dir: 'up' }, { type: 'shift', dir: 'down' }]);
+test('a mixed session shows watt bars with the route behind them and the current target', () => {
+  const session = { id: 's', name: 'x', steps: [
+    { kind: 'erg' as const, durationS: 100, ftpFraction: 0.5, label: 'A' },
+    { kind: 'grade' as const, durationS: 100, gradePct: 3, scale: 1, label: 'B' },
+  ] };
+  const { container } = render(<RideView state={{ ...base, session }} send={vi.fn()} />);
+  expect(container.querySelectorAll('.workout-step')).toHaveLength(2);
+  expect(container.querySelector('.workout .route')).toBeTruthy();
+  expect(container.querySelector('.workout-label')?.textContent).toBe('150 W');
+});
+test('a session without climbs shows only watt bars', () => {
+  const session = { id: 's', name: 'x', steps: [{ kind: 'erg' as const, durationS: 100, ftpFraction: 0.5, label: 'A' }] };
+  const { container } = render(<RideView state={{ ...base, session }} send={vi.fn()} />);
+  expect(container.querySelector('.route')).toBeNull();
 });
 test('m key sets a marker', () => {
   const send = view();
@@ -55,4 +64,25 @@ test('m key sets a marker', () => {
 test('shows the automatic reduction', () => {
   view({ engine: { ...base.engine!, autoReducedPct: 10 } });
   expect(document.body.textContent).toContain('automatisch um 10 % gesenkt');
+});
+const rideSession = { id: 's', name: 'x', steps: [
+  { kind: 'erg' as const, durationS: 100, ftpFraction: 0.5, label: 'A', hrZone: 2 },
+  { kind: 'grade' as const, durationS: 100, gradePct: 6, scale: 1, label: 'Antritt', sudden: true },
+] };
+test('shows the current heart rate zone against the target', () => {
+  render(<RideView state={{ ...base, session: rideSession, latest: { hrBpm: 150 } }} send={vi.fn()} hrMaxBpm={200} />);
+  expect(screen.getByTestId('hr-zone').textContent).toContain('Zone 3');
+  expect(screen.getByTestId('hr-zone').textContent).toContain('Ziel 2');
+});
+test('without a known maximum no zone is claimed', () => {
+  render(<RideView state={{ ...base, session: rideSession }} send={vi.fn()} />);
+  expect(screen.queryByTestId('hr-zone')).toBeNull();
+});
+test('says so when the strap is missing', () => {
+  render(<RideView state={{ ...base, session: rideSession, devices: { ...base.devices, hr: 'searching' } }} send={vi.fn()} hrMaxBpm={200} />);
+  expect(document.body.textContent).toContain('nach Watt');
+});
+test('warns before a sudden climb', () => {
+  render(<RideView state={{ ...base, session: rideSession, engine: { ...base.engine!, secondsToNext: 10 } }} send={vi.fn()} />);
+  expect(screen.getByRole('alert').textContent).toContain('plötzlich');
 });

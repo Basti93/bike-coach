@@ -194,3 +194,33 @@ test('invalid rideId and invalid profile are refused', () => {
   expect(out.filter((m) => m.type === 'error')).toHaveLength(2);
   expect(fs.existsSync(path.join(dir, 'profiles.json'))).toBe(false);
 });
+test('deleting a profile removes it but keeps its rides', () => {
+  const svc = make();
+  svc.handle({ type: 'save-profile', profile: { id: 'gone', name: 'Weg', ftpW: 150 } });
+  start(svc, 'gone'); ticks(svc, 10); svc.handle({ type: 'stop' });
+  const rideDirs = () => fs.readdirSync(dir).filter((f) => f.startsWith('ride-'));
+  const before = rideDirs();
+  svc.handle({ type: 'delete-profile', profileId: 'gone' });
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'profiles.json'), 'utf8'));
+  expect(saved.map((p: { id: string }) => p.id)).not.toContain('gone');
+  expect(rideDirs()).toEqual(before);
+});
+test('a profile cannot be deleted during its ride', () => {
+  const svc = make();
+  svc.handle({ type: 'save-profile', profile: { id: 'P', name: 'Fahrend', ftpW: 150 } });
+  start(svc, 'P');
+  out = [];
+  svc.handle({ type: 'delete-profile', profileId: 'P' });
+  expect(out.some((m) => m.type === 'error')).toBe(true);
+  expect(JSON.parse(fs.readFileSync(path.join(dir, 'profiles.json'), 'utf8'))).toHaveLength(1);
+});
+test('another profile can be deleted during a ride', () => {
+  const svc = make();
+  svc.handle({ type: 'save-profile', profile: { id: 'P', name: 'Fahrend', ftpW: 150 } });
+  svc.handle({ type: 'save-profile', profile: { id: 'Q', name: 'Andere', ftpW: 150 } });
+  start(svc, 'P');
+  out = [];
+  svc.handle({ type: 'delete-profile', profileId: 'Q' });
+  expect(out.some((m) => m.type === 'error')).toBe(false);
+  expect(JSON.parse(fs.readFileSync(path.join(dir, 'profiles.json'), 'utf8')).map((p: { id: string }) => p.id)).toEqual(['P']);
+});

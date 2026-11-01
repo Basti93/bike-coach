@@ -19,10 +19,14 @@ export type CoachClientMessage =
   | { type: 'feedback'; profileId: string; rideId: string; rating: Rating }
   | { type: 'skip-feedback'; profileId: string } | { type: 'skip-ramp'; profileId: string }
   | { type: 'note'; profileId: string; text: string }
+  | { type: 'complaint-update'; profileId: string; id: string; status: 'active' | 'healing' | 'over' }
+  | { type: 'answer-question'; profileId: string; questionId: string; text: string }
+  | { type: 'skip-question'; profileId: string }
+  | { type: 'remove-motive'; profileId: string; atMs: number }
   | { type: 'ride-detail'; profileId: string; rideId: string }
   | { type: 'remove-rule'; profileId: string; atMs: number }
   | { type: 'word-result'; profileId: string; nl: string; knew: boolean }
   | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' };
-export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null }[] };
+export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; together: Together; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
 export const COACH_PORT = 7411;

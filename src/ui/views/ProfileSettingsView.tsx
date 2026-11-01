@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { CoachClientMessage } from '../../shared/coach-protocol';
 import type { ClientMessage } from '../../shared/protocol';
+import { hrMaxFor, zoneBounds, ZONES } from '../../shared/hr-zones';
 import type { Profile } from '../../shared/profiles';
 
+const AVATARS = ['🐼', '🐭', '🦊', '🐻', '🐰', '🐨', '🦉', '🐢'];
 const number = (text: string): number => Number(text.trim().replace(',', '.'));
 const outside = (text: string, min: number, max: number): boolean => text.trim() !== '' && !(number(text) >= min && number(text) <= max);
 const ageOf = (birthDate: string): number => (Date.now() - Date.parse(birthDate)) / (365.25 * 86_400_000);
@@ -10,35 +12,42 @@ const text = (n: number | undefined): string => (n === undefined ? '' : String(n
 
 type Props = {
   profile: Profile; ftpW: number; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onDeleted?: () => void;
 };
 
 /** Hier gilt, was du einträgst: Garmin überschreibt diese Werte nie von selbst. */
-export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack }: Props) => {
+export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted }: Props) => {
   const [name, setName] = useState(profile.name);
   const [ftp, setFtp] = useState(String(ftpW));
   const [maxHr, setMaxHr] = useState(text(profile.maxHrBpm));
+  const [hrMaxText, setHrMax] = useState(text(profile.hrMaxBpm));
   const [birthDate, setBirthDate] = useState(profile.birthDate ?? '');
   const [sex, setSex] = useState(profile.sex ?? 'unknown');
   const [height, setHeight] = useState(text(profile.heightCm));
   const [weight, setWeight] = useState(text(profile.weightKg));
+  const [avatar, setAvatar] = useState(profile.avatar ?? '');
+  const [deleting, setDeleting] = useState(false);
 
   const invalid = [
     name.trim() === '' && 'Name',
     !(number(ftp) >= 50) && 'FTP (ab 50 W)',
     outside(maxHr, 80, 240) && 'Pulsgrenze (80 bis 240)',
+    outside(hrMaxText, 100, 240) && 'Maximalpuls (100 bis 240)',
     birthDate !== '' && !(ageOf(birthDate) >= 14 && ageOf(birthDate) <= 100) && 'Geburtsdatum (ab 14 Jahren)',
     outside(height, 120, 230) && 'Größe (120 bis 230 cm)',
     outside(weight, 30, 250) && 'Gewicht (30 bis 250 kg)',
   ].filter((x): x is string => typeof x === 'string');
   const ftpChanged = number(ftp) !== ftpW;
+  const zones = hrMaxFor({ ...(hrMaxText.trim() && number(hrMaxText) >= 100 ? { hrMaxBpm: number(hrMaxText) } : {}), ...(birthDate ? { birthDate } : {}) }, Date.now());
 
   const save = () => {
     if (invalid.length) return;
     // Bewusst aus Bestehendem aufgebaut: Unbekannte Felder und die ID bleiben erhalten.
     const next: Profile = { ...profile, name: name.trim(), sex };
-    for (const key of ['maxHrBpm', 'birthDate', 'heightCm', 'weightKg'] as const) delete next[key];
+    for (const key of ['avatar', 'maxHrBpm', 'hrMaxBpm', 'birthDate', 'heightCm', 'weightKg'] as const) delete next[key];
+    if (avatar) next.avatar = avatar;
     if (maxHr.trim()) next.maxHrBpm = number(maxHr);
+    if (hrMaxText.trim()) next.hrMaxBpm = number(hrMaxText);
     if (birthDate) next.birthDate = birthDate;
     if (height.trim()) next.heightCm = number(height);
     if (weight.trim()) next.weightKg = number(weight);
@@ -57,6 +66,12 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
       <div className="top"><h1>Dein Profil</h1></div>
       <form className="card form" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <label>Name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label>Profilbild
+          <select value={avatar} onChange={(e) => setAvatar(e.target.value)}>
+            <option value="">Keins</option>
+            {AVATARS.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
         <label>Geburtsdatum<input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} /></label>
         <label>Geschlecht
           <select value={sex} onChange={(e) => setSex(e.target.value as typeof sex)}>
@@ -73,6 +88,12 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
           <label>FTP in Watt<input inputMode="numeric" disabled={!coachConnected} value={ftp} onChange={(e) => setFtp(e.target.value)} /></label>
           <label>Pulsgrenze<input inputMode="numeric" value={maxHr} onChange={(e) => setMaxHr(e.target.value)} /></label>
         </div>
+        <label>Maximalpuls (leer: aus dem Alter geschätzt)<input inputMode="numeric" value={hrMaxText} onChange={(e) => setHrMax(e.target.value)} /></label>
+        {zones && (
+          <p className="muted" data-testid="hr-zones">
+            Pulszonen{zones.estimated ? ', geschätzt, rund ±10 Schläge' : ''}: {ZONES.map((z) => { const b = zoneBounds(z, zones.bpm); return `${z}: ${b.fromBpm}–${b.toBpm}`; }).join(' · ')}
+          </p>
+        )}
         {ftpChanged && !invalid.length && <p className="notice" role="status">Mit der neuen FTP plant der Coach deine nächste Einheit neu.</p>}
         {invalid.length > 0 && <p className="notice" role="alert">Bitte prüfen: {invalid.join(', ')}.</p>}
         <p className="muted">Bei Beschwerden wie Brustschmerz oder Schwindel, oder bei bekannter Herz-Kreislauf-Erkrankung vor dem Training ärztlich abklären.</p>
@@ -81,6 +102,17 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
           <button type="button" className="secondary" onClick={onBack}>Abbrechen</button>
         </div>
       </form>
+      <section className="card">
+        {deleting ? (
+          <>
+            <p className="notice" role="alert">Profil „{profile.name}“ wirklich löschen? Deine Fahrten bleiben auf der Festplatte erhalten, erscheinen aber nicht mehr in der App.</p>
+            <div className="row">
+              <button type="button" onClick={() => { sendRide({ type: 'delete-profile', profileId: profile.id }); onDeleted?.(); }}>Ja, Profil löschen</button>
+              <button type="button" className="secondary" onClick={() => setDeleting(false)}>Behalten</button>
+            </div>
+          </>
+        ) : <button type="button" className="ghost" onClick={() => setDeleting(true)}>Profil löschen</button>}
+      </section>
     </main>
   );
 };

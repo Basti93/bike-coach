@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, nativeImage, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'node:path';
 import { restartDelayMs } from './backoff';
 import { openFilmWindow } from './film-window';
@@ -50,6 +50,9 @@ app.on('second-instance', () => {
 });
 
 void app.whenReady().then(() => {
+  // Ein fehlendes Bild darf den Start nie verhindern.
+  const icon = nativeImage.createFromPath(path.join(app.getAppPath(), 'resources', 'icon.png'));
+  if (!icon.isEmpty()) app.dock?.setIcon(icon);
   supervise('service.js', onServiceMessage);
   supervise('coach.js');
   openMain();

@@ -5,6 +5,7 @@ import type { Session } from '../shared/session';
 import type { ClaudeErrorKind } from './claude-client';
 import type { RideSummary } from './metrics';
 import { RAMP_ID } from './guardrails';
+import type { Complaint, Motive } from './motivation';
 import { ruleBasedSession } from './rules';
 
 /** Kürzere Fahrten sind Probefahrten oder Fehlstarts und zählen nicht als Training (eigene Setzung). */
@@ -22,6 +23,10 @@ export type CoachState = {
   wordProgress?: WordProgress;
   changes: { atMs: number; text: string }[];
   notes: { atMs: number; text: string; reply?: string }[];
+  complaints?: Complaint[];
+  motives?: Motive[];
+  lastQuestionMs?: number;
+  encouragement?: string;
   feedback: Record<string, Rating>;
   summaries: RideSummary[];
   processedRides: string[];

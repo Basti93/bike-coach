@@ -8,13 +8,16 @@ const SEX_TEXT: Record<string, string> = { male: 'Mann', female: 'Frau' };
 const later = (id: string) => `bike-coach:garmin-review-later:${id}`;
 const shown = (value: string | null): string => (value === null ? 'leer' : SEX_TEXT[value] ?? value);
 
+const markOf = (profile: Profile, ftpW: number, suggestion: GarminSuggestion): string =>
+  JSON.stringify(reviewFields(profile, ftpW, suggestion).map((f) => [f.key, f.garmin]));
+
 /** Weist auf neue oder abweichende Werte hin. „Später“ gilt, bis Garmin etwas anderes liefert. */
 export const GarminProfileBanner = ({ profile, ftpW, suggestion, onReview }: { profile: Profile; ftpW: number; suggestion: GarminSuggestion | null | undefined; onReview: () => void }) => {
   const [, refresh] = useState(0);
   if (!suggestion) return null;
   const fields = reviewFields(profile, ftpW, suggestion);
   if (!fields.length) return null;
-  const mark = JSON.stringify(fields.map((f) => [f.key, f.garmin]));
+  const mark = markOf(profile, ftpW, suggestion);
   let dismissed: string | null = null;
   try { dismissed = localStorage.getItem(later(profile.id)); } catch { /* dann eben wieder anzeigen */ }
   if (dismissed === mark) return null;
@@ -46,7 +49,7 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
     heightCm: inRange('heightCm', 120, 230),
     weightKg: inRange('weightKg', 30, 250),
     ftpW: inRange('ftpW', 50, 1000),
-    maxHrBpm: inRange('maxHrBpm', 80, 240),
+    hrMaxBpm: inRange('hrMaxBpm', 100, 240),
   })[f.key]).map((f) => f.label);
 
   const take = () => {
@@ -64,6 +67,8 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
         sendCoach({ type: 'set-ftp', profileId: profile.id, ftpW: next.ftpW });
       } else next[f.key] = number(f.key);
     }
+    // Was nach dem Prüfen noch abweicht, hast du bewusst behalten: Erst neue Garmin-Werte melden sich wieder.
+    try { localStorage.setItem(later(profile.id), markOf(next, selected.ftpW ? next.ftpW : ftpW, suggestion)); } catch { /* gilt dann nur jetzt */ }
     sendRide({ type: 'save-profile', profile: next });
     onBack();
   };
@@ -86,7 +91,7 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
         {selected.ftpW && suggestion.ftp?.source === 'estimate' && <p className="notice" role="status">Das ist eine vorsichtige Schätzung, weil Garmins FTP fehlt oder veraltet ist.</p>}
         {suggestion.missing.length > 0 && <p className="muted">Garmin liefert nicht: {suggestion.missing.join(', ')}. Das kannst du unter „Profil bearbeiten“ eintragen.</p>}
         {invalid.length > 0 && <p className="notice" role="alert">Bitte prüfen: {invalid.join(', ')}.</p>}
-        <p className="muted">Die Pulsgrenze stammt aus deinen höchsten gemessenen Werten und ist keine medizinische Grenze.</p>
+        <p className="muted">Der Maximalpuls ist dein höchster gemessener Wert. Uhren messen dabei manchmal zu hoch, und die Pulszonen hängen daran. Das ist keine medizinische Grenze.</p>
         <div className="row">
           <button onClick={take} disabled={invalid.length > 0}>Übernehmen</button>
           <button className="secondary" onClick={onBack}>Abbrechen</button>

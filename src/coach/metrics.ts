@@ -1,12 +1,14 @@
 import type { RideMeta } from '../service/recorder';
 import type { Sample } from '../shared/sample';
-import type { Session } from '../shared/session';
+import { stepFtpFraction, type Session, type Step } from '../shared/session';
+import { stepTargetZone, zoneOf } from '../shared/hr-zones';
 
 export type RideSummary = {
   rideId: string; startedAtMs: number; status: 'finished' | 'aborted'; sessionId: string; ftpW: number; durationS: number;
   avgPowerW: number | null; normalizedPowerW: number | null; intensityFactor: number | null; tss: number;
   avgHrBpm: number | null; maxHrBpm: number | null; bestMinutePowerW: number | null; completedFraction: number;
   sessionName?: string; suspectData?: boolean; intervalsPlanned?: number; intervalsDone?: number;
+  hrZoneMinutes?: number[]; hrTargetPct?: number; hrDriftPct?: number; hrRecoveryBpm?: number;
 };
 
 const DAY_MS = 86_400_000;
@@ -79,7 +81,53 @@ const countIntervals = (session: Session, samples: Sample[], ftpW: number): { in
   return { intervalsPlanned, intervalsDone };
 };
 
-export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: number; plannedS: number; session?: Session }): RideSummary => {
+const DRIFT_MIN_S = 600;
+const DRIFT_SKIP_S = 120;
+const HARD_FRACTION = 0.8;
+const RECOVERY_S = 60;
+
+/** Puls gegen Abschnitte: siehe docs/hr-zones.md. Zonen nur mit bekanntem Maximalpuls. */
+const heartRateFacts = (samples: Sample[], session: Session | undefined, hrMaxBpm: number | undefined): Partial<RideSummary> => {
+  const out: Partial<RideSummary> = {};
+  const steps = session?.steps ?? [];
+  const windows = steps.reduce<{ step: Step; from: number; to: number }[]>((all, step) => {
+    const from = all.at(-1)?.to ?? 0;
+    return [...all, { step, from, to: from + step.durationS }];
+  }, []);
+  const known = samples.filter((s): s is Sample & { hrBpm: number } => s.hrBpm !== null);
+  if (hrMaxBpm && known.length) {
+    const seconds = [0, 0, 0, 0, 0];
+    let inTarget = 0, withTarget = 0;
+    for (const s of known) {
+      const zone = zoneOf(s.hrBpm, hrMaxBpm);
+      if (zone > 0) seconds[zone - 1] += 1;
+      const w = windows.find((x) => s.rideElapsedS > x.from && s.rideElapsedS <= x.to);
+      if (w) { withTarget += 1; if (zone <= stepTargetZone(w.step)) inTarget += 1; }
+    }
+    out.hrZoneMinutes = seconds.map((x) => Math.round(x / 60));
+    if (withTarget) out.hrTargetPct = Math.round((inTarget / withTarget) * 100);
+  }
+  const longest = windows.filter((w) => w.step.kind === 'erg' && w.step.durationS >= DRIFT_MIN_S).sort((a, b) => b.step.durationS - a.step.durationS)[0];
+  if (longest) {
+    const from = longest.from + DRIFT_SKIP_S;
+    const middle = (from + longest.to) / 2;
+    const first = mean(known.filter((s) => s.rideElapsedS > from && s.rideElapsedS <= middle).map((s) => s.hrBpm));
+    const second = mean(known.filter((s) => s.rideElapsedS > middle && s.rideElapsedS <= longest.to).map((s) => s.hrBpm));
+    if (first && second) out.hrDriftPct = Math.round(((second - first) / first) * 100);
+  }
+  const hrAt = (t: number) => known.find((s) => s.rideElapsedS === t)?.hrBpm ?? null;
+  const drops = windows.flatMap((w, i) => {
+    const next = windows[i + 1];
+    if (!next || stepFtpFraction(w.step) < HARD_FRACTION || stepFtpFraction(next.step) >= HARD_FRACTION || next.step.durationS < RECOVERY_S) return [];
+    const top = hrAt(w.to);
+    const later = hrAt(w.to + RECOVERY_S);
+    return top === null || later === null ? [] : [top - later];
+  });
+  if (drops.length) out.hrRecoveryBpm = Math.round(Math.max(...drops));
+  return out;
+};
+
+export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: number; plannedS: number; session?: Session; hrMaxBpm?: number }): RideSummary => {
   const { meta, ftpW, plannedS, session } = input;
   const { samples, removed } = cleanSamples(input.samples);
   const powers = samples.map((s) => s.powerW).filter((p): p is number => p !== null);
@@ -100,6 +148,7 @@ export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: 
     completedFraction: plannedS > 0 ? Math.min(1, durationS / plannedS) : 0,
     ...(removed > samples.length * SUSPECT_SHARE ? { suspectData: true } : {}),
     ...(session ? countIntervals(session, samples, ftpW) : {}),
+    ...heartRateFacts(samples, session, input.hrMaxBpm),
   };
 };
 

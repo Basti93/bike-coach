@@ -32,7 +32,7 @@ export const StepList = ({ session, ftpW }: { session: Session; ftpW: number }) 
       {session.steps.map((s, i) => (
         <li key={i}>
           <span>{s.label}</span>
-          <span className="muted">{fmtMin(s.durationS)} · {s.kind === 'erg' ? `${Math.round(s.ftpFraction * ftpW)} W` : `${s.gradePct.toLocaleString('de-DE')} %`}</span>
+          <span className="muted">{fmtMin(s.durationS)} · {s.kind === 'erg' ? `${Math.round(s.ftpFraction * ftpW)} W` : `${s.gradePct.toLocaleString('de-DE')} %`}{s.hrZone ? ` · Puls bis Zone ${s.hrZone}` : ''}{s.kind === 'grade' && s.sudden ? ' · plötzlich' : ''}</span>
         </li>
       ))}
     </ol>

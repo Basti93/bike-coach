@@ -4,12 +4,13 @@ import { App } from '../../src/ui/App';
 
 const profiles = [{ id: 'A', name: 'A' }, { id: 'B', name: 'B' }];
 const ride = { current: 'A' };
+const overrideSession = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock('../../src/ui/useCoach', () => ({ useCoach: () => ({
   state: { profileId: ride.current, ftpW: 200, wordProgress: {} }, thinking: false, connected: true, send: () => {},
 }) }));
 vi.mock('../../src/ui/useRide', () => ({ useRide: () => ({
   state: {
-    type: 'state', session: null, profiles, storageError: false, recovered: false,
+    type: 'state', session: overrideSession.current, profiles, storageError: false, recovered: false,
     ride: { rideId: 'r', profileId: ride.current, sessionId: 's', startedAtMs: 1, status: 'open' },
     engine: { stepIndex: 0, stepRemainingS: 100, rideElapsedS: 1, targetW: 100, gradePct: null, gear: null, label: 'Locker', nextLabel: null, secondsToNext: 100, autoReducedPct: 0, paused: false },
     devices: { trainer: 'connected', hr: 'connected', clicker: 'connected' }, latest: {},
@@ -39,4 +40,10 @@ test('the choice survives a restart and belongs to one profile', () => {
   ride.current = 'B';
   render(<App />);
   expect(card()).not.toBeNull();
+});
+test('no word cards on a climb, even a gentle one', () => {
+  overrideSession.current = { id: 's', name: 'x', steps: [{ kind: 'grade', durationS: 100, gradePct: 1, scale: 1, label: 'Steigung' }] };
+  render(<App />);
+  expect(card()).toBeNull();
+  overrideSession.current = null;
 });

@@ -50,7 +50,7 @@ test('implausible pulse values are not suggested', () => {
 });
 test('missing values are listed', () => {
   const s = suggestProfile({ birthDate: null, sex: 'unknown', heightCm: null, weightKg: 72, ftpW: null, ftpStale: false, maxHrSeen: null }, [], NOW);
-  expect(s.missing).toEqual(['Geburtsdatum', 'Geschlecht', 'Größe', 'FTP', 'Pulsgrenze']);
+  expect(s.missing).toEqual(['Geburtsdatum', 'Geschlecht', 'Größe', 'FTP', 'Maximalpuls']);
 });
 test('review offers empty fields as selected and differences as not selected', () => {
   const fields = reviewFields({ id: 'p', name: 'S', ftpW: 150, weightKg: 70, heightCm: 178 }, 150, suggestProfile(body, [], NOW));
@@ -62,7 +62,7 @@ test('review offers empty fields as selected and differences as not selected', (
 test('FTP and pulse limit are never selected by themselves', () => {
   const fields = reviewFields({ id: 'p', name: 'S', ftpW: 150 }, 150, suggestProfile(body, [], NOW));
   expect(fields.find((f) => f.key === 'ftpW')?.selected).toBe(false);
-  expect(fields.find((f) => f.key === 'maxHrBpm')?.selected).toBe(false);
+  expect(fields.find((f) => f.key === 'hrMaxBpm')?.selected).toBe(false);
 });
 test('the FTP compares with the valid value from the coach', () => {
   expect(reviewFields({ id: 'p', name: 'S', ftpW: 100 }, 183, suggestProfile(body, [], NOW)).find((f) => f.key === 'ftpW')).toBeUndefined();

@@ -6,8 +6,7 @@ import type { Profile } from './profiles';
 import type { Session } from './session';
 
 export type ClientMessage =
-  | { type: 'start'; profileId: string; session: Session; ftpW: number; maxHrBpm?: number }
-  | { type: 'shift'; dir: 'up' | 'down' }
+  | { type: 'start'; profileId: string; session: Session; ftpW: number; maxHrBpm?: number; hrMaxBpm?: number }
   | { type: 'device-connect'; kind: DeviceKind }
   | { type: 'device-disconnect'; kind: DeviceKind }
   | { type: 'adjust'; deltaPct: number }
@@ -17,7 +16,8 @@ export type ClientMessage =
   | { type: 'resume'; rideId: string }
   | { type: 'discard-resume'; rideId: string }
   | { type: 'export-fit'; rideId: string }
-  | { type: 'save-profile'; profile: Profile };
+  | { type: 'save-profile'; profile: Profile }
+  | { type: 'delete-profile'; profileId: string };
 
 export type RecoveryOffer = { type: 'recovery-offer'; rideId: string; profileId: string; sessionName: string; rideElapsedS: number };
 export type StateMessage = {

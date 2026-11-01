@@ -77,7 +77,7 @@ export const ProfileView = ({ profiles, onPick, onAdd, onTogether }: { profiles:
       <h1>{profiles.length ? 'Wer fährt heute?' : 'Schön, dass du da bist'}<span className="leaf" aria-hidden="true">🍂</span></h1>
       {profiles.length > 0 && (
         <div className="choices">
-          {profiles.map((p) => <button key={p.id} className="choice" onClick={() => onPick(p)}>{p.name}</button>)}
+          {profiles.map((p) => <button key={p.id} className="choice" onClick={() => onPick(p)}>{p.avatar && <span aria-hidden="true">{p.avatar} </span>}{p.name}</button>)}
         </div>
       )}
       {showForm

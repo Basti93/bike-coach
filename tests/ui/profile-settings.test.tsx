@@ -92,3 +92,20 @@ test('a new profile can start with just a name and be filled from Garmin', async
   fireEvent.click(screen.getByRole('button', { name: 'Mit Garmin ausfüllen' }));
   expect(onAdd.mock.calls[0][0]).toMatchObject({ name: 'Lena', ftpW: 100 });
 });
+test('deleting a profile needs a second confirmation and leaves rides alone', () => {
+  const sendRide = vi.fn(); const onDeleted = vi.fn();
+  render(<ProfileSettingsView profile={{ id: 'p', name: 'Max', ftpW: 150 }} ftpW={150} coachConnected sendRide={sendRide} sendCoach={vi.fn()} onBack={vi.fn()} onDeleted={onDeleted} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Profil löschen' }));
+  expect(sendRide).not.toHaveBeenCalled();
+  expect(screen.getByRole('alert').textContent).toContain('Fahrten bleiben');
+  fireEvent.click(screen.getByRole('button', { name: 'Ja, Profil löschen' }));
+  expect(sendRide).toHaveBeenCalledWith({ type: 'delete-profile', profileId: 'p' });
+  expect(onDeleted).toHaveBeenCalled();
+});
+test('shows your heart rate zones, marked as an estimate without your own maximum', () => {
+  render(<ProfileSettingsView profile={{ id: 'p', name: 'S', ftpW: 150, birthDate: '1990-01-15' }} ftpW={150} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={vi.fn()} />);
+  expect(screen.getByTestId('hr-zones').textContent).toContain('geschätzt');
+  fireEvent.change(screen.getByLabelText(/Maximalpuls/), { target: { value: '200' } });
+  expect(screen.getByTestId('hr-zones').textContent).not.toContain('geschätzt');
+  expect(screen.getByTestId('hr-zones').textContent).toContain('2: 120–140');
+});

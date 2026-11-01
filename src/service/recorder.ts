@@ -31,6 +31,8 @@ export class RideRecorder {
   private metaFailed = false;
   private closed = false;
 
+  get profileId(): string { return this.meta.profileId; }
+
   private constructor(dir: string, private meta: RideMeta, private fs: Fs) {
     this.rideDir = path.join(dir, meta.rideId);
     this.samplesFd = nodeFs.openSync(path.join(this.rideDir, 'samples.jsonl'), 'a');

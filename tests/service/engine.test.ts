@@ -1,5 +1,4 @@
 import { RideEngine } from '../../src/service/engine';
-import { effectiveGrade } from '../../src/service/gears';
 import type { Session } from '../../src/shared/session';
 
 const session: Session = { id: 's', name: 'x', steps: [
@@ -7,7 +6,7 @@ const session: Session = { id: 's', name: 'x', steps: [
   { kind: 'grade', durationS: 60, gradePct: 5, scale: 0.8, label: 'B' },
 ] };
 const clock = () => { let t = 0; const now = () => t; return { now, set: (v: number) => { t = v; }, step: () => { t += 1000; } }; };
-const make = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, ...extra });
+const make = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session, ftpW: 200, nowMs: c.now, ...extra });
 const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number) => { let r; for (let i = 0; i < n; i++) { c.step(); r = e.tick({}); } return r!; };
 
 test('erg step targets fraction of FTP', () => {
@@ -26,7 +25,7 @@ test('resume starts at given second with correct step and seq', () => {
   const r = run(e, c, 1);
   expect(r.sample.seq).toBe(91);
   expect(e.state().stepIndex).toBe(1);
-  expect(r.command?.gradePct).toBe(4);
+  expect(r.command).toEqual({ targetW: 150 });
 });
 test('gap over 5s of wall clock emits gap events and does not advance ride time', () => {
   const c = clock(); const e = make(c);
@@ -42,31 +41,34 @@ test('adjustTarget is clamped and logged', () => {
   expect(run(e, c, 1).sample.targetW).toBe(300);
 });
 test('adjustTarget lasts only for the current step', () => {
-  const c = clock(); const e = new RideEngine({ session: { ...session, steps: [session.steps[0], session.steps[0]] }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+  const c = clock(); const e = new RideEngine({ session: { ...session, steps: [session.steps[0], session.steps[0]] }, ftpW: 200, nowMs: c.now });
   e.adjustTarget(10);
   expect(run(e, c, 1).sample.targetW).toBe(110);
   expect(run(e, c, 60).sample.targetW).toBe(100);
 });
-test('shift in erg step changes nothing', () => {
-  const c = clock(); const e = make(c);
-  run(e, c, 1);
-  e.shift('up');
-  expect(e.state().gear).toBeNull();
-  expect(run(e, c, 1).command).toBeNull();
+test('a climb is ridden at a watt target from its scaled grade, never as a simulated grade', () => {
+  const c = clock(); const e = make(c, { resumeAtS: 90 });
+  const r = run(e, c, 1);
+  expect(r.sample.targetW).toBe(150);
+  expect(r.sample.gradePct).toBeNull();
+  expect(r.sample.gear).toBeNull();
+  expect(e.state().gradePct).toBeNull();
 });
-test('grade step sends scaled grade plus gear offset', () => {
+test('a climb is entered gently over 25 seconds', () => {
   const c = clock(); const e = make(c, { resumeAtS: 60 });
-  run(e, c, 1);
-  e.shift('up'); e.shift('up');
-  expect(run(e, c, 1).command?.gradePct).toBe(5);
+  const first = run(e, c, 1).sample.targetW!;
+  const middle = run(e, c, 12).sample.targetW!;
+  const end = run(e, c, 13).sample.targetW!;
+  expect(first).toBeLessThan(105);
+  expect(middle).toBeGreaterThan(115);
+  expect(middle).toBeLessThan(135);
+  expect(end).toBe(150);
 });
-test('gears stay within limits and grade is clamped', () => {
-  expect(effectiveGrade(100, 1, 6, 0.5)).toBe(20);
-  expect(effectiveGrade(-100, 1, 6, 0.5)).toBe(-10);
-  const c = clock(); const e = make(c, { resumeAtS: 60 });
-  run(e, c, 1);
-  for (let i = 0; i < 20; i++) e.shift('down');
-  expect(e.state().gear).toBe(1);
+test('the heart rate limit also lowers the target on a climb', () => {
+  const c = clock(); const e = make(c, { resumeAtS: 60, maxHrBpm: 170 });
+  for (let i = 0; i < 40; i++) { c.step(); e.tick({ hrBpm: 180 }); }
+  expect(e.state().autoReducedPct).toBe(5);
+  expect(e.state().targetW).toBe(143);
 });
 test('null readings still produce a sample', () => {
   const c = clock();
@@ -80,7 +82,7 @@ test('is done after all steps', () => {
   expect(e.isDone()).toBe(true);
 });
 test('a new step does not inherit an earlier adjustment', () => {
-  const c = clock(); const e = new RideEngine({ session: { ...session, steps: [session.steps[0], session.steps[0]] }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+  const c = clock(); const e = new RideEngine({ session: { ...session, steps: [session.steps[0], session.steps[0]] }, ftpW: 200, nowMs: c.now });
   e.adjustTarget(10);
   run(e, c, 60);
   e.adjustTarget(5);
@@ -88,7 +90,7 @@ test('a new step does not inherit an earlier adjustment', () => {
 });
 describe('Absenken während der Fahrt', () => {
   const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
-  const auto = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170, ...extra });
+  const auto = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session: long, ftpW: 200, nowMs: c.now, maxHrBpm: 170, ...extra });
   const feed = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => {
     let last; const events: string[] = [];
     for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); events.push(...last.events.map((x) => `${x.type}:${x.detail}`)); }
@@ -127,12 +129,12 @@ describe('Absenken während der Fahrt', () => {
   });
   test('ramp test is never reduced', () => {
     const c = clock();
-    const e = new RideEngine({ session: { ...long, id: 'ramp-test' }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    const e = new RideEngine({ session: { ...long, id: 'ramp-test' }, ftpW: 200, nowMs: c.now, maxHrBpm: 170 });
     expect(feed(e, c, 100, { hrBpm: 190, cadenceRpm: 30 }).last.sample.targetW).toBe(200);
   });
   test('a new step starts without the reduction', () => {
     const c = clock();
-    const e = new RideEngine({ session: { ...long, steps: [{ ...long.steps[0], durationS: 40 }, { ...long.steps[0], durationS: 100 }] }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    const e = new RideEngine({ session: { ...long, steps: [{ ...long.steps[0], durationS: 40 }, { ...long.steps[0], durationS: 100 }] }, ftpW: 200, nowMs: c.now, maxHrBpm: 170 });
     feed(e, c, 35, { hrBpm: 190, cadenceRpm: 90 });
     expect(feed(e, c, 6, { hrBpm: 150, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
   });
@@ -141,11 +143,11 @@ describe('Absenken: Pausen und Anzeige', () => {
   const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
   const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => { let last; for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); } return last!; };
   test('not pedalling is a pause, not a collapse', () => {
-    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, nowMs: c.now });
     expect(run(e, c, 60, { cadenceRpm: 0, powerW: 0 }).sample.targetW).toBe(200);
   });
   test('state reports the automatic reduction', () => {
-    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, gradePerGear: 0.5, nowMs: c.now });
+    const c = clock(); const e = new RideEngine({ session: long, ftpW: 200, nowMs: c.now });
     expect(e.state().autoReducedPct).toBe(0);
     run(e, c, 21, { cadenceRpm: 40 });
     expect(e.state().autoReducedPct).toBe(5);
@@ -153,14 +155,14 @@ describe('Absenken: Pausen und Anzeige', () => {
   test('counters restart with a new step', () => {
     const c = clock();
     const steps = [{ kind: 'erg' as const, durationS: 25, ftpFraction: 1, label: 'A' }, { kind: 'erg' as const, durationS: 100, ftpFraction: 1, label: 'B' }];
-    const e = new RideEngine({ session: { ...long, steps }, ftpW: 200, gradePerGear: 0.5, nowMs: c.now, maxHrBpm: 170 });
+    const e = new RideEngine({ session: { ...long, steps }, ftpW: 200, nowMs: c.now, maxHrBpm: 170 });
     run(e, c, 26, { hrBpm: 180, cadenceRpm: 90 });
     expect(run(e, c, 10, { hrBpm: 180, cadenceRpm: 90 }).sample.targetW).toBe(200);
   });
 });
 describe('Pause', () => {
   const session: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
-  const setup = () => { const c = clock(); return { c, e: new RideEngine({ session, ftpW: 200, gradePerGear: 0.5, nowMs: c.now }) }; };
+  const setup = () => { const c = clock(); return { c, e: new RideEngine({ session, ftpW: 200, nowMs: c.now }) }; };
   const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => { const ev: string[] = []; let last; for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); ev.push(...last.events.map((x) => x.type)); } return { last: last!, ev }; };
   test('zero power for 4 s pauses the clock and the step', () => {
     const { c, e } = setup();
@@ -191,4 +193,36 @@ describe('Pause', () => {
     expect(e.state().paused).toBe(false);
     expect(e.state().rideElapsedS).toBe(30);
   });
+});
+describe('heart rate zone', () => {
+  const steady = (hrZone?: number): Session => ({ id: 'z', name: 'x', steps: [{ kind: 'erg', durationS: 600, ftpFraction: 0.5, label: 'A', ...(hrZone ? { hrZone } : {}) }] });
+  const ride = (session: Session, seconds: number, hrBpm: number | undefined, extra = {}) => {
+    const c = clock(); const e = new RideEngine({ session, ftpW: 200, nowMs: c.now, hrMaxBpm: 200, ...extra });
+    for (let i = 0; i < seconds; i++) { c.step(); e.tick({ ...(hrBpm ? { hrBpm } : {}) }); }
+    return e;
+  };
+  test('above the set zone for a minute lowers the target, after the heart had time to settle', () => {
+    expect(ride(steady(2), 200, 150).state().autoReducedPct).toBe(0);
+    expect(ride(steady(2), 245, 150).state().autoReducedPct).toBe(5);
+  });
+  test('inside the zone nothing changes', () => {
+    expect(ride(steady(2), 400, 135).state().autoReducedPct).toBe(0);
+  });
+  test('only sections with a set zone are regulated', () => {
+    expect(ride(steady(), 400, 180).state().autoReducedPct).toBe(0);
+  });
+  test('without a heart rate the ride just runs on watts', () => {
+    expect(ride(steady(2), 400, undefined).state().autoReducedPct).toBe(0);
+  });
+  test('without a known maximum nothing is regulated', () => {
+    expect(ride(steady(2), 400, 180, { hrMaxBpm: undefined }).state().autoReducedPct).toBe(0);
+  });
+  test('it never lowers by more than a fifth', () => {
+    expect(ride(steady(2), 600, 190).state().autoReducedPct).toBeLessThanOrEqual(20);
+  });
+});
+test('a climb marked sudden starts at full target at once', () => {
+  const sudden: Session = { id: 's', name: 'x', steps: [session.steps[0], { ...session.steps[1], sudden: true } as Session['steps'][number]] };
+  const c = clock(); const e = new RideEngine({ session: sudden, ftpW: 200, nowMs: c.now, resumeAtS: 60 });
+  expect(run(e, c, 1).sample.targetW).toBe(150);
 });

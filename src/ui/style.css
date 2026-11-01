@@ -211,3 +211,63 @@ main > .notice, main > .garmin { margin: 0 0 1rem; }
 .review-row { display: grid; grid-template-columns: auto minmax(0, 12rem) 1fr; align-items: end; gap: .8rem; }
 .review-row input[type='checkbox'] { width: 1.1rem; height: 1.1rem; margin-bottom: .75rem; }
 .review-row .muted { margin-bottom: .65rem; }
+
+/* Wattbalken vorn, Höhenprofil dezent dahinter. */
+.workout.with-route { height: 16vh; min-height: 90px; }
+.workout.with-route .workout-step { position: relative; z-index: 1; opacity: .7; }
+.workout .route { position: absolute; inset: 0; height: auto; min-height: 0; opacity: .4; pointer-events: none; }
+.workout .route-climb { display: none; }
+.workout-label { position: absolute; top: 0; z-index: 2; transform: translateX(-50%); font-size: .9rem; font-weight: 700; white-space: nowrap; text-shadow: 0 0 4px #000; }
+.training .workout.with-route { height: 70px; min-height: 70px; }
+.workout .route-label { display: none; }
+
+.motivation-words { font-size: 1.25rem; font-weight: 600; margin: 0 0 .4rem; }
+.motivation label { display: block; margin: .6rem 0 .4rem; }
+.motivation input { width: 100%; }
+.motivation { margin-bottom: 1rem; }
+.hr-zone { display: block; font-size: .85rem; color: var(--muted, #9aa0aa); }
+.hr-zone.high { color: #e07a5f; font-weight: 700; }
+
+/* Startseite: zuerst die nächste Einheit, Nebensachen rechts, andere Trainings darunter. */
+main.home { max-width: 1240px; padding: 1.2rem 2rem 2rem; }
+main.home .top { flex-wrap: wrap; gap: .6rem 1.5rem; margin-bottom: .7rem; }
+main.home .top h1 { font-size: 1.7rem; white-space: nowrap; }
+main.home .top .row { gap: .4rem; flex-wrap: wrap; }
+main.home .top .row button { padding: .35rem .85rem; font-size: .9rem; }
+.encouragement { margin-bottom: 1rem; }
+.encouragement .muted { margin: 0; }
+.motivation-words { font-size: 1.1rem; }
+.motivation .note-form { display: block; }
+.motivation .row { margin-top: .5rem; gap: .4rem; }
+.library { margin-top: 1.5rem; }
+.library .trainings { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.garmin-later summary { cursor: pointer; color: var(--muted, #9aa0aa); }
+.garmin-later .card { padding: .8rem 0 0; background: none; }
+.garmin-later h3 { display: none; }
+/* Geräte-Knöpfe nur, wenn man sie braucht: Sie stehen sonst auf jeder Seite im Blick. */
+.status-action { opacity: 0; transition: opacity .15s; }
+.status-device:hover .status-action, .status-action:focus-visible { opacity: 1; }
+.stack .motivation { margin-bottom: 0; }
+/* Die Statusleiste zeigt die Geräte schon, zweimal ist nur Lärm. */
+.ride-head .devices { display: none; }
+.card.garmin-later { padding: .7rem 1.4rem; }
+.garmin-later p { margin: .5rem 0; }
+
+/* Die Worte des Coachs sind eine eigene Botschaft, keine Unterzeile. */
+.encouragement { background: color-mix(in srgb, var(--accent) 16%, var(--card)); border-left: 5px solid var(--accent); border-radius: 1.3rem; padding: 1rem 1.4rem; margin-bottom: 1rem; }
+.encouragement-from { display: block; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: .25rem; }
+.encouragement .motivation-words { font-size: 1.5rem; line-height: 1.3; margin: 0; }
+.encouragement .muted { margin-top: .45rem; }
+
+.encouragement .note-form { margin-top: .8rem; }
+.coach-log { margin-top: .8rem; }
+.coach-log ul { list-style: none; margin: 0; padding: 0; }
+.coach-log li { display: grid; grid-template-columns: 3.6rem 1fr auto; gap: .6rem; padding: .3rem 0; align-items: baseline; }
+.coach-log li + li { border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
+.log-who { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted, #9aa0aa); }
+.log-who.you { color: var(--accent); }
+.log-text .reply { display: block; color: var(--muted, #9aa0aa); }
+.log-date { font-size: .8rem; white-space: nowrap; }
+.coach-log summary { cursor: pointer; font-size: .85rem; margin-top: .3rem; }
+.coach-log { margin-top: .5rem; }
+.coach-log ul { max-height: 16rem; overflow-y: auto; margin-top: .4rem; }

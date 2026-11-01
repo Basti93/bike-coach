@@ -64,7 +64,7 @@ test('the banner appears only with something to review and stays away after late
   expect(screen.getByRole('button', { name: 'Werte aus Garmin prüfen' })).toBeTruthy();
 });
 test('no banner when everything already matches or there is no suggestion', () => {
-  const same = { id: 'p', name: 'S', ftpW: 183, maxHrBpm: 190, birthDate: '1990-01-15', sex: 'male' as const, heightCm: 178, weightKg: 72 };
+  const same = { id: 'p', name: 'S', ftpW: 183, hrMaxBpm: 190, birthDate: '1990-01-15', sex: 'male' as const, heightCm: 178, weightKg: 72 };
   const { container, rerender } = render(<GarminProfileBanner profile={same} ftpW={183} suggestion={suggestion} onReview={vi.fn()} />);
   expect(container.textContent).toBe('');
   rerender(<GarminProfileBanner profile={same} ftpW={183} suggestion={null} onReview={vi.fn()} />);
@@ -102,4 +102,20 @@ test('a wrong date and a too low FTP are refused', () => {
   fireEvent.click(screen.getByRole('checkbox', { name: 'FTP übernehmen' }));
   fireEvent.change(screen.getByLabelText('FTP'), { target: { value: '20' } });
   expect(screen.getByRole('alert').textContent).toContain('FTP');
+});
+test('after taking values the notice stays away, even for values you chose to keep', () => {
+  view();
+  take();
+  cleanup();
+  const saved = { ...profile, birthDate: '1990-01-15', sex: 'male' as const, heightCm: 178 };
+  render(<GarminProfileBanner profile={saved} ftpW={150} suggestion={suggestion} onReview={vi.fn()} />);
+  expect(screen.queryByText(/Garmin hat Werte/)).toBeNull();
+});
+test('the notice returns when Garmin delivers something new after taking values', () => {
+  view();
+  take();
+  cleanup();
+  const saved = { ...profile, birthDate: '1990-01-15', sex: 'male' as const, heightCm: 178 };
+  render(<GarminProfileBanner profile={saved} ftpW={150} suggestion={{ ...suggestion, weightKg: 64 }} onReview={vi.fn()} />);
+  expect(screen.getByText(/Garmin hat Werte/)).toBeTruthy();
 });

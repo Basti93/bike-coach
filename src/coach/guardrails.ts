@@ -1,7 +1,7 @@
-import { parseSession, type Session, type Step } from '../shared/session';
+import { parseSession, stepFtpFraction, type Session, type Step } from '../shared/session';
 import { loadModel, type RideSummary } from './metrics';
 
-export type CoachContext = { ftpW: number; summaries: RideSummary[]; nowMs: number; careful?: boolean };
+export type CoachContext = { ftpW: number; summaries: RideSummary[]; nowMs: number; careful?: boolean; complaint?: boolean };
 export const RAMP_ID = 'ramp-test';
 
 export const LIMITS = {
@@ -14,14 +14,13 @@ export const LIMITS = {
 } as const;
 
 const DAY_MS = 86_400_000;
-const stepIntensity = (s: Step): number => (s.kind === 'erg' ? s.ftpFraction : Math.max(0.5, 0.55 + (s.gradePct * s.scale) / 20));
 export const estimateTss = (session: Session): number =>
-  session.steps.reduce((sum, s) => sum + (s.durationS / 3600) * stepIntensity(s) ** 2 * 100, 0);
+  session.steps.reduce((sum, s) => sum + (s.durationS / 3600) * stepFtpFraction(s) ** 2 * 100, 0);
 
 /** Sanftes Programm: nach harter Fahrt, langer Pause oder ganz ohne Historie. */
 export const mustBeEasy = (ctx: CoachContext): boolean => {
   const hardRecently = ctx.summaries.some((r) => ctx.nowMs - r.startedAtMs < LIMITS.hardGapMs && (r.intensityFactor ?? 0) >= LIMITS.hardRideIf);
-  return hardRecently || mustBeGentle(ctx);
+  return hardRecently || !!ctx.complaint || mustBeGentle(ctx);
 };
 export const mustBeGentle = (ctx: CoachContext): boolean => {
   const { daysSinceLastRide } = loadModel(ctx.summaries, ctx.nowMs);
@@ -56,7 +55,7 @@ const violation = (session: Session, ctx: CoachContext): string | null => {
       if (s.scale < LIMITS.minScale || s.scale > LIMITS.maxScale) return 'Skalierung außerhalb von 0,5 bis 1,2.';
     }
     // Bei Steigungen ist das eine Schätzung der Anstrengung, die gleichen Grenzen gelten trotzdem.
-    const f = stepIntensity(s);
+    const f = stepFtpFraction(s);
     if (f > LIMITS.maxFraction) return 'Abschnitt über 130 % FTP.';
     if (s.durationS >= 5 * 60 && f > LIMITS.maxFractionFrom5Min) return 'Ab 5 Minuten höchstens 105 % FTP.';
     if (s.durationS >= 20 * 60 && f > LIMITS.maxFractionFrom20Min) return 'Ab 20 Minuten höchstens 95 % FTP.';

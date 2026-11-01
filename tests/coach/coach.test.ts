@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { answerJsonSchema, Coach } from '../../src/coach/coach';
+import { answerJsonSchema, Coach, SYSTEM_PROMPT } from '../../src/coach/coach';
 import { ClaudeError } from '../../src/coach/claude-client';
 import { checkSession } from '../../src/coach/guardrails';
 import { rampTest } from '../../src/coach/rules';
@@ -346,6 +346,71 @@ test('ride detail reads real samples, only for the own rides', () => {
   const d = c.rideDetail('pa', id);
   expect(d?.points.length).toBeLessThanOrEqual(300);
   expect(d?.points[0].powerW).toBe(130);
+  expect(d?.points[0]).toHaveProperty('cadenceRpm');
   expect(c.rideDetail('pb', id)).toBeNull();
 });
 
+
+describe('motivation and complaints', () => {
+  test('a complaint survives more than ten later notes and reaches every plan', async () => {
+    const ask = vi.fn(async (_: { prompt: string }) => answer());
+    const c = make(ask); c.scanRides([A]);
+    c.note('pa', 'Knie verletzt, verheilt, noch unsicher');
+    for (let i = 0; i < 12; i++) c.note('pa', `Hinweis ${i}`);
+    await c.refresh('pa');
+    expect(ask.mock.calls[0][0].prompt).toContain('noch unsicher');
+    expect(c.state('pa').complaints?.[0].status).toBe('healing');
+  });
+  test('with an open complaint plans stay easy, also without the AI', () => {
+    const c = make(); c.scanRides([A]);
+    c.note('pa', 'Knie zwickt');
+    const hard: Session = { id: 'h', name: 'Hart', steps: [good.steps[0], { kind: 'erg', durationS: 300, ftpFraction: 0.95, label: 'Hart' }] };
+    expect(c.state('pa').next.session.steps.every((s) => s.kind === 'erg' && s.ftpFraction <= 0.75)).toBe(true);
+    expect(checkSession(hard, { ftpW: 200, summaries: [], nowMs: now, complaint: true }).ok).toBe(false);
+  });
+  test('you decide when it is over', () => {
+    const c = make(); c.scanRides([A]);
+    c.note('pa', 'Knie zwickt');
+    const id = c.state('pa').complaints![0].id;
+    c.updateComplaint('pa', id, 'healing');
+    expect(c.state('pa').complaints![0].status).toBe('healing');
+    c.updateComplaint('pa', id, 'over');
+    expect(c.state('pa').complaints![0].status).toBe('over');
+    expect(c.state('pa').dirty).toBe(true);
+  });
+  test('answers about what drives you reach the plan and asking pauses', async () => {
+    const ask = vi.fn(async (_: { prompt: string }) => answer({ encouragement: 'Für deine Kinder bleibst du dran.' }));
+    const c = make(ask); c.scanRides([A]);
+    c.answerQuestion('pa', 'wozu', 'Fit für meine Kinder');
+    await c.refresh('pa');
+    expect(ask.mock.calls[0][0].prompt).toContain('Fit für meine Kinder');
+    expect(c.state('pa').encouragement).toBe('Für deine Kinder bleibst du dran.');
+    expect(c.state('pa').lastQuestionMs).toBe(now);
+  });
+  test('skipping a question stores nothing but still pauses asking', () => {
+    const c = make(); c.scanRides([A]);
+    c.skipQuestion('pa');
+    expect(c.state('pa').motives ?? []).toEqual([]);
+    expect(c.state('pa').lastQuestionMs).toBe(now);
+  });
+  test('invented watts in the kind words are dropped', async () => {
+    const c = make(async () => answer({ encouragement: 'Du schaffst locker 400 W!' })); c.scanRides([A]);
+    await c.refresh('pa');
+    expect(c.state('pa').encouragement ?? '').not.toContain('400');
+  });
+  test('the prompt asks for autonomy-supporting language without guilt', () => {
+    expect(SYSTEM_PROMPT).toMatch(/Beweggründe/);
+    expect(SYSTEM_PROMPT).toMatch(/Schuld/);
+  });
+});
+
+test('the coach may set a heart rate zone and a sudden climb, and both reach the session', async () => {
+  const planned = { ...good, steps: [good.steps[0], { kind: 'grade', durationS: 300, gradePct: 2, scale: 1, label: 'Antritt', sudden: true }, { kind: 'erg', durationS: 600, ftpFraction: 0.6, label: 'Locker', hrZone: 2 }] };
+  const c = make(async () => answer({ session: planned })); c.scanRides([A]);
+  await c.refresh('pa');
+  expect(c.state('pa').next.source).toBe('claude');
+  expect(c.state('pa').next.session.steps[1]).toMatchObject({ sudden: true });
+  expect(c.state('pa').next.session.steps[2]).toMatchObject({ hrZone: 2 });
+  expect(SYSTEM_PROMPT).toMatch(/hrZone/);
+  expect(SYSTEM_PROMPT).toMatch(/sudden/);
+});

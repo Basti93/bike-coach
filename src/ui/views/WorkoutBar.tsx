@@ -1,7 +1,6 @@
-import type { Session, Step } from '../../shared/session';
+import { stepFtpFraction, type Session } from '../../shared/session';
 import { hasRoute, RouteProfile } from './RouteProfile';
 
-const intensity = (s: Step): number => (s.kind === 'erg' ? s.ftpFraction : 0.55 + Math.max(0, s.gradePct) * 0.06);
 const zone = (i: number): string => {
   if (i < 0.56) return 'var(--z1)';
   if (i < 0.76) return 'var(--z2)';
@@ -10,16 +9,27 @@ const zone = (i: number): string => {
   return 'var(--z5)';
 };
 
-/** Das Profil der Einheit: Breite ist Dauer, Höhe und Farbe sind die Belastung. */
-export const WorkoutBar = ({ session, elapsedS }: { session: Session; elapsedS?: number }) => {
-  if (hasRoute(session)) return <RouteProfile session={session} elapsedS={elapsedS} />;
+/** Breite ist Dauer, Höhe und Farbe sind die Belastung. Bei Steigungen liegt das Höhenprofil dezent dahinter. */
+export const WorkoutBar = ({ session, elapsedS, currentW }: { session: Session; elapsedS?: number; currentW?: number | null }) => {
   const total = session.steps.reduce((a, s) => a + s.durationS, 0);
-  const max = Math.max(1.1, ...session.steps.map(intensity));
+  const max = Math.max(1.1, ...session.steps.map(stepFtpFraction));
+  let start = 0;
+  let centerPct: number | null = null;
+  let grade: number | null = null;
+  for (const s of session.steps) {
+    if (elapsedS !== undefined && centerPct === null && elapsedS < start + s.durationS) {
+      centerPct = ((start + s.durationS / 2) / total) * 100;
+      grade = s.kind === 'grade' ? s.gradePct : null;
+    }
+    start += s.durationS;
+  }
   return (
-    <div className="workout" aria-hidden="true">
+    <div className={hasRoute(session) ? 'workout with-route' : 'workout'} aria-hidden="true">
+      {hasRoute(session) && <RouteProfile session={session} />}
       {session.steps.map((s, i) => (
-        <div key={i} className="workout-step" style={{ flexGrow: s.durationS, height: `${Math.max(12, (intensity(s) / max) * 100)}%`, background: zone(intensity(s)) }} />
+        <div key={i} className="workout-step" style={{ flexGrow: s.durationS, height: `${Math.max(12, (stepFtpFraction(s) / max) * 100)}%`, background: zone(stepFtpFraction(s)) }} />
       ))}
+      {currentW != null && centerPct !== null && <div className="workout-label" style={{ left: `${centerPct}%` }}>{currentW} W{grade === null ? '' : ` · ${grade.toLocaleString('de-DE')} %`}</div>}
       {elapsedS !== undefined && <div className="workout-now" style={{ left: `${Math.min(100, (elapsedS / total) * 100)}%` }} />}
     </div>
   );

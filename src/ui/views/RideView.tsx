@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
+import { stepTargetZone, zoneOf } from '../../shared/hr-zones';
 import { WorkoutBar } from './WorkoutBar';
 
 const WARN_BEFORE_S = 15;
@@ -15,12 +16,10 @@ const powerClass = (power: number | null | undefined, target: number | null): st
   return 'good';
 };
 
-export const RideView = ({ state, send, compact = false, extra, tools }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode }) => {
+export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode; hrMaxBpm?: number }) => {
   const [ending, setEnding] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp') send({ type: 'shift', dir: 'up' });
-      if (e.key === 'ArrowDown') send({ type: 'shift', dir: 'down' });
       if (e.key === 'm') send({ type: 'mark' });
     };
     window.addEventListener('keydown', onKey);
@@ -28,15 +27,19 @@ export const RideView = ({ state, send, compact = false, extra, tools }: { state
   });
   const { engine, latest, devices, session } = state;
   if (!engine) return null;
-  const isGrade = engine.gradePct !== null;
-  const target = isGrade ? engine.gradePct!.toFixed(1).replace('.', ',') : value(engine.targetW);
-  const unit = isGrade ? '%' : 'W';
+  const target = value(engine.targetW);
   const warn = engine.nextLabel && engine.secondsToNext <= WARN_BEFORE_S;
   const totalLeft = session ? Math.max(0, session.steps.reduce((a, s) => a + s.durationS, 0) - engine.rideElapsedS) : null;
+  const nextStep = session?.steps[engine.stepIndex + 1];
+  const sudden = nextStep?.kind === 'grade' && nextStep.sudden;
+  const step = session?.steps[engine.stepIndex];
+  const hr = latest.hrBpm;
+  const zone = hrMaxBpm && hr ? zoneOf(hr, hrMaxBpm) : null;
+  const zoneTarget = step ? stepTargetZone(step) : null;
   const banners = (
     <>
       {state.storageError && <div className="banner danger" role="alert">Speichern schlägt gerade fehl. Die Fahrt läuft weiter, bitte Speicherplatz prüfen.</div>}
-      {warn && <div className="banner warn" role="alert">In {engine.secondsToNext} s: {engine.nextLabel}</div>}
+      {warn && <div className="banner warn" role="alert">In {engine.secondsToNext} s: {engine.nextLabel}{sudden ? ', plötzlicher Anstieg' : ''}</div>}
       {engine.paused && <div className="banner info" role="status">Pause. Tritt an, dann geht es weiter.</div>}
     </>
   );
@@ -45,7 +48,7 @@ export const RideView = ({ state, send, compact = false, extra, tools }: { state
       <main className="film">
         {banners}
         <div className="film-main">
-          <div><span className="label">Vorgabe</span><b data-testid="target">{target}<small>{unit}</small></b></div>
+          <div><span className="label">Vorgabe</span><b data-testid="target">{target}<small>W</small></b></div>
           <div><span className="label">Leistung</span><b data-testid="power" className={powerClass(latest.powerW, engine.targetW)}>{value(latest.powerW)}</b></div>
         </div>
         <div className="film-side">
@@ -71,12 +74,13 @@ export const RideView = ({ state, send, compact = false, extra, tools }: { state
       </header>
       {banners}
       {devices.trainer !== 'connected' && <div className="banner warn" role="status">Trainer wird gesucht. Die Fahrt läuft weiter und ist gespeichert.</div>}
+      {hrMaxBpm !== undefined && devices.hr !== 'connected' && <div className="banner info" role="status">Kein Puls, die Fahrt läuft nach Watt weiter.</div>}
       {engine.autoReducedPct > 0 && <div className="banner info" role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</div>}
       {extra}
       <section className="hero">
         <div className="hero-tile">
-          <span className="label">{isGrade ? 'Steigung' : 'Vorgabe'}</span>
-          <b data-testid="target">{target}<small>{unit}</small></b>
+          <span className="label">Vorgabe</span>
+          <b data-testid="target">{target}<small>W</small></b>
         </div>
         <div className="hero-tile">
           <span className="label">Leistung</span>
@@ -85,13 +89,11 @@ export const RideView = ({ state, send, compact = false, extra, tools }: { state
       </section>
       <section className="stats">
         <div className="tile"><span className="label">Restzeit Abschnitt</span><b data-testid="remaining">{mmss(engine.stepRemainingS)}</b></div>
-        <div className="tile"><span className="label">Puls</span><b data-testid="hr">{value(latest.hrBpm)}</b></div>
+        <div className="tile"><span className="label">Puls</span><b data-testid="hr">{value(latest.hrBpm)}</b>{zone !== null && zoneTarget !== null && <span data-testid="hr-zone" className={zone > zoneTarget ? 'hr-zone high' : 'hr-zone'}>{zone === 0 ? 'Unter Zone 1' : `Zone ${zone}`} · Ziel {zoneTarget}</span>}</div>
         <div className="tile"><span className="label">Trittfrequenz</span><b>{value(latest.cadenceRpm)}</b></div>
-        {engine.gear !== null
-          ? <div className="tile"><span className="label">Gang</span><b>{engine.gear}</b></div>
-          : <div className="tile"><span className="label">Noch insgesamt</span><b>{totalLeft === null ? '–' : mmss(totalLeft)}</b></div>}
+        <div className="tile"><span className="label">Noch insgesamt</span><b>{totalLeft === null ? '–' : mmss(totalLeft)}</b></div>
       </section>
-      {session && <WorkoutBar session={session} elapsedS={engine.rideElapsedS} />}
+      {session && <WorkoutBar session={session} elapsedS={engine.rideElapsedS} currentW={engine.targetW} />}
       <footer className="row">
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: -5 })}>Leichter −5 %</button>
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: 5 })}>Härter +5 %</button>

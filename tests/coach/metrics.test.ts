@@ -65,3 +65,32 @@ test('ride with many faults is marked, intervals are counted against the plan', 
   expect(r).toMatchObject({ intervalsPlanned: 2, intervalsDone: 1 });
 });
 
+
+describe('heart rate in the summary', () => {
+  const samples = (seconds: number, hr: (i: number) => number, power = 100): Sample[] => Array.from({ length: seconds }, (_, i) => ({ seq: i, wallClockMs: i * 1000, rideElapsedS: i + 1, powerW: power, cadenceRpm: 80, speedKph: 25, hrBpm: hr(i), targetW: power, gradePct: null, gear: null }));
+  const meta = { rideId: 'r', profileId: 'p', sessionId: 's', startedAtMs: 0, status: 'finished' as const };
+  const steady = { id: 's', name: 'x', steps: [{ kind: 'erg' as const, durationS: 1200, ftpFraction: 0.5, label: 'A' }] };
+  test('counts minutes per zone and time in the target zone', () => {
+    const r = summarizeRide({ meta, samples: samples(1200, () => 130), ftpW: 200, plannedS: 1200, session: steady, hrMaxBpm: 200 });
+    expect(r.hrZoneMinutes).toEqual([0, 20, 0, 0, 0]);
+    expect(r.hrTargetPct).toBe(100);
+  });
+  test('shows the heart rate rising at equal power', () => {
+    const r = summarizeRide({ meta, samples: samples(1200, (i) => (i < 660 ? 120 : 132)), ftpW: 200, plannedS: 1200, session: steady, hrMaxBpm: 200 });
+    expect(r.hrDriftPct).toBe(10);
+  });
+  test('short or changing rides have no drift value', () => {
+    const r = summarizeRide({ meta, samples: samples(300, () => 130), ftpW: 200, plannedS: 300, session: { ...steady, steps: [{ ...steady.steps[0], durationS: 300 }] }, hrMaxBpm: 200 });
+    expect(r.hrDriftPct).toBeUndefined();
+  });
+  test('measures how far the heart drops in the minute after a hard section', () => {
+    const session = { id: 's', name: 'x', steps: [{ kind: 'erg' as const, durationS: 120, ftpFraction: 0.95, label: 'Hart' }, { kind: 'erg' as const, durationS: 120, ftpFraction: 0.4, label: 'Ruhe' }] };
+    const r = summarizeRide({ meta, samples: samples(240, (i) => (i < 120 ? 170 : 170 - Math.min(i - 120, 60) / 2)), ftpW: 200, plannedS: 240, session, hrMaxBpm: 200 });
+    expect(r.hrRecoveryBpm).toBe(30);
+  });
+  test('without a maximum there are no zones, the rest stays', () => {
+    const r = summarizeRide({ meta, samples: samples(1200, () => 130), ftpW: 200, plannedS: 1200, session: steady });
+    expect(r.hrZoneMinutes).toBeUndefined();
+    expect(r.avgHrBpm).toBe(130);
+  });
+});
