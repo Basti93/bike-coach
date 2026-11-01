@@ -1,0 +1,121 @@
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { GarminSyncInfo } from '../shared/coach-protocol';
+
+const HOUR = 3600_000;
+const WHILE_LOADING_MS = 3 * HOUR;
+const WHEN_COMPLETE_MS = 6 * HOUR;
+const AFTER_RATE_LIMIT_MS = 6 * HOUR;
+const AFTER_FAILURE_MS = 30 * 60_000;
+const EXIT_REAUTH = 10;
+const EXIT_RATE = 11;
+const SAFE_ID = /^[A-Za-z0-9-]+$/;
+
+type Options = { baseDir: string; python: string; script: string; rideOpen: () => boolean; onUpdate: () => void; nowMs: () => number; spawnFn?: typeof spawn };
+type Meta = { lastRunMs: number | null; lastTryMs: number | null; complete: boolean; problem: GarminSyncInfo['problem']; tokensMtimeMs: number | null };
+const EMPTY: Meta = { lastRunMs: null, lastTryMs: null, complete: false, problem: null, tokensMtimeMs: null };
+
+/** Startet das eigenständige Sync-Programm im Takt und nie während einer Fahrt. Sein Stand liegt in dessen Datenbank. */
+export class GarminSync {
+  private running = new Map<string, ReturnType<typeof spawn>>();
+  private metas = new Map<string, Meta>();
+  private stopping = new Set<string>();
+  constructor(private opts: Options) {}
+
+  private dataDir(id: string): string { return path.join(this.opts.baseDir, 'data', id); }
+  private tokenDir(id: string): string { return path.join(this.opts.baseDir, 'tokens', id); }
+
+  private meta(id: string): Meta {
+    let m = this.metas.get(id);
+    if (!m) {
+      try { m = { ...EMPTY, ...JSON.parse(fs.readFileSync(path.join(this.dataDir(id), 'sync-meta.json'), 'utf8')) } as Meta; } catch { m = { ...EMPTY }; }
+      this.metas.set(id, m);
+    }
+    return m;
+  }
+
+  private save(id: string, change: Partial<Meta>): void {
+    const m = { ...this.meta(id), ...change };
+    this.metas.set(id, m);
+    try {
+      fs.mkdirSync(this.dataDir(id), { recursive: true, mode: 0o700 });
+      const file = path.join(this.dataDir(id), 'sync-meta.json');
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(m));
+      fs.renameSync(`${file}.tmp`, file);
+    } catch { /* gilt dann nur bis zum Neustart */ }
+    this.opts.onUpdate();
+  }
+
+  private tokensMtime(id: string): number | null {
+    try { return fs.statSync(path.join(this.tokenDir(id), 'garmin_tokens.json')).mtimeMs; } catch { return null; }
+  }
+
+  info(id: string): GarminSyncInfo {
+    if (!SAFE_ID.test(id)) return { running: false, lastRunMs: null, complete: false, problem: null };
+    const { lastRunMs, complete, problem } = this.meta(id);
+    return { running: this.running.has(id), lastRunMs, complete, problem };
+  }
+
+  private due(id: string, m: Meta, mtime: number): boolean {
+    if (m.problem === 'reauth') return mtime !== m.tokensMtimeMs;
+    if (m.lastTryMs === null) return true;
+    const wait = m.problem === 'rate-limit' ? AFTER_RATE_LIMIT_MS
+      : m.problem === 'failed' ? AFTER_FAILURE_MS
+        : m.complete ? WHEN_COMPLETE_MS : WHILE_LOADING_MS;
+    return this.opts.nowMs() - m.lastTryMs >= wait;
+  }
+
+  tick(id: string): void {
+    if (!SAFE_ID.test(id)) return;
+    const child = this.running.get(id);
+    if (child) {
+      if (this.opts.rideOpen()) { this.stopping.add(id); child.kill(); }
+      return;
+    }
+    if (this.opts.rideOpen()) return;
+    const mtime = this.tokensMtime(id);
+    if (mtime === null) return;
+    const m = this.meta(id);
+    if (!this.due(id, m, mtime)) return;
+    if (!fs.existsSync(this.opts.python)) {
+      if (m.problem !== 'failed') this.save(id, { problem: 'failed', lastTryMs: this.opts.nowMs() });
+      return;
+    }
+    this.start(id, mtime);
+  }
+
+  private start(id: string, mtime: number): void {
+    const startedAt = this.opts.nowMs();
+    const child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
+      this.opts.script, '--tokens', this.tokenDir(id), '--db', path.join(this.dataDir(id), 'garmin.db'),
+    ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    this.running.set(id, child);
+    if (this.meta(id).problem === 'reauth') this.save(id, { problem: null });
+    let complete = this.meta(id).complete;
+    let buffer = '';
+    child.stdout?.on('data', (b: Buffer) => {
+      buffer += String(b);
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        try {
+          const m = JSON.parse(line) as { complete?: unknown; status?: unknown };
+          if (m.status && typeof m.complete === 'boolean') complete = m.complete;
+        } catch { /* keine Protokollzeile */ }
+      }
+    });
+    let ended = false;
+    const end = (code: number | null): void => {
+      if (ended) return;
+      ended = true;
+      this.running.delete(id);
+      if (this.stopping.delete(id)) { this.opts.onUpdate(); return; }
+      const problem = code === 0 ? null : code === EXIT_REAUTH ? 'reauth' : code === EXIT_RATE ? 'rate-limit' : 'failed';
+      this.save(id, { lastTryMs: startedAt, complete, problem, tokensMtimeMs: mtime, ...(code === 0 ? { lastRunMs: this.opts.nowMs() } : {}) });
+    };
+    child.on('error', () => end(null));
+    child.on('close', (code) => end(code));
+    this.opts.onUpdate();
+  }
+}

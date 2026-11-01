@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { CoachState } from '../../coach/state';
 import type { Together } from '../../coach/together';
-import type { CoachClientMessage, GarminStatus } from '../../shared/coach-protocol';
+import type { CoachClientMessage, GarminStatus, GarminSyncInfo } from '../../shared/coach-protocol';
 import type { Profile } from '../../shared/profiles';
 import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
@@ -36,10 +36,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; garmin?: GarminStatus;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, garmin }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, garmin, garminSync }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -71,7 +71,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
         </div>
       </div>
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
-      {garmin && coachConnected && <GarminCard profileId={profile.id} status={garmin} send={sendCoach} />}
+      {garmin && coachConnected && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
       <div className="coach">
         <div className="stack">
           {shown && (

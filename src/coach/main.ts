@@ -9,6 +9,7 @@ import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
 import { GarminLink } from './garmin';
+import { GarminSync } from './garmin-sync';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
 
@@ -54,6 +55,15 @@ const garmin = new GarminLink({
   onUpdate: () => publish(),
 });
 
+const garminSync = new GarminSync({
+  baseDir: garminDir,
+  python: path.join(garminDir, 'venv', 'bin', 'python'),
+  script: path.join(path.dirname(process.env.BIKE_GARMIN_SCRIPT ?? path.resolve('scripts', 'garmin', 'bridge.py')), 'garmin_sync.py'),
+  rideOpen: () => !noOpenRide(),
+  onUpdate: () => publish(),
+  nowMs: () => Date.now(),
+});
+
 const http = createServer();
 const wss = new WebSocketServer({
   server: http,
@@ -68,7 +78,7 @@ const together = () => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* Profil oder Verbindung weg */ }
   }
@@ -122,6 +132,8 @@ const scan = (): void => {
       if (s.lastError && s.lastAttemptMs && now - s.lastAttemptMs < RETRY_MS) continue;
       refresh(p.id);
     }
+    // Eigene Absicherung: Der Abruf darf den Coach-Lauf nie stören.
+    for (const p of list) { try { garminSync.tick(p.id); } catch { /* beim nächsten Lauf erneut */ } }
     publish();
   } catch (e) {
     console.error('Coach-Lauf fehlgeschlagen', e);

@@ -273,6 +273,17 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(status, "ok")
         self.assertIsNotNone(ended)
 
+    def test_the_final_line_reports_whether_the_history_is_complete(self):
+        lines = []
+        options = {"max_days": 30, "max_files": 20, "force": False}
+        gs.run_sync(Fake(), self.db, TODAY, options, sleep=lambda _s: None, emit=lambda **m: lines.append(m), now=lambda: self.now)
+        self.assertEqual(lines[-1]["status"], "ok")
+        self.assertTrue(lines[-1]["complete"])
+        fresh = str(pathlib.Path(self.dir.name) / "b.db")
+        lines.clear()
+        gs.run_sync(Fake(first="2020-01-01"), fresh, TODAY, options, sleep=lambda _s: None, emit=lambda **m: lines.append(m), now=lambda: self.now)
+        self.assertFalse(lines[-1]["complete"])
+
     def test_a_singleton_is_stored_as_raw_json(self):
         self.run_sync(Fake())
         names = {r[0] for r in self.rows("SELECT name FROM singletons")}

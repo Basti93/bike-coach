@@ -315,7 +315,8 @@ def run_sync(client, db_path, today, options, sleep=time.sleep, emit=lambda **_m
             code = stop.code
             status = {EXIT_REAUTH: "reauth", EXIT_RATE: "rate-limit"}.get(code, "failed")
         con.execute("UPDATE sync_runs SET ended_at = ?, status = ?, stats = ? WHERE id = ?", (sync.stamp(), status, json.dumps(sync.stats), run_id))
-        emit(status=status, **sync.stats)
+        complete = all(sync.get_state(stream)[1] for stream in STREAMS)
+        emit(status=status, complete=complete, **sync.stats)
         return code
     finally:
         con.close()
