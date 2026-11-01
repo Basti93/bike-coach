@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CoachState } from '../../coach/state';
 import type { Together } from '../../coach/together';
 import type { CoachClientMessage } from '../../shared/coach-protocol';
@@ -35,10 +35,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -63,6 +63,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
       <div className="top">
         <h1>{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
         <div className="row">
+          {tools}
           {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
           {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}
           <button className="ghost" onClick={onBack}>Profil wechseln</button>

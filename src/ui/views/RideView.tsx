@@ -15,7 +15,7 @@ const powerClass = (power: number | null | undefined, target: number | null): st
   return 'good';
 };
 
-export const RideView = ({ state, send, compact = false, extra }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode }) => {
+export const RideView = ({ state, send, compact = false, extra, tools }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode }) => {
   const [ending, setEnding] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,6 +96,7 @@ export const RideView = ({ state, send, compact = false, extra }: { state: State
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: -5 })}>Leichter −5 %</button>
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: 5 })}>Härter +5 %</button>
         <button className="secondary" onClick={() => window.open('#film', 'film')}>Film-Modus</button>
+        {tools}
         <span className="spacer" />
         <button className="ghost" onClick={() => setEnding(true)}>Beenden</button>
       </footer>

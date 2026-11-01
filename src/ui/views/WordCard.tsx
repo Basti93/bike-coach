@@ -57,6 +57,8 @@ export const WordCard = ({ calm, state, send, click }: { calm: boolean; state: C
     // Der Ablauf hängt nur an Phase und Wort, neue Coach-Stände sollen ihn nicht neu starten.
   }, [phase, word, hidden, sound, calm]);
 
+  // Beim Ausschalten darf kein angefangenes Wort weiterlaufen.
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
   useEffect(() => {
     if (click && click.n !== seenClick.current) {
       seenClick.current = click.n;

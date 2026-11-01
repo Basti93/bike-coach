@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Profile } from '../shared/profiles';
 import { useCoach } from './useCoach';
+import { useLanguageLearning } from './useLanguageLearning';
 import { useRide } from './useRide';
 import { FilmView } from './views/FilmView';
 import { ProfileView } from './views/ProfileView';
@@ -32,6 +33,8 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const [history, setHistory] = useState(false);
   const [overview, setOverview] = useState(false);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
+  const language = useLanguageLearning(state?.ride?.profileId ?? profile?.id ?? null);
+  const languageToggle = <button className="secondary" onClick={language.toggle}>Sprachen lernen: {language.enabled ? 'an' : 'aus'}</button>;
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
   const dialog = offer && (
@@ -50,7 +53,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
     const calm = c !== null && !state.engine.paused
       && (state.engine.gradePct !== null ? state.engine.gradePct <= CALM_GRADE : (state.engine.targetW ?? Infinity) <= c.ftpW * CALM_FRACTION)
       && !(maxHr && (state.latest.hrBpm ?? 0) >= maxHr);
-    return <>{notice}{dialog}<RideView state={state} send={send} extra={c ? <WordCard calm={calm} state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
+    return <>{notice}{dialog}<RideView state={state} send={send} tools={languageToggle} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={state.engine.gradePct === null ? click : null} /> : null} /></>;
   }
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
   return (
@@ -59,7 +62,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       {profile
         ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
           ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} />
-          : <CoachView onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+          : <CoachView tools={languageToggle} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );
