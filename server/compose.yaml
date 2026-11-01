@@ -1,4 +1,4 @@
-# Heimserver: Regeln in ~/SERVER.md. Aufbau wie anderes Projekt, aber ohne Funnel: nur im Tailnet erreichbar.
+# Optionaler Sync-Server. Nur im eigenen Tailnet erreichbar, ohne Funnel.
 # Variablen per Compose-Interpolation aus ./.env (chmod 600). Kein env_file, damit api den Tailscale-Key nicht sieht.
 name: bike-coach
 
@@ -26,7 +26,7 @@ services:
       - no-new-privileges:true
 
   tailscale:
-    # Eigener Knoten (SERVER.md Regel 3a), gleiche Version wie anderes Projekt. Kein Host-Port.
+    # Eigener Tailscale-Knoten, kein Host-Port.
     image: tailscale/tailscale:v1.76.1
     restart: unless-stopped
     logging: *default-logging

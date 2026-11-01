@@ -2,6 +2,7 @@
   "name": "bike-coach",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -82,5 +83,9 @@
       }
     },
     "npmRebuild": false
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Basti93/bike-coach.git"
   }
 }

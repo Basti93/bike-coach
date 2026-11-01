@@ -84,7 +84,7 @@ test('the prompt data has recent days, readiness, other sports and history', () 
   expect(data.erholung.level).toBe('normal');
   expect(data.andereSportarten).toHaveLength(1);
   expect(data.verlauf.length).toBeGreaterThan(0);
-  expect(data.koerper.gewichtKg).toBe(66);
+  expect(data.koerper.gewichtKg).toBe(72);
   expect(data.koerper.garminFtpVeraltet).toBe(true);
 });
 test('careful means no intervals from the rules', () => {

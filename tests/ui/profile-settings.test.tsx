@@ -20,8 +20,8 @@ test('shows the current values, with the FTP from the coach', () => {
   expect(input('FTP in Watt').value).toBe('200');
   expect(input('Pulsgrenze').value).toBe('185');
   expect(input('Geburtsdatum').value).toBe('1990-01-15');
-  expect(input('Größe (cm)').value).toBe('170');
-  expect(input('Gewicht (kg)').value).toBe('66');
+  expect(input('Größe (cm)').value).toBe('178');
+  expect(input('Gewicht (kg)').value).toBe('72');
   expect((screen.getByLabelText('Geschlecht') as HTMLSelectElement).value).toBe('male');
 });
 test('saving keeps the id and other fields and leaves the FTP alone when unchanged', () => {

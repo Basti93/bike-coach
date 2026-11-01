@@ -6,7 +6,7 @@ Herkunft der Aussagen: **[Nutzer]** hat der Nutzer so gesagt oder bestätigt. **
 
 ## 1. Worum es geht
 
-Eine private Trainings-App für den Nutzer und eine zweite Person auf einem Zwift Hub One. Sie fahren nacheinander oder an verschiedenen Tagen. **[Nutzer]**
+Eine private Trainings-App für zwei Personen auf einem Zwift Hub One. Sie fahren nacheinander oder an verschiedenen Tagen. **[Nutzer]**
 
 Die App vereint vier Dinge:
 
@@ -74,13 +74,12 @@ Bekannte Risiken:
 
 **iPad:** zunächst nur als Anzeige und für Auswertungen. Web Bluetooth funktioniert in Safari auf dem iPad nicht **[Recherche]**, aber der Fahrdienst auf dem Mac macht das für die Anzeige überflüssig. Fahren ohne Mac wäre ein späteres eigenes Projekt.
 
-**Serverregeln** (`~/Projects/Serverregeln`, verbindlich):
+**Serverregeln** (für den eigenen Heimserver):
 - Eigener Ordner `~/bike-coach/`, Compose-Name `bike-coach`, eigene `.env`.
 - Ports aus `127.0.0.1:7002–7099`, nie `0.0.0.0`.
 - `mem_limit` je Dienst; zusammen möglichst deutlich unter den erlaubten rund 2 GiB.
 - Zugang über eigenen Tailscale-Sidecar, nur im Tailnet, kein Funnel. Der Auth-Key kommt vom Nutzer.
 - Backups in einen eigenen Ordner, Cron nur ergänzen, keine schweren Jobs zwischen 02:00 und 06:00.
-- Vor Inbetriebnahme in die Belegungstabelle eintragen.
 
 ## 6. Geräte
 

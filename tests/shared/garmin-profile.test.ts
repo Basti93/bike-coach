@@ -56,7 +56,7 @@ test('review offers empty fields as selected and differences as not selected', (
   const fields = reviewFields({ id: 'p', name: 'S', ftpW: 150, weightKg: 70, heightCm: 178 }, 150, suggestProfile(body, [], NOW));
   const by = Object.fromEntries(fields.map((f) => [f.key, f]));
   expect(by.birthDate).toMatchObject({ selected: true, own: null, garmin: '1990-01-15' });
-  expect(by.weightKg).toMatchObject({ selected: false, own: '70', garmin: '66' });
+  expect(by.weightKg).toMatchObject({ selected: false, own: '70', garmin: '72' });
   expect(by.heightCm).toBeUndefined();
 });
 test('FTP and pulse limit are never selected by themselves', () => {

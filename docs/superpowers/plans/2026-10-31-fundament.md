@@ -20,7 +20,7 @@ Stufen 2 bis 4 (Coach, Vergleich, Spaßschicht) bekommen eigene Pläne, nachdem 
 - Abgebrochene Fahrten werden gespeichert und zählen.
 - Clicker und Puls sind nie Voraussetzung für eine Fahrt; Tastatur ist der Ersatz fürs Schalten.
 - Der Fahrdienst wird während einer Fahrt nie live geändert.
-- Server: Ordner `~/bike-coach/`, Compose-Name `bike-coach`, Ports aus `127.0.0.1:7002–7099`, nie `0.0.0.0`, `mem_limit` je Dienst (zusammen unter 512m), eigener Tailscale-Sidecar ohne Funnel, eigener Backup-Ordner `~/bike-coach/backups`, Cron nur ergänzen mit Kommentar `# bike-coach`, keine schweren Jobs 02:00–06:00. Vor Inbetriebnahme in die Belegungstabelle von `~/SERVER.md` eintragen.
+- Server: Ordner `~/bike-coach/`, Compose-Name `bike-coach`, Ports aus `127.0.0.1:7002–7099`, nie `0.0.0.0`, `mem_limit` je Dienst (zusammen unter 512m), eigener Tailscale-Sidecar ohne Funnel, eigener Backup-Ordner `~/bike-coach/backups`, Cron nur ergänzen mit Kommentar `# bike-coach`, keine schweren Jobs 02:00–06:00. Vor Inbetriebnahme in die Belegungstabelle von die Serverregeln eintragen.
 - Geheimnisse (Tailscale-Key, Sync-Token) nur in `.env` mit Rechten 600, nie im Repository.
 - Commit-Nachrichten enden mit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` und `Claude-Session: https://claude.ai/code/session_013UaCPTKUHvZz5EkeAhjh96`.
 - Oberflächentexte auf Deutsch mit korrekten Umlauten.
@@ -532,7 +532,7 @@ Expected: PASS
 
 - [ ] **Step 6: Deployment mit dem Nutzer**
 
-Vor dem Start `ss -tln` prüfen und die Belegungstabelle in `~/SERVER.md` ergänzen. Der Nutzer legt Tailscale-Key und Token in `~/bike-coach/.env` an. Cron-Zeile `30 6 * * * ~/bike-coach/backup.sh # bike-coach` ergänzen, nie ersetzen.
+Vor dem Start `ss -tln` prüfen. Der Nutzer legt Tailscale-Key und Token in `~/bike-coach/.env` an. Cron-Zeile `30 6 * * * ~/bike-coach/backup.sh # bike-coach` ergänzen, nie ersetzen.
 
 Run: `curl -H "Authorization: Bearer $SYNC_TOKEN" https://bike-coach.<tailnet>.ts.net/rides/test/progress`
 Expected: `{"lastSeq":-1,"eventCount":0}`
