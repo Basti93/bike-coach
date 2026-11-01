@@ -70,6 +70,7 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
             <span className="muted">{f.origin}: {shown(f.garmin)}, bei dir: {shown(f.own)}</span>
           </div>
         ))}
+        {selected.ftpW && suggestion.ftp?.source === 'rides' && <p className="notice" role="status">Aus deiner stärksten längeren Fahrt des letzten Jahres. Deine echte FTP kann höher liegen, ein Rampentest zeigt es genauer.</p>}
         {selected.ftpW && suggestion.ftp?.source === 'estimate' && <p className="notice" role="status">Das ist eine vorsichtige Schätzung, weil Garmins FTP fehlt oder veraltet ist.</p>}
         {suggestion.missing.length > 0 && <p className="muted">Garmin liefert nicht: {suggestion.missing.join(', ')}. Das kannst du unter „Profil bearbeiten“ eintragen.</p>}
         <p className="muted">Die Pulsgrenze stammt aus deinen höchsten gemessenen Werten und ist keine medizinische Grenze.</p>

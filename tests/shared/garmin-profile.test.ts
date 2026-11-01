@@ -67,3 +67,23 @@ test('FTP and pulse limit are never selected by themselves', () => {
 test('the FTP compares with the valid value from the coach', () => {
   expect(reviewFields({ id: 'p', name: 'S', ftpW: 100 }, 183, suggestProfile(body, [], NOW)).find((f) => f.key === 'ftpW')).toBeUndefined();
 });
+
+const ride = (back: number, over: Partial<GarminActivity> = {}) => run(back, { sport: 'virtual_ride', durationS: 3200, normPowerW: 136, avgPowerW: 119, ...over });
+test('without a current FTP, the best recent ride power is the suggestion', () => {
+  const f = suggestProfile({ ...body, ftpStale: true }, [ride(30), ride(60, { normPowerW: 120 })], NOW).ftp;
+  expect(f).toEqual({ startW: 129, source: 'rides' });
+});
+test('short, old or non-cycling efforts do not set the ride FTP', () => {
+  const none = [ride(30, { durationS: 600 }), ride(500), run(5, { normPowerW: 300 })];
+  expect(suggestProfile({ ...body, ftpStale: true }, none, NOW).ftp?.source).toBe('estimate');
+});
+test('easy jogs do not pull the estimate down', () => {
+  const stale = { ...body, ftpStale: true };
+  const alone = suggestProfile(stale, [], NOW).ftp!;
+  const jogs = Array.from({ length: 2 }, (_, i) => run(i + 40, { distanceM: 5000, durationS: 1980 }));
+  expect(suggestProfile(stale, jogs, NOW).ftp!.startW).toBeGreaterThanOrEqual(alone.startW);
+});
+test('review names ride power as the origin', () => {
+  const s = suggestProfile({ ...body, ftpStale: true }, [ride(30)], NOW);
+  expect(reviewFields({ id: 'p', name: 'S', ftpW: 100 }, 100, s).find((f) => f.key === 'ftpW')?.origin).toBe('Deine Fahrten');
+});

@@ -12,10 +12,15 @@ const MAX_HR = 240;
 // PA-R-Skala der Schätzung, Stunden pro Woche als eigene Setzung.
 const HOURS_TO_LEVEL: [number, number][] = [[0.5, 1], [1, 2], [3, 3], [5, 4], [8, 5], [12, 6]];
 const HIGHEST_LEVEL = 7;
+// Bester Normalized-Power-Wert längerer Fahrten als untere Näherung, eigene Setzung.
+const RIDE_WINDOW_DAYS = 365;
+const MIN_RIDE_S = 20 * 60;
+const RIDE_FTP_FACTOR = 0.95;
+const CYCLING = /cycling|biking|ride|bike/i;
 
 export type GarminSuggestion = {
   birthDate: string | null; sex: Sex; heightCm: number | null; weightKg: number | null; activity: number | null; run5kMin: number | null;
-  ftp: { startW: number; source: 'garmin' | 'estimate'; capW?: number } | null; maxHrBpm: number | null; missing: string[];
+  ftp: { startW: number; source: 'garmin' | 'rides' | 'estimate'; capW?: number } | null; maxHrBpm: number | null; missing: string[];
 };
 
 const ageAt = (birthDate: string, nowMs: number): number => {
@@ -33,6 +38,13 @@ const best5k = (activities: GarminActivity[], nowMs: number): number | null => {
   return paces.length ? Math.min(...paces) : null;
 };
 
+const ftpFromRides = (activities: GarminActivity[], nowMs: number): number | null => {
+  const powers = activities
+    .filter((a) => CYCLING.test(a.sport) && a.durationS >= MIN_RIDE_S && nowMs - a.startMs < RIDE_WINDOW_DAYS * DAY_MS)
+    .flatMap((a) => (a.normPowerW === null ? [] : [a.normPowerW]));
+  return powers.length ? Math.round(Math.max(...powers) * RIDE_FTP_FACTOR) : null;
+};
+
 const activityLevel = (activities: GarminActivity[], nowMs: number): number => {
   const hours = activities.filter((a) => nowMs - a.startMs < ACTIVITY_WINDOW_DAYS * DAY_MS).reduce((sum, a) => sum + a.durationS / 3600, 0);
   const perWeek = hours / (ACTIVITY_WINDOW_DAYS / 7);
@@ -44,8 +56,10 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
   const run5kMin = best5k(activities, nowMs);
   let ftp: GarminSuggestion['ftp'] = null;
   if (body.ftpW !== null && !body.ftpStale) ftp = { startW: body.ftpW, source: 'garmin' };
+  else if (ftpFromRides(activities, nowMs) !== null) ftp = { startW: ftpFromRides(activities, nowMs)!, source: 'rides' };
   else if (body.birthDate && body.heightCm && body.weightKg) {
-    const e = estimateFtp({ age: ageAt(body.birthDate, nowMs), sex: body.sex, heightCm: body.heightCm, weightKg: body.weightKg, activity, ...(run5kMin ? { run5kMin } : {}) });
+    // Ohne Laufzeit: Garmin-Läufe sind meist locker, die Formel erwartet aber einen 5-km-Bestwert.
+    const e = estimateFtp({ age: ageAt(body.birthDate, nowMs), sex: body.sex, heightCm: body.heightCm, weightKg: body.weightKg, activity });
     ftp = { startW: e.startW, source: 'estimate', capW: e.capW };
   }
   const maxHrBpm = body.maxHrSeen !== null && body.maxHrSeen >= MIN_HR && body.maxHrSeen <= MAX_HR ? body.maxHrSeen : null;
@@ -56,7 +70,7 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
 };
 
 export type ReviewKey = 'birthDate' | 'sex' | 'heightCm' | 'weightKg' | 'ftpW' | 'maxHrBpm';
-export type ReviewField = { key: ReviewKey; label: string; garmin: string; origin: 'Garmin' | 'Schätzung'; own: string | null; selected: boolean };
+export type ReviewField = { key: ReviewKey; label: string; garmin: string; origin: 'Garmin' | 'Schätzung' | 'Deine Fahrten'; own: string | null; selected: boolean };
 
 /** Nur was fehlt oder abweicht. Leeres wird vorgeschlagen, Eigenes nie, und Training und Sicherheit entscheidest immer du. */
 export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion): ReviewField[] => {
@@ -72,6 +86,6 @@ export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion
   return rows.flatMap(([key, label, garmin, own]) => {
     if (garmin === null || String(garmin) === String(own ?? '')) return [];
     const empty = own === undefined || own === '';
-    return [{ key, label, garmin: String(garmin), origin: key === 'ftpW' && s.ftp?.source === 'estimate' ? 'Schätzung' as const : 'Garmin' as const, own: empty ? null : String(own), selected: empty && !SENSITIVE.includes(key) }];
+    return [{ key, label, garmin: String(garmin), origin: key !== 'ftpW' || s.ftp?.source === 'garmin' ? 'Garmin' as const : s.ftp?.source === 'rides' ? 'Deine Fahrten' as const : 'Schätzung' as const, own: empty ? null : String(own), selected: empty && !SENSITIVE.includes(key) }];
   });
 };
