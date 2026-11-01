@@ -29,7 +29,7 @@ input { font: inherit; padding: .6rem .7rem; border-radius: .5rem; border: 1px s
 .notice { background: #38301a; color: #f0d9a8; padding: .7rem 1rem; border-radius: .6rem; font-size: .95rem; }
 
 /* Zentrierte Schritte: Profil, Bewertung */
-main.center { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; text-align: center; }
+main.center { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; text-align: center; }
 .choices { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
 button.choice { font-size: 1.4rem; padding: 1.6rem 2.6rem; border-radius: 1.5rem; color: var(--text); background: var(--card); border: 1px solid var(--line); min-width: 12rem; }
 button.choice:hover { border-color: var(--accent); }
@@ -71,7 +71,7 @@ ul.changes { margin: 0; padding: 0; list-style: none; display: flex; flex-direct
 .workout-now { position: absolute; top: 0; bottom: 0; width: 3px; background: #fff; border-radius: 2px; box-shadow: 0 0 6px #000; }
 
 /* Fahrt: füllt das Fenster und ist vom Sattel aus lesbar */
-main.ride { max-width: none; height: 100vh; padding: 1.2rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; }
+main.ride { max-width: none; height: 100%; padding: 1.2rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; }
 .ride-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .ride-head h2 { font-size: 2rem; }
 .devices { display: flex; gap: 1rem; color: var(--muted); font-size: .9rem; }
@@ -89,7 +89,7 @@ b.high { color: var(--high); }
 .tile b { display: block; font-size: min(5vw, 9vh); line-height: 1.1; font-variant-numeric: tabular-nums; }
 
 /* Film-Modus */
-main.film { padding: .5rem; height: 100vh; display: flex; flex-direction: column; gap: .4rem; }
+main.film { padding: .5rem; height: 100%; display: flex; flex-direction: column; gap: .4rem; }
 .film-main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; min-height: 0; }
 .film-main > div { background: var(--card); border-radius: .6rem; padding: .4rem .6rem; display: flex; flex-direction: column; justify-content: center; }
 .film-main .label { font-size: .75rem; }
@@ -168,3 +168,9 @@ main > section.card + section.card, main > .together + section.card { margin-top
 .tile, .hero-tile { border-radius: 1.3rem; }
 .greeting { color: var(--muted); margin-top: .2rem; }
 .leaf { margin-left: .4rem; }
+
+/* Statusleiste: auf jeder Seite, die Seite darunter nimmt den Rest des Fensters */
+.shell { height: 100vh; display: flex; flex-direction: column; }
+.page { flex: 1; min-height: 0; overflow: auto; }
+.status-bar { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 1.4rem; padding: .35rem 1.6rem; background: var(--card); border-bottom: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+.status-bar b { color: var(--text); font-variant-numeric: tabular-nums; }

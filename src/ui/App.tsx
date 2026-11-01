@@ -6,6 +6,7 @@ import { FilmView } from './views/FilmView';
 import { ProfileView } from './views/ProfileView';
 import { RecoveryDialog } from './views/RecoveryDialog';
 import { RideView } from './views/RideView';
+import { StatusBar } from './views/StatusBar';
 import { CoachView } from './views/CoachView';
 import { FeedbackView } from './views/FeedbackView';
 import { HistoryView } from './views/HistoryView';
@@ -16,7 +17,17 @@ const CALM_FRACTION = 0.75;
 const CALM_GRADE = 3;
 
 export const App = () => {
-  const { click, state, offer, clearOffer, connected, send, error } = useRide();
+  const ride = useRide();
+  return (
+    <div className="shell">
+      <StatusBar state={ride.state} connected={ride.connected} />
+      <div className="page"><Page ride={ride} /></div>
+    </div>
+  );
+};
+
+const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
+  const { click, state, offer, clearOffer, connected, send, error } = ride;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState(false);
   const [overview, setOverview] = useState(false);
