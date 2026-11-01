@@ -8,3 +8,4 @@ server/data/
 server/tailscale-state/
 
 __pycache__/
+release/

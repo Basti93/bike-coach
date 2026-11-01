@@ -13,7 +13,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: SIZE, height: SIZE, show: false, transparent: true, frame: false, useContentSize: true, webPreferences: { offscreen: true } });
   win.webContents.setZoomFactor(1);
   const svg = fs.readFileSync(path.join(dir, 'icon.svg'), 'utf8');
-  await win.loadURL(`data:text/html;base64,${Buffer.from(`<!doctype html><style>html,body{margin:0;background:transparent}svg{display:block;width:${SIZE}px;height:${SIZE}px}</style>${svg}`).toString('base64')}`);
+  await win.loadURL(`data:text/html;base64,${Buffer.from(`<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:transparent}svg{display:block;width:${SIZE}px;height:${SIZE}px}</style>${svg}`).toString('base64')}`);
   await new Promise((r) => setTimeout(r, 500));
   const image = await win.webContents.capturePage();
   const png = path.join(dir, 'icon.png');

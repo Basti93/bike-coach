@@ -18,3 +18,8 @@ Der Nutzer sitzt auf dem Rad und diktiert Feedback mit der macOS-Diktierfunktion
 - Daten: `~/Library/Application Support/bike-coach/rides/`, FIT-Dateien unter `rides/exports/`.
 - Sync zum Heimserver: `~/Library/Application Support/bike-coach/config.json` mit `{"syncUrl": "...", "syncToken": "..."}`. Ohne die Datei läuft alles lokal.
 - Andere Geräte koppeln: `rides/devices.json` löschen, solange keine Fahrt läuft.
+
+## Mac-App
+
+- Bauen und nach `/Applications` installieren: `npm run app`, nie bei offener Fahrt. Die App nutzt denselben Datenordner wie `npm run dev`; beide gleichzeitig verhindert die Einzelinstanz-Sperre.
+- Live-Verbesserung an der Oberfläche während einer Fahrt geht nur mit `npm run dev`. In der gepackten App kann Claude Live-Daten lesen und `live:adjust` nutzen, aber die Oberfläche nicht ändern.

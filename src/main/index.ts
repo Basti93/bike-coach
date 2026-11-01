@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, nativeImage, powerSaveBlocker, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'node:path';
+import { guiPath, unpacked } from './app-paths';
 import { restartDelayMs } from './backoff';
 import { openFilmWindow } from './film-window';
 
@@ -12,7 +13,7 @@ const STABLE_RUN_MS = 60_000;
 const supervise = (file: string, onMessage?: (m: { riding?: boolean }) => void, failures = { count: 0 }): UtilityProcess => {
   const startedAt = Date.now();
   const child = utilityProcess.fork(path.join(__dirname, file), [], {
-    env: { ...process.env, BIKE_GARMIN_SCRIPT: path.join(app.getAppPath(), 'scripts', 'garmin', 'bridge.py'), BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides'), BIKE_COACH_DIR: path.join(app.getPath('userData'), 'coach') },
+    env: { ...process.env, PATH: guiPath(process.env.PATH ?? '', app.getPath('home')), BIKE_GARMIN_SCRIPT: unpacked(path.join(app.getAppPath(), 'scripts', 'garmin', 'bridge.py')), BIKE_DATA_DIR: path.join(app.getPath('userData'), 'rides'), BIKE_COACH_DIR: path.join(app.getPath('userData'), 'coach') },
     stdio: 'inherit',
   });
   if (onMessage) child.on('message', onMessage);
@@ -41,6 +42,10 @@ const openMain = (): void => {
     return { action: 'deny' };
   });
 };
+
+// Der Datenordner hängt nicht am App-Namen: Die gepackte App und npm run dev nutzen dieselben Fahrten.
+app.setName('Bike Coach');
+app.setPath('userData', path.join(app.getPath('appData'), 'bike-coach'));
 
 // Zwei Instanzen würden in dieselbe Fahrt schreiben.
 if (!app.requestSingleInstanceLock()) app.quit();
