@@ -148,7 +148,7 @@ button.danger { background: transparent; color: var(--high); border: 1px solid v
 .bar { width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
 .rides { list-style: none; padding: 0; margin: 0; }
 .rides li { border-top: 1px solid var(--line); }
-button.ride-row { display: grid; grid-template-columns: 8rem 1fr 5rem 8rem; gap: .6rem; width: 100%; background: transparent; text-align: left; font-weight: 500; padding: .7rem .2rem; border-radius: 0; }
+button.ride-row { display: grid; grid-template-columns: 8rem 1fr 5rem 8rem; gap: .6rem; width: 100%; background: transparent; color: var(--text); text-align: left; font-weight: 500; padding: .7rem .2rem; border-radius: 0; }
 .ride-name { font-weight: 700; }
 .ride-detail { padding: 0 .2rem 1rem; display: flex; flex-direction: column; gap: .8rem; }
 .ride-detail p { margin: 0; }
