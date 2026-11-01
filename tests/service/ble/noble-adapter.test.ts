@@ -136,7 +136,7 @@ const click = () => {
   const p: any = new EventEmitter();
   p.id = 'click'; p.advertisement = { localName: 'Zwift Click', manufacturerData: Buffer.from([0x4a, 0x09, 0x09]) };
   p.connectAsync = async () => {};
-  // Wie noble: fehlt ein angefragter Dienst, schlägt die Suche fehl.
+  // Like noble: if a requested service is missing, the discovery fails.
   p.discoverSomeServicesAndCharacteristicsAsync = async (services: string[]) => {
     if (services.length > 1) throw 'Could not find all requested services';
     return { characteristics: [] };

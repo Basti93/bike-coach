@@ -63,7 +63,7 @@ const ProfileForm = ({ onAdd }: { onAdd: (p: Profile) => void }) => {
       <label>Pulsgrenze (optional)<input type="number" min="80" value={maxHr} onChange={(e) => setMaxHr(e.target.value)} /></label>
       <p className="muted">Bei Beschwerden wie Brustschmerz oder Schwindel, oder bei bekannter Herz-Kreislauf-Erkrankung vor dem Training ärztlich abklären.</p>
       <button type="submit" disabled={!ready}>Profil anlegen</button>
-      {/* Vorsichtiger Platzhalter, bis Garmin-Werte bestätigt oder eingetragen sind. */}
+      {/* Cautious placeholder until Garmin values are confirmed or entered. */}
       <button type="button" className="secondary" disabled={name.trim() === ''} onClick={() => onAdd({ id: crypto.randomUUID(), name: name.trim(), ftpW: GARMIN_START_FTP_W })}>Mit Garmin ausfüllen</button>
     </form>
   );

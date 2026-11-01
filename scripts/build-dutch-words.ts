@@ -1,5 +1,5 @@
-// Erzeugt einmalig src/shared/dutch-words.json: häufigste gesprochene Wörter mit Übersetzung und Beispielsatz.
-// Aufruf: npx tsx scripts/build-dutch-words.ts <nl_50k.txt von hermitdave/FrequencyWords, CC-BY-SA-4.0>
+// One-off generator for src/shared/dutch-words.json: the most frequent spoken words with translation and example sentence.
+// Usage: npx tsx scripts/build-dutch-words.ts <nl_50k.txt from hermitdave/FrequencyWords, CC-BY-SA-4.0>
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

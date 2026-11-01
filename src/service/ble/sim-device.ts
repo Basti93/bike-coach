@@ -8,7 +8,7 @@ const POWER_LAG = 0.2;
 const HR_LAG = 0.02;
 const HR_PER_WATT = 0.45;
 
-/** Simuliert Trainer und Gurt im echten Datenformat, damit die App ohne Rad durchfahrbar ist. */
+/** Simulates trainer and strap in the real data format, so that the app can be ridden through without a bike. */
 export class SimBlePort implements BlePort {
   private subs = new Map<DeviceKind, (b: Buffer) => void>();
   private connected = new Set<DeviceKind>();
@@ -22,7 +22,7 @@ export class SimBlePort implements BlePort {
   }
   async disconnect(kind: DeviceKind): Promise<void> { this.connected.delete(kind); }
   subscribe(kind: DeviceKind, cb: (b: Buffer) => void): void { this.subs.set(kind, cb); }
-  onControl(): void { /* Der Simulator entzieht die Kontrolle nie. */ }
+  onControl(): void { /* The simulator never takes control away. */ }
   onDisconnect(): void {}
 
   async write(_kind: DeviceKind, b: Buffer): Promise<void> {
@@ -38,7 +38,7 @@ export class SimBlePort implements BlePort {
     const hrGoal = REST_HR + this.powerW * HR_PER_WATT;
     this.hr += (hrGoal - this.hr) * Math.min(1, HR_LAG * dtS);
     const bike = Buffer.alloc(8);
-    bike.writeUInt16LE(0x0044, 0); // Tempo, Trittfrequenz, Leistung
+    bike.writeUInt16LE(0x0044, 0); // Speed, cadence, power
     bike.writeUInt16LE(Math.round((10 + Math.cbrt(this.powerW) * 4) * 100), 2);
     bike.writeUInt16LE(Math.round(88 * 2), 4);
     bike.writeInt16LE(Math.round(this.powerW), 6);

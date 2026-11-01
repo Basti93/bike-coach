@@ -33,7 +33,7 @@ export const App = () => {
 const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const { click, state, offer, clearOffer, connected, send, error } = ride;
   const [picked, setProfile] = useState<Profile | null>(null);
-  // Immer der gespeicherte Stand, sonst gingen Änderungen beim nächsten Speichern oder Start verloren.
+  // Always the saved state, otherwise changes would be lost on the next save or start.
   const profile = state?.profiles.find((p) => p.id === picked?.id) ?? picked;
   const [editing, setEditing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -55,7 +55,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   );
   const notice = error && <div role="alert">{error}</div>;
   if (state?.engine) {
-    // Sprache nur in ruhigen Phasen, nie in harten Abschnitten oder über der eigenen Pulsgrenze.
+    // Language only in calm phases, never in hard sections or above your own heart rate limit.
     const c = coach.state;
     const rideProfile = state.profiles.find((p) => p.id === state.ride?.profileId);
     const maxHr = rideProfile?.maxHrBpm;

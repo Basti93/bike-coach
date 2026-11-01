@@ -11,12 +11,12 @@ const parseLines = <T>(file: string): T[] => {
   const out: T[] = [];
   for (const line of nodeFs.readFileSync(file, 'utf8').split('\n')) {
     if (!line) continue;
-    try { out.push(JSON.parse(line) as T); } catch { /* abgeschnittene Zeile nach Absturz */ }
+    try { out.push(JSON.parse(line) as T); } catch { /* truncated line after a crash */ }
   }
   return out;
 };
 
-/** Entfernt eine unvollständige letzte Zeile, damit weiteres Anhängen sauber lesbar bleibt. */
+/** Removes an incomplete last line, so that further appending stays cleanly readable. */
 const trimPartialLine = (file: string): void => {
   if (!nodeFs.existsSync(file)) return;
   const text = nodeFs.readFileSync(file, 'utf8');
@@ -59,8 +59,8 @@ export class RideRecorder {
   getMeta(): RideMeta { return this.meta; }
 
   /**
-   * Schließt die Fahrt nur ab, wenn wirklich alles auf der Platte liegt.
-   * Sonst bleibt sie offen, und der Aufrufer versucht es später erneut.
+   * Finishes the ride only if everything really is on disk.
+   * Otherwise it stays open, and the caller tries again later.
    */
   finish(status: Exclude<RideStatus, 'open'>): boolean {
     if (this.closed) return true;
@@ -85,7 +85,7 @@ export class RideRecorder {
     this.flush();
   }
 
-  /** Schreibt in Reihenfolge; was fehlschlägt, bleibt im Speicher und wird beim nächsten Mal erneut versucht. */
+  /** Writes in order; whatever fails stays in memory and is retried next time. */
   private flush(): void {
     while (this.pending.length) {
       const { fd, line } = this.pending[0];

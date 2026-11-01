@@ -36,7 +36,7 @@ setInterval(() => {
   try { service.tick(); } catch (e) { console.error('Fahrtakt-Fehler', e); }
 }, 1000 / scale);
 
-/** Sync ist optional: Ohne Einstellungen fährt man rein lokal. Er läuft getrennt vom Fahrtakt. */
+/** Sync is optional: without settings you ride purely locally. It runs separately from the ride tick. */
 const syncConfig = (): { syncUrl?: string; syncToken?: string } => {
   try { return JSON.parse(fs.readFileSync(path.join(dir, '..', 'config.json'), 'utf8')); } catch { return {}; }
 };
@@ -52,7 +52,7 @@ if (fake) {
     fake.emit('trainer', Buffer.from([0x41, 0x00, 0xC8, 0x00]));
     fake.emit('hr', Buffer.from([0x00, 140]));
   }, 200 / scale);
-  // Nur für Tests: "drop trainer" und "back trainer" über stdin.
+  // For tests only: "drop trainer" and "back trainer" over stdin.
   process.stdin.on('data', (raw) => {
     const [cmd, kind] = String(raw).trim().split(' ');
     if (cmd === 'drop') fake.drop(kind as DeviceKind);

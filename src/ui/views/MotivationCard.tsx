@@ -5,7 +5,7 @@ import type { CoachClientMessage } from '../../shared/coach-protocol';
 
 const STATUS: Record<ComplaintStatus, string> = { active: 'aktuell', healing: 'heilt, noch unsicher', over: 'vorbei' };
 
-/** Ein paar Worte und was du geschafft hast, knapp über der nächsten Einheit. */
+/** A few words and what you have achieved, just above the next session. */
 export const Encouragement = ({ state, children }: { state: CoachState; children?: ReactNode }) => {
   const now = Date.now();
   const open = (state.complaints ?? []).some((c) => c.status !== 'over');
@@ -25,7 +25,7 @@ export const Encouragement = ({ state, children }: { state: CoachState; children
   );
 };
 
-/** Beschwerden und höchstens eine Frage. Alles darf man überspringen, ohne Inhalt keine Karte. */
+/** Complaints and at most one question. Everything can be skipped, no content means no card. */
 export const MotivationCard = ({ state, send }: { state: CoachState; send: (m: CoachClientMessage) => void }) => {
   const [answer, setAnswer] = useState('');
   const now = Date.now();

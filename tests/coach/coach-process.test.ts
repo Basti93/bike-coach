@@ -57,7 +57,7 @@ const until = async (fn: () => boolean, ms = 8000) => {
   throw new Error('Zeitlimit');
 };
 afterEach(async () => {
-  for (const c of coaches) { try { process.kill(-c.child.pid!, 'SIGKILL'); } catch { /* schon beendet */ } }
+  for (const c of coaches) { try { process.kill(-c.child.pid!, 'SIGKILL'); } catch { /* already ended */ } }
   for (const s of services) await hardKill(s).catch(() => {});
   coaches = []; services = [];
 });

@@ -16,7 +16,7 @@ type Options = { baseDir: string; python: string; script: string; rideOpen: () =
 type Meta = { lastRunMs: number | null; lastTryMs: number | null; complete: boolean; problem: GarminSyncInfo['problem']; tokensMtimeMs: number | null };
 const EMPTY: Meta = { lastRunMs: null, lastTryMs: null, complete: false, problem: null, tokensMtimeMs: null };
 
-/** Startet das eigenständige Sync-Programm im Takt und nie während einer Fahrt. Sein Stand liegt in dessen Datenbank. */
+/** Starts the standalone sync program on a schedule and never during a ride. Its state lives in its own database. */
 export class GarminSync {
   private running = new Map<string, ReturnType<typeof spawn>>();
   private metas = new Map<string, Meta>();
@@ -43,7 +43,7 @@ export class GarminSync {
       const file = path.join(this.dataDir(id), 'sync-meta.json');
       fs.writeFileSync(`${file}.tmp`, JSON.stringify(m));
       fs.renameSync(`${file}.tmp`, file);
-    } catch { /* gilt dann nur bis zum Neustart */ }
+    } catch { /* then it only holds until the restart */ }
     this.opts.onUpdate();
   }
 
@@ -102,7 +102,7 @@ export class GarminSync {
         try {
           const m = JSON.parse(line) as { complete?: unknown; status?: unknown };
           if (m.status && typeof m.complete === 'boolean') complete = m.complete;
-        } catch { /* keine Protokollzeile */ }
+        } catch { /* not a protocol line */ }
       }
     });
     let ended = false;

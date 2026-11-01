@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Signiert die gebaute App ad hoc (Apple-Chips starten sonst nichts) und legt sie nach /Applications.
-# Bricht ab, solange eine Fahrt offen ist: Der Austausch würde den laufenden Dienst treffen.
+# Ad hoc signs the built app (Apple chips refuse to start anything otherwise) and moves it to /Applications.
+# Aborts while a ride is open: replacing the app would hit the running service.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SRC="release/mac-arm64/Bike Coach.app"

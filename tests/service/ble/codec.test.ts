@@ -15,7 +15,7 @@ test('encodes target power', () => expect([...encodeTargetPower(200)]).toEqual([
 test('encodes negative grade', () => expect([...encodeSimulation(-2.5)]).toEqual([0x11, 0, 0, 0x06, 0xFF, 40, 51]));
 test('encodes request control', () => expect([...encodeRequestControl()]).toEqual([0x00]));
 test('short packet keeps the fields that are complete', () => {
-  // Flags versprechen Tempo, Trittfrequenz und Leistung, das Paket endet nach dem Tempo.
+  // The flags promise speed, cadence and power, the packet ends after the speed.
   expect(parseIndoorBikeData(Buffer.from([0x44, 0x00, 0xE8, 0x03]))).toEqual({ speedKph: 10 });
 });
 test('parses uint8 and uint16 heart rate', () => {

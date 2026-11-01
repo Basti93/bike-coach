@@ -1,7 +1,7 @@
 const CLICK_MESSAGE = 0x37;
 const PRESSED = 0;
 
-/** Tastenmeldung des Zwift Click (erste Generation): Protobuf mit Feld 1 = Plus, Feld 2 = Minus, 0 = gedrückt. */
+/** Button message of the Zwift Click (first generation): protobuf with field 1 = plus, field 2 = minus, 0 = pressed. */
 export const parseClick = (b: Buffer): { plus: boolean; minus: boolean } | null => {
   if (b[0] !== CLICK_MESSAGE) return null;
   const result = { plus: false, minus: false };

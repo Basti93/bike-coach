@@ -1,6 +1,6 @@
 import { parseClick } from '../../../src/service/ble/click-codec';
 
-// Beispieldaten aus ajchellew/zwiftplay, ZwiftClickTest.kt
+// Sample data from ajchellew/zwiftplay, ZwiftClickTest.kt
 test.each([
   [[0x37, 0x08, 0x01, 0x10, 0x01], { plus: false, minus: false }],
   [[0x37, 0x08, 0x00, 0x10, 0x01], { plus: true, minus: false }],

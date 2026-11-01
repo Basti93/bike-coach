@@ -52,11 +52,11 @@ export class DeviceManager {
     this.timers.clear();
   }
 
-  /** Bleibt getrennt, bis jemand verbindet. So kann etwa der Clicker in den Ruhezustand gehen. */
+  /** Stays disconnected until someone connects. This lets the clicker, for example, go to sleep. */
   async disconnect(kind: DeviceKind): Promise<void> {
     if (kind === 'clicker') this.held = { plus: false, minus: false };
     this.setStatus(kind, 'off');
-    await this.port.disconnect(kind).catch(() => { /* schon getrennt */ });
+    await this.port.disconnect(kind).catch(() => { /* already disconnected */ });
   }
 
   connect(kind: DeviceKind): void {
@@ -87,9 +87,9 @@ export class DeviceManager {
   }
 
   /**
-   * Immer nur ein Schreibvorgang, der neueste Befehl gewinnt, und ein fehlgeschlagener
-   * wird wiederholt. Befehle gehen nur bei Änderungen raus, ein verlorener bliebe sonst
-   * bis zum nächsten Abschnitt ohne Wirkung. Das Verhalten folgt dem bewährten Auuki.
+   * Only one write at a time, the newest command wins, and a failed one is
+   * retried. Commands only go out on changes, so a lost one would otherwise have
+   * no effect until the next section. The behavior follows the proven Auuki.
    */
   private async pump(): Promise<void> {
     if (this.pumping) return;
@@ -109,7 +109,7 @@ export class DeviceManager {
     }
   }
 
-  /** Der Click wiederholt Meldungen, solange eine Taste gedrückt ist. Nur das Drücken zählt. */
+  /** The Click repeats messages while a button is held. Only the press counts. */
   private handleClick(b: Buffer): void {
     const now = parseClick(b);
     if (!now) return;
@@ -119,7 +119,7 @@ export class DeviceManager {
     if (now.minus && !before.minus) this.clickCb('down');
   }
 
-  /** Hat der Trainer uns die Kontrolle entzogen, wirkte die Vorgabe sonst bis zum nächsten Abschnitt nicht. */
+  /** If the trainer has taken control away from us, the target would otherwise have no effect until the next section. */
   private handleControl(b: Buffer): void {
     const lost = b[0] === 0xff || (b[0] === 0x80 && b[2] === RESULT_NOT_PERMITTED);
     const now = Date.now();
@@ -141,7 +141,7 @@ export class DeviceManager {
     return c.kind === 'power' ? encodeTargetPower(c.w) : encodeSimulation(c.pct);
   }
   private writeTrainer(b: Buffer): Promise<void> {
-    return this.port.write('trainer', b).catch(() => { /* Neuverbindung sendet den letzten Befehl erneut */ });
+    return this.port.write('trainer', b).catch(() => { /* reconnecting sends the last command again */ });
   }
   private async tryConnect(kind: DeviceKind): Promise<void> {
     if (this.stopped || this.connecting.has(kind) || this.status[kind] !== 'searching') return;
@@ -154,9 +154,9 @@ export class DeviceManager {
       return;
     }
     this.connecting.delete(kind);
-    // Während des Wartens kann jemand getrennt haben.
+    // Someone may have disconnected during the wait.
     if (this.getStatus()[kind] === 'off') {
-      await this.port.disconnect(kind).catch(() => { /* schon getrennt */ });
+      await this.port.disconnect(kind).catch(() => { /* already disconnected */ });
       return;
     }
     this.setStatus(kind, 'connected');
@@ -179,6 +179,6 @@ export class DeviceManager {
     this.statusCb({ ...this.status });
   }
   private safely(fn: () => void): void {
-    try { fn(); } catch { /* defektes Datenpaket beendet nie die Fahrt */ }
+    try { fn(); } catch { /* a corrupt data packet never ends the ride */ }
   }
 }

@@ -21,7 +21,7 @@ const syncText = (sync: GarminSyncInfo): string => {
   return parts.join(' · ');
 };
 
-/** Verbindet ein Profil mit Garmin Connect. Das Passwort bleibt nur bis zum Absenden im Formular. */
+/** Connects a profile to Garmin Connect. The password stays in the form only until it is submitted. */
 export const GarminCard = ({ profileId, status, sync, send }: { profileId: string; status: GarminStatus; sync?: GarminSyncInfo | null; send: (m: CoachClientMessage) => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

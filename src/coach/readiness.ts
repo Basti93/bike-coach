@@ -2,7 +2,7 @@ import type { GarminActivity, GarminBody, GarminDay, GarminReadiness } from '../
 import type { RideSummary } from './metrics';
 
 const DAY_MS = 86_400_000;
-// Eigene Setzungen, keine medizinischen Grenzwerte, siehe docs/after-ride.md.
+// Our own choices, not medical thresholds, see docs/after-ride.md.
 const RAISED_HR_BPM = 5;
 const MIN_HR_DAYS = 14;
 const BASELINE_DAYS = 28;
@@ -27,7 +27,7 @@ const median = (xs: number[]): number => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-/** Andere Sportarten der letzten Wochen. Fahrten, die Bike Coach selbst kennt, zählen nicht doppelt. */
+/** Other sports of the last few weeks. Rides that Bike Coach knows itself do not count twice. */
 export const externalLoad = (activities: GarminActivity[], rides: RideSummary[], nowMs: number): ExternalLoad[] =>
   activities
     .filter((a) => nowMs - a.startMs < EXTERNAL_WINDOW_DAYS * DAY_MS && !a.fromBikeCoach)
@@ -66,7 +66,7 @@ export const assessReadiness = (days: GarminDay[], external: ExternalLoad[], tod
   return { level: enough ? 'normal' : 'unknown', reasons: [] };
 };
 
-/** Gesamter Verlauf knapp genug für den Coach: ältere Jahre je Jahr, die letzten Monate einzeln. */
+/** Entire history, short enough for the coach: older years per year, the latest months individually. */
 export const historySummary = (activities: GarminActivity[], nowMs: number): HistoryRow[] => {
   const cutoff = new Date(nowMs);
   cutoff.setUTCMonth(cutoff.getUTCMonth() - MONTHS_IN_DETAIL, 1);

@@ -12,7 +12,7 @@ const effort = (session: Session): string => {
   return intensity > 0.68 ? 'mittel' : 'locker';
 };
 
-/** Das Wichtigste auf einen Blick: wie lange und wie anstrengend. */
+/** The essentials at a glance: how long and how hard. */
 export const SessionFacts = ({ session }: { session: Session; ftpW: number }) => {
   const totalS = session.steps.reduce((a, s) => a + s.durationS, 0);
   const grades = session.steps.flatMap((s) => (s.kind === 'grade' ? [s.gradePct] : []));

@@ -17,14 +17,14 @@ import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } fro
 const RAISE_UNVERIFIED = 1.05;
 const LOWER_UNVERIFIED = 0.9;
 const MIN_FTP_W = 50;
-const NUDGE_MIN_S = 20 * 60;     // Eigene Regeln, siehe docs/ftp-estimate.md
+const NUDGE_MIN_S = 20 * 60;     // Our own rules, see docs/ftp-estimate.md
 const NUDGE_MIN_IF = 0.65;
 const RAISE_GAP_MS = 3 * 86_400_000;
 const LOWER_GAP_MS = 86_400_000;
 const TEXT_MAX = 400;
 const DETAIL_POINTS = 300;
 const MAX_RULES = 20;
-const MIN_RAMP_S = 480; // 5 Minuten Warmup plus mindestens 3 Minuten Rampe
+const MIN_RAMP_S = 480; // 5 minutes of warmup plus at least 3 minutes of ramp
 const COACH_FTP_MAX_CHANGE = 0.05;
 const COACH_FTP_INTERVAL_MS = 14 * 86_400_000;
 const PROMPT_WINDOW_MS = 28 * 86_400_000;
@@ -50,7 +50,7 @@ export const answerSchema = z.object({
   encouragement: z.string().optional(),
   ftpChangeW: z.number().optional(),
 });
-// `claude` lehnt das Feld $schema ab, das zod automatisch einträgt.
+// `claude` rejects the $schema field that zod adds automatically.
 const { $schema: _ignored, ...answerProps } = z.toJSONSchema(answerSchema);
 export const answerJsonSchema: object = answerProps;
 
@@ -106,7 +106,7 @@ export class Coach {
     }
     if (!fs.existsSync(this.deps.ridesDir)) return;
     for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-')).sort(byStart)) {
-      try { this.scanRide(name); } catch { /* defekte Fahrt überspringen, beim nächsten Lauf erneut */ }
+      try { this.scanRide(name); } catch { /* skip a broken ride, try again on the next run */ }
     }
   }
 
@@ -118,7 +118,7 @@ export class Coach {
       this.markDirty(s);
     });
   }
-  /** Bewertung übersprungen: Die Fahrt zählt trotzdem. */
+  /** Rating skipped: the ride still counts. */
   skipFeedback(profileId: string): void { this.update(profileId, (s) => { s.awaitingFeedback = null; }); }
   note(profileId: string, text: string): void {
     this.update(profileId, (s) => {
@@ -128,13 +128,13 @@ export class Coach {
       if (status) {
         const list = s.complaints ?? [];
         s.complaints = [...list, { id: `c-${now}-${list.length}`, text: text.slice(0, 200), status, startedMs: now, updatedMs: now }];
-        // Sofort sicher, auch wenn die KI gerade nicht antwortet.
+        // Safe immediately, even if the AI is not answering right now.
         s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       }
       this.markDirty(s);
     });
   }
-  /** Du entscheidest, wann eine Beschwerde vorbei ist. */
+  /** You decide when a complaint is over. */
   updateComplaint(profileId: string, id: string, status: ComplaintStatus): void {
     this.update(profileId, (s) => {
       const c = s.complaints?.find((x) => x.id === id);
@@ -176,7 +176,7 @@ export class Coach {
     });
   }
 
-  /** Für die Kurven der Rückschau, nur für eigene Fahrten und ausgedünnt. */
+  /** For the charts of the review, only for own rides and thinned out. */
   rideDetail(profileId: string, rideId: string): RideDetail | null {
     if (!this.state(profileId).summaries.some((r) => r.rideId === rideId)) return null;
     const { samples } = cleanSamples(readRide(this.deps.ridesDir, rideId).samples);
@@ -194,7 +194,7 @@ export class Coach {
     this.update(profileId, (s) => { s.rules = (s.rules ?? []).filter((r) => r.atMs !== atMs); });
   }
 
-  /** Von Hand gesetzte FTP. Die aktuelle Einheit wird sofort damit neu berechnet, die KI plant danach nach. */
+  /** Manually set FTP. The current session is recalculated with it immediately, the AI replans afterwards. */
   setFtp(profileId: string, ftpW: number): void {
     this.update(profileId, (s) => {
       const now = this.deps.nowMs();
@@ -213,7 +213,7 @@ export class Coach {
     });
   }
 
-  /** Nie gleichzeitig je Profil: Läuft schon ein Aufruf, folgt danach genau einer. */
+  /** Never concurrent per profile: if a call is already running, exactly one follows afterwards. */
   refresh(profileId: string): Promise<void> {
     const active = this.running.get(profileId);
     if (active) {
@@ -238,7 +238,7 @@ export class Coach {
   private async refreshOnce(profileId: string): Promise<void> {
     const s = this.state(profileId);
     if (s.next.session.id === RAMP_ID) { this.update(profileId, (x) => { x.dirty = false; x.dirtySinceMs = null; }); return; }
-    // dirty bleibt bis zum Ergebnis gesetzt: Endet der Prozess mitten im Aufruf, wird nachgeholt.
+    // dirty stays set until the result: if the process ends mid-call, the call is made up for.
     this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
@@ -246,8 +246,8 @@ export class Coach {
       let raw = await this.deps.ask(input);
       const rejected = this.rejection(s, raw);
       if (rejected) {
-        // Genau ein zweiter Versuch mit dem Grund, danach übernimmt das Regelwerk.
-        try { raw = await this.deps.ask({ ...input, prompt: `${input.prompt}\nDein letzter Vorschlag wurde abgelehnt: ${rejected} Korrigiere ihn.` }); } catch { /* Die erste Antwort entscheidet. */ }
+        // Exactly one second attempt with the reason, after that the rules take over.
+        try { raw = await this.deps.ask({ ...input, prompt: `${input.prompt}\nDein letzter Vorschlag wurde abgelehnt: ${rejected} Korrigiere ihn.` }); } catch { /* The first answer decides. */ }
       }
       this.update(profileId, (x) => {
         this.applyAnswer(x, raw, answeredNotes);
@@ -270,7 +270,7 @@ export class Coach {
     return checked.ok ? null : checked.reason;
   }
 
-  /** Wattzahlen im Text müssen zu den Daten passen, sonst bleibt nur ein neutraler Satz. */
+  /** Watt figures in the text must match the data, otherwise only a neutral sentence remains. */
   private honestReason(s: CoachState, reason: string, session: Session): string {
     const known = [s.ftpW, ...s.ftpHistory.map((h) => h.ftpW), ...s.ftpForecast.map((f) => f.ftpW),
       ...s.summaries.flatMap((r) => [r.avgPowerW, r.normalizedPowerW, r.bestMinutePowerW].flatMap((x) => (x === null ? [] : [x]))),
@@ -336,18 +336,18 @@ export class Coach {
     const { session, ftpW, hrMaxBpm } = JSON.parse(fs.readFileSync(path.join(this.deps.ridesDir, name, 'session.json'), 'utf8')) as { session: Session; ftpW: number; hrMaxBpm?: number };
     const plannedS = session.steps.reduce((a, x) => a + x.durationS, 0);
     const summary = summarizeRide({ meta, samples, ftpW, plannedS, session, ...(hrMaxBpm ? { hrMaxBpm } : {}) });
-    // Probefahrten und Fehlstarts zählen nicht als Training und lösen weder Bewertung noch Neuplanung aus.
+    // Test rides and false starts do not count as training and trigger neither a rating nor replanning.
     if (summary.durationS < MIN_COUNTED_S) {
       this.update(meta.profileId, (x) => { x.processedRides.push(name); });
       return;
     }
     this.update(meta.profileId, (x) => {
       x.summaries.push(summary);
-      x.alternatives = []; // Sie passten zur Lage vor dieser Fahrt.
+      x.alternatives = []; // They fit the situation before this ride.
       x.processedRides.push(name);
       x.awaitingFeedback = name;
       if (meta.sessionId === RAMP_ID) this.applyRamp(x, summary);
-      // Eine andere Einheit gefahren: Ein vorgeschlagener Rampentest ist damit übersprungen.
+      // A different session was ridden: a proposed ramp test is thereby skipped.
       if (x.next.session.id !== RAMP_ID || meta.sessionId !== RAMP_ID) x.next = { ...ruleBasedSession(this.context(x)), source: 'rules' };
       this.markDirty(x);
     });
@@ -369,14 +369,14 @@ export class Coach {
       : { ...ruleBasedSession(this.context(s)), source: 'rules' };
   }
 
-  /** Ohne Rampentest ist die FTP nur geschätzt. Die Bewertung zieht sie nach (eigene Regel, siehe docs/ftp-estimate.md). */
+  /** Without a ramp test the FTP is only estimated. The rating adjusts it (our own rule, see docs/ftp-estimate.md). */
   private adjustUnverifiedFtp(s: CoachState, rideId: string, rating: Rating): void {
     if (rating === 'right' || s.ftpHistory.some((h) => h.source === 'ramp')) return;
     const ride = s.summaries.find((r) => r.rideId === rideId);
     if (!ride || ride.suspectData) return;
     const last = s.ftpHistory.filter((h) => h.source === 'coach').at(-1);
     const sinceLast = last ? this.deps.nowMs() - last.atMs : Infinity;
-    // „Zu leicht“ nach einer lockeren oder kurzen Fahrt sagt nichts über die Schwelle.
+    // "Too easy" after an easy or short ride says nothing about the threshold.
     if (rating === 'easy' && (ride.durationS < NUDGE_MIN_S || (ride.intensityFactor ?? 0) < NUDGE_MIN_IF || sinceLast < RAISE_GAP_MS)) return;
     if (rating === 'hard' && sinceLast < LOWER_GAP_MS) return;
     const raw = s.ftpW * (rating === 'easy' ? RAISE_UNVERIFIED : LOWER_UNVERIFIED);
@@ -390,7 +390,7 @@ export class Coach {
   }
 
   private garminData(profileId: string): GarminCoachData | null {
-    // Garmin ist eine Zugabe: Ein Lesefehler darf den Coach nie stören.
+    // Garmin is a bonus: a read error must never disturb the coach.
     try { return this.deps.garmin?.(profileId) ?? null; } catch { return null; }
   }
 

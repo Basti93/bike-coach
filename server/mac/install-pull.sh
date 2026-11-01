@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Richtet das tägliche Abholen der Server-Sicherungen ein (10:30 Uhr) und startet es einmal.
-# Entfernen: launchctl bootout "gui/$(id -u)/de.bike-coach.backup-pull" und die plist löschen.
+# Sets up the daily pull of the server backups (10:30) and starts it once.
+# To remove: launchctl bootout "gui/$(id -u)/de.bike-coach.backup-pull" and delete the plist.
 set -euo pipefail
 : "${BACKUP_SERVER:?Aufruf: BACKUP_SERVER=nutzer@host bash server/mac/install-pull.sh}"
 

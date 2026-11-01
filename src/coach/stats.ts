@@ -8,7 +8,7 @@ export type RideStats = {
   longestMinutes: number; bestMinuteW: number | null;
 };
 
-/** Ein Rückblick mit wenigen Zahlen, nur gegen sich selbst. Fahrten mit vielen Messfehlern zählen nicht für Bestwerte. */
+/** A review with few numbers, only against yourself. Rides with many measurement errors do not count for records. */
 export const rideStats = (summaries: RideSummary[], nowMs: number): RideStats => {
   const now = weekOf(nowMs);
   const minutes = Math.round(summaries.reduce((a, r) => a + r.durationS, 0) / 60);

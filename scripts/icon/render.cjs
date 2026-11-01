@@ -1,4 +1,4 @@
-// Rendert resources/icon.svg zu icon.png und icon.icns. Aufruf: npx electron scripts/icon/render.cjs
+// Renders resources/icon.svg to icon.png and icon.icns. Usage: npx electron scripts/icon/render.cjs
 const { app, BrowserWindow } = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');

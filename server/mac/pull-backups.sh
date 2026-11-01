@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Läuft auf dem Mac: holt die täglichen Sicherungen des Heimservers ab, damit eine Kopie eine kaputte Platte überlebt.
-# Abholen statt Schicken: Der Server kann die Kopien auf dem Mac nicht löschen. Aufbau wie bei den anderen Projekten.
-# Gestartet von launchd (siehe install-pull.sh), ein Fehler zeigt eine macOS-Mitteilung. Behält KEEP_DAYS Tage.
+# Runs on the Mac: pulls the daily backups from the home server, so that one copy survives a broken disk.
+# Pull rather than push: the server cannot delete the copies on the Mac. Same setup as in the other projects.
+# Started by launchd (see install-pull.sh); an error shows a macOS notification. Keeps KEEP_DAYS days.
 set -euo pipefail
 
 SERVER="${BACKUP_SERVER:?BACKUP_SERVER setzen, z. B. nutzer@host}"

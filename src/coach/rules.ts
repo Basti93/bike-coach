@@ -13,7 +13,7 @@ const intervals = (count: number): Session => ({
   steps: [erg(10, 0.5, 'Warmup'), ...Array.from({ length: count }, () => [erg(4, 0.95, 'Hart'), erg(3, 0.5, 'Erholung')]).flat(), erg(5, 0.45, 'Ausrollen')],
 });
 
-/** Kürzt den Hauptteil, bis die Belastungsgrenze passt. */
+/** Shortens the main part until the load limit fits. */
 const fitToCap = (session: Session, ctx: CoachContext): Session => {
   let s = session;
   const mainIndex = s.steps.findIndex((x, i) => i > 0 && x.durationS > min(5));
@@ -70,7 +70,7 @@ const shorten = (s: Session): Session => {
   const cut = Math.round(total * 0.25);
   let left = cut;
   const steps = [...s.steps];
-  // Von hinten kürzen, ohne Warmup und mit mindestens einem Hauptabschnitt.
+  // Shorten from the end, without the warmup and with at least one main section.
   for (let i = steps.length - 1; i > 0 && left > 0; i--) {
     const reducible = i === 1 ? Math.max(0, steps[i].durationS - 60) : steps[i].durationS;
     const take = Math.min(left, reducible);
@@ -81,7 +81,7 @@ const shorten = (s: Session): Session => {
   return { ...s, steps };
 };
 
-/** Bleibt bei einer unzulässigen Änderung bei der bisherigen Einheit. */
+/** Sticks with the existing session on an invalid change. */
 export const adjustSession = (session: Session, how: 'easier' | 'harder' | 'shorter', ctx: CoachContext): Session => {
   if (session.id === RAMP_ID) return session;
   const next = how === 'shorter' ? shorten(session) : scaleWork(session, how === 'harder' ? 1 : -1);

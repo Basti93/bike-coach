@@ -7,13 +7,13 @@ const clickUuid = (n: number) => `0000000${n}19ca465186e5fa29dcdd09d1`;
 const SERVICES: Partial<Record<DeviceKind, Spec>> = {
   trainer: { services: ['1826'], notify: '2ad2', write: '2ad9', status: '2ada' },
   hr: { services: ['180d'], notify: '2a37' },
-  // Laut BikeControl und zwiftplay: Tasten auf 0002, Antworten auf 0004, RideOn auf 0003 startet die Meldungen.
+  // According to BikeControl and zwiftplay: buttons on 0002, responses on 0004, RideOn on 0003 starts the messages.
   clicker: {
     services: [clickUuid(1), 'fc82'], notify: clickUuid(2), indicate: clickUuid(4),
     handshake: { char: clickUuid(3), bytes: Buffer.from('RideOn') },
   },
 };
-// Zwift Inc., Gerätetyp BC1 = Click der ersten Generation. Der Click wirbt nicht verlässlich mit seinem Dienst.
+// Zwift Inc., device type BC1 = first-generation Click. The Click does not reliably advertise its service.
 const ZWIFT_COMPANY = [0x4a, 0x09];
 const CLICK_V1 = 0x09;
 const isClickV1 = (p: any): boolean => {
@@ -23,13 +23,13 @@ const isClickV1 = (p: any): boolean => {
 const PRIORITY: Record<DeviceKind, number> = { trainer: 0, hr: 1, clicker: 2 };
 const SCAN_TIMEOUT_MS = 10_000;
 const CONNECT_TIMEOUT_MS = 15_000;
-// Der Click schläft meist: kurz suchen, damit er Trainer und Gurt nicht aufhält.
+// The Click is usually asleep: search briefly so that it does not hold up trainer and strap.
 const CLICKER_SCAN_MS = 4000;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Echte Bluetooth-Anbindung. Merkt sich pro Geräteart die zuletzt genutzte Geräte-UUID,
- * weil macOS UUIDs statt Adressen liefert. Noch nicht am echten Gerät geprüft (Plan Task 2).
+ * Real Bluetooth connection. Remembers the last used device UUID per device type,
+ * because macOS returns UUIDs instead of addresses. Not yet tested on a real device (Plan Task 2).
  */
 export class NobleBlePort implements BlePort {
   private subs = new Map<DeviceKind, (b: Buffer) => void>();
@@ -50,12 +50,12 @@ export class NobleBlePort implements BlePort {
     this.connectTimeoutMs = opts.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
     this.noble = nobleImpl;
     this.knownFile = path.join(dataDir, 'devices.json');
-    try { this.known = JSON.parse(fs.readFileSync(this.knownFile, 'utf8')); } catch { /* erster Start */ }
+    try { this.known = JSON.parse(fs.readFileSync(this.knownFile, 'utf8')); } catch { /* first start */ }
   }
 
   /**
-   * Nacheinander, weil ein neuer Scan den laufenden ersetzt und sich die Geräte sonst gegenseitig
-   * aushungern. Der Trainer kommt zuerst dran, damit eine laufende Fahrt ihn schnell zurückbekommt.
+   * One after the other, because a new scan replaces the running one and the devices would otherwise
+   * starve each other. The trainer goes first, so that a running ride gets it back quickly.
    */
   connect(kind: DeviceKind): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -94,7 +94,7 @@ export class NobleBlePort implements BlePort {
       ]);
       if (dropped) throw new Error(`${kind} während der Verbindung verloren`);
     } catch (e) {
-      // Immer trennen: Eine halbe Verbindung blockiert sonst das Gerät für den nächsten Versuch.
+      // Always disconnect: otherwise a half-open connection blocks the device for the next attempt.
       this.writers.delete(kind);
       await Promise.resolve(peripheral.disconnectAsync?.()).catch(() => {});
       throw e;
@@ -109,7 +109,7 @@ export class NobleBlePort implements BlePort {
 
   private async setUp(kind: DeviceKind, spec: Spec, peripheral: any): Promise<void> {
     await peripheral.connectAsync();
-    // Bei mehreren möglichen Diensten alle holen: noble bricht ab, sobald ein angefragter Dienst fehlt.
+    // With several possible services, fetch all of them: noble aborts as soon as a requested service is missing.
     const { characteristics } = spec.services.length > 1
       ? await peripheral.discoverAllServicesAndCharacteristicsAsync()
       : await peripheral.discoverSomeServicesAndCharacteristicsAsync(

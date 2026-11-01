@@ -16,16 +16,16 @@ const interval = session(warm, ...Array.from({ length: 4 }, () => [erg(4, 0.95),
 
 test('accepts a sensible session', () => expect(checkSession(interval, ctx()).ok).toBe(true));
 test.each([
-  ['kein Warmup', session(erg(30, 0.9))],
-  ['Warmup zu kurz', session(erg(2, 0.5), erg(30, 0.6))],
+  ['no warmup', session(erg(30, 0.9))],
+  ['warmup too short', session(erg(2, 0.5), erg(30, 0.6))],
   ['200 % FTP', session(warm, erg(1, 2))],
-  ['5 Minuten über 105 %', session(warm, erg(5, 1.1))],
-  ['20 Minuten über 95 %', session(warm, erg(20, 0.97))],
-  ['3 Stunden', session(warm, erg(170, 0.5))],
-  ['unter 10 Minuten', session({ ...warm, durationS: 300 }, erg(1, 0.5))],
-  ['40 Minuten über 90 %', session(warm, erg(19, 0.92), erg(2, 0.5), erg(19, 0.92), erg(2, 0.5), erg(2, 0.92))],
-  ['Steigung 25 %', session(warm, { kind: 'grade', durationS: 600, gradePct: 25, scale: 1, label: 'B' })],
-  ['Skalierung 3', session(warm, { kind: 'grade', durationS: 600, gradePct: 5, scale: 3, label: 'B' })],
+  ['5 minutes above 105 %', session(warm, erg(5, 1.1))],
+  ['20 minutes above 95 %', session(warm, erg(20, 0.97))],
+  ['3 hours', session(warm, erg(170, 0.5))],
+  ['under 10 minutes', session({ ...warm, durationS: 300 }, erg(1, 0.5))],
+  ['40 minutes above 90 %', session(warm, erg(19, 0.92), erg(2, 0.5), erg(19, 0.92), erg(2, 0.5), erg(2, 0.92))],
+  ['grade 25 %', session(warm, { kind: 'grade', durationS: 600, gradePct: 25, scale: 1, label: 'B' })],
+  ['scale 3', session(warm, { kind: 'grade', durationS: 600, gradePct: 5, scale: 3, label: 'B' })],
 ])('rejects %s', (_name, s) => expect(checkSession(s, ctx()).ok).toBe(false));
 test('rejects malformed input instead of throwing', () => {
   expect(checkSession({ steps: 'x' }, ctx()).ok).toBe(false);

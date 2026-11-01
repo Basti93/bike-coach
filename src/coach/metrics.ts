@@ -37,7 +37,7 @@ const SUSPECT_SHARE = 0.05;
 
 const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
 
-/** Entfernt nur für die Auswertung unmögliche Werte und kurze Spitzen. Echte Nullen und Sprints bleiben, die Rohdaten auf der Platte auch. */
+/** Removes impossible values and short spikes for the analysis only. Real zeros and sprints stay, and so does the raw data on disk. */
 export const cleanSamples = (samples: Sample[]): { samples: Sample[]; removed: number } => {
   let removed = 0;
   const ranged = samples.map((s) => {
@@ -65,7 +65,7 @@ export const cleanSamples = (samples: Sample[]): { samples: Sample[]; removed: n
 const HARD_STEP = 0.85;
 const ERG_LAG_S = 15;
 const DONE_SHARE = 0.9;
-/** Soll und Ist je hartem Abschnitt: Die Gesamtbelastung verdeckt sonst fehlende Wiederholungen. */
+/** Target and actual per hard section: otherwise the overall load hides missing repetitions. */
 const countIntervals = (session: Session, samples: Sample[], ftpW: number): { intervalsPlanned: number; intervalsDone: number } => {
   let start = 0, intervalsPlanned = 0, intervalsDone = 0;
   for (const step of session.steps) {
@@ -86,7 +86,7 @@ const DRIFT_SKIP_S = 120;
 const HARD_FRACTION = 0.8;
 const RECOVERY_S = 60;
 
-/** Puls gegen Abschnitte: siehe docs/hr-zones.md. Zonen nur mit bekanntem Maximalpuls. */
+/** Heart rate against sections: see docs/hr-zones.md. Zones only with a known maximum heart rate. */
 const heartRateFacts = (samples: Sample[], session: Session | undefined, hrMaxBpm: number | undefined): Partial<RideSummary> => {
   const out: Partial<RideSummary> = {};
   const steps = session?.steps ?? [];

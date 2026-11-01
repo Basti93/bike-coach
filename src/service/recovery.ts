@@ -11,7 +11,7 @@ export const findOpenRides = (dir: string): RideMeta[] => {
     try {
       const meta = readMeta(dir, name);
       if (meta.status === 'open') open.push(meta);
-    } catch { /* unlesbare Fahrt darf den Start nicht verhindern */ }
+    } catch { /* an unreadable ride must not prevent startup */ }
   }
   return open;
 };

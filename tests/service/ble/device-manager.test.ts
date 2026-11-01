@@ -112,7 +112,7 @@ test('trainer writes never overlap', async () => {
   m.stop();
 });
 
-describe('Trainer entzieht die Kontrolle', () => {
+describe('trainer takes control away', () => {
   const reqControl = [0x00];
   const start = async () => {
     const port = new FakeBlePort();

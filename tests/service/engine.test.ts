@@ -88,7 +88,7 @@ test('a new step does not inherit an earlier adjustment', () => {
   e.adjustTarget(5);
   expect(run(e, c, 1).sample.targetW).toBe(105);
 });
-describe('Absenken während der Fahrt', () => {
+describe('lowering during the ride', () => {
   const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
   const auto = (c: ReturnType<typeof clock>, extra = {}) => new RideEngine({ session: long, ftpW: 200, nowMs: c.now, maxHrBpm: 170, ...extra });
   const feed = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => {
@@ -139,7 +139,7 @@ describe('Absenken während der Fahrt', () => {
     expect(feed(e, c, 6, { hrBpm: 150, cadenceRpm: 90 }).last.sample.targetW).toBe(200);
   });
 });
-describe('Absenken: Pausen und Anzeige', () => {
+describe('lowering: pauses and display', () => {
   const long: Session = { id: 's', name: 'x', steps: [{ kind: 'erg', durationS: 1000, ftpFraction: 1, label: 'A' }] };
   const run = (e: RideEngine, c: ReturnType<typeof clock>, n: number, r: object) => { let last; for (let i = 0; i < n; i++) { c.step(); last = e.tick(r); } return last!; };
   test('not pedalling is a pause, not a collapse', () => {

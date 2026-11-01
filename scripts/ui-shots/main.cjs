@@ -1,4 +1,4 @@
-// Minimales Electron-Hauptprogramm für Screenshots: nur die Oberfläche, ohne Fahrdienst und Coach.
+// Minimal Electron main process for screenshots: only the UI, without ride service and coach.
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 app.setPath('userData', path.join(app.getPath('temp'), 'bike-coach-ui-shots'));

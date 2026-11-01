@@ -3,7 +3,7 @@ import type { RideDetail } from '../../shared/coach-protocol';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
-/** Je Messgröße ein eigenes Diagramm: zwei Skalen in einem würden Zusammenhänge vortäuschen. */
+/** One chart per measure: two scales in one would suggest false correlations. */
 const LineChart = ({ title, unit, points }: { title: string; unit: string; points: { t: number; v: number | null }[] }) => {
   const [hover, setHover] = useState<number | null>(null);
   const known = points.flatMap((p) => (p.v === null ? [] : [p.v]));

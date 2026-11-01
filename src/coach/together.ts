@@ -2,7 +2,7 @@ import { learnedCount } from '../shared/language';
 import type { Profile } from '../shared/profiles';
 import type { CoachState } from './state';
 
-/** Spielregel: Jede Minute zählt für alle gleich, egal mit wie viel Watt. Das entspricht einem gemütlichen Bergtempo. */
+/** Rule of the game: every minute counts the same for everyone, regardless of the watts. That corresponds to a comfortable climbing pace. */
 export const METRES_PER_MINUTE = 10;
 const PEAKS = [
   { name: 'Alpe d’Huez', metres: 1100 },
@@ -13,7 +13,7 @@ const PEAKS = [
 const RHYTHM_WEEKS = 12;
 const RECENT = 8;
 const WEEK = 7 * 86_400_000;
-const MONDAY_OFFSET = 4 * 86_400_000; // Der 1.1.1970 war ein Donnerstag.
+const MONDAY_OFFSET = 4 * 86_400_000; // January 1, 1970 was a Thursday.
 export const weekOf = (ms: number): number => Math.floor((ms - MONDAY_OFFSET) / WEEK);
 export const weekStartMs = (week: number): number => week * WEEK + MONDAY_OFFSET;
 
@@ -27,7 +27,7 @@ export type Together = {
 const streak = (s: CoachState, nowMs: number): number => {
   const weeks = new Set(s.summaries.map((r) => weekOf(r.startedAtMs)));
   let week = weekOf(nowMs);
-  if (!weeks.has(week)) week--; // Die laufende Woche bricht keine Serie, sie ist nur noch nicht geschafft.
+  if (!weeks.has(week)) week--; // The current week does not break a streak, it just is not done yet.
   let n = 0;
   while (weeks.has(week)) { n++; week--; }
   return n;
@@ -41,7 +41,7 @@ const friendlyLine = (people: PersonStats[]): string | null => {
   return `${a.name} legt diese Woche vor. ${b.name}, dein Rad freut sich schon auf dich.`;
 };
 
-/** Nur Dinge, die beide gleich beeinflussen können. Watt und FTP kommen hier bewusst nicht vor. */
+/** Only things both can influence equally. Watts and FTP are deliberately left out here. */
 export const computeTogether = (profiles: Profile[], states: CoachState[], nowMs: number): Together => {
   const people = states.map((s): PersonStats => {
     const thisWeek = s.summaries.filter((r) => weekOf(r.startedAtMs) === weekOf(nowMs));

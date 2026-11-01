@@ -12,7 +12,7 @@ export type Session = z.infer<typeof sessionSchema>;
 export const parseSession = (input: unknown): Session => sessionSchema.parse(input);
 
 /**
- * Anteil der FTP, mit dem ein Abschnitt gefahren wird. Steigungen laufen über eine Wattvorgabe:
- * Der Hub One hat nur ein Ritzel, eine simulierte Steigung wäre bei normaler Trittfrequenz weit über der FTP.
+ * Fraction of FTP at which a section is ridden. Climbs run on a watt target:
+ * the Hub One has only one sprocket, so a simulated grade would be far above FTP at normal cadence.
  */
 export const stepFtpFraction = (s: Step): number => (s.kind === 'erg' ? s.ftpFraction : Math.max(0.5, 0.55 + (s.gradePct * s.scale) / 20));

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-/** Macht den letzten Commit mit Präfix "live:" per git revert rückgängig. */
+/** Reverts the latest commit with the prefix "live:" using git revert. */
 export const undoLastLive = (repo: string, gitArgs: string[] = []): string => {
   const git = (...a: string[]) => execFileSync('git', [...gitArgs, '-C', repo, ...a], { stdio: 'pipe' }).toString().trim();
   const hash = git('log', '--grep=^live:', '-n', '1', '--format=%H');

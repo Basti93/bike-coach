@@ -1,8 +1,8 @@
 const EXTRA = (home: string): string[] => [`${home}/.local/bin`, '/opt/homebrew/bin', '/usr/local/bin'];
 
-/** Python kann nicht in das App-Archiv schauen, die Skripte liegen entpackt daneben. */
+/** Python cannot look inside the app archive, so the scripts sit unpacked next to it. */
 export const unpacked = (file: string): string => file.replace('app.asar/', 'app.asar.unpacked/');
 
-/** Aus dem Finder gestartete Apps bekommen nur einen sehr kurzen PATH und fänden claude sonst nicht. */
+/** Apps started from the Finder get only a very short PATH and would not find claude otherwise. */
 export const guiPath = (current: string, home: string): string =>
   [...new Set([...EXTRA(home), ...current.split(':').filter(Boolean)])].join(':');

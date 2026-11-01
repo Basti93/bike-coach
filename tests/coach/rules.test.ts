@@ -11,13 +11,13 @@ const past = (daysAgo: number, over: Partial<RideSummary> = {}): RideSummary => 
 });
 const ctx = (summaries: RideSummary[]): CoachContext => ({ ftpW: 200, summaries, nowMs: NOW });
 const scenarios: [string, RideSummary[]][] = [
-  ['keine Historie', []],
-  ['gestern hart', [past(0.5, { intensityFactor: 0.95, tss: 90 })]],
-  ['30 Tage Pause', [past(30)]],
-  ['täglich gefahren', Array.from({ length: 14 }, (_, i) => past(i + 1))],
-  ['viel Belastung', Array.from({ length: 10 }, (_, i) => past(i + 1, { tss: 120, intensityFactor: 0.84 }))],
-  ['ausgeruht und fit', Array.from({ length: 12 }, (_, i) => past(i * 2 + 3))],
-  ['schwache kurze Fahrten', [past(2, { tss: 5 })]],
+  ['no history', []],
+  ['hard yesterday', [past(0.5, { intensityFactor: 0.95, tss: 90 })]],
+  ['30 day break', [past(30)]],
+  ['ridden daily', Array.from({ length: 14 }, (_, i) => past(i + 1))],
+  ['heavy load', Array.from({ length: 10 }, (_, i) => past(i + 1, { tss: 120, intensityFactor: 0.84 }))],
+  ['rested and fit', Array.from({ length: 12 }, (_, i) => past(i * 2 + 3))],
+  ['weak short rides', [past(2, { tss: 5 })]],
 ];
 test.each(scenarios)('rule session is always accepted by the guardrails: %s', (_n, s) => {
   const c = ctx(s);

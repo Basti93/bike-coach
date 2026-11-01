@@ -28,7 +28,7 @@ const MEASURES: Measure[] = [
 const WIDTH = 1000;
 const HEIGHT = 120;
 
-/** Je Messgröße ein eigenes Diagramm: Zwei Skalen in einem würden Zusammenhänge vortäuschen. */
+/** One chart per measure: two scales in one would suggest false correlations. */
 const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] }) => {
   const [hover, setHover] = useState<number | null>(null);
   const value = (p: HealthPoint): number | null => {
@@ -73,7 +73,7 @@ const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] })
           : <path d={line} className="trend-line" />}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={0} y2={HEIGHT} className="trend-cross" />}
       </svg>
-      {/* Eigenes Element: Das gestreckte Diagramm würde einen Kreis zur Ellipse verzerren. */}
+      {/* Separate element: the stretched chart would distort a circle into an ellipse. */}
       {!measure.bars && shownValue !== null && <span className="trend-dot" style={{ left: `${(x(shownIndex) / WIDTH) * 100}%`, top: `${(y(shownValue) / HEIGHT) * 100}%` }} />}
       </div>
       <div className="trend-axis muted">

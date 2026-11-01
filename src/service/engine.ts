@@ -6,7 +6,7 @@ import type { Reading } from './ble/device-manager';
 
 const GAP_THRESHOLD_MS = 5000;
 const HR_HOLD_S = 30;
-// Der Puls folgt der Leistung verzögert, siehe docs/hr-zones.md.
+// Heart rate follows power with a delay, see docs/hr-zones.md.
 const HR_ZONE_SETTLE_S = 180;
 const HR_ZONE_HOLD_S = 60;
 const CADENCE_HOLD_S = 20;
@@ -15,7 +15,7 @@ const AUTO_STEP_PCT = 5;
 const AUTO_MAX_PCT = 20;
 const RAMP_ID = 'ramp-test';
 const CLIMB_ENTRY_S = 25;
-// Wie Auuki: Pause nach 4 s mit 0 W, weiter ab über 40 W.
+// Like Auuki: pause after 4 s at 0 W, resume above 40 W.
 const PAUSE_AFTER_S = 4;
 const RESUME_ABOVE_W = 40;
 
@@ -116,7 +116,7 @@ export class RideEngine {
     }
   }
 
-  /** Entscheidung ohne KI: Puls zu lange über der Grenze oder einbrechende Trittfrequenz. */
+  /** Decision without AI: heart rate above the limit for too long, or collapsing cadence. */
   private applyAutoReduction(now: number, events: RideEvent[]): void {
     const { step, index, remainingS } = this.position(this.elapsedS);
     if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.hrZoneHighS = 0; this.cadenceLowS = 0; }
@@ -158,7 +158,7 @@ export class RideEngine {
     return Math.round(clampTargetW(this.entryFraction(step, index, step.durationS - remainingS) * this.opts.ftpW * factor, this.opts.ftpW));
   }
 
-  /** In Steigungen geht es sanft hinein: linear vom vorigen Abschnitt zum Ziel. */
+  /** Climbs are entered gently: linearly from the previous section to the target. */
   private entryFraction(step: Step, index: number, inStepS: number): number {
     const goal = stepFtpFraction(step);
     const previous = this.opts.session.steps[index - 1];

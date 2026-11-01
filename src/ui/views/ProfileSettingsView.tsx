@@ -15,7 +15,7 @@ type Props = {
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onDeleted?: () => void;
 };
 
-/** Hier gilt, was du einträgst: Garmin überschreibt diese Werte nie von selbst. */
+/** What you enter applies here: Garmin never overwrites these values on its own. */
 export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted }: Props) => {
   const [name, setName] = useState(profile.name);
   const [ftp, setFtp] = useState(String(ftpW));
@@ -42,7 +42,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
 
   const save = () => {
     if (invalid.length) return;
-    // Bewusst aus Bestehendem aufgebaut: Unbekannte Felder und die ID bleiben erhalten.
+    // Deliberately built from the existing profile: unknown fields and the ID are preserved.
     const next: Profile = { ...profile, name: name.trim(), sex };
     for (const key of ['avatar', 'maxHrBpm', 'hrMaxBpm', 'birthDate', 'heightCm', 'weightKg'] as const) delete next[key];
     if (avatar) next.avatar = avatar;
@@ -53,7 +53,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
     if (weight.trim()) next.weightKg = number(weight);
     if (ftpChanged) {
       next.ftpW = number(ftp);
-      // Die Obergrenze gilt nur für die Schätzung und würde einen gemessenen Wert sonst später drücken.
+      // The upper limit applies only to the estimate and would otherwise later push down a measured value.
       delete next.ftpCapW;
       sendCoach({ type: 'set-ftp', profileId: profile.id, ftpW: number(ftp) });
     }

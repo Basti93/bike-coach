@@ -59,7 +59,7 @@ const pulseBeforeRides = ({ days, rated }: Input): GarminHealth['pulseBeforeRide
   return known.length >= MIN_RATED_RIDES && hard !== null && other !== null ? { hard, other, rides: known.length } : null;
 };
 
-/** Verdichtet für die Gesundheitsseite: Tage bis 90 Tage, dann Wochen, gesamt Monate. */
+/** Condenses for the health page: days up to 90 days, then weeks, months for the whole history. */
 export const healthData = (input: Input, rangeDays: number | null, nowMs: number): GarminHealth => ({
   points: points(input, rangeDays, nowMs), years: years(input.activities), progress: input.progress, pulseBeforeRides: pulseBeforeRides(input),
 });

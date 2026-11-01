@@ -9,10 +9,10 @@ const MIN_RUN_M = 5000;
 const MIN_5K_MIN = 12;
 const MIN_HR = 100;
 const MAX_HR = 240;
-// PA-R-Skala der Schätzung, Stunden pro Woche als eigene Setzung.
+// PA-R scale of the estimate, hours per week as our own choice.
 const HOURS_TO_LEVEL: [number, number][] = [[0.5, 1], [1, 2], [3, 3], [5, 4], [8, 5], [12, 6]];
 const HIGHEST_LEVEL = 7;
-// Bester Normalized-Power-Wert längerer Fahrten als untere Näherung, eigene Setzung.
+// Best normalized power of longer rides as a lower approximation, our own choice.
 const RIDE_WINDOW_DAYS = 365;
 const MIN_RIDE_S = 20 * 60;
 const RIDE_FTP_FACTOR = 0.95;
@@ -58,7 +58,7 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
   if (body.ftpW !== null && !body.ftpStale) ftp = { startW: body.ftpW, source: 'garmin' };
   else if (ftpFromRides(activities, nowMs) !== null) ftp = { startW: ftpFromRides(activities, nowMs)!, source: 'rides' };
   else if (body.birthDate && body.heightCm && body.weightKg) {
-    // Ohne Laufzeit: Garmin-Läufe sind meist locker, die Formel erwartet aber einen 5-km-Bestwert.
+    // Without run time: Garmin runs are mostly easy, but the formula expects a 5 km best.
     const e = estimateFtp({ age: ageAt(body.birthDate, nowMs), sex: body.sex, heightCm: body.heightCm, weightKg: body.weightKg, activity });
     ftp = { startW: e.startW, source: 'estimate', capW: e.capW };
   }
@@ -72,7 +72,7 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
 export type ReviewKey = 'birthDate' | 'sex' | 'heightCm' | 'weightKg' | 'ftpW' | 'hrMaxBpm';
 export type ReviewField = { key: ReviewKey; label: string; garmin: string; origin: 'Garmin' | 'Schätzung' | 'Deine Fahrten'; own: string | null; selected: boolean };
 
-/** Nur was fehlt oder abweicht. Leeres wird vorgeschlagen, Eigenes nie, und Training und Sicherheit entscheidest immer du. */
+/** Only what is missing or differs. Empty fields are suggested, your own values never are, and you always decide on training and safety. */
 export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion): ReviewField[] => {
   const SENSITIVE: ReviewKey[] = ['ftpW', 'hrMaxBpm'];
   const rows: [ReviewKey, string, string | number | null, string | number | undefined][] = [

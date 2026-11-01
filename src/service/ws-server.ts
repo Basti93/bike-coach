@@ -7,9 +7,9 @@ import type { RideService } from './ride-service';
 type Options = { port?: number; devOrigin?: string; retryMs?: number };
 
 /**
- * Nur die eigene Oberfläche und lokale Skripte (ohne Origin) dürfen sprechen,
- * damit keine fremde Webseite eine laufende Fahrt beenden kann.
- * Ein belegter Port wird erneut versucht; die Aufzeichnung läuft auch ohne Oberfläche.
+ * Only our own UI and local scripts (without an Origin) may talk to it,
+ * so that no foreign web page can end a running ride.
+ * An occupied port is retried; recording continues even without a UI.
  */
 export const originAllowed = (devOrigin?: string) => {
   const allowed = new Set([undefined, 'file://', 'null', devOrigin]);
@@ -28,7 +28,7 @@ export const startWsServer = (service: RideService, opts: Options = {}): Server 
   wss.on('connection', (socket) => {
     const unsubscribe = service.subscribe((m) => socket.send(JSON.stringify(m)));
     socket.on('message', (raw) => {
-      try { service.handle(JSON.parse(String(raw)) as ClientMessage); } catch { /* ungültige Nachricht ignorieren */ }
+      try { service.handle(JSON.parse(String(raw)) as ClientMessage); } catch { /* ignore invalid message */ }
     });
     socket.on('close', unsubscribe);
     socket.on('error', unsubscribe);

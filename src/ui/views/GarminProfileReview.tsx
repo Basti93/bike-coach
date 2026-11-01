@@ -11,7 +11,7 @@ const shown = (value: string | null): string => (value === null ? 'leer' : SEX_T
 const markOf = (profile: Profile, ftpW: number, suggestion: GarminSuggestion): string =>
   JSON.stringify(reviewFields(profile, ftpW, suggestion).map((f) => [f.key, f.garmin]));
 
-/** Weist auf neue oder abweichende Werte hin. „Später“ gilt, bis Garmin etwas anderes liefert. */
+/** Points out new or differing values. "Später" holds until Garmin delivers something else. */
 export const GarminProfileBanner = ({ profile, ftpW, suggestion, onReview }: { profile: Profile; ftpW: number; suggestion: GarminSuggestion | null | undefined; onReview: () => void }) => {
   const [, refresh] = useState(0);
   if (!suggestion) return null;
@@ -19,13 +19,13 @@ export const GarminProfileBanner = ({ profile, ftpW, suggestion, onReview }: { p
   if (!fields.length) return null;
   const mark = markOf(profile, ftpW, suggestion);
   let dismissed: string | null = null;
-  try { dismissed = localStorage.getItem(later(profile.id)); } catch { /* dann eben wieder anzeigen */ }
+  try { dismissed = localStorage.getItem(later(profile.id)); } catch { /* then just show it again */ }
   if (dismissed === mark) return null;
   return (
     <p className="notice row">
       <span>Garmin hat Werte für dein Profil.</span>
       <button className="secondary" onClick={onReview}>Werte aus Garmin prüfen</button>
-      <button className="ghost" onClick={() => { try { localStorage.setItem(later(profile.id), mark); } catch { /* gilt dann nur jetzt */ } refresh((n) => n + 1); }}>Später</button>
+      <button className="ghost" onClick={() => { try { localStorage.setItem(later(profile.id), mark); } catch { /* then it only holds for now */ } refresh((n) => n + 1); }}>Später</button>
     </p>
   );
 };
@@ -35,7 +35,7 @@ type Props = {
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void;
 };
 
-/** Nichts wird ohne „Übernehmen“ gespeichert, jeder Wert zeigt seine Herkunft und bleibt änderbar. */
+/** Nothing is saved without "Übernehmen", every value shows its origin and stays editable. */
 export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendCoach, onBack }: Props) => {
   const fields = reviewFields(profile, ftpW, suggestion);
   const [selected, setSelected] = useState<Partial<Record<ReviewKey, boolean>>>(() => Object.fromEntries(fields.map((f) => [f.key, f.selected])));
@@ -53,7 +53,7 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
   })[f.key]).map((f) => f.label);
 
   const take = () => {
-    // Erst alles prüfen: Sonst stünde die FTP schon im Coach, während das Profil abgelehnt wird.
+    // Check everything first: otherwise the FTP would already be in the coach while the profile is rejected.
     if (invalid.length) return;
     const next: Profile = { ...profile };
     for (const f of fields) {
@@ -67,8 +67,8 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
         sendCoach({ type: 'set-ftp', profileId: profile.id, ftpW: next.ftpW });
       } else next[f.key] = number(f.key);
     }
-    // Was nach dem Prüfen noch abweicht, hast du bewusst behalten: Erst neue Garmin-Werte melden sich wieder.
-    try { localStorage.setItem(later(profile.id), markOf(next, selected.ftpW ? next.ftpW : ftpW, suggestion)); } catch { /* gilt dann nur jetzt */ }
+    // Whatever still differs after the check is what you deliberately kept: only new Garmin values bring the notice back.
+    try { localStorage.setItem(later(profile.id), markOf(next, selected.ftpW ? next.ftpW : ftpW, suggestion)); } catch { /* then it only holds for now */ }
     sendRide({ type: 'save-profile', profile: next });
     onBack();
   };

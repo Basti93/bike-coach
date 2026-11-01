@@ -1,4 +1,4 @@
-/* Wegwerf-Prüfprogramm für den Gerätetest (Plan Task 2). */
+/* Throwaway check program for the device test (Plan Task 2). */
 import noble from '@stoprocent/noble';
 import { encodeRequestControl, encodeSimulation, encodeTargetPower, parseIndoorBikeData } from '../src/service/ble/ftms-codec';
 import { parseHeartRate } from '../src/service/ble/hr-codec';

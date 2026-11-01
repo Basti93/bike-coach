@@ -12,13 +12,13 @@ import { exportFit } from './export/fit';
 import { readRide, RideRecorder } from './recorder';
 import { findOpenRides, resumePoint } from './recovery';
 
-/** Bis zum Gerätetest (Plan Task 2) vorläufiger Wert. */
+/** Provisional value until the device test (Plan Task 2). */
 
 type Active = {
   recorder: RideRecorder; engine: RideEngine; session: Session; ftpW: number; recovered: boolean;
-  /** Wartet nach langem Stillstand auf die Entscheidung des Nutzers und zählt keine Zeit. */
+  /** Waits for the user's decision after a long standstill and counts no time. */
   paused?: boolean;
-  /** Fahrt ist zu Ende, aber noch nicht vollständig gespeichert. */
+  /** The ride is over, but not yet completely saved. */
   ending?: 'finished' | 'aborted' | 'discarded';
 };
 const STALE_READING_MS = 3000;
@@ -56,7 +56,7 @@ export class RideService {
     this.sendOffer(cb);
     return () => this.subs.delete(cb);
   }
-  /** Das aktive Profil beeinflusst eine offene Fahrt nie; sie behält ihr ursprüngliches Profil. */
+  /** The active profile never affects an open ride; it keeps its original profile. */
   subscribeActiveProfile(_profileId: string): void { this.broadcastOffer(); }
 
   handle(msg: ClientMessage): void {
@@ -110,7 +110,7 @@ export class RideService {
       case 'discard-resume': if (a && a.recorder.getMeta().rideId === msg.rideId) this.end('aborted'); return;
       case 'export-fit': checkRideId(msg.rideId); this.writeFit(msg.rideId); return;
       case 'device-disconnect':
-        // Ohne Trainer stimmt die Vorgabe nicht mehr, deshalb bleibt er während einer Fahrt verbunden.
+        // Without the trainer the target no longer holds, which is why it stays connected during a ride.
         if (msg.kind === 'trainer' && this.active) throw new Error('Der Trainer bleibt während einer Fahrt verbunden.');
         void this.devices.disconnect(msg.kind);
         this.broadcastState();
@@ -120,7 +120,7 @@ export class RideService {
         this.broadcastState();
         break;
       case 'delete-profile': {
-        // Nur der Profileintrag geht: Fahrten bleiben auf der Platte, eine Fahrt geht nie verloren.
+        // Only the profile entry goes: rides stay on disk, a ride is never lost.
         if (a && a.recorder.profileId === msg.profileId) throw new Error('Das Profil fährt gerade und kann nicht gelöscht werden.');
         const file = path.join(this.deps.dir, 'profiles.json');
         fs.writeFileSync(`${file}.tmp`, JSON.stringify(this.profiles().filter((x) => x.id !== msg.profileId)));
@@ -140,7 +140,7 @@ export class RideService {
     }
   }
 
-  /** Veraltete Werte dürfen nach einem Verbindungsverlust nicht weiter aufgezeichnet werden. */
+  /** Stale values must not keep being recorded after a lost connection. */
   private onDeviceStatus(status: DeviceStatus): void {
     const prev = this.deviceStatus;
     this.deviceStatus = status;
@@ -173,7 +173,7 @@ export class RideService {
     return new RideEngine({ session, ftpW, nowMs: this.deps.nowMs, ...extra });
   }
 
-  /** Eine offene Fahrt zeichnet nach dem Neustart sofort weiter; der Nutzer entscheidet danach. */
+  /** An open ride continues recording immediately after the restart; the user decides afterwards. */
   private recoverOpenRide(): void {
     const open = findOpenRides(this.deps.dir);
     const [meta, ...others] = open.sort((x, y) => y.startedAtMs - x.startedAtMs);
@@ -184,7 +184,7 @@ export class RideService {
     try {
       stored = JSON.parse(fs.readFileSync(path.join(this.deps.dir, meta.rideId, 'session.json'), 'utf8')) as typeof stored;
     } catch {
-      recorder.finish('aborted'); // Einheit unbekannt: Die Daten bleiben erhalten, weiterfahren geht nicht.
+      recorder.finish('aborted'); // Session unknown: the data is kept, continuing the ride is not possible.
       return;
     }
     const ride = readRide(this.deps.dir, meta.rideId);
@@ -204,7 +204,7 @@ export class RideService {
 
   private setActive(a: Active | null): void {
     this.active = a;
-    // Eine Fahrt braucht den Trainer, auch wenn er zuvor von Hand getrennt wurde.
+    // A ride needs the trainer, even if it was disconnected by hand before.
     if (a && this.devices.getStatus().trainer === 'off') this.devices.connect('trainer');
     this.guard(() => this.deps.onRideChange?.(a !== null));
   }
@@ -254,6 +254,6 @@ export class RideService {
   }
   private broadcast(m: ServerMessage): void { for (const cb of this.subs) this.guard(() => cb(m)); }
   private guard(fn: () => void): void {
-    try { fn(); } catch { /* Oberfläche und Geräte dürfen die Aufzeichnung nie stören */ }
+    try { fn(); } catch { /* UI and devices must never disturb the recording */ }
   }
 }

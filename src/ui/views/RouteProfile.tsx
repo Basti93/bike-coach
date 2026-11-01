@@ -1,6 +1,6 @@
 import type { Session, Step } from '../../shared/session';
 
-/** Annahme nur für die Zeichnung: Am Berg wird man langsamer, bergab schneller. Die Fahrt selbst läuft nach Zeit. */
+/** Assumption for the drawing only: you slow down uphill and speed up downhill. The ride itself runs on time. */
 const speedMs = (grade: number): number => (grade > 0 ? 8.3 / (1 + 0.2 * grade) : Math.min(14, 8.3 * (1 - 0.4 * grade)));
 const gradeOf = (s: Step): number => (s.kind === 'grade' ? s.gradePct : 0);
 const color = (g: number): string => {
@@ -16,7 +16,7 @@ const SMOOTH = 10;
 
 export const hasRoute = (session: Session): boolean => session.steps.some((s) => s.kind === 'grade');
 
-/** Höhe in Metern über die Zeit, an den Übergängen leicht geglättet, damit es wie eine Strecke aussieht. */
+/** Elevation in meters over time, slightly smoothed at the transitions so that it looks like a route. */
 const elevation = (session: Session, total: number): number[] => {
   const raw: number[] = [];
   let h = 0, i = 0, stepEnd = session.steps[0].durationS;
@@ -33,7 +33,7 @@ const elevation = (session: Session, total: number): number[] => {
   });
 };
 
-/** Höhenprofil: Breite ist die Dauer, die Kurve zeigt, wann es hoch und wann es runter geht. */
+/** Elevation profile: width is the duration, the curve shows when it goes up and when it goes down. */
 export const RouteProfile = ({ session, elapsedS }: { session: Session; elapsedS?: number }) => {
   const total = session.steps.reduce((a, s) => a + s.durationS, 0);
   const hs = elevation(session, total);

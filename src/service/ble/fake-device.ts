@@ -1,6 +1,6 @@
 import type { BlePort, DeviceKind } from './device-port';
 
-/** Testgerät: Verbindung, Trennung und eingehende Daten werden von außen gesteuert. */
+/** Test device: connection, disconnection and incoming data are controlled from outside. */
 export class FakeBlePort implements BlePort {
   online: Record<DeviceKind, boolean> = { trainer: true, hr: true, clicker: false };
   writes: { kind: DeviceKind; bytes: number[] }[] = [];

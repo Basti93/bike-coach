@@ -14,7 +14,7 @@ const deviceText = (live: StateMessage | null, kind: DeviceKind): string => {
   return live.deviceNames?.[kind] ?? 'verbunden';
 };
 
-/** Auf jeder Seite sichtbar. Ohne Verbindung zum Dienst zeigt sie keine alten Werte. */
+/** Visible on every page. Without a connection to the service it shows no old values. */
 export const StatusBar = ({ state, connected, send }: { state: StateMessage | null; connected: boolean; send?: (m: ClientMessage) => void }) => {
   const live = connected ? state : null;
   const hr = live?.latest.hrBpm;

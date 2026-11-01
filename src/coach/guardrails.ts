@@ -17,7 +17,7 @@ const DAY_MS = 86_400_000;
 export const estimateTss = (session: Session): number =>
   session.steps.reduce((sum, s) => sum + (s.durationS / 3600) * stepFtpFraction(s) ** 2 * 100, 0);
 
-/** Sanftes Programm: nach harter Fahrt, langer Pause oder ganz ohne Historie. */
+/** Gentle program: after a hard ride, a long break or with no history at all. */
 export const mustBeEasy = (ctx: CoachContext): boolean => {
   const hardRecently = ctx.summaries.some((r) => ctx.nowMs - r.startedAtMs < LIMITS.hardGapMs && (r.intensityFactor ?? 0) >= LIMITS.hardRideIf);
   return hardRecently || !!ctx.complaint || mustBeGentle(ctx);
@@ -32,7 +32,7 @@ export const tssCap = (ctx: CoachContext): number => {
   const single = Math.min(LIMITS.maxTss, Math.max(LIMITS.minTssCap, strongest * LIMITS.tssGrowth));
   return Math.min(single, Math.max(LIMITS.weekFloorTss, weekBudget(ctx)));
 };
-/** Was in den letzten 7 Tagen noch frei ist. Die Grenze wächst mit dem Schnitt der drei Wochen davor. */
+/** What is still available in the last 7 days. The limit grows with the average of the three weeks before. */
 const weekBudget = (ctx: CoachContext): number => {
   const age = (r: RideSummary) => ctx.nowMs - r.startedAtMs;
   const sum = (rs: RideSummary[]) => rs.reduce((a, r) => a + r.tss, 0);
@@ -54,7 +54,7 @@ const violation = (session: Session, ctx: CoachContext): string | null => {
       if (s.gradePct < LIMITS.minGrade || s.gradePct > LIMITS.maxGrade) return 'Steigung außerhalb von -5 bis 12 %.';
       if (s.scale < LIMITS.minScale || s.scale > LIMITS.maxScale) return 'Skalierung außerhalb von 0,5 bis 1,2.';
     }
-    // Bei Steigungen ist das eine Schätzung der Anstrengung, die gleichen Grenzen gelten trotzdem.
+    // For climbs this is an estimate of the effort, the same limits apply anyway.
     const f = stepFtpFraction(s);
     if (f > LIMITS.maxFraction) return 'Abschnitt über 130 % FTP.';
     if (s.durationS >= 5 * 60 && f > LIMITS.maxFractionFrom5Min) return 'Ab 5 Minuten höchstens 105 % FTP.';

@@ -28,7 +28,7 @@ input { font: inherit; padding: .6rem .7rem; border-radius: .5rem; border: 1px s
 .banner.info { background: #2c5a4a; }
 .notice { background: #38301a; color: #f0d9a8; padding: .7rem 1rem; border-radius: .6rem; font-size: .95rem; }
 
-/* Zentrierte Schritte: Profil, Bewertung */
+/* Centered steps: profile, rating */
 main.center { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; text-align: center; }
 .choices { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
 button.choice { font-size: 1.4rem; padding: 1.6rem 2.6rem; border-radius: 1.5rem; color: var(--text); background: var(--card); border: 1px solid var(--line); min-width: 12rem; }
@@ -59,7 +59,7 @@ summary { cursor: pointer; color: var(--muted); }
 .note-form input { flex: 1; }
 ul.changes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .5rem; font-size: .95rem; }
 
-/* Profil der Einheit */
+/* Session profile */
 .workout { position: relative; display: flex; align-items: flex-end; gap: 1px; height: 11vh; min-height: 50px; }
 .workout-step { flex: 1 1 0; min-width: 1px; border-radius: 2px 2px 0 0; opacity: .85; }
 .route { position: relative; height: 16vh; min-height: 90px; --down: #5f9ea0; --flat: #5b6f60; }
@@ -70,7 +70,7 @@ ul.changes { margin: 0; padding: 0; list-style: none; display: flex; flex-direct
 .route-climb { position: absolute; left: 0; top: 0; font-size: .8rem; color: var(--muted, #9aa0aa); }
 .workout-now { position: absolute; top: 0; bottom: 0; width: 3px; background: #fff; border-radius: 2px; box-shadow: 0 0 6px #000; }
 
-/* Fahrt: füllt das Fenster und ist vom Sattel aus lesbar */
+/* Ride: fills the window and is readable from the saddle */
 main.ride { max-width: none; height: 100%; padding: 1.2rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; }
 .ride-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .ride-head h2 { font-size: 2rem; }
@@ -88,7 +88,7 @@ b.high { color: var(--high); }
 .tile { background: var(--card); border-radius: .9rem; padding: .7rem 1.1rem; }
 .tile b { display: block; font-size: min(5vw, 9vh); line-height: 1.1; font-variant-numeric: tabular-nums; }
 
-/* Film-Modus */
+/* Film mode */
 main.film { padding: .5rem; height: 100%; display: flex; flex-direction: column; gap: .4rem; }
 .film-main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; min-height: 0; }
 .film-main > div { background: var(--card); border-radius: .6rem; padding: .4rem .6rem; display: flex; flex-direction: column; justify-content: center; }
@@ -169,29 +169,29 @@ main > section.card + section.card, main > .together + section.card { margin-top
 .greeting { color: var(--muted); margin-top: .2rem; }
 .leaf { margin-left: .4rem; }
 
-/* Statusleiste: auf jeder Seite, die Seite darunter nimmt den Rest des Fensters */
+/* Status bar: on every page, the page below takes the rest of the window */
 .shell { height: 100vh; display: flex; flex-direction: column; }
 .page { flex: 1; min-height: 0; overflow: auto; }
 .status-bar { flex: none; display: flex; justify-content: flex-end; align-items: center; gap: 1.4rem; padding: .35rem 1.6rem; background: var(--card); border-bottom: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
 .status-bar b { color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* Das Herz schlägt im gemessenen Takt, die Dauer kommt aus dem Puls */
+/* The heart beats at the measured rate, the duration comes from the heart rate */
 .heart { display: inline-block; color: var(--high); }
 .heart.beating { animation: heartbeat 1s ease-in-out infinite; }
 @keyframes heartbeat { 0%, 45%, 100% { transform: scale(1); } 15% { transform: scale(1.35); } 30% { transform: scale(.95); } }
 @media (prefers-reduced-motion: reduce) { .heart.beating { animation: none; } }
 
-/* Garmin-Verbindung auf der Profilseite */
+/* Garmin connection on the profile page */
 .garmin { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .garmin-form { margin-bottom: 1rem; }
 
-/* Geräte in der Statusleiste selbst trennen und verbinden */
+/* Disconnect and connect devices right in the status bar */
 .status-bar { flex-wrap: wrap; }
 .status-device { display: inline-flex; align-items: center; gap: .4rem; }
 .status-action { background: none; border: 1px solid var(--line); color: var(--muted); font-size: .75rem; padding: .1rem .45rem; border-radius: .35rem; cursor: pointer; }
 .status-action:hover { color: var(--text); }
 
-/* Gesundheitsseite: ein Diagramm je Messgröße, Akzentfarbe nur für die Daten */
+/* Health page: one chart per measure, accent color only for the data */
 .health-ranges { margin-bottom: 1rem; flex-wrap: wrap; }
 .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
 .trend { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: .6rem; padding: .8rem 1rem; }
@@ -212,7 +212,7 @@ main > .notice, main > .garmin { margin: 0 0 1rem; }
 .review-row input[type='checkbox'] { width: 1.1rem; height: 1.1rem; margin-bottom: .75rem; }
 .review-row .muted { margin-bottom: .65rem; }
 
-/* Wattbalken vorn, Höhenprofil dezent dahinter. */
+/* Watt bars in front, elevation profile subtly behind. */
 .workout.with-route { height: 16vh; min-height: 90px; }
 .workout.with-route .workout-step { position: relative; z-index: 1; opacity: .7; }
 .workout .route { position: absolute; inset: 0; height: auto; min-height: 0; opacity: .4; pointer-events: none; }
@@ -228,7 +228,7 @@ main > .notice, main > .garmin { margin: 0 0 1rem; }
 .hr-zone { display: block; font-size: .85rem; color: var(--muted, #9aa0aa); }
 .hr-zone.high { color: #e07a5f; font-weight: 700; }
 
-/* Startseite: zuerst die nächste Einheit, Nebensachen rechts, andere Trainings darunter. */
+/* Home page: the next session first, side matters on the right, other workouts below. */
 main.home { max-width: 1240px; padding: 1.2rem 2rem 2rem; }
 main.home .top { flex-wrap: wrap; gap: .6rem 1.5rem; margin-bottom: .7rem; }
 main.home .top h1 { font-size: 1.7rem; white-space: nowrap; }
@@ -244,16 +244,16 @@ main.home .top .row button { padding: .35rem .85rem; font-size: .9rem; }
 .garmin-later summary { cursor: pointer; color: var(--muted, #9aa0aa); }
 .garmin-later .card { padding: .8rem 0 0; background: none; }
 .garmin-later h3 { display: none; }
-/* Geräte-Knöpfe nur, wenn man sie braucht: Sie stehen sonst auf jeder Seite im Blick. */
+/* Device buttons only when needed: otherwise they sit in view on every page. */
 .status-action { opacity: 0; transition: opacity .15s; }
 .status-device:hover .status-action, .status-action:focus-visible { opacity: 1; }
 .stack .motivation { margin-bottom: 0; }
-/* Die Statusleiste zeigt die Geräte schon, zweimal ist nur Lärm. */
+/* The status bar already shows the devices, twice is just noise. */
 .ride-head .devices { display: none; }
 .card.garmin-later { padding: .7rem 1.4rem; }
 .garmin-later p { margin: .5rem 0; }
 
-/* Die Worte des Coachs sind eine eigene Botschaft, keine Unterzeile. */
+/* The coach's words are a message of their own, not a subtitle. */
 .encouragement { background: color-mix(in srgb, var(--accent) 16%, var(--card)); border-left: 5px solid var(--accent); border-radius: 1.3rem; padding: 1rem 1.4rem; margin-bottom: 1rem; }
 .encouragement-from { display: block; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: .25rem; }
 .encouragement .motivation-words { font-size: 1.5rem; line-height: 1.3; margin: 0; }

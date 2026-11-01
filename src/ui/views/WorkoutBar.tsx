@@ -9,7 +9,7 @@ const zone = (i: number): string => {
   return 'var(--z5)';
 };
 
-/** Breite ist Dauer, Höhe und Farbe sind die Belastung. Bei Steigungen liegt das Höhenprofil dezent dahinter. */
+/** Width is duration, height and color are the load. On climbs the elevation profile sits subtly behind. */
 export const WorkoutBar = ({ session, elapsedS, currentW }: { session: Session; elapsedS?: number; currentW?: number | null }) => {
   const total = session.steps.reduce((a, s) => a + s.durationS, 0);
   const max = Math.max(1.1, ...session.steps.map(stepFtpFraction));

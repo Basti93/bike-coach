@@ -8,7 +8,7 @@ import { RAMP_ID } from './guardrails';
 import type { Complaint, Motive } from './motivation';
 import { ruleBasedSession } from './rules';
 
-/** Kürzere Fahrten sind Probefahrten oder Fehlstarts und zählen nicht als Training (eigene Setzung). */
+/** Shorter rides are test rides or false starts and do not count as training (our own choice). */
 export const MIN_COUNTED_S = 300;
 
 export type Rating = 'easy' | 'right' | 'hard';
@@ -52,9 +52,9 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
   if (!fs.existsSync(f)) return initial(profileId, initialFtpW, nowMs);
   try {
     const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
-    // Der Rampentest ist nicht mehr Pflicht: Ältere Stände ohne Fahrt starten mit einer normalen Einheit.
+    // The ramp test is no longer mandatory: older states without a ride start with a normal session.
     if (s.next.session.id === RAMP_ID && s.summaries.length === 0) s.next = initial(profileId, s.ftpW, nowMs).next;
-    // Ältere Stände: Bereits gezählte Kurzfahrten herausnehmen und neu planen lassen.
+    // Older states: take out short rides that were already counted and have them replanned.
     const counted = s.summaries.filter((r) => r.durationS >= MIN_COUNTED_S);
     if (counted.length !== s.summaries.length) {
       if (s.awaitingFeedback && !counted.some((r) => r.rideId === s.awaitingFeedback)) s.awaitingFeedback = null;

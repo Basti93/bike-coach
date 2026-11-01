@@ -12,12 +12,12 @@ const isLimit = (text: string) => LIMIT.test(text) && !NOT_PLAN_LIMIT.test(text)
 const DEFAULT_TIMEOUT_MS = 180_000;
 const KILL_GRACE_MS = 2000;
 
-/** Aus dem Finder gestartete Apps kennen den PATH der Shell nicht. */
+/** Apps started from the Finder do not know the shell PATH. */
 export const findClaude = async (exec: (cmd: string) => Promise<string> = defaultExec): Promise<string> => {
   let out = '';
   try {
     out = await exec(`${process.env.SHELL ?? '/bin/zsh'} -lc 'command -v claude'`);
-  } catch { /* unten als fehlend gemeldet */ }
+  } catch { /* reported as missing below */ }
   const bin = out.trim().split('\n').pop() ?? '';
   if (!bin) throw new ClaudeError('missing', 'claude wurde nicht gefunden.');
   return bin;
@@ -32,7 +32,7 @@ const parseOutput = (stdout: string): ClaudeOutput | null => {
 export const askClaude = (input: {
   prompt: string; systemPrompt: string; schema: object; workDir: string; bin: string; timeoutMs?: number; model?: string; spawnFn?: typeof spawn;
 }): Promise<unknown> => new Promise((resolve, reject) => {
-  // Bewusst ohne --bare: Dieser Modus liest den Abo-Login nicht.
+  // Deliberately without --bare: that mode does not read the subscription login.
   const args = [
     '-p', input.prompt, '--system-prompt', input.systemPrompt,
     '--output-format', 'json', '--json-schema', JSON.stringify(input.schema),
@@ -58,7 +58,7 @@ export const askClaude = (input: {
   child.stderr?.on('data', (d) => { stderr += String(d); });
   child.on('error', (e: NodeJS.ErrnoException) => finish(() => reject(new ClaudeError(e.code === 'ENOENT' ? 'missing' : 'failed', e.message))));
   child.on('close', (code) => finish(() => {
-    // Erst das JSON auswerten: Eine gültige Antwort darf „Limit“ oder die Zahl 429 enthalten.
+    // Evaluate the JSON first: a valid answer may contain "limit" or the number 429.
     const parsed = parseOutput(stdout);
     if (code !== 0 || parsed?.is_error) {
       if (parsed?.subtype === 'error_max_structured_output_retries') return reject(new ClaudeError('invalid', 'Claude lieferte keine gültigen Daten.'));

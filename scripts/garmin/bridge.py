@@ -1,8 +1,8 @@
-"""Garmin-Anmeldung für die App. Spricht JSON-Zeilen über stdin und stdout.
+"""Garmin login for the app. Speaks JSON lines over stdin and stdout.
 
-Eingabe: {"tokens": Pfad, "check": Pfad, "email": ..., "password": ...}, später {"mfa": "123456"}.
-Ausgabe: {"status": "needs-mfa" | "connected" | "failed", "reason": ...}.
-Das Passwort kommt nur über stdin und wird nie gespeichert. Die Prüfdatei enthält nur Feldnamen.
+Input: {"tokens": path, "check": path, "email": ..., "password": ...}, later {"mfa": "123456"}.
+Output: {"status": "needs-mfa" | "connected" | "failed", "reason": ...}.
+The password arrives only over stdin and is never stored. The check file contains only field names.
 """
 import datetime
 import json
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 out = sys.stdout
-sys.stdout = sys.stderr  # Ausgaben der Bibliothek dürfen das Protokoll nicht stören.
+sys.stdout = sys.stderr  # Output from the library must not interfere with the protocol.
 
 
 def emit(**message) -> None:
@@ -28,7 +28,7 @@ def ask_mfa() -> str:
 
 
 def reason_for(error: Exception) -> str:
-    """Kurze Meldung für die Oberfläche, nie der rohe Fehlertext, der Anmeldedaten enthalten könnte."""
+    """Short message for the UI, never the raw error text, which could contain login credentials."""
     name = type(error).__name__
     text = str(error)
     if "TooManyRequests" in name or "429" in text:
@@ -64,7 +64,7 @@ def write_check(client, tokens: Path, target: Path) -> None:
     for key, probe in probes.items():
         try:
             result[key] = shape(probe())
-        except Exception as e:  # noqa: BLE001 - eine fehlende Datenart ist kein Abbruch
+        except Exception as e:  # noqa: BLE001 - a missing data type is no reason to abort
             result[key] = f"Fehler: {type(e).__name__}"
     target.write_text(json.dumps(result, indent=1, ensure_ascii=False))
     os.chmod(target, 0o600)
@@ -80,7 +80,7 @@ def main() -> None:
 
         client = Garmin(request["email"], request.pop("password"), prompt_mfa=ask_mfa)
         client.login(str(tokens))
-    except Exception as e:  # noqa: BLE001 - jeder Fehler endet als kurze Meldung
+    except Exception as e:  # noqa: BLE001 - every error ends as a short message
         emit(status="failed", reason=reason_for(e))
         return
     if not (tokens / "garmin_tokens.json").exists():
@@ -89,7 +89,7 @@ def main() -> None:
     emit(status="connected")
     try:
         write_check(client, tokens, Path(request["check"]))
-    except Exception:  # noqa: BLE001 - die Anmeldung gilt trotzdem
+    except Exception:  # noqa: BLE001 - the login still counts
         pass
 
 

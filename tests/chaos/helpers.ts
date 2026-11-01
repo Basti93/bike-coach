@@ -22,7 +22,7 @@ export const startService = async (dir: string): Promise<Svc> => {
   await new Promise<void>((resolve) => child.stdout!.once('data', () => resolve()));
   return { child, port };
 };
-/** SIGKILL auf die ganze Prozessgruppe, wie ein harter Absturz. */
+/** SIGKILL on the whole process group, like a hard crash. */
 export const hardKill = async (svc: Svc) => {
   process.kill(-svc.child.pid!, 'SIGKILL');
   await sleep(50);

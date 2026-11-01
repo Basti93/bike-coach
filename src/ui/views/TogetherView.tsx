@@ -3,7 +3,7 @@ import { TogetherCard } from './TogetherCard';
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 
-/** Die gemeinsame Übersicht: nur Zeit und Regelmäßigkeit, keine Watt. */
+/** The shared overview: only time and regularity, no watts. */
 export const TogetherView = ({ together, onBack }: { together: Together; onBack: () => void }) => {
   const max = Math.max(30, ...together.people.flatMap((p) => p.weeks));
   return (

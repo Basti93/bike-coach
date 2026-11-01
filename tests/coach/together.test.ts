@@ -5,7 +5,7 @@ import type { CoachState } from '../../src/coach/state';
 import { DUTCH_WORDS, learnedCount, nextWord, recordAnswer, type WordProgress } from '../../src/shared/language';
 
 const DAY = 86_400_000;
-const NOW = Date.UTC(2026, 9, 28, 12); // Mittwoch
+const NOW = Date.UTC(2026, 9, 28, 12); // Wednesday
 const person = (profileId: string, rides: { daysAgo: number; minutes: number; power?: number }[]) => ({
   profileId, wordProgress: {},
   summaries: rides.map((r, i) => ({ rideId: `${profileId}${i}`, startedAtMs: NOW - r.daysAgo * DAY, durationS: r.minutes * 60, avgPowerW: r.power ?? 100 })),

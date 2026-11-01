@@ -1,5 +1,5 @@
 #!/bin/sh
-# bike-coach: tägliche Sicherung der Datenbank, 14 Tage aufbewahren.
+# bike-coach: daily database backup, kept for 14 days.
 set -eu
 cd "$HOME/bike-coach"
 mkdir -p backups

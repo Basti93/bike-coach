@@ -9,7 +9,7 @@ let riding = false;
 let quitting = false;
 const STABLE_RUN_MS = 60_000;
 
-/** Fahrdienst und Coach laufen unabhängig von den Fenstern und voneinander, und jeder startet nach einem Absturz neu. */
+/** Ride service and coach run independently of the windows and of each other, and each restarts after a crash. */
 const supervise = (file: string, onMessage?: (m: { riding?: boolean }) => void, failures = { count: 0 }): UtilityProcess => {
   const startedAt = Date.now();
   const child = utilityProcess.fork(path.join(__dirname, file), [], {
@@ -43,11 +43,11 @@ const openMain = (): void => {
   });
 };
 
-// Der Datenordner hängt nicht am App-Namen: Die gepackte App und npm run dev nutzen dieselben Fahrten.
+// The data folder does not depend on the app name: the packaged app and npm run dev use the same rides.
 app.setName('Bike Coach');
 app.setPath('userData', path.join(app.getPath('appData'), 'bike-coach'));
 
-// Zwei Instanzen würden in dieselbe Fahrt schreiben.
+// Two instances would write to the same ride.
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -55,7 +55,7 @@ app.on('second-instance', () => {
 });
 
 void app.whenReady().then(() => {
-  // Ein fehlendes Bild darf den Start nie verhindern.
+  // A missing image must never prevent startup.
   const icon = nativeImage.createFromPath(path.join(app.getAppPath(), 'resources', 'icon.png'));
   if (!icon.isEmpty()) app.dock?.setIcon(icon);
   supervise('service.js', onServiceMessage);
@@ -63,7 +63,7 @@ void app.whenReady().then(() => {
   openMain();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) openMain(); });
 });
-// Das Schließen der Fenster beendet weder Dienst noch App, damit eine laufende Fahrt weiterläuft.
+// Closing the windows ends neither the service nor the app, so that a running ride continues.
 app.on('window-all-closed', () => { if (!riding && process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', (e) => {
   if (riding) {

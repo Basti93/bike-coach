@@ -1,5 +1,5 @@
-// Macht Screenshots aller wichtigen Zustände mit nachgestellten Daten. Rührt echte Daten und Geräte nicht an.
-// Aufruf: npm run build && npm run ui:shots -- <Zielordner>
+// Takes screenshots of all important states with mock data. Does not touch real data or devices.
+// Usage: npm run build && npm run ui:shots -- <target folder>
 import fs from 'node:fs';
 import path from 'node:path';
 import { _electron as electron } from 'playwright-core';

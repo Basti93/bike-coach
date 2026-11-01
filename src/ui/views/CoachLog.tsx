@@ -4,7 +4,7 @@ type Entry = { atMs: number; who: 'Du' | 'Coach'; text: string; reply?: string }
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
 
-/** Dein Gesagtes und was der Coach daraufhin getan hat, neueste zuerst. „Keine Änderung“ sagt nichts aus. */
+/** What you said and what the coach did in response, newest first. "Keine Änderung" says nothing. */
 export const coachLog = (notes: Note[], changes: Change[]): Entry[] => [
   ...notes.map((n): Entry => ({ atMs: n.atMs, who: 'Du', text: n.text, ...(n.reply ? { reply: n.reply } : {}) })),
   ...changes.filter((c) => !/^keine änderung/i.test(c.text.trim())).map((c): Entry => ({ atMs: c.atMs, who: 'Coach', text: c.text })),

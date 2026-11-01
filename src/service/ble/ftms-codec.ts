@@ -31,7 +31,7 @@ export const encodeSimulation = (gradePct: number): Buffer => {
   b[0] = 0x11;
   b.writeInt16LE(0, 1);
   b.writeInt16LE(Math.round(gradePct * 100), 3);
-  b[5] = 40; // Crr 0,004
-  b[6] = 51; // Cw 0,51
+  b[5] = 40; // Crr 0.004
+  b[6] = 51; // Cw 0.51
   return b;
 };

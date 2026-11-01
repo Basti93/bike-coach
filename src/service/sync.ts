@@ -4,7 +4,7 @@ import { readRide } from './recorder';
 
 const SYNC_TIMEOUT_MS = 10_000;
 
-/** Überträgt lokale Fahrten nachträglich. Fehler bleiben folgenlos; lokale Daten werden nie gelöscht. */
+/** Transfers local rides after the fact. Errors have no consequences; local data is never deleted. */
 export class SyncClient {
   private running = false;
   constructor(private opts: { baseUrl: string; token: string; dir: string; batchSize?: number }) {}
@@ -21,7 +21,7 @@ export class SyncClient {
             done.add(name);
             this.saveDone(done);
           }
-        } catch { /* Beim nächsten Lauf erneut; eine defekte Fahrt hält die anderen nicht auf. */ }
+        } catch { /* Try again on the next run; a broken ride does not hold up the others. */ }
       }
     } finally {
       this.running = false;
@@ -34,12 +34,12 @@ export class SyncClient {
   private saveDone(done: Set<string>): void { fs.writeFileSync(this.doneFile(), JSON.stringify([...done])); }
   private doneFile(): string { return path.join(this.opts.dir, 'synced.json'); }
 
-  /** Liefert true, wenn die Fahrt abgeschlossen und vollständig übertragen ist. */
+  /** Returns true if the ride is finished and completely transferred. */
   private async syncRide(rideId: string): Promise<boolean> {
     const { meta, samples, events } = readRide(this.opts.dir, rideId);
     const { lastSeq, eventCount } = (await (await this.call(`/rides/${rideId}/progress`)).json()) as { lastSeq: number; eventCount: number };
     await this.call(`/rides/${rideId}/meta`, 'PUT', meta);
-    if (meta.status === 'discarded') return true; // Der Server erfährt nur das Verwerfen, die Daten bleiben lokal.
+    if (meta.status === 'discarded') return true; // The server only learns about the discard, the data stays local.
     const missing = samples.filter((s) => s.seq > lastSeq);
     const size = this.opts.batchSize ?? 500;
     for (let i = 0; i < missing.length; i += size) {

@@ -4,7 +4,7 @@ import type { GarminActivity, GarminBody, GarminDay, GarminProgress } from '../s
 
 const DAY_MS = 86_400_000;
 const MAX_PLAUSIBLE_HR = 240;
-// Bike Coach schreibt seine FIT-Dateien mit dem Hersteller „development“.
+// Bike Coach writes its FIT files with the manufacturer "development".
 const OWN_MANUFACTURER = /^development$/i;
 
 type Raw = Record<string, unknown>;
@@ -54,7 +54,7 @@ const toActivity = (id: string, sport: string, a: Raw): GarminActivity => ({
 
 const gmt = (ms: number): string => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
-/** Liest die eigenständige Garmin-Datenbank, schreibt nie hinein und leitet alles aus den Rohdaten ab. */
+/** Reads the standalone Garmin database, never writes to it and derives everything from the raw data. */
 export class GarminDb {
   constructor(private file: string) {}
 

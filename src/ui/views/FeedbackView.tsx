@@ -11,9 +11,9 @@ type Props = {
 
 const value = (v: number | null, unit: string) => (v === null ? '–' : `${v} ${unit}`);
 
-/** Erst zeigen, wie die Fahrt lief, dann nach dem Gefühl fragen. */
+/** First show how the ride went, then ask how it felt. */
 export const FeedbackView = ({ profileId, rideId, send, together, summary, detail }: Props) => {
-  // Ohne send in den Abhängigkeiten: useCoach liefert es bei jedem Rendern neu, die Antwort würde endlos neu anfragen.
+  // Without send in the dependencies: useCoach returns a new one on every render, and the response would re-request endlessly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { send({ type: 'ride-detail', profileId, rideId }); }, [profileId, rideId]);
   const rate = (rating: 'easy' | 'right' | 'hard') => send({ type: 'feedback', profileId, rideId, rating });

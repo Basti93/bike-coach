@@ -1,4 +1,4 @@
-"""Prüft das Sync-Programm mit einem gefälschten Garmin-Zugang, ganz ohne Netz."""
+"""Tests the sync program against a fake Garmin client, with no network at all."""
 import datetime as dt
 import pathlib
 import sqlite3

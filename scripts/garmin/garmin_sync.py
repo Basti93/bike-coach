@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Spiegelt Garmin-Connect-Daten in eine eigenständige SQLite-Datenbank.
+"""Mirrors Garmin Connect data into a standalone SQLite database.
 
-Läuft allein, kennt keine Anwendung und speichert Rohdaten. Jeder Eintrag wird sofort
-festgeschrieben, der Stand je Datenstrom steht in sync_state: Ein Abbruch verliert höchstens
-den laufenden Eintrag, der nächste Lauf macht dort weiter. Schema und Aufruf: docs/garmin-data.md.
+Runs on its own, knows no application and stores raw data. Every entry is committed immediately,
+the position of each data stream is kept in sync_state: an abort loses at most the entry in
+progress, and the next run continues there. Schema and usage: docs/garmin-data.md.
 """
 import argparse
 import datetime as dt
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, star
 
 
 class Stop(Exception):
-    """Beendet den Lauf mit einem Exit-Code, Gespeichertes bleibt."""
+    """Ends the run with an exit code; what has been saved stays."""
 
     def __init__(self, code):
         super().__init__(code)
@@ -54,7 +54,7 @@ class Stop(Exception):
 
 
 def classify(error):
-    """auth und rate beenden den Lauf, abort ebenfalls ohne Versuch zu verbrauchen, item betrifft nur diesen Eintrag."""
+    """auth and rate end the run, abort does too without using up an attempt, item affects only this entry."""
     name = type(error).__name__
     status = getattr(getattr(error, "response", None), "status_code", None)
     if "TooManyRequests" in name or status in (427, 429):
@@ -69,7 +69,7 @@ def classify(error):
 
 
 def describe(error):
-    """Nur Art und Status, der Text könnte Anmeldedaten enthalten."""
+    """Only type and status; the text could contain login credentials."""
     status = getattr(getattr(error, "response", None), "status_code", None)
     return f"{type(error).__name__}:{status}" if status else type(error).__name__
 
@@ -86,7 +86,7 @@ def connect(db_path):
 
 
 def reset_stream(db_path, stream):
-    """Spult einen Datenstrom zurück. Daten bleiben, ein neuer Lauf überschreibt sie."""
+    """Rewinds a data stream. The data stays, a new run overwrites it."""
     if stream not in STREAMS:
         raise ValueError(f"Unbekannter Datenstrom: {stream}")
     con = connect(db_path)
@@ -120,10 +120,10 @@ class Sync:
         )
 
     def fetch(self, key, call):
-        """Holt einen Eintrag. Gibt (True, Wert) zurück oder merkt sich einen Einzelfehler."""
+        """Fetches one entry. Returns (True, value) or records a single-entry error."""
         try:
             value = call()
-        except Exception as error:  # noqa: BLE001 - classify entscheidet
+        except Exception as error:  # noqa: BLE001 - classify decides
             kind = classify(error)
             if kind == "rate":
                 self.set_state("pause", self.now() + PAUSE_S, False)
@@ -182,7 +182,7 @@ class Sync:
             self.sleep(PAGE_PAUSE_S)
 
     def catch_up(self):
-        """Erst alles Neue sammeln, dann von alt nach neu speichern: Ein Abbruch hinterlässt so keine Lücke."""
+        """Collect everything new first, then save from old to new: this way an abort leaves no gap."""
         fresh, offset = [], 0
         while True:
             items = self.page(offset)
@@ -229,7 +229,7 @@ class Sync:
         )
 
     def close_gap(self, floor):
-        """Holt Tage nach, die zwischen zwei Läufen liegen, etwa wenn der Rechner aus war. Gibt (genutzt, geschlossen) zurück."""
+        """Catches up on days between two runs, for example when the computer was off. Returns (used, closed)."""
         start = self.get_state("forward")[0] or self.con.execute("SELECT MAX(date) FROM daily").fetchone()[0]
         if not start:
             return 0, True
@@ -310,7 +310,7 @@ class Sync:
 
 
 def parse_day(value):
-    """Akzeptiert Datum mit oder ohne Uhrzeit sowie Millisekunden."""
+    """Accepts a date with or without a time, as well as milliseconds."""
     if isinstance(value, (int, float)) and value > 0:
         return dt.datetime.fromtimestamp(value / 1000, dt.timezone.utc).date()
     try:
@@ -353,7 +353,7 @@ def main():
     args = parser.parse_args()
 
     out = sys.stdout
-    sys.stdout = sys.stderr  # Ausgaben der Bibliothek dürfen die Fortschrittszeilen nicht stören.
+    sys.stdout = sys.stderr  # Output from the library must not interfere with the progress lines.
 
     def emit(**message):
         out.write(json.dumps(message) + "\n")
@@ -366,7 +366,7 @@ def main():
     client = Garmin()
     try:
         client.login(args.tokens)
-    except Exception as error:  # noqa: BLE001 - classify entscheidet
+    except Exception as error:  # noqa: BLE001 - classify decides
         kind = classify(error)
         emit(status="login-failed", kind=kind)
         return {"rate": EXIT_RATE, "auth": EXIT_REAUTH}.get(kind, EXIT_FAILED)

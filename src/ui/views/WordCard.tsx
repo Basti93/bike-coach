@@ -14,10 +14,10 @@ const speak = (text: string): void => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'nl-NL';
     window.speechSynthesis.speak(u);
-  } catch { /* Ohne Stimme bleibt die Karte lesbar. */ }
+  } catch { /* Without a voice the card stays readable. */ }
 };
 
-/** Vokabeln in ruhigen Phasen: Niederländisch hören, Deutsch sehen, per Klick oder Taste J/N antworten. */
+/** Vocabulary in calm phases: hear Dutch, see German, answer by click or the J/N key. */
 export const WordCard = ({ calm, state, send, click }: { calm: boolean; state: CoachState; send: (m: CoachClientMessage) => void; click: { dir: 'up' | 'down'; n: number } | null }) => {
   const [phase, setPhase] = useState<Phase>('ask');
   const [word, setWord] = useState<Word | null>(() => nextWord(DUTCH_WORDS, state.wordProgress ?? {}, Date.now()));
@@ -30,7 +30,7 @@ export const WordCard = ({ calm, state, send, click }: { calm: boolean; state: C
     last.current = word?.nl ?? last.current;
     setPhase('gap');
   };
-  // Erst abrufen, dann aufdecken: Das Nachdenken ist der Teil, der beim Lernen wirkt.
+  // Recall first, then reveal: the thinking is the part that makes learning work.
   const answer = (knew: boolean) => {
     if (!calm || phase !== 'reveal' || !word) return;
     send({ type: 'word-result', profileId: state.profileId, nl: word.nl, knew });
@@ -54,10 +54,10 @@ export const WordCard = ({ calm, state, send, click }: { calm: boolean; state: C
       }
     }, after);
     return () => clearTimeout(timer);
-    // Der Ablauf hängt nur an Phase und Wort, neue Coach-Stände sollen ihn nicht neu starten.
+    // The sequence depends only on phase and word, new coach states should not restart it.
   }, [phase, word, hidden, sound, calm]);
 
-  // Beim Ausschalten darf kein angefangenes Wort weiterlaufen.
+  // When switching off, no word in progress may keep running.
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
   useEffect(() => {
     if (click && click.n !== seenClick.current) {

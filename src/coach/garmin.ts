@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { GarminStatus } from '../shared/coach-protocol';
 
-const TIMEOUT_MS = 5 * 60_000; // Reicht auch, um den Zwei-Faktor-Code zu holen.
+const TIMEOUT_MS = 5 * 60_000; // Also long enough to fetch the two-factor code.
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 
 type Options = { baseDir: string; python: string; script: string; onUpdate: () => void; spawnFn?: typeof spawn; timeoutMs?: number };
 type Running = { child: ReturnType<typeof spawn>; timer: ReturnType<typeof setTimeout> };
 
-/** Hält die Garmin-Anmeldung pro Profil. Das Passwort geht nur über stdin an das Hilfsprogramm und bleibt hier nirgends liegen. */
+/** Holds the Garmin login per profile. The password goes to the helper program only over stdin and is not kept anywhere here. */
 export class GarminLink {
   private states = new Map<string, GarminStatus>();
   private running = new Map<string, Running>();
@@ -54,16 +54,16 @@ export class GarminLink {
           const m = JSON.parse(line) as { status?: string; reason?: 'credentials' | 'rate-limit' | 'failed' };
           if (m.status === 'needs-mfa') this.set(profileId, { state: 'needs-mfa' });
           if (m.status === 'connected') {
-            // Das Hilfsprogramm darf danach noch die Prüfdatei schreiben, nur der Zeitgeber endet hier.
+            // The helper program may still write the check file after this, only the timer ends here.
             finish({ state: 'connected' });
           }
           if (m.status === 'failed') finish({ state: 'failed', reason: m.reason ?? 'failed' });
-        } catch { /* keine Protokollzeile */ }
+        } catch { /* not a protocol line */ }
       }
     });
     child.on('error', () => finish({ state: 'failed', reason: 'setup' }));
     child.on('close', () => finish({ state: 'failed', reason: 'failed' }));
-    child.stdin?.on('error', () => { /* Prozess schon beendet, close meldet den Fehler */ });
+    child.stdin?.on('error', () => { /* process already ended, close reports the error */ });
     child.stdin?.write(`${JSON.stringify({
       tokens: this.tokens(profileId),
       check: path.join(this.opts.baseDir, `login-check-${profileId}.json`),

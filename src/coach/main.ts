@@ -64,7 +64,7 @@ const pushToServer = (s: CoachState): void => {
   if (lastSynced.get(s.profileId) === body) return;
   fetch(`${syncUrl}/profiles/${encodeURIComponent(s.profileId)}/coach`, {
     method: 'PUT', body, headers: { authorization: `Bearer ${syncToken}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(10_000),
-  }).then((r) => { if (r.ok) lastSynced.set(s.profileId, body); }).catch(() => { /* beim nächsten Lauf erneut */ });
+  }).then((r) => { if (r.ok) lastSynced.set(s.profileId, body); }).catch(() => { /* try again on the next run */ });
 };
 
 const garminDir = path.join(dir, '..', 'garmin');
@@ -122,7 +122,7 @@ const publish = (): void => {
     try {
       const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
-    } catch { /* Profil oder Verbindung weg */ }
+    } catch { /* profile or connection gone */ }
   }
 };
 const refresh = (profileId: string): void => {
@@ -135,7 +135,7 @@ wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
       const m = JSON.parse(String(raw)) as CoachClientMessage;
-      // Anmeldedaten werden nur weitergereicht, nie gespeichert oder zurückgesendet.
+      // Login credentials are only passed on, never stored or sent back.
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); return; }
@@ -159,7 +159,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'remove-rule') coach.removeRule(m.profileId, m.atMs);
       if (m.type === 'word-result') coach.wordResult(m.profileId, m.nl, m.knew);
       publish();
-    } catch { /* ungültige Nachricht ignorieren */ }
+    } catch { /* ignore invalid message */ }
   });
   socket.on('close', () => { subs.delete(socket); lastSent.delete(socket); });
   socket.on('error', () => { subs.delete(socket); lastSent.delete(socket); });
@@ -180,8 +180,8 @@ const scan = (): void => {
       if (s.lastError && s.lastAttemptMs && now - s.lastAttemptMs < RETRY_MS) continue;
       refresh(p.id);
     }
-    // Eigene Absicherung: Der Abruf darf den Coach-Lauf nie stören.
-    for (const p of list) { try { garminSync.tick(p.id); } catch { /* beim nächsten Lauf erneut */ } }
+    // Separate safeguard: the fetch must never disturb the coach run.
+    for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();
   } catch (e) {
     console.error('Coach-Lauf fehlgeschlagen', e);
