@@ -11,6 +11,7 @@
     "probe": "tsx scripts/ble-probe.ts",
     "test": "vitest run --exclude 'tests/chaos/**'",
     "test:chaos": "vitest run tests/chaos",
+    "test:garmin": "python3 -m unittest discover -s scripts/garmin",
     "typecheck": "tsc --noEmit",
     "coach:check": "tsx scripts/coach-check.ts",
     "ui:shots": "tsx scripts/ui-shots/run.ts",
