@@ -6,6 +6,14 @@ The code and docs are in English. The app's interface and coach texts are in Ger
 
 Top rule: A ride is never lost. A ride depends neither on the internet, the home server or the AI, nor on the interface.
 
+## Screenshots
+
+With made-up demo data.
+
+| Start page with coach | During a ride | Shared overview |
+|---|---|---|
+| ![Start page with the next session and the coach](docs/images/coach.png) | ![Ride screen with power target, power and heart rate](docs/images/ride.png) | ![Shared overview of two riders](docs/images/together.png) |
+
 ## What the app does
 
 - **Riding:** Power targets on the trainer, climb segments with a gentle start, live heart rate and cadence, an overview with charts after the ride, FIT export.
