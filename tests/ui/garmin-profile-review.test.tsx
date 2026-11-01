@@ -76,3 +76,30 @@ test('an estimate is not presented as a value from Garmin, and the sex reads in 
   expect(document.body.textContent).not.toContain('Garmin: 140');
   expect((screen.getByLabelText('Geschlecht') as HTMLInputElement).value).toBe('Mann');
 });
+test('an invalid selected value blocks taking over, so nothing is half saved', () => {
+  const { sendRide, sendCoach, onBack } = view();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'FTP übernehmen' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Gewicht übernehmen' }));
+  fireEvent.change(screen.getByLabelText('Gewicht'), { target: { value: '70 kg' } });
+  expect((screen.getByRole('button', { name: 'Übernehmen' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole('alert').textContent).toContain('Gewicht');
+  take();
+  expect(sendRide).not.toHaveBeenCalled();
+  expect(sendCoach).not.toHaveBeenCalled();
+  expect(onBack).not.toHaveBeenCalled();
+});
+test('an invalid value that is not selected does not block', () => {
+  view();
+  fireEvent.change(screen.getByLabelText('FTP'), { target: { value: '' } });
+  expect((screen.getByRole('button', { name: 'Übernehmen' }) as HTMLButtonElement).disabled).toBe(false);
+});
+test('a wrong date and a too low FTP are refused', () => {
+  view();
+  fireEvent.change(screen.getByLabelText('Geburtsdatum'), { target: { value: 'gestern' } });
+  expect(screen.getByRole('alert').textContent).toContain('Geburtsdatum');
+  cleanup();
+  view();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'FTP übernehmen' }));
+  fireEvent.change(screen.getByLabelText('FTP'), { target: { value: '20' } });
+  expect(screen.getByRole('alert').textContent).toContain('FTP');
+});

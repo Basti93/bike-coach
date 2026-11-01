@@ -6,3 +6,5 @@ out/
 .env
 server/data/
 server/tailscale-state/
+
+__pycache__/

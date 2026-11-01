@@ -39,7 +39,19 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
   const [values, setValues] = useState<Partial<Record<ReviewKey, string>>>(() => Object.fromEntries(fields.map((f) => [f.key, f.garmin])));
   const number = (key: ReviewKey): number => Number((values[key] ?? '').trim().replace(',', '.'));
 
+  const inRange = (key: ReviewKey, min: number, max: number): boolean => number(key) >= min && number(key) <= max;
+  const invalid = fields.filter((f) => selected[f.key] && !({
+    birthDate: /^\d{4}-\d{2}-\d{2}$/.test(values.birthDate ?? '') && !Number.isNaN(Date.parse(values.birthDate ?? '')),
+    sex: true,
+    heightCm: inRange('heightCm', 120, 230),
+    weightKg: inRange('weightKg', 30, 250),
+    ftpW: inRange('ftpW', 50, 1000),
+    maxHrBpm: inRange('maxHrBpm', 80, 240),
+  })[f.key]).map((f) => f.label);
+
   const take = () => {
+    // Erst alles prüfen: Sonst stünde die FTP schon im Coach, während das Profil abgelehnt wird.
+    if (invalid.length) return;
     const next: Profile = { ...profile };
     for (const f of fields) {
       if (!selected[f.key]) continue;
@@ -73,9 +85,10 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
         {selected.ftpW && suggestion.ftp?.source === 'rides' && <p className="notice" role="status">Aus deiner stärksten längeren Fahrt des letzten Jahres. Deine echte FTP kann höher liegen, ein Rampentest zeigt es genauer.</p>}
         {selected.ftpW && suggestion.ftp?.source === 'estimate' && <p className="notice" role="status">Das ist eine vorsichtige Schätzung, weil Garmins FTP fehlt oder veraltet ist.</p>}
         {suggestion.missing.length > 0 && <p className="muted">Garmin liefert nicht: {suggestion.missing.join(', ')}. Das kannst du unter „Profil bearbeiten“ eintragen.</p>}
+        {invalid.length > 0 && <p className="notice" role="alert">Bitte prüfen: {invalid.join(', ')}.</p>}
         <p className="muted">Die Pulsgrenze stammt aus deinen höchsten gemessenen Werten und ist keine medizinische Grenze.</p>
         <div className="row">
-          <button onClick={take}>Übernehmen</button>
+          <button onClick={take} disabled={invalid.length > 0}>Übernehmen</button>
           <button className="secondary" onClick={onBack}>Abbrechen</button>
         </div>
       </section>

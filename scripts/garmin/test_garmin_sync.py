@@ -284,6 +284,42 @@ class SyncTest(unittest.TestCase):
         gs.run_sync(Fake(first="2020-01-01"), fresh, TODAY, options, sleep=lambda _s: None, emit=lambda **m: lines.append(m), now=lambda: self.now)
         self.assertFalse(lines[-1]["complete"])
 
+    def later_run(self, client, days, **limits):
+        options = {"max_days": 30, "max_files": 20, "force": False, **limits}
+        return gs.run_sync(client, self.db, TODAY + dt.timedelta(days=days), options, sleep=lambda _s: None, emit=lambda **_m: None, now=lambda: self.now)
+
+    def test_days_missed_while_the_mac_was_off_are_fetched(self):
+        fake = Fake()
+        self.run_sync(fake)
+        self.later_run(fake, 10)
+        dates = {r[0] for r in self.rows("SELECT DISTINCT date FROM daily")}
+        expected = {(TODAY + dt.timedelta(days=i)).isoformat() for i in range(0, 11)}
+        self.assertEqual(expected - dates, set())
+        self.assertEqual(self.state("daily")[1], 1)
+
+    def test_a_long_absence_is_closed_in_batches_and_not_complete_before(self):
+        fake = Fake()
+        self.run_sync(fake)
+        self.later_run(fake, 60, max_days=20)
+        self.assertEqual(self.state("daily")[1], 0)
+        self.later_run(fake, 60, max_days=20)
+        self.later_run(fake, 60, max_days=20)
+        dates = {r[0] for r in self.rows("SELECT DISTINCT date FROM daily")}
+        expected = {(TODAY + dt.timedelta(days=i)).isoformat() for i in range(0, 61)}
+        self.assertEqual(expected - dates, set())
+        self.assertEqual(self.state("daily")[1], 1)
+
+    def test_an_abort_while_closing_the_gap_resumes_there(self):
+        fake = Fake()
+        self.run_sync(fake)
+        fake.fail["stats:2026-11-05"] = GarminConnectConnectionError("Netz weg")
+        self.assertEqual(self.later_run(fake, 10), 12)
+        fake.fail.clear()
+        self.assertEqual(self.later_run(fake, 10), 0)
+        dates = {r[0] for r in self.rows("SELECT DISTINCT date FROM daily")}
+        self.assertIn("2026-11-05", dates)
+        self.assertIn("2026-11-07", dates)
+
     def test_a_singleton_is_stored_as_raw_json(self):
         self.run_sync(Fake())
         names = {r[0] for r in self.rows("SELECT name FROM singletons")}

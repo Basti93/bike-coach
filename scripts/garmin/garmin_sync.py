@@ -94,6 +94,8 @@ def reset_stream(db_path, stream):
         prefix = {"daily": "daily|", "files": "file|", "activities": "none|"}[stream]
         con.execute("DELETE FROM fetch_errors WHERE key LIKE ?", (f"{prefix}%",))
         con.execute("DELETE FROM sync_state WHERE stream = ?", (stream,))
+        if stream == "daily":
+            con.execute("DELETE FROM sync_state WHERE stream = 'forward'")
     finally:
         con.close()
 
@@ -226,23 +228,41 @@ class Sync:
             (date, endpoint, json.dumps(value), self.stamp()),
         )
 
+    def close_gap(self, floor):
+        """Holt Tage nach, die zwischen zwei Läufen liegen, etwa wenn der Rechner aus war. Gibt (genutzt, geschlossen) zurück."""
+        start = self.get_state("forward")[0] or self.con.execute("SELECT MAX(date) FROM daily").fetchone()[0]
+        if not start:
+            return 0, True
+        day = dt.date.fromisoformat(start) + dt.timedelta(days=1)
+        used = 0
+        while day < floor and used < self.options["max_days"]:
+            self.fetch_day(day)
+            self.set_state("forward", day.isoformat(), False)
+            day += dt.timedelta(days=1)
+            used += 1
+        return used, day >= floor
+
     def daily(self):
+        floor = self.today - dt.timedelta(days=RECENT_DAYS - 1)
+        used, closed = self.close_gap(floor)
         for back in range(RECENT_DAYS):
             self.fetch_day(self.today - dt.timedelta(days=back))
-        floor = self.today - dt.timedelta(days=RECENT_DAYS - 1)
+        if closed:
+            self.set_state("forward", self.today.isoformat(), True)
         cursor_text = self.get_state("daily")[0]
         cursor = dt.date.fromisoformat(cursor_text) if cursor_text else floor
         first = self.first_day() or floor
-        done = 0
+        done = used
         while cursor > first and done < self.options["max_days"]:
             day = cursor - dt.timedelta(days=1)
             self.fetch_day(day)
             cursor = day
             done += 1
-            self.set_state("daily", cursor.isoformat(), cursor <= first)
+            self.set_state("daily", cursor.isoformat(), closed and cursor <= first)
             self.emit(stream="daily", cursor=cursor.isoformat())
-        self.set_state("daily", cursor.isoformat(), cursor <= first)
-        return cursor <= first
+        complete = closed and cursor <= first
+        self.set_state("daily", cursor.isoformat(), complete)
+        return complete
 
     def download(self, activity_id):
         kinds = getattr(self.client, "ActivityDownloadFormat", None)

@@ -20,7 +20,7 @@ Exit-Codes: `0` fertig, `10` Neuanmeldung nötig, `11` Sperre, `12` sonstiger Fe
 
 ## Ablauf
 
-Ein Lauf holt Profil, FTP und Geräte, dann die Aktivitäten, dann die letzten 3 Tage und ältere Tage, zuletzt Original-Dateien. Tage warten, bis alle Aktivitäten da sind, Dateien warten auf alle Tage. Jeder Eintrag wird sofort gespeichert. Der Lauf ist beliebig wiederholbar und setzt am Stand aus `sync_state` fort. Ein fehlender Einzelwert steht in `fetch_errors` und wird höchstens 3-mal versucht.
+Ein Lauf holt Profil, FTP und Geräte, dann die Aktivitäten, dann die letzten 3 Tage und ältere Tage, zuletzt Original-Dateien. Tage warten, bis alle Aktivitäten da sind, Dateien warten auf alle Tage. Jeder Eintrag wird sofort gespeichert. Der Lauf ist beliebig wiederholbar und setzt am Stand aus `sync_state` fort. Tage, die zwischen zwei Läufen liegen, etwa weil der Rechner aus war, holt der Strom `forward` nach. Ein fehlender Einzelwert steht in `fetch_errors` und wird höchstens 3-mal versucht.
 
 ## Tabellen
 
