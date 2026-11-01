@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
-import { stepTargetZone, zoneOf } from '../../shared/hr-zones';
+import { stepTargetZone, zoneBounds, zoneOf } from '../../shared/hr-zones';
+import { beep, beepsAt, saveSoundEnabled, soundEnabled } from '../countdown';
 import { WorkoutBar } from './WorkoutBar';
 
 const WARN_BEFORE_S = 15;
@@ -26,6 +27,11 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
     return () => window.removeEventListener('keydown', onKey);
   });
   const { engine, latest, devices, session } = state;
+  const [sound, setSound] = useState(soundEnabled);
+  const secondsToNext = engine?.secondsToNext;
+  // Only the main window sounds, the film window runs alongside it.
+  const beepNow = !compact && sound && !!engine && beepsAt(engine.secondsToNext, engine);
+  useEffect(() => { if (beepNow && secondsToNext !== undefined) beep(secondsToNext); }, [secondsToNext, beepNow]);
   if (!engine) return null;
   const target = value(engine.targetW);
   const warn = engine.nextLabel && engine.secondsToNext <= WARN_BEFORE_S;
@@ -36,6 +42,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
   const hr = latest.hrBpm;
   const zone = hrMaxBpm && hr ? zoneOf(hr, hrMaxBpm) : null;
   const zoneTarget = step ? stepTargetZone(step) : null;
+  const holdZone = step?.kind === 'erg' && step.hrHold && step.hrZone && hrMaxBpm ? zoneBounds(step.hrZone, hrMaxBpm) : null;
   const banners = (
     <>
       {state.storageError && <div className="banner danger" role="alert">Speichern schlägt gerade fehl. Die Fahrt läuft weiter, bitte Speicherplatz prüfen.</div>}
@@ -76,6 +83,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
       {devices.trainer !== 'connected' && <div className="banner warn" role="status">Trainer wird gesucht. Die Fahrt läuft weiter und ist gespeichert.</div>}
       {hrMaxBpm !== undefined && devices.hr !== 'connected' && <div className="banner info" role="status">Kein Puls, die Fahrt läuft nach Watt weiter.</div>}
       {engine.autoReducedPct > 0 && <div className="banner info" role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</div>}
+      {holdZone && step?.hrZone && <div className="banner info" role="status">Die Watt folgen deinem Puls: Zone {step.hrZone}, {holdZone.fromBpm} bis {holdZone.toBpm} bpm.</div>}
       {extra}
       <section className="hero">
         <div className="hero-tile">
@@ -98,6 +106,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: -5 })}>Leichter −5 %</button>
         <button className="secondary" onClick={() => send({ type: 'adjust', deltaPct: 5 })}>Härter +5 %</button>
         <button className="secondary" onClick={() => window.open('#film', 'film')}>Film-Modus</button>
+        <button className="secondary" onClick={() => { saveSoundEnabled(!sound); setSound(!sound); }}>Ton: {sound ? 'an' : 'aus'}</button>
         {tools}
         <span className="spacer" />
         <button className="ghost" onClick={() => setEnding(true)}>Beenden</button>

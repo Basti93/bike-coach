@@ -24,7 +24,7 @@ export const App = () => {
   const ride = useRide();
   return (
     <div className="shell">
-      <StatusBar state={ride.state} connected={ride.connected} send={ride.send} />
+      <StatusBar state={ride.state} connected={ride.connected} send={ride.send} reportPath={ride.reportPath} />
       <div className="page"><Page ride={ride} /></div>
     </div>
   );
@@ -79,7 +79,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       {notice}
       {profile
         ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
-          ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
+          ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
           : <CoachView onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>

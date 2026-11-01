@@ -8,6 +8,7 @@ import { parseSession, type Session } from '../shared/session';
 import { DeviceManager, type DeviceStatus, type Reading } from './ble/device-manager';
 import type { BlePort } from './ble/device-port';
 import { RideEngine } from './engine';
+import type { Diagnostics } from './diagnostics';
 import { exportFit } from './export/fit';
 import { readRide, RideRecorder } from './recorder';
 import { findOpenRides, resumePoint } from './recovery';
@@ -26,7 +27,7 @@ const CRASH_GAP_MS = 5000;
 const LONG_DOWNTIME_MS = 5 * 60 * 1000;
 const RIDE_ID = /^ride-[\w-]+$/;
 const checkRideId = (id: string): void => { if (!RIDE_ID.test(id)) throw new Error('Ungültige Fahrt-ID.'); };
-type Deps = { dir: string; ble: BlePort; nowMs: () => number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void; onRideStart?: () => void };
+type Deps = { dir: string; ble: BlePort; nowMs: () => number; retryMs?: number; recorderFs?: typeof fs; onLive?: (line: object) => void; onRideChange?: (riding: boolean) => void; onRideStart?: () => void; diagnostics?: Diagnostics };
 
 export class RideService {
   private devices: DeviceManager;
@@ -128,6 +129,16 @@ export class RideService {
         this.broadcastState();
         return;
       }
+      case 'problem-report': {
+        // In the background: the ride tick does not wait for it.
+        const report = this.deps.diagnostics?.report(msg.note, { devices: this.devices.getStatus(), names: this.devices.getNames(), ride: a?.recorder.getMeta() ?? null, engine: a?.engine.state() ?? null });
+        if (!report) throw new Error('Das Protokoll läuft gerade nicht.');
+        void report.then(
+          (file) => this.broadcast({ type: 'report-saved', path: file }),
+          () => this.broadcast({ type: 'error', message: 'Der Problembericht konnte nicht gespeichert werden.' }),
+        );
+        return;
+      }
       case 'save-profile': {
         const profile = parseProfile(msg.profile);
         const others = this.profiles().filter((x) => x.id !== profile.id);
@@ -144,6 +155,7 @@ export class RideService {
   private onDeviceStatus(status: DeviceStatus): void {
     const prev = this.deviceStatus;
     this.deviceStatus = status;
+    this.guard(() => this.deps.diagnostics?.write('status', status));
     for (const kind of ['trainer', 'hr'] as const) {
       if (prev[kind] === status[kind]) continue;
       if (status[kind] !== 'connected') {

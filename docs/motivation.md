@@ -10,7 +10,7 @@ As of 2026-11-01, from a short search through summaries; I did not read the full
 
 ## Own settings, not evidenced
 
-- No streak that can break. The evidence on streaks is mixed (they can encourage repeated behaviour, a break can demotivate), and the sources found are weak.
+- No streak in the coach's words. The evidence on streaks is mixed (they can encourage repeated behaviour, a break can demotivate), and the sources found are weak. The shared overview keeps the streak as a quiet number by the owners' choice and shows a dash rather than a zero.
 - At most one question every 3 days, repetition after 90 days, always skippable.
 - Open complaint: segments only up to 75% FTP until the person ends it themselves. Detection by keywords can be wrong; a false alarm costs one click.
 

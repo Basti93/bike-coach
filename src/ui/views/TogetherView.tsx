@@ -13,6 +13,16 @@ export const TogetherView = ({ together, onBack }: { together: Together; onBack:
         <button className="ghost" onClick={onBack}>Zurück</button>
       </div>
       <TogetherCard together={together} />
+      {together.summits.length > 0 && (
+        <section className="card" data-testid="summits">
+          <h3>Euer Gipfelbuch</h3>
+          <ul className="rides">
+            {[...together.summits].reverse().map((s) => (
+              <li key={s.name} className="summit"><b>{s.name}</b><span>gemeinsam erreicht am {new Date(s.atMs).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}</span></li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="card">
         <h3>Die letzten 12 Wochen</h3>
         <table className="rhythm">

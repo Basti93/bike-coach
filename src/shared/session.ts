@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const base = { durationS: z.number().positive(), label: z.string(), hrZone: z.number().int().min(1).max(5).optional() };
 const stepSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('erg'), ftpFraction: z.number().positive(), ...base }),
+  z.object({ kind: z.literal('erg'), ftpFraction: z.number().positive(), hrHold: z.boolean().optional(), ...base }),
   z.object({ kind: z.literal('grade'), gradePct: z.number(), scale: z.number().positive(), sudden: z.boolean().optional(), ...base }),
 ]);
 const sessionSchema = z.object({ id: z.string().min(1), name: z.string(), description: z.string().optional(), steps: z.array(stepSchema).min(1) });

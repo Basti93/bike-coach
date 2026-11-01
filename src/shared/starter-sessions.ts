@@ -30,4 +30,9 @@ export const STARTER_SESSIONS: Session[] = [
     { kind: 'grade', durationS: min(10), gradePct: 6, scale: 1, label: 'Zweiter Anstieg' },
     { kind: 'erg', durationS: min(8), ftpFraction: 0.45, label: 'Ausrollen' },
   ] },
+  { id: 'puls-40', name: 'Puls halten, 40 Minuten', description: 'Die Watt folgen langsam deinem Puls, damit du in Zone 2 bleibst. Braucht den Pulsgurt und einen Maximalpuls im Profil.', steps: [
+    { kind: 'erg', durationS: min(8), ftpFraction: 0.45, label: 'Warmup' },
+    { kind: 'erg', durationS: min(27), ftpFraction: 0.55, label: 'Puls halten', hrZone: 2, hrHold: true },
+    { kind: 'erg', durationS: min(5), ftpFraction: 0.45, label: 'Ausrollen' },
+  ] },
 ];

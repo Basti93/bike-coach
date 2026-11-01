@@ -1,5 +1,6 @@
 import type { DeviceKind } from '../../service/ble/device-port';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
+import { ProblemReport } from './ProblemReport';
 
 const DEVICES: { kind: DeviceKind; label: string; id: string }[] = [
   { kind: 'trainer', label: 'Trainer', id: 'status-trainer' },
@@ -15,7 +16,7 @@ const deviceText = (live: StateMessage | null, kind: DeviceKind): string => {
 };
 
 /** Visible on every page. Without a connection to the service it shows no old values. */
-export const StatusBar = ({ state, connected, send }: { state: StateMessage | null; connected: boolean; send?: (m: ClientMessage) => void }) => {
+export const StatusBar = ({ state, connected, send, reportPath = null }: { state: StateMessage | null; connected: boolean; send?: (m: ClientMessage) => void; reportPath?: string | null }) => {
   const live = connected ? state : null;
   const hr = live?.latest.hrBpm;
   const beating = !!hr && hr > 0;
@@ -33,6 +34,7 @@ export const StatusBar = ({ state, connected, send }: { state: StateMessage | nu
             : !(kind === 'trainer' && live.engine) && <button className="status-action" aria-label={`${label} trennen`} onClick={() => send({ type: 'device-disconnect', kind })}>Trennen</button>)}
         </span>
       ))}
+      {live && send && <ProblemReport send={send} reportPath={reportPath} />}
     </div>
   );
 };

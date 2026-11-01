@@ -9,7 +9,7 @@ import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
 import { garminPromptData, readinessFrom, type GarminCoachData } from './readiness';
-import { cleanSamples, loadModel, summarizeRide } from './metrics';
+import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide } from './metrics';
 import { complaintFromNote, type ComplaintStatus } from './motivation';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
@@ -108,6 +108,24 @@ export class Coach {
     for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-')).sort(byStart)) {
       try { this.scanRide(name); } catch { /* skip a broken ride, try again on the next run */ }
     }
+    for (const s of this.states.values()) this.backfillInsights(s);
+  }
+
+  /** Rides from before the power curve existed get their values once. An unreadable ride stays as it is. */
+  private backfillInsights(s: CoachState): void {
+    let changed = false;
+    for (const r of s.summaries) {
+      if (r.powerCurve) continue;
+      try {
+        const { samples } = cleanSamples(readRide(this.deps.ridesDir, r.rideId).samples);
+        const { session } = JSON.parse(fs.readFileSync(path.join(this.deps.ridesDir, r.rideId, 'session.json'), 'utf8')) as { session: Session };
+        r.powerCurve = powerCurveOf(samples.flatMap((x) => (x.powerW === null ? [] : [x.powerW])));
+        const onTarget = onTargetPctOf(samples, session);
+        if (onTarget !== undefined) r.onTargetPct = onTarget;
+        changed = true;
+      } catch { /* try again on the next run */ }
+    }
+    if (changed) saveState(this.deps.coachDir, s);
   }
 
   feedback(profileId: string, rideId: string, rating: Rating): void {

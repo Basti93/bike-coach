@@ -18,8 +18,10 @@ With made-up demo data.
 
 - **Riding:** Power targets on the trainer, climb segments with a gentle start, live heart rate and cadence, an overview with charts after the ride, FIT export.
 - **Coach:** Plans the next session within fixed guardrails, responds to notes, remembers complaints and motivations. Without AI, a rule set takes over.
-- **Heart rate:** Five zones from maximum heart rate, display during the ride, power reduction in segments with a set zone. Heart rate only lowers the target, it never raises it.
+- **Heart rate:** Five zones from maximum heart rate, display during the ride and power reduction in segments with a set zone. In a session that holds a heart rate, the power follows it slowly within narrow limits.
+- **Progress:** Best power per duration, training load, and a comparison only with your own similar rides: same power, fewer beats.
 - **Garmin (optional):** Recovery, other sports and profile values from Garmin Connect. The access is unofficial and can break at any time.
+- **Troubleshooting:** A local log of the last three days and a problem report that stays on your Mac.
 - **More:** Dutch vocabulary in quiet phases, multiple profiles, a shared overview, movie mode.
 
 The training recommendations are not medical advice. Limits and own settings are described in [`docs/hr-zones.md`](docs/hr-zones.md), [`docs/motivation.md`](docs/motivation.md) and [`docs/ftp-estimate.md`](docs/ftp-estimate.md).
@@ -63,7 +65,7 @@ npm run typecheck
 
 ## Data
 
-Everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
+Everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, the device log under `rides/diagnostics/`, problem reports under `rides/reports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
 
 The app does not back up this local data. The scripts under `server/mac/` only fetch the server's backups.
 

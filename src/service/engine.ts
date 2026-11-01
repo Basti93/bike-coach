@@ -15,6 +15,13 @@ const AUTO_STEP_PCT = 5;
 const AUTO_MAX_PCT = 20;
 const RAMP_ID = 'ramp-test';
 const CLIMB_ENTRY_S = 25;
+// Riding by heart rate, our own choice: see docs/hr-zones.md.
+const HOLD_EVERY_S = 30;
+const HOLD_UP_PCT = 2;
+const HOLD_DOWN_PCT = 3;
+const HOLD_MAX_UP_PCT = 15;
+const HOLD_MAX_DOWN_PCT = 40;
+const HOLD_CEILING_FRACTION = 0.8;
 // Like Auuki: pause after 4 s at 0 W, resume above 40 W.
 const PAUSE_AFTER_S = 4;
 const RESUME_ABOVE_W = 40;
@@ -38,6 +45,9 @@ export class RideEngine {
   private autoStep = -1;
   private hrHighS = 0;
   private hrZoneHighS = 0;
+  private holdPct = 0;
+  private holdLowS = 0;
+  private holdHighS = 0;
   private cadenceLowS = 0;
   private paused = false;
   private zeroPowerS = 0;
@@ -108,6 +118,8 @@ export class RideEngine {
       this.paused = true;
       this.hrHighS = 0;
       this.cadenceLowS = 0;
+      this.holdLowS = 0;
+      this.holdHighS = 0;
       events.push({ wallClockMs: now, type: 'pause' });
     } else if (this.paused && powerW !== null && powerW > RESUME_ABOVE_W) {
       this.paused = false;
@@ -119,13 +131,15 @@ export class RideEngine {
   /** Decision without AI: heart rate above the limit for too long, or collapsing cadence. */
   private applyAutoReduction(now: number, events: RideEvent[]): void {
     const { step, index, remainingS } = this.position(this.elapsedS);
-    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.hrZoneHighS = 0; this.cadenceLowS = 0; }
+    if (index !== this.autoStep) { this.autoStep = index; this.autoPct = 0; this.hrHighS = 0; this.hrZoneHighS = 0; this.cadenceLowS = 0; this.holdPct = 0; this.holdLowS = 0; this.holdHighS = 0; }
     if (this.opts.session.id === RAMP_ID) return;
     const { hrBpm, cadenceRpm } = this.latest;
     const limit = this.opts.maxHrBpm;
     this.hrHighS = limit !== undefined && hrBpm !== null && hrBpm > limit ? this.hrHighS + 1 : 0;
     this.cadenceLowS = cadenceRpm !== null && cadenceRpm > 0 && cadenceRpm < CADENCE_FLOOR_RPM ? this.cadenceLowS + 1 : 0;
-    const zoneTop = step.hrZone && this.opts.hrMaxBpm ? zoneBounds(step.hrZone, this.opts.hrMaxBpm).toBpm : null;
+    const holding = !!(step.kind === 'erg' && step.hrHold && step.hrZone && this.opts.hrMaxBpm);
+    if (holding) this.applyHold(step, step.durationS - remainingS, hrBpm, now, events);
+    const zoneTop = !holding && step.hrZone && this.opts.hrMaxBpm ? zoneBounds(step.hrZone, this.opts.hrMaxBpm).toBpm : null;
     const settled = step.durationS - remainingS >= HR_ZONE_SETTLE_S;
     this.hrZoneHighS = zoneTop !== null && settled && hrBpm !== null && hrBpm > zoneTop ? this.hrZoneHighS + 1 : 0;
     const cause = this.hrHighS > HR_HOLD_S - 1 ? 'hr' : this.hrZoneHighS >= HR_ZONE_HOLD_S ? 'hr-zone' : this.cadenceLowS > CADENCE_HOLD_S - 1 ? 'cadence' : null;
@@ -136,6 +150,26 @@ export class RideEngine {
     if (this.autoPct >= AUTO_MAX_PCT) return;
     this.autoPct += AUTO_STEP_PCT;
     events.push({ wallClockMs: now, type: 'target-adjust', detail: `auto:${cause}` });
+  }
+
+  /** The watts follow the heart rate slowly and within narrow limits. After the heart rate limit has acted they no longer rise. */
+  private applyHold(step: Step, inStepS: number, hrBpm: number | null, now: number, events: RideEvent[]): void {
+    if (inStepS < HR_ZONE_SETTLE_S || hrBpm === null) { this.holdLowS = 0; this.holdHighS = 0; return; }
+    const { fromBpm, toBpm } = zoneBounds(step.hrZone!, this.opts.hrMaxBpm!);
+    this.holdLowS = hrBpm < fromBpm ? this.holdLowS + 1 : 0;
+    this.holdHighS = hrBpm > toBpm ? this.holdHighS + 1 : 0;
+    if (this.holdHighS >= HOLD_EVERY_S) {
+      this.holdHighS = 0;
+      if (this.holdPct <= -HOLD_MAX_DOWN_PCT) return;
+      this.holdPct = Math.max(-HOLD_MAX_DOWN_PCT, this.holdPct - HOLD_DOWN_PCT);
+      events.push({ wallClockMs: now, type: 'target-adjust', detail: 'hold:down' });
+    } else if (this.holdLowS >= HOLD_EVERY_S) {
+      this.holdLowS = 0;
+      const ceiling = Math.min(HOLD_MAX_UP_PCT, (HOLD_CEILING_FRACTION / stepFtpFraction(step) - 1) * 100);
+      if (this.autoPct > 0 || this.holdPct >= ceiling) return;
+      this.holdPct = Math.min(ceiling, this.holdPct + HOLD_UP_PCT);
+      events.push({ wallClockMs: now, type: 'target-adjust', detail: 'hold:up' });
+    }
   }
 
   private totalS(): number { return this.opts.session.steps.reduce((sum, s) => sum + s.durationS, 0); }
@@ -154,7 +188,7 @@ export class RideEngine {
   private targets(atS: number): number {
     const { step, index, remainingS } = this.position(atS);
     const manual = index === this.adjustedStep ? 1 + this.adjustPct / 100 : 1;
-    const factor = manual * (index === this.autoStep ? 1 - this.autoPct / 100 : 1);
+    const factor = manual * (index === this.autoStep ? (1 - this.autoPct / 100) * (1 + this.holdPct / 100) : 1);
     return Math.round(clampTargetW(this.entryFraction(step, index, step.durationS - remainingS) * this.opts.ftpW * factor, this.opts.ftpW));
   }
 

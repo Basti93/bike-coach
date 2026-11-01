@@ -271,3 +271,18 @@ main.home .top .row button { padding: .35rem .85rem; font-size: .9rem; }
 .coach-log summary { cursor: pointer; font-size: .85rem; margin-top: .3rem; }
 .coach-log { margin-top: .5rem; }
 .coach-log ul { max-height: 16rem; overflow-y: auto; margin-top: .4rem; }
+
+.status-report { background: none; border: 1px solid var(--line); color: var(--muted); font-size: .75rem; padding: .1rem .55rem; }
+.status-report:hover { color: var(--text); }
+.dialog label { display: flex; flex-direction: column; gap: .4rem; }
+.dialog code { word-break: break-all; }
+.progress-line { color: var(--good); font-weight: 600; }
+.best-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .8rem; }
+.best-row .tile b { font-size: 1.6rem; white-space: nowrap; }
+.load-plot { height: 120px; }
+.load-plot path.fatigue { stroke: var(--muted); stroke-dasharray: 6 5; }
+.load-legend { display: flex; gap: 1.2rem; margin-top: .5rem; font-size: .9rem; }
+.load-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.swatch { display: inline-block; width: 1.4rem; border-top: 2px solid var(--accent); }
+.swatch.fatigue { border-top: 2px dashed var(--muted); }
+.summit { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem .2rem; }

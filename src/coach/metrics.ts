@@ -9,6 +9,10 @@ export type RideSummary = {
   avgHrBpm: number | null; maxHrBpm: number | null; bestMinutePowerW: number | null; completedFraction: number;
   sessionName?: string; suspectData?: boolean; intervalsPlanned?: number; intervalsDone?: number;
   hrZoneMinutes?: number[]; hrTargetPct?: number; hrDriftPct?: number; hrRecoveryBpm?: number;
+  /** Best mean power per duration in seconds. */
+  powerCurve?: Record<string, number>;
+  /** Share of the ridden seconds within 10 % of the target. */
+  onTargetPct?: number;
 };
 
 const DAY_MS = 86_400_000;
@@ -127,6 +131,37 @@ const heartRateFacts = (samples: Sample[], session: Session | undefined, hrMaxBp
   return out;
 };
 
+const POWER_CURVE_S = [5, 60, 300, 1200, 3600];
+export const powerCurveOf = (powers: number[]): Record<string, number> => Object.fromEntries(
+  POWER_CURVE_S.filter((d) => powers.length >= d).map((d) => [d, Math.round(Math.max(...rollingMeans(powers, d)))]),
+);
+
+/** Records stay records, except from rides with many measurement errors. */
+export const bestPowers = (summaries: RideSummary[]): Record<string, number> => {
+  const best: Record<string, number> = {};
+  for (const r of summaries) {
+    if (r.suspectData) continue;
+    for (const [d, w] of Object.entries(r.powerCurve ?? {})) best[d] = Math.max(best[d] ?? 0, w);
+  }
+  return best;
+};
+
+const ON_TARGET_SHARE = 0.1;
+/** Relative to your own target, so it is fair between riders. Pauses, lost signals and the seconds after a change do not count. */
+export const onTargetPctOf = (samples: Sample[], session: Session): number | undefined => {
+  const changes = session.steps.reduce<number[]>((all, s) => [...all, (all.at(-1) ?? 0) + s.durationS], [0]);
+  let lastS = -1, counted = 0, onTarget = 0;
+  for (const s of samples) {
+    if (s.rideElapsedS === lastS) continue;
+    lastS = s.rideElapsedS;
+    if (s.powerW === null || s.targetW === null || s.targetW <= 0) continue;
+    if (changes.some((c) => s.rideElapsedS > c && s.rideElapsedS <= c + ERG_LAG_S)) continue;
+    counted++;
+    if (Math.abs(s.powerW - s.targetW) <= s.targetW * ON_TARGET_SHARE) onTarget++;
+  }
+  return counted ? Math.round((onTarget / counted) * 100) : undefined;
+};
+
 export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: number; plannedS: number; session?: Session; hrMaxBpm?: number }): RideSummary => {
   const { meta, ftpW, plannedS, session } = input;
   const { samples, removed } = cleanSamples(input.samples);
@@ -136,6 +171,7 @@ export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: 
   const np = powers.length ? mean(rollingMeans(powers, 30).map((p) => p ** 4))! ** 0.25 : null;
   const intensityFactor = np === null ? null : np / ftpW;
   const hours = powers.length / 3600;
+  const onTarget = session ? onTargetPctOf(samples, session) : undefined;
   return {
     ...(session ? { sessionName: session.name } : {}),
     rideId: meta.rideId, startedAtMs: meta.startedAtMs, status: meta.status === 'finished' ? 'finished' : 'aborted',
@@ -149,24 +185,42 @@ export const summarizeRide = (input: { meta: RideMeta; samples: Sample[]; ftpW: 
     ...(removed > samples.length * SUSPECT_SHARE ? { suspectData: true } : {}),
     ...(session ? countIntervals(session, samples, ftpW) : {}),
     ...heartRateFacts(samples, session, input.hrMaxBpm),
+    powerCurve: powerCurveOf(powers),
+    ...(onTarget === undefined ? {} : { onTargetPct: onTarget }),
   };
 };
+
+export type LoadPoint = { dayMs: number; fitness: number; fatigue: number };
+
+const dailyLoad = (summaries: RideSummary[], nowMs: number): LoadPoint[] => {
+  if (!summaries.length) return [];
+  const tssByDay = new Map<number, number>();
+  for (const r of summaries) {
+    const day = Math.floor(r.startedAtMs / DAY_MS);
+    tssByDay.set(day, (tssByDay.get(day) ?? 0) + r.tss);
+  }
+  const points: LoadPoint[] = [];
+  let fitness = 0;
+  let fatigue = 0;
+  for (let day = Math.min(...tssByDay.keys()); day <= Math.floor(nowMs / DAY_MS); day++) {
+    const tss = tssByDay.get(day) ?? 0;
+    fitness += (tss - fitness) / 42;
+    fatigue += (tss - fatigue) / 7;
+    points.push({ dayMs: day * DAY_MS, fitness, fatigue });
+  }
+  return points;
+};
+
+/** The last days of the course of fitness and fatigue; earlier rides still count towards them. */
+export const loadSeries = (summaries: RideSummary[], nowMs: number, days: number): LoadPoint[] => dailyLoad(summaries, nowMs).slice(-days);
 
 export const loadModel = (summaries: RideSummary[], nowMs: number) => {
   const sorted = [...summaries].sort((a, b) => a.startedAtMs - b.startedAtMs);
   const within = (days: number) => sorted.filter((s) => nowMs - s.startedAtMs < days * DAY_MS);
   const sum = (rides: RideSummary[]) => rides.reduce((a, r) => a + r.tss, 0);
-  let fitness = 0;
-  let fatigue = 0;
-  if (sorted.length) {
-    const firstDay = Math.floor(sorted[0].startedAtMs / DAY_MS);
-    const lastDay = Math.floor(nowMs / DAY_MS);
-    for (let day = firstDay; day <= lastDay; day++) {
-      const tss = sum(sorted.filter((s) => Math.floor(s.startedAtMs / DAY_MS) === day));
-      fitness += (tss - fitness) / 42;
-      fatigue += (tss - fatigue) / 7;
-    }
-  }
+  const today = dailyLoad(sorted, nowMs).at(-1);
+  const fitness = today?.fitness ?? 0;
+  const fatigue = today?.fatigue ?? 0;
   const last = sorted.at(-1);
   return {
     fitness, fatigue, form: fitness - fatigue,

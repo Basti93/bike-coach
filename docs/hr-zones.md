@@ -16,6 +16,14 @@ As of 2026-11-01, from a short search through summaries; I did not read the full
 - Rise at constant power: only segments of 10 minutes or more, excluding the first 2 minutes. Common coaching thresholds of around 5% come from blogs and forums and are deliberately not used as a limit here.
 - Recovery: heart rate drop in the minute after segments of 80% FTP or more. I found no solid source for this; the value is only a comparison with yourself.
 
-## Not built
+## Riding by heart rate
 
-Pure riding by heart rate, where power continuously follows heart rate. Heart rate only lowers the target, it never raises it.
+Only in sections marked for it (`hrHold`), currently the session "Puls halten". All of these values are our own settings, not evidenced:
+
+- No change in the first 3 minutes of the section, because heart rate lags.
+- 30 s below the zone: 2% more power. 30 s above the zone: 3% less. Inside the zone nothing changes.
+- At most 15% above the starting power and never above 80% of FTP, at most 40% below the start.
+- Once the personal heart rate limit has lowered the target, the power no longer rises in this section.
+- Without a heart rate signal or a known maximum heart rate the power stays where it is.
+
+In every other section heart rate only lowers the target, it never raises it. The coach cannot plan such sections yet.

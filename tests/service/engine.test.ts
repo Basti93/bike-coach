@@ -226,3 +226,82 @@ test('a climb marked sudden starts at full target at once', () => {
   const c = clock(); const e = new RideEngine({ session: sudden, ftpW: 200, nowMs: c.now, resumeAtS: 60 });
   expect(run(e, c, 1).sample.targetW).toBe(150);
 });
+
+describe('holding a heart rate', () => {
+  const hold: Session = { id: 'h', name: 'Puls', steps: [{ kind: 'erg', durationS: 1200, ftpFraction: 0.6, label: 'Puls halten', hrZone: 2, hrHold: true }] };
+  // Maximum heart rate 200: zone 2 is 120 to 140 bpm.
+  const setup = (s = hold, extra = {}) => { const c = clock(); return { c, e: new RideEngine({ session: s, ftpW: 200, nowMs: c.now, hrMaxBpm: 200, ...extra }) }; };
+  const ride = (e: RideEngine, c: ReturnType<typeof clock>, n: number, hrBpm?: number) => {
+    const events = [];
+    for (let i = 0; i < n; i++) { c.step(); events.push(...e.tick({ powerW: 120, ...(hrBpm === undefined ? {} : { hrBpm }) }).events); }
+    return events;
+  };
+
+  test('leaves the watts alone for the first 3 minutes, heart rate lags', () => {
+    const { c, e } = setup();
+    ride(e, c, 179, 100);
+    expect(e.state().targetW).toBe(120);
+  });
+  test('adds watts slowly while the heart rate stays below the zone', () => {
+    const { c, e } = setup();
+    ride(e, c, 180, 100);
+    const events = ride(e, c, 30, 100);
+    expect(e.state().targetW).toBe(122);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'target-adjust', detail: 'hold:up' }));
+  });
+  test('takes watts away while the heart rate stays above the zone', () => {
+    const { c, e } = setup();
+    ride(e, c, 180, 100);
+    const events = ride(e, c, 30, 150);
+    expect(e.state().targetW).toBe(116);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'target-adjust', detail: 'hold:down' }));
+  });
+  test('does nothing inside the zone', () => {
+    const { c, e } = setup();
+    ride(e, c, 600, 130);
+    expect(e.state().targetW).toBe(120);
+  });
+  test('never rises more than 15 % above the start, however low the heart rate', () => {
+    const { c, e } = setup();
+    ride(e, c, 1190, 80);
+    expect(e.state().targetW).toBe(138);
+  });
+  test('never rises above 80 % of FTP, even from a high start', () => {
+    const high: Session = { id: 'h', name: 'x', steps: [{ kind: 'erg', durationS: 1200, ftpFraction: 0.75, label: 'A', hrZone: 3, hrHold: true }] };
+    const { c, e } = setup(high);
+    ride(e, c, 1190, 80);
+    expect(e.state().targetW).toBe(160);
+  });
+  test('without a heart rate the watts stay where they are', () => {
+    const { c, e } = setup();
+    ride(e, c, 600);
+    expect(e.state().targetW).toBe(120);
+  });
+  test('without a known maximum heart rate it is an ordinary watt section', () => {
+    const c = clock(); const e = new RideEngine({ session: hold, ftpW: 200, nowMs: c.now });
+    ride(e, c, 600, 80);
+    expect(e.state().targetW).toBe(120);
+  });
+  test('after the heart rate limit has lowered the target it never rises again in this section', () => {
+    const { c, e } = setup(hold, { maxHrBpm: 145 });
+    ride(e, c, 180, 150);
+    expect(e.state().autoReducedPct).toBeGreaterThan(0);
+    const before = e.state().targetW!;
+    ride(e, c, 300, 100);
+    expect(e.state().targetW).toBeLessThanOrEqual(before);
+  });
+  test('a pause does not count as seconds below the zone', () => {
+    const { c, e } = setup();
+    ride(e, c, 200, 100);
+    const before = e.state().targetW;
+    for (let i = 0; i < 120; i++) { c.step(); e.tick({ powerW: 0, hrBpm: 100 }); }
+    expect(e.state().paused).toBe(true);
+    expect(e.state().targetW).toBe(before);
+  });
+  test('the next section starts from its own watts again', () => {
+    const two: Session = { id: 'h', name: 'x', steps: [hold.steps[0], { kind: 'erg', durationS: 600, ftpFraction: 0.45, label: 'B' }] };
+    const { c, e } = setup(two);
+    ride(e, c, 1205, 100);
+    expect(e.state().targetW).toBe(90);
+  });
+});

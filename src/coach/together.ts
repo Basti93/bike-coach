@@ -21,7 +21,9 @@ export type PersonStats = { profileId: string; name: string; ridesThisWeek: numb
 export type Together = {
   recent: { name: string; startedAtMs: number; sessionName?: string; minutes: number }[];
   people: PersonStats[]; metres: number; lastRideMetres: number; line: string | null;
-  peak: { name: string; done: number; total: number; next: string | null };
+  peak: { name: string; done: number; total: number; next: string };
+  /** Mountains reached together, oldest first. Deliberately without shares per person. */
+  summits: { name: string; atMs: number }[];
 };
 
 const streak = (s: CoachState, nowMs: number): number => {
@@ -31,6 +33,13 @@ const streak = (s: CoachState, nowMs: number): number => {
   let n = 0;
   while (weeks.has(week)) { n++; week--; }
   return n;
+};
+
+/** After the last mountain the list starts again, so the way never ends. */
+const peakAt = (i: number) => {
+  const round = Math.floor(i / PEAKS.length) + 1;
+  const peak = PEAKS[i % PEAKS.length];
+  return { name: round === 1 ? peak.name : `${peak.name}, ${round}. Mal`, metres: peak.metres };
 };
 
 const friendlyLine = (people: PersonStats[]): string | null => {
@@ -55,14 +64,24 @@ export const computeTogether = (profiles: Profile[], states: CoachState[], nowMs
   const rides = states.flatMap((s) => s.summaries);
   const metres = Math.round(rides.reduce((a, r) => a + r.durationS, 0) / 60) * METRES_PER_MINUTE;
   const latest = [...rides].sort((a, b) => b.startedAtMs - a.startedAtMs)[0];
-  let left = metres, i = 0;
-  while (i < PEAKS.length - 1 && left >= PEAKS[i].metres) left -= PEAKS[i++].metres;
+  const summits: Together['summits'] = [];
+  let i = 0, reached = 0, seconds = 0;
+  for (const r of [...rides].sort((a, b) => a.startedAtMs - b.startedAtMs)) {
+    seconds += r.durationS;
+    const soFar = Math.round(seconds / 60) * METRES_PER_MINUTE;
+    while (soFar - reached >= peakAt(i).metres) {
+      reached += peakAt(i).metres;
+      summits.push({ name: peakAt(i).name, atMs: r.startedAtMs });
+      i++;
+    }
+  }
   const recent = states.flatMap((s) => s.summaries.map((r) => ({
     name: profiles.find((p) => p.id === s.profileId)?.name ?? '', startedAtMs: r.startedAtMs,
     ...(r.sessionName ? { sessionName: r.sessionName } : {}), minutes: Math.round(r.durationS / 60),
   }))).sort((a, b) => b.startedAtMs - a.startedAtMs).slice(0, RECENT);
   return {
     recent, people, metres, lastRideMetres: latest ? Math.round(latest.durationS / 60) * METRES_PER_MINUTE : 0, line: friendlyLine(people),
-    peak: { name: PEAKS[i].name, done: Math.min(left, PEAKS[i].metres), total: PEAKS[i].metres, next: PEAKS[i + 1]?.name ?? null },
+    peak: { name: peakAt(i).name, done: metres - reached, total: peakAt(i).metres, next: peakAt(i + 1).name },
+    summits,
   };
 };

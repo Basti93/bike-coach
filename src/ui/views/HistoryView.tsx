@@ -1,11 +1,17 @@
 import { useState } from 'react';
+import { bestPowers, loadSeries } from '../../coach/metrics';
+import { progressText, rideProgress } from '../../coach/progress';
 import { rideStats } from '../../coach/stats';
 import type { CoachState } from '../../coach/state';
 import type { CoachClientMessage, RideDetail } from '../../shared/coach-protocol';
+import { LoadChart } from './LoadChart';
 import { RideCharts } from './RideCharts';
 
 const RATING: Record<string, string> = { easy: 'zu leicht', right: 'genau richtig', hard: 'zu hart' };
 const date = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+
+const DURATIONS: Record<string, string> = { 5: '5 Sek.', 60: '1 Min.', 300: '5 Min.', 1200: '20 Min.', 3600: '60 Min.' };
+const LOAD_DAYS = 84;
 
 const WeekBars = ({ weeks }: { weeks: { startMs: number; minutes: number }[] }) => {
   const [hover, setHover] = useState<number | null>(null);
@@ -32,6 +38,8 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
   const [open, setOpen] = useState<string | null>(null);
   const stats = rideStats(state.summaries, Date.now());
   const rides = [...state.summaries].sort((a, b) => b.startedAtMs - a.startedAtMs);
+  const best = Object.entries(bestPowers(state.summaries)).sort(([a], [b]) => Number(a) - Number(b));
+  const load = loadSeries(state.summaries, Date.now(), LOAD_DAYS);
   const toggle = (rideId: string) => {
     setOpen(open === rideId ? null : rideId);
     if (open !== rideId) send({ type: 'ride-detail', profileId: state.profileId, rideId });
@@ -52,6 +60,15 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
         <h3>Minuten pro Woche</h3>
         <WeekBars weeks={stats.weeks} />
       </section>
+      {best.length > 0 && (
+        <section className="card" data-testid="best-powers">
+          <h3>Deine besten Werte</h3>
+          <div className="best-row">
+            {best.map(([d, w]) => <div key={d} className="tile"><span className="label">{DURATIONS[d]}</span><b>{w} W</b></div>)}
+          </div>
+        </section>
+      )}
+      {load.length > 1 && <LoadChart points={load} />}
       <section className="card">
         <h3>Deine Fahrten</h3>
         {rides.length === 0 && <p className="muted">Noch ganz leer hier. Deine erste Fahrt wartet schon.</p>}
@@ -66,9 +83,14 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
               </button>
               {open === r.rideId && (
                 <div className="ride-detail">
+                  {(() => {
+                    const progress = rideProgress(r, state.summaries);
+                    return progress && <p className="progress-line" data-testid="progress">{progressText(progress)}</p>;
+                  })()}
                   <p className="muted">
                     {r.avgHrBpm === null ? '' : `Puls bis ${r.maxHrBpm}. `}
                     {r.intervalsPlanned ? `${r.intervalsDone} von ${r.intervalsPlanned} harten Abschnitten geschafft. ` : ''}
+                    {r.onTargetPct === undefined ? '' : `${r.onTargetPct} % der Zeit nah an der Vorgabe. `}
                     {r.status === 'aborted' ? 'Vorzeitig beendet. ' : ''}
                     {r.suspectData ? 'Viele Messfehler, zählt nicht für Bestwerte. ' : ''}
                     Die FIT-Datei für Garmin liegt unter rides/exports.

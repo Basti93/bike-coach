@@ -1,18 +1,21 @@
 import { useEffect } from 'react';
 import type { RideSummary } from '../../coach/metrics';
+import { progressText, rideProgress } from '../../coach/progress';
 import type { Together } from '../../coach/together';
 import type { CoachClientMessage, RideDetail } from '../../shared/coach-protocol';
 import { RideCharts } from './RideCharts';
 
 type Props = {
   profileId: string; rideId: string; send: (m: CoachClientMessage) => void; together?: Together | null;
-  summary?: RideSummary; detail: RideDetail | null;
+  summary?: RideSummary; summaries?: RideSummary[]; detail: RideDetail | null;
 };
 
 const value = (v: number | null, unit: string) => (v === null ? '–' : `${v} ${unit}`);
 
 /** First show how the ride went, then ask how it felt. */
-export const FeedbackView = ({ profileId, rideId, send, together, summary, detail }: Props) => {
+export const FeedbackView = ({ profileId, rideId, send, together, summary, summaries = [], detail }: Props) => {
+  const progress = summary ? rideProgress(summary, summaries) : null;
+  const summit = summary && together?.summits?.filter((s) => s.atMs === summary.startedAtMs).at(-1);
   // Without send in the dependencies: useCoach returns a new one on every render, and the response would re-request endlessly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { send({ type: 'ride-detail', profileId, rideId }); }, [profileId, rideId]);
@@ -23,6 +26,8 @@ export const FeedbackView = ({ profileId, rideId, send, together, summary, detai
       {summary && (
         <>
           <h1>{summary.sessionName ?? 'Deine Fahrt'}</h1>
+ {summit && <p className="progress-line" data-testid="summit">🏔 Gipfel! Ihr habt gemeinsam {summit.name} erreicht.</p>}
+          {progress && <p className="progress-line" data-testid="progress">{progressText(progress)}</p>}
           <div className="stat-row">
             <div className="tile"><span className="label">Dauer</span><b>{Math.round(summary.durationS / 60)} Min.</b></div>
             <div className="tile"><span className="label">Leistung im Schnitt</span><b>{value(summary.avgPowerW, 'W')}</b></div>

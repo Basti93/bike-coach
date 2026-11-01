@@ -4,6 +4,7 @@ import { SimBlePort } from './ble/sim-device';
 import type { BlePort, DeviceKind } from './ble/device-port';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Diagnostics, withDiagnostics } from './diagnostics';
 import { LiveLog } from './live-log';
 import { RideService } from './ride-service';
 import { SyncClient } from './sync';
@@ -16,15 +17,16 @@ const started = Date.now();
 const nowMs = () => started + (Date.now() - started) * scale;
 const fake = process.env.BIKE_FAKE_BLE === '1' ? new FakeBlePort() : null;
 const sim = process.env.BIKE_SIM === '1' ? new SimBlePort() : null;
-const ble: BlePort = fake ?? sim ?? new NobleBlePort(dir);
+const diagnostics = new Diagnostics(dir, nowMs);
+const ble: BlePort = withDiagnostics(fake ?? sim ?? new NobleBlePort(dir), diagnostics, nowMs);
 if (sim) setInterval(() => sim.step(1), 1000 / scale);
 
 const parent = (process as unknown as { parentPort?: { postMessage(m: unknown): void } }).parentPort;
 const live = new LiveLog(dir);
 const service = new RideService({
-  dir, ble, nowMs,
+  dir, ble, nowMs, diagnostics,
   retryMs: fake ? 20 : undefined,
-  onLive: (l) => live.write(l),
+  onLive: (l) => { live.write(l); diagnostics.write('ride', l); },
   onRideStart: () => live.reset(),
   onRideChange: (riding) => parent?.postMessage({ riding }),
 });

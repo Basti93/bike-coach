@@ -7,6 +7,7 @@ export const useRide = () => {
   const [offer, setOffer] = useState<RecoveryOffer | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportPath, setReportPath] = useState<string | null>(null);
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export const useRide = () => {
         if (m.type === 'click') setClick((c) => ({ dir: m.dir, n: (c?.n ?? 0) + 1 }));
         if (m.type === 'recovery-offer') setOffer(m);
         if (m.type === 'error') setError(m.message);
+        if (m.type === 'report-saved') setReportPath(m.path);
       };
       ws.onclose = () => {
         setConnected(false);
@@ -36,5 +38,5 @@ export const useRide = () => {
     setError(null);
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { click, state, offer, clearOffer: () => setOffer(null), connected, send, error };
+  return { click, state, offer, clearOffer: () => setOffer(null), connected, send, error, reportPath };
 };

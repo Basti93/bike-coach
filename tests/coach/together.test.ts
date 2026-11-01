@@ -65,3 +65,30 @@ test('stats add up and faulty rides do not set records', () => {
   expect(s.weeks).toHaveLength(12);
   expect(s.weeks.at(-1)?.minutes).toBe(30);
 });
+
+describe('summit book', () => {
+  const rides = (profileId: string, list: { daysAgo: number; minutes: number }[]) => person(profileId, list);
+  const both = [{ id: 'a', name: 'Anna', ftpW: 250 }, { id: 'b', name: 'Ben', ftpW: 120 }];
+
+  test('records when you reached a mountain together, in the order of the rides', () => {
+    const t = computeTogether(both, [rides('a', [{ daysAgo: 5, minutes: 60 }, { daysAgo: 1, minutes: 30 }]), rides('b', [{ daysAgo: 3, minutes: 30 }])], NOW);
+    expect(t.summits).toEqual([{ name: 'Alpe d’Huez', atMs: NOW - 1 * DAY }]);
+  });
+  test('holds no shares per person', () => {
+    const t = computeTogether(both, [rides('a', [{ daysAgo: 1, minutes: 200 }]), rides('b', [])], NOW);
+    expect(Object.keys(t.summits[0]).sort()).toEqual(['atMs', 'name']);
+  });
+  test('reaching the top exactly counts, and the next mountain starts at zero', () => {
+    const t = computeTogether(both, [rides('a', [{ daysAgo: 1, minutes: 110 }]), rides('b', [])], NOW);
+    expect(t.summits).toHaveLength(1);
+    expect(t.peak).toMatchObject({ name: 'Mont Ventoux', done: 0, total: 1600, next: 'Stilfser Joch' });
+  });
+  test('the mountains never end: after the last one they start again', () => {
+    const t = computeTogether(both, [rides('a', [{ daysAgo: 1, minutes: 1335 + 30 }]), rides('b', [])], NOW);
+    expect(t.summits.map((s) => s.name)).toEqual(['Alpe d’Huez', 'Mont Ventoux', 'Stilfser Joch', 'Mount Everest']);
+    expect(t.peak).toMatchObject({ name: 'Alpe d’Huez, 2. Mal', done: 300, total: 1100, next: 'Mont Ventoux, 2. Mal' });
+  });
+  test('without rides the book is empty', () => {
+    expect(computeTogether(both, [rides('a', []), rides('b', [])], NOW).summits).toEqual([]);
+  });
+});
