@@ -13,6 +13,16 @@ export const TogetherView = ({ together, onBack }: { together: Together; onBack:
         <button className="ghost" onClick={onBack}>Zurück</button>
       </div>
       <TogetherCard together={together} />
+      {(together.climbing?.length ?? 0) > 0 && (
+        <section className="card" data-testid="climbing">
+          <h3>Unterwegs am Berg</h3>
+          <ul className="rides">
+            {together.climbing.map((c) => (
+              <li key={c.who} className="summit climbing"><b>{c.name}</b><span>{c.who}, {c.pct} %</span><div className="climbing-bar"><i style={{ width: `${c.pct}%` }} /></div></li>
+            ))}
+          </ul>
+        </section>
+      )}
       {(together.climbed?.length ?? 0) > 0 && (
         <section className="card" data-testid="climbed">
           <h3>Bezwungene Berge</h3>

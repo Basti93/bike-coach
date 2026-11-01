@@ -98,3 +98,16 @@ test('the summit book also holds who climbed which real mountain, without watts'
   const t = computeTogether([{ id: 'a', name: 'Anna', ftpW: 250 }], [a], NOW);
   expect(t.climbed).toEqual([{ who: 'Anna', name: 'Brocken', atMs: NOW - DAY }]);
 });
+
+test('the overview shows who is on the way up which mountain, in percent', () => {
+  const a = { ...person('a', []), pass: { selectedId: 'brocken', distanceM: { brocken: 4160 } } } as unknown as CoachState;
+  const b = person('b', []);
+  const t = computeTogether([{ id: 'a', name: 'Anna', ftpW: 250 }, { id: 'b', name: 'Ben', ftpW: 200 }], [a, b], NOW);
+  expect(t.climbing).toEqual([{ who: 'Anna', name: 'Brocken', pct: 50 }]);
+});
+
+test('someone riding the default mountain without choosing one also shows up', () => {
+  const a = { ...person('a', []), pass: { distanceM: { 'alpe-dhuez': 7550 } } } as unknown as CoachState;
+  const t = computeTogether([{ id: 'a', name: 'Anna', ftpW: 250 }], [a], NOW);
+  expect(t.climbing).toEqual([{ who: 'Anna', name: 'Alpe d’Huez', pct: 50 }]);
+});

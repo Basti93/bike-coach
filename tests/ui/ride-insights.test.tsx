@@ -127,7 +127,7 @@ test('without a comparable ride there is no progress line', () => {
 
 describe('together', () => {
   const together = (over = {}) => ({
-    recent: [], metres: 300, lastRideMetres: 300, line: null, summits: [], climbed: [],
+    recent: [], metres: 300, lastRideMetres: 300, line: null, summits: [], climbed: [], climbing: [],
     peak: { name: 'Mont Ventoux', done: 300, total: 1600, next: 'Stilfser Joch' },
     people: [{ profileId: 'a', name: 'Anna', ridesThisWeek: 1, minutesThisWeek: 30, streakWeeks: 0, wordsLearned: 3, weeks: [30], onTargetPct: 60 }],
     ...over,
@@ -157,5 +157,11 @@ describe('together', () => {
     render(<HistoryView state={coachState([summary('b', 1, { onTargetPct: 94 })])} detail={null} send={vi.fn()} onBack={vi.fn()} />);
     fireEvent.click(screen.getAllByRole('button', { expanded: false })[0]);
     expect(screen.getByText(/94 % der Zeit nah an der Vorgabe/)).toBeTruthy();
+  });
+  it('shows who is on the way up which mountain', () => {
+    render(<TogetherView onBack={vi.fn()} together={together({ climbing: [{ who: 'Anna', name: 'Brocken', pct: 50 }] })} />);
+    const box = screen.getByTestId('climbing');
+    expect(box.textContent).toContain('Brocken');
+    expect(box.textContent).toContain('Anna, 50 %');
   });
 });

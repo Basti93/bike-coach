@@ -1,5 +1,5 @@
 import { learnedCount } from '../shared/language';
-import { PASSES } from '../shared/passes';
+import { PASSES, passById } from '../shared/passes';
 import type { Profile } from '../shared/profiles';
 import type { CoachState } from './state';
 
@@ -27,6 +27,8 @@ export type Together = {
   summits: { name: string; atMs: number }[];
   /** Real mountains climbed, by person. Time on a mountain is not compared. */
   climbed: { who: string; name: string; atMs: number }[];
+  /** Who is on the way up which mountain. */
+  climbing: { who: string; name: string; pct: number }[];
 };
 
 const streak = (s: CoachState, nowMs: number): number => {
@@ -86,6 +88,12 @@ export const computeTogether = (profiles: Profile[], states: CoachState[], nowMs
     recent, people, metres, lastRideMetres: latest ? Math.round(latest.durationS / 60) * METRES_PER_MINUTE : 0, line: friendlyLine(people),
     peak: { name: peakAt(i).name, done: metres - reached, total: peakAt(i).metres, next: peakAt(i + 1).name },
     summits,
+    climbing: states.flatMap((s) => {
+      if (!s.pass?.selectedId && !s.pass?.distanceM) return [];
+      const pass = passById(s.pass.selectedId);
+      const pct = Math.round(((s.pass?.distanceM?.[pass.id] ?? 0) / pass.lengthM) * 100);
+      return [{ who: profiles.find((p) => p.id === s.profileId)?.name ?? '', name: pass.name, pct }];
+    }),
     climbed: states.flatMap((s) => (s.pass?.summits ?? []).flatMap((c) => {
       const pass = PASSES.find((p) => p.id === c.passId);
       return pass ? [{ who: profiles.find((p) => p.id === s.profileId)?.name ?? '', name: pass.name, atMs: c.atMs }] : [];
