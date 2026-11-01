@@ -8,6 +8,8 @@ import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
 import { rampTest } from '../../coach/rules';
 import { GarminCard } from './GarminCard';
+import { GarminProfileBanner } from './GarminProfileReview';
+import type { GarminSuggestion } from '../../shared/garmin-profile';
 import { ReadinessNote } from './ReadinessNote';
 import type { GarminReadiness } from '../../shared/garmin';
 import { SessionFacts, StepList, TrainingCard } from './TrainingCard';
@@ -38,10 +40,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; onEdit?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; onEdit?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, onEdit, garmin, garminSync, garminReadiness }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, onEdit, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -76,6 +78,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
       <ReadinessNote readiness={garminReadiness} />
       {garmin && coachConnected && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
+      {onReviewGarmin && <GarminProfileBanner profile={profile} ftpW={ftpW} suggestion={garminSuggestion} onReview={onReviewGarmin} />}
       <div className="coach">
         <div className="stack">
           {shown && (

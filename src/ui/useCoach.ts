@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
 import type { GarminReadiness } from '../shared/garmin';
+import type { GarminSuggestion } from '../shared/garmin-profile';
 import { COACH_PORT, type CoachClientMessage, type GarminStatus, type GarminSyncInfo, type RideDetail } from '../shared/coach-protocol';
 
 export const useCoach = (profileId: string | null) => {
@@ -12,6 +13,7 @@ export const useCoach = (profileId: string | null) => {
   const [garmin, setGarmin] = useState<GarminStatus>({ state: 'idle' });
   const [garminSync, setGarminSync] = useState<GarminSyncInfo | null>(null);
   const [garminReadiness, setGarminReadiness] = useState<GarminReadiness | null>(null);
+  const [garminSuggestion, setGarminSuggestion] = useState<GarminSuggestion | null>(null);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
 
@@ -30,7 +32,7 @@ export const useCoach = (profileId: string | null) => {
       ws.onmessage = (e) => {
         const m = JSON.parse(String(e.data));
         if (m.type === 'ride-detail') setDetail(m.detail);
-        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); }
+        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -44,5 +46,5 @@ export const useCoach = (profileId: string | null) => {
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { detail, garmin, garminReadiness, garminSync, state, together, thinking, connected, send };
+  return { detail, garmin, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

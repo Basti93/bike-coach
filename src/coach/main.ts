@@ -8,6 +8,7 @@ import type { Profile } from '../shared/profiles';
 import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
+import { suggestProfile } from '../shared/garmin-profile';
 import { GarminLink } from './garmin';
 import { GarminDb } from './garmin-db';
 import { readinessFrom, type GarminCoachData } from './readiness';
@@ -99,10 +100,16 @@ const readinessOf = (profileId: string) => {
     return data ? readinessFrom(data, coach.state(profileId).summaries, Date.now()) : null;
   } catch { return null; }
 };
+const suggestionOf = (profileId: string) => {
+  try {
+    const data = garminData(profileId);
+    return data?.body ? suggestProfile(data.body, data.activities, Date.now()) : null;
+  } catch { return null; }
+};
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* Profil oder Verbindung weg */ }
   }

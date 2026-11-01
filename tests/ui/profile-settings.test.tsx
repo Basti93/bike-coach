@@ -84,3 +84,11 @@ test('old profiles without the new fields stay valid and new fields survive pars
   expect(parseProfile({ id: 'a', name: 'A', ftpW: 100 })).toEqual({ id: 'a', name: 'A', ftpW: 100 });
   expect(parseProfile(base)).toEqual(base);
 });
+test('a new profile can start with just a name and be filled from Garmin', async () => {
+  const { ProfileView } = await import('../../src/ui/views/ProfileView');
+  const onAdd = vi.fn();
+  render(<ProfileView profiles={[]} onPick={vi.fn()} onAdd={onAdd} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Lena' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Mit Garmin ausfüllen' }));
+  expect(onAdd.mock.calls[0][0]).toMatchObject({ name: 'Lena', ftpW: 100 });
+});

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ACTIVITY_LEVELS, estimateFtp, type Sex } from '../../shared/ftp-estimate';
 import type { Profile } from '../../shared/profiles';
 
+const GARMIN_START_FTP_W = 100;
+
 const ProfileForm = ({ onAdd }: { onAdd: (p: Profile) => void }) => {
   const [name, setName] = useState('');
   const [known, setKnown] = useState(false);
@@ -61,6 +63,8 @@ const ProfileForm = ({ onAdd }: { onAdd: (p: Profile) => void }) => {
       <label>Pulsgrenze (optional)<input type="number" min="80" value={maxHr} onChange={(e) => setMaxHr(e.target.value)} /></label>
       <p className="muted">Bei Beschwerden wie Brustschmerz oder Schwindel, oder bei bekannter Herz-Kreislauf-Erkrankung vor dem Training ärztlich abklären.</p>
       <button type="submit" disabled={!ready}>Profil anlegen</button>
+      {/* Vorsichtiger Platzhalter, bis Garmin-Werte bestätigt oder eingetragen sind. */}
+      <button type="button" className="secondary" disabled={name.trim() === ''} onClick={() => onAdd({ id: crypto.randomUUID(), name: name.trim(), ftpW: GARMIN_START_FTP_W })}>Mit Garmin ausfüllen</button>
     </form>
   );
 };
