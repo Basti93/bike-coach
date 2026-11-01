@@ -39,19 +39,24 @@ export const send = async (port: number, msg: object) => {
   ws.close();
 };
 export const rideId = (dir: string) => fs.readdirSync(dir).find((n) => n.startsWith('ride-'))!;
+/** The service creates the ride folder just before its meta.json, so a poll can land between the two. */
+const readRideIfStarted = (dir: string) => {
+  const id = rideId(dir);
+  if (!id || !fs.existsSync(path.join(dir, id, 'meta.json'))) return null;
+  return readRide(dir, id);
+};
 export const waitForSamples = async (dir: string, n: number, timeoutMs = 15000) => {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
-    const id = rideId(dir);
-    if (id && readRide(dir, id).samples.length >= n) return;
+    if ((readRideIfStarted(dir)?.samples.length ?? 0) >= n) return;
     await sleep(10);
   }
-  throw new Error(`nur ${readRide(dir, rideId(dir)).samples.length} statt ${n} Samples`);
+  throw new Error(`nur ${readRideIfStarted(dir)?.samples.length ?? 0} statt ${n} Samples`);
 };
 export const waitForStatus = async (dir: string, status: string, timeoutMs = 15000) => {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
-    if (readRide(dir, rideId(dir)).meta.status === status) return;
+    if (readRideIfStarted(dir)?.meta.status === status) return;
     await sleep(20);
   }
   throw new Error(`Status nicht ${status}`);
