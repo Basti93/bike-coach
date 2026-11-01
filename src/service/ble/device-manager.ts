@@ -56,6 +56,14 @@ export class DeviceManager {
   onStatus(cb: (s: DeviceStatus) => void): void { this.statusCb = cb; }
   onClick(cb: (dir: 'up' | 'down') => void): void { this.clickCb = cb; }
   getStatus(): DeviceStatus { return { ...this.status }; }
+  getNames(): Partial<Record<DeviceKind, string>> {
+    const names: Partial<Record<DeviceKind, string>> = {};
+    for (const kind of KINDS) {
+      const name = this.status[kind] === 'connected' ? this.port.deviceName?.(kind) : null;
+      if (name) names[kind] = name;
+    }
+    return names;
+  }
 
   private send(c: TrainerCommand): void {
     this.lastCommand = c;

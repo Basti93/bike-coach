@@ -109,10 +109,13 @@ export class NobleBlePort implements BlePort {
 
   private async setUp(kind: DeviceKind, spec: Spec, peripheral: any): Promise<void> {
     await peripheral.connectAsync();
-    const { characteristics } = await peripheral.discoverSomeServicesAndCharacteristicsAsync(
-      spec.services,
-      [spec.notify, spec.write, spec.status, spec.indicate, spec.handshake?.char].filter(Boolean),
-    );
+    // Bei mehreren möglichen Diensten alle holen: noble bricht ab, sobald ein angefragter Dienst fehlt.
+    const { characteristics } = spec.services.length > 1
+      ? await peripheral.discoverAllServicesAndCharacteristicsAsync()
+      : await peripheral.discoverSomeServicesAndCharacteristicsAsync(
+        spec.services,
+        [spec.notify, spec.write, spec.status, spec.indicate, spec.handshake?.char].filter(Boolean),
+      );
     const notify = characteristics.find((c: any) => c.uuid === spec.notify);
     notify.on('data', (b: Buffer) => this.subs.get(kind)?.(b));
     await notify.subscribeAsync();
@@ -135,6 +138,7 @@ export class NobleBlePort implements BlePort {
   }
 
   async disconnect(kind: DeviceKind): Promise<void> { await this.peripherals.get(kind)?.disconnectAsync(); }
+  deviceName(kind: DeviceKind): string | null { return this.peripherals.get(kind)?.advertisement?.localName ?? null; }
   subscribe(kind: DeviceKind, cb: (b: Buffer) => void): void { this.subs.set(kind, cb); }
   onDisconnect(cb: (kind: DeviceKind) => void): void { this.disconnectCb = cb; }
   onControl(cb: (b: Buffer) => void): void { this.controlCb = cb; }

@@ -97,7 +97,7 @@ const clickPeripheral = (mfr = Buffer.from([0x4a, 0x09, 0x09])) => {
   const async = Object.assign(new EventEmitter(), { uuid: '0000000219ca465186e5fa29dcdd09d1', subscribeAsync: vi.fn(async () => {}) });
   const rx = Object.assign(new EventEmitter(), { uuid: '0000000319ca465186e5fa29dcdd09d1', writeAsync: vi.fn(async () => {}) });
   const tx = Object.assign(new EventEmitter(), { uuid: '0000000419ca465186e5fa29dcdd09d1', subscribeAsync: vi.fn(async () => {}) });
-  p.discoverSomeServicesAndCharacteristicsAsync = async () => ({ characteristics: [async, rx, tx] });
+  p.discoverAllServicesAndCharacteristicsAsync = async () => ({ characteristics: [async, rx, tx] });
   return { p, async, rx, tx };
 };
 test('the click gets the RideOn handshake and its buttons arrive', async () => {
@@ -129,4 +129,26 @@ test('the trainer goes ahead of a waiting clicker and strap', async () => {
   const c = port.connect('trainer').catch(() => {});
   await Promise.all([a, b, c]);
   expect(order).toEqual(['180d', '1826', 'clicker']);
+});
+
+const click = () => {
+  const uuid = (n: number) => `0000000${n}19ca465186e5fa29dcdd09d1`;
+  const p: any = new EventEmitter();
+  p.id = 'click'; p.advertisement = { localName: 'Zwift Click', manufacturerData: Buffer.from([0x4a, 0x09, 0x09]) };
+  p.connectAsync = async () => {};
+  // Wie noble: fehlt ein angefragter Dienst, schlägt die Suche fehl.
+  p.discoverSomeServicesAndCharacteristicsAsync = async (services: string[]) => {
+    if (services.length > 1) throw 'Could not find all requested services';
+    return { characteristics: [] };
+  };
+  p.discoverAllServicesAndCharacteristicsAsync = async () => ({ characteristics: [2, 3, 4].map((n) =>
+    Object.assign(new EventEmitter(), { uuid: uuid(n), subscribeAsync: async () => {}, writeAsync: async () => {} })) });
+  return p;
+};
+test('a click that offers only one of its possible services still connects and reports its name', async () => {
+  const n = fakeNoble();
+  n.startScanningAsync = async () => { n.scans++; setTimeout(() => n.emit('discover', click()), 5); };
+  const port = new NobleBlePort(dir(), n);
+  await port.connect('clicker');
+  expect(port.deviceName('clicker')).toBe('Zwift Click');
 });

@@ -230,7 +230,7 @@ export class RideService {
     const a = this.active;
     this.broadcast({
       type: 'state', ride: a?.recorder.getMeta() ?? null, engine: a?.engine.state() ?? null,
-      devices: this.devices.getStatus(), latest: this.freshReadings(),
+      devices: this.devices.getStatus(), deviceNames: this.devices.getNames(), latest: this.freshReadings(),
       storageError: a?.recorder.hasStorageError() ?? false, recovered: a?.recovered ?? false, profiles: this.profiles(), session: a?.session ?? null,
     });
   }
