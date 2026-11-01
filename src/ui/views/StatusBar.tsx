@@ -1,5 +1,5 @@
 import type { DeviceKind } from '../../service/ble/device-port';
-import type { StateMessage } from '../../shared/protocol';
+import type { ClientMessage, StateMessage } from '../../shared/protocol';
 
 const DEVICES: { kind: DeviceKind; label: string; id: string }[] = [
   { kind: 'trainer', label: 'Trainer', id: 'status-trainer' },
@@ -9,12 +9,13 @@ const DEVICES: { kind: DeviceKind; label: string; id: string }[] = [
 
 const deviceText = (live: StateMessage | null, kind: DeviceKind): string => {
   if (!live) return 'unbekannt';
+  if (live.devices[kind] === 'off') return 'getrennt';
   if (live.devices[kind] !== 'connected') return 'wird gesucht';
   return live.deviceNames?.[kind] ?? 'verbunden';
 };
 
 /** Auf jeder Seite sichtbar. Ohne Verbindung zum Dienst zeigt sie keine alten Werte. */
-export const StatusBar = ({ state, connected }: { state: StateMessage | null; connected: boolean }) => {
+export const StatusBar = ({ state, connected, send }: { state: StateMessage | null; connected: boolean; send?: (m: ClientMessage) => void }) => {
   const live = connected ? state : null;
   const hr = live?.latest.hrBpm;
   const beating = !!hr && hr > 0;
@@ -25,7 +26,12 @@ export const StatusBar = ({ state, connected }: { state: StateMessage | null; co
         {' '}<b>{hr === null || hr === undefined ? '–' : Math.round(hr)}</b> bpm
       </span>
       {DEVICES.map(({ kind, label, id }) => (
-        <span key={kind} data-testid={id} className={live?.devices[kind] === 'connected' ? 'dot on' : 'dot'}>{label}: {deviceText(live, kind)}</span>
+        <span key={kind} className="status-device">
+          <span data-testid={id} className={live?.devices[kind] === 'connected' ? 'dot on' : 'dot'}>{label}: {deviceText(live, kind)}</span>
+          {live && send && (live.devices[kind] === 'off'
+            ? <button className="status-action" aria-label={`${label} verbinden`} onClick={() => send({ type: 'device-connect', kind })}>Verbinden</button>
+            : !(kind === 'trainer' && live.engine) && <button className="status-action" aria-label={`${label} trennen`} onClick={() => send({ type: 'device-disconnect', kind })}>Trennen</button>)}
+        </span>
       ))}
     </div>
   );

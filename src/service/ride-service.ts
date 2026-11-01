@@ -113,6 +113,16 @@ export class RideService {
       case 'resume': if (a) { a.recovered = false; a.paused = false; } return;
       case 'discard-resume': if (a && a.recorder.getMeta().rideId === msg.rideId) this.end('aborted'); return;
       case 'export-fit': checkRideId(msg.rideId); this.writeFit(msg.rideId); return;
+      case 'device-disconnect':
+        // Ohne Trainer stimmt die Vorgabe nicht mehr, deshalb bleibt er während einer Fahrt verbunden.
+        if (msg.kind === 'trainer' && this.active) throw new Error('Der Trainer bleibt während einer Fahrt verbunden.');
+        void this.devices.disconnect(msg.kind);
+        this.broadcastState();
+        break;
+      case 'device-connect':
+        this.devices.connect(msg.kind);
+        this.broadcastState();
+        break;
       case 'save-profile': {
         const profile = parseProfile(msg.profile);
         const others = this.profiles().filter((x) => x.id !== profile.id);
@@ -131,10 +141,11 @@ export class RideService {
     this.deviceStatus = status;
     for (const kind of ['trainer', 'hr'] as const) {
       if (prev[kind] === status[kind]) continue;
-      if (status[kind] === 'searching') {
+      if (status[kind] !== 'connected') {
         this.latest = kind === 'hr' ? { ...this.latest, hrBpm: undefined } : { hrBpm: this.latest.hrBpm };
       }
-      this.logEvent({ wallClockMs: this.deps.nowMs(), type: status[kind] === 'searching' ? 'device-lost' : 'device-back', detail: kind });
+      if (status[kind] !== 'connected' && prev[kind] !== 'connected') continue;
+      this.logEvent({ wallClockMs: this.deps.nowMs(), type: status[kind] === 'connected' ? 'device-back' : 'device-lost', detail: kind });
     }
   }
 
@@ -188,6 +199,8 @@ export class RideService {
 
   private setActive(a: Active | null): void {
     this.active = a;
+    // Eine Fahrt braucht den Trainer, auch wenn er zuvor von Hand getrennt wurde.
+    if (a && this.devices.getStatus().trainer === 'off') this.devices.connect('trainer');
     this.guard(() => this.deps.onRideChange?.(a !== null));
   }
 

@@ -21,7 +21,7 @@ export const App = () => {
   const ride = useRide();
   return (
     <div className="shell">
-      <StatusBar state={ride.state} connected={ride.connected} />
+      <StatusBar state={ride.state} connected={ride.connected} send={ride.send} />
       <div className="page"><Page ride={ride} /></div>
     </div>
   );

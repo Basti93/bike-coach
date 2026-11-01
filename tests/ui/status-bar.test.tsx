@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { StatusBar } from '../../src/ui/views/StatusBar';
 import type { StateMessage } from '../../src/shared/protocol';
 
@@ -39,4 +39,27 @@ test('the heart beats at the measured rate and rests without one', () => {
   expect(screen.getByTestId('heart').style.animationDuration).toBe('0.5s');
   rerender(<StatusBar connected state={state({ latest: {} })} />);
   expect(screen.getByTestId('heart').style.animationDuration).toBe('');
+});
+test('offers to disconnect a connected device and to connect one that is off', () => {
+  const send = vi.fn();
+  render(<StatusBar connected send={send} state={state({ devices: { trainer: 'connected', hr: 'connected', clicker: 'off' } })} />);
+  expect(screen.getByTestId('status-clicker').textContent).toContain('getrennt');
+  fireEvent.click(screen.getByRole('button', { name: 'Clicker verbinden' }));
+  expect(send).toHaveBeenCalledWith({ type: 'device-connect', kind: 'clicker' });
+  fireEvent.click(screen.getByRole('button', { name: 'Puls trennen' }));
+  expect(send).toHaveBeenCalledWith({ type: 'device-disconnect', kind: 'hr' });
+});
+test('a device still being searched can be stopped', () => {
+  render(<StatusBar connected send={vi.fn()} state={state({ devices: { trainer: 'searching', hr: 'connected', clicker: 'searching' } })} />);
+  expect(screen.getByRole('button', { name: 'Clicker trennen' })).toBeTruthy();
+});
+test('the trainer cannot be disconnected during a ride', () => {
+  const engine = { rideElapsedS: 1 } as StateMessage['engine'];
+  render(<StatusBar connected send={vi.fn()} state={state({ engine })} />);
+  expect(screen.queryByRole('button', { name: 'Trainer trennen' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Clicker trennen' })).toBeTruthy();
+});
+test('no device buttons while the service is unreachable', () => {
+  render(<StatusBar connected={false} send={vi.fn()} state={state()} />);
+  expect(screen.queryAllByRole('button')).toHaveLength(0);
 });

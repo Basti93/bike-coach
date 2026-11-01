@@ -8,6 +8,8 @@ import type { Session } from './session';
 export type ClientMessage =
   | { type: 'start'; profileId: string; session: Session; ftpW: number; maxHrBpm?: number }
   | { type: 'shift'; dir: 'up' | 'down' }
+  | { type: 'device-connect'; kind: DeviceKind }
+  | { type: 'device-disconnect'; kind: DeviceKind }
   | { type: 'adjust'; deltaPct: number }
   | { type: 'mark'; note?: string }
   | { type: 'stop' }

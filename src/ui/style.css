@@ -184,3 +184,9 @@ main > section.card + section.card, main > .together + section.card { margin-top
 /* Garmin-Verbindung auf der Profilseite */
 .garmin { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .garmin-form { margin-bottom: 1rem; }
+
+/* Geräte in der Statusleiste selbst trennen und verbinden */
+.status-bar { flex-wrap: wrap; }
+.status-device { display: inline-flex; align-items: center; gap: .4rem; }
+.status-action { background: none; border: 1px solid var(--line); color: var(--muted); font-size: .75rem; padding: .1rem .45rem; border-radius: .35rem; cursor: pointer; }
+.status-action:hover { color: var(--text); }

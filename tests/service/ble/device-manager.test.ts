@@ -192,3 +192,73 @@ describe('Zwift Click', () => {
     m.stop();
   });
 });
+
+test('a device you disconnect stays off until you connect it again', async () => {
+  const port = new FakeBlePort();
+  port.online.clicker = true;
+  const m = new DeviceManager(port, { retryMs: 100 });
+  m.start();
+  await vi.advanceTimersByTimeAsync(10);
+  expect(m.getStatus().clicker).toBe('connected');
+  await m.disconnect('clicker');
+  expect(m.getStatus().clicker).toBe('off');
+  const attempts = port.connectAttempts;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(port.connectAttempts).toBe(attempts);
+  m.connect('clicker');
+  await vi.advanceTimersByTimeAsync(10);
+  expect(m.getStatus().clicker).toBe('connected');
+});
+test('disconnecting stops a running search', async () => {
+  const port = new FakeBlePort();
+  port.online.clicker = false;
+  const m = new DeviceManager(port, { retryMs: 100 });
+  m.start();
+  await vi.advanceTimersByTimeAsync(10);
+  await m.disconnect('clicker');
+  const attempts = port.connectAttempts;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(port.connectAttempts).toBe(attempts);
+  expect(m.getStatus().clicker).toBe('off');
+});
+test('a connect that finishes after you disconnected is undone', async () => {
+  const port = new FakeBlePort();
+  let finish = () => {};
+  const orig = port.connect.bind(port);
+  port.connect = async (k) => { await new Promise<void>((r) => { finish = r; }); return orig(k); };
+  const off = vi.spyOn(port, 'disconnect');
+  const m = new DeviceManager(port, { retryMs: 100 });
+  void m.disconnect('hr');
+  m.connect('hr');
+  await m.disconnect('hr');
+  finish();
+  await vi.advanceTimersByTimeAsync(10);
+  expect(m.getStatus().hr).toBe('off');
+  expect(off).toHaveBeenCalled();
+});
+test('connecting a searching device tries right away, without starting a second attempt', async () => {
+  const port = new FakeBlePort();
+  port.online.hr = false;
+  port.online.clicker = true;
+  const m = new DeviceManager(port, { retryMs: 10_000 });
+  m.start();
+  await vi.advanceTimersByTimeAsync(10);
+  port.online.hr = true;
+  m.connect('hr');
+  m.connect('hr');
+  await vi.advanceTimersByTimeAsync(10);
+  expect(m.getStatus().hr).toBe('connected');
+  const attempts = port.connectAttempts;
+  await vi.advanceTimersByTimeAsync(20_000);
+  expect(port.connectAttempts).toBe(attempts);
+});
+test('a connected device ignores connect', async () => {
+  const port = new FakeBlePort();
+  const m = new DeviceManager(port, { retryMs: 100 });
+  m.start();
+  await vi.advanceTimersByTimeAsync(10);
+  const attempts = port.connectAttempts;
+  m.connect('trainer');
+  await vi.advanceTimersByTimeAsync(10);
+  expect(port.connectAttempts).toBe(attempts);
+});

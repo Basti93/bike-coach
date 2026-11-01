@@ -4,7 +4,7 @@ import { parseClick } from './click-codec';
 import { parseHeartRate } from './hr-codec';
 
 export type Reading = { powerW?: number; cadenceRpm?: number; speedKph?: number; hrBpm?: number };
-export type DeviceStatus = Record<DeviceKind, 'connected' | 'searching'>;
+export type DeviceStatus = Record<DeviceKind, 'connected' | 'searching' | 'off'>;
 type TrainerCommand = { kind: 'power'; w: number } | { kind: 'grade'; pct: number };
 
 const KINDS: DeviceKind[] = ['trainer', 'hr', 'clicker'];
@@ -19,6 +19,7 @@ export class DeviceManager {
   private lastCommand: TrainerCommand | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private stopped = false;
+  private connecting = new Set<DeviceKind>();
   private retryMs: number;
   private writeRetryMs: number;
   private pendingCommand: TrainerCommand | null = null;
@@ -35,6 +36,7 @@ export class DeviceManager {
     port.onControl((b) => this.safely(() => this.handleControl(b)));
     port.onDisconnect((kind) => {
       if (kind === 'clicker') this.held = { plus: false, minus: false };
+      if (this.status[kind] === 'off') return;
       this.setStatus(kind, 'searching');
       this.schedule(kind);
     });
@@ -48,6 +50,19 @@ export class DeviceManager {
     this.stopped = true;
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
+  }
+
+  /** Bleibt getrennt, bis jemand verbindet. So kann etwa der Clicker in den Ruhezustand gehen. */
+  async disconnect(kind: DeviceKind): Promise<void> {
+    if (kind === 'clicker') this.held = { plus: false, minus: false };
+    this.setStatus(kind, 'off');
+    await this.port.disconnect(kind).catch(() => { /* schon getrennt */ });
+  }
+
+  connect(kind: DeviceKind): void {
+    if (this.status[kind] === 'connected') return;
+    this.setStatus(kind, 'searching');
+    void this.tryConnect(kind);
   }
 
   setTargetPower(w: number): void { this.send({ kind: 'power', w }); }
@@ -129,11 +144,19 @@ export class DeviceManager {
     return this.port.write('trainer', b).catch(() => { /* Neuverbindung sendet den letzten Befehl erneut */ });
   }
   private async tryConnect(kind: DeviceKind): Promise<void> {
-    if (this.stopped) return;
+    if (this.stopped || this.connecting.has(kind) || this.status[kind] !== 'searching') return;
+    this.connecting.add(kind);
     try {
       await this.port.connect(kind);
     } catch {
-      this.schedule(kind);
+      this.connecting.delete(kind);
+      if (this.status[kind] === 'searching') this.schedule(kind);
+      return;
+    }
+    this.connecting.delete(kind);
+    // Während des Wartens kann jemand getrennt haben.
+    if (this.getStatus()[kind] === 'off') {
+      await this.port.disconnect(kind).catch(() => { /* schon getrennt */ });
       return;
     }
     this.setStatus(kind, 'connected');
@@ -151,7 +174,7 @@ export class DeviceManager {
     }, this.retryMs);
     this.timers.add(t);
   }
-  private setStatus(kind: DeviceKind, s: 'connected' | 'searching'): void {
+  private setStatus(kind: DeviceKind, s: DeviceStatus[DeviceKind]): void {
     this.status[kind] = s;
     this.statusCb({ ...this.status });
   }
