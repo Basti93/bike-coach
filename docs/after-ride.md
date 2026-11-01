@@ -5,7 +5,7 @@
 - Neues Profil: Garmin-ZIP wählen, Werte vorausfüllen, nur Fehlendes fragen. Das Handformular bleibt als Weg ohne Garmin.
 - Die Vorschau zeigt jeden Wert mit Herkunft und bleibt änderbar, gespeichert wird erst nach Bestätigung.
 - FTP und Pulsgrenze nie stillschweigend übernehmen: Beide steuern das Training und die Sicherheit. Die Vorsichtsregel der Schätzung (Startwert, `ftpCapW`) bleibt auch mit Garmin-Daten bestehen.
-- Rohdaten nur lokal, kein Heimserver-Sync, dem Coach nur knappe Tageswerte. Jede Person importiert den eigenen Export.
+- Weg und Speicherung stehen jetzt in `docs/superpowers/plans/2026-11-01-garmin-daten.md`: `python-garminconnect` statt ZIP, Heimserver nach Bestätigung pro Profil, dem Coach nur knappe Tageswerte.
 - Welche Felder im Export stehen, ist ungeprüft: erst am echten ZIP festlegen.
 
 
