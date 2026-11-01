@@ -12,3 +12,9 @@ test('service errors are shown', () => {
   render(<App />);
   expect(screen.getByRole('alert').textContent).toContain('Speicher voll');
 });
+test('the small film window has no status bar, so the numbers stay visible', () => {
+  window.location.hash = '#film';
+  render(<App />);
+  expect(screen.queryByText('Problem melden')).toBeNull();
+  window.location.hash = '';
+});

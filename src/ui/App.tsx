@@ -30,7 +30,7 @@ export const App = () => {
   const ride = useRide();
   return (
     <div className="shell">
-      <StatusBar state={ride.state} connected={ride.connected} send={ride.send} reportPath={ride.reportPath} />
+      {window.location.hash !== '#film' && <StatusBar state={ride.state} connected={ride.connected} send={ride.send} reportPath={ride.reportPath} />}
       <div className="page"><Page ride={ride} /></div>
     </div>
   );
