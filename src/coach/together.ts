@@ -1,4 +1,5 @@
 import { learnedCount } from '../shared/language';
+import { PASSES } from '../shared/passes';
 import type { Profile } from '../shared/profiles';
 import type { CoachState } from './state';
 
@@ -24,6 +25,8 @@ export type Together = {
   peak: { name: string; done: number; total: number; next: string };
   /** Mountains reached together, oldest first. Deliberately without shares per person. */
   summits: { name: string; atMs: number }[];
+  /** Real mountains climbed, by person. Time on a mountain is not compared. */
+  climbed: { who: string; name: string; atMs: number }[];
 };
 
 const streak = (s: CoachState, nowMs: number): number => {
@@ -83,5 +86,9 @@ export const computeTogether = (profiles: Profile[], states: CoachState[], nowMs
     recent, people, metres, lastRideMetres: latest ? Math.round(latest.durationS / 60) * METRES_PER_MINUTE : 0, line: friendlyLine(people),
     peak: { name: peakAt(i).name, done: metres - reached, total: peakAt(i).metres, next: peakAt(i + 1).name },
     summits,
+    climbed: states.flatMap((s) => (s.pass?.summits ?? []).flatMap((c) => {
+      const pass = PASSES.find((p) => p.id === c.passId);
+      return pass ? [{ who: profiles.find((p) => p.id === s.profileId)?.name ?? '', name: pass.name, atMs: c.atMs }] : [];
+    })).sort((a, b) => b.atMs - a.atMs),
   };
 };

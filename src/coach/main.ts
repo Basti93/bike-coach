@@ -158,6 +158,9 @@ wss.on('connection', (socket) => {
       }
       if (m.type === 'remove-rule') coach.removeRule(m.profileId, m.atMs);
       if (m.type === 'word-result') coach.wordResult(m.profileId, m.nl, m.knew);
+      if (m.type === 'pass-select') coach.passSelect(m.profileId, m.passId);
+      if (m.type === 'pass-progress') coach.passProgress(m.profileId, m.passId, m.distanceM);
+      if (m.type === 'pass-summit') coach.passSummit(m.profileId, m.passId);
       publish();
     } catch { /* ignore invalid message */ }
   });

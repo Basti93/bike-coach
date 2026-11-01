@@ -14,6 +14,10 @@ The project's own code is under the MIT licence. Different terms apply to the fo
 
 The integration uses unofficial access through `python-garminconnect`. It can break at any time, and using it is your responsibility towards Garmin. `python-garminconnect` is not included.
 
+## Mountain profiles
+
+`src/shared/passes-data.json` holds height profiles of real climbs. The routes come from BRouter on OpenStreetMap data (© OpenStreetMap contributors, ODbL), the heights from there and from the AWS terrain tiles. The ODbL also applies to this file.
+
 ## Other dependencies
 
 All other runtime dependencies are under MIT, ISC, BSD or Apache-2.0, or are in the public domain. The packages' licence files are authoritative.

@@ -17,8 +17,14 @@ import { FeedbackView } from './views/FeedbackView';
 import { HistoryView } from './views/HistoryView';
 import { TogetherView } from './views/TogetherView';
 import { WordCard } from './views/WordCard';
+import { passById } from '../shared/passes';
+import { PassCard } from './pass/PassCard';
+import { PassGuard } from './pass/PassGuard';
+import { PassView } from './pass/PassView';
 
 const CALM_FRACTION = 0.75;
+const PASS_KEY = 'bike-coach.pass';
+const passStored = (): boolean => { try { return localStorage.getItem(PASS_KEY) !== 'off'; } catch { return true; } };
 
 export const App = () => {
   const ride = useRide();
@@ -42,6 +48,8 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const [overview, setOverview] = useState(false);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
   const language = useLanguageLearning(state?.ride?.profileId ?? profile?.id ?? null);
+  const [passOn, setPassOn] = useState(passStored);
+  const passToggle = <button className="secondary" onClick={() => { try { localStorage.setItem(PASS_KEY, passOn ? 'off' : 'on'); } catch { /* then it only applies until the restart */ } setPassOn(!passOn); }}>Berg: {passOn ? 'an' : 'aus'}</button>;
   const languageToggle = <button className="secondary" onClick={language.toggle}>Sprachen lernen: {language.enabled ? 'an' : 'aus'}</button>;
   if (window.location.hash === '#film') return <FilmView state={state} send={send} />;
   if (!connected) return <main>Fahrdienst startet…</main>;
@@ -64,7 +72,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       && state.session?.steps[state.engine.stepIndex]?.kind !== 'grade'
       && (state.engine.targetW ?? Infinity) <= c.ftpW * CALM_FRACTION
       && !(maxHr && (state.latest.hrBpm ?? 0) >= maxHr);
-    return <>{notice}{dialog}<RideView state={state} send={send} hrMaxBpm={rideHrMax} tools={languageToggle} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={click} /> : null} /></>;
+    return <>{notice}{dialog}<RideView state={state} send={send} hrMaxBpm={rideHrMax} tools={<>{passToggle}{languageToggle}</>} mountain={passOn && c && state.ride ? <PassGuard><PassView pass={passById(c.pass?.selectedId)} profileId={state.ride.profileId} startM={c.pass?.distanceM?.[passById(c.pass?.selectedId).id] ?? 0} powerW={state.latest.powerW} paused={state.engine.paused} send={coach.send} /></PassGuard> : undefined} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={click} /> : null} /></>;
   }
   if (editing && profile) return <>{notice}<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setEditing(false)} onDeleted={() => { setEditing(false); setProfile(null); }} /></>;
   const showHealth = (range: HealthRange): void => {
@@ -80,7 +88,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       {profile
         ? (history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} onBack={() => setHistory(false)} /> : coach.state?.awaitingFeedback
           ? <FeedbackView together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
-          : <CoachView onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+          : <CoachView onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );

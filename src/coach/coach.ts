@@ -5,6 +5,7 @@ import { readMeta, readRide } from '../service/recorder';
 import type { Profile } from '../shared/profiles';
 import type { RideDetail } from '../shared/coach-protocol';
 import { DUTCH_WORDS, recordAnswer } from '../shared/language';
+import { PASSES } from '../shared/passes';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
@@ -191,6 +192,23 @@ export class Coach {
     this.update(profileId, (s) => {
       if (!DUTCH_WORDS.some((w) => w.nl === nl)) return;
       s.wordProgress = recordAnswer(s.wordProgress ?? {}, nl, knew, this.deps.nowMs());
+    });
+  }
+
+  /** Mountains are only for joy: they never make the coach replan. */
+  passSelect(profileId: string, passId: string): void {
+    if (!PASSES.some((p) => p.id === passId)) return;
+    this.update(profileId, (s) => { s.pass = { ...s.pass, selectedId: passId }; });
+  }
+  passProgress(profileId: string, passId: string, distanceM: number): void {
+    const pass = PASSES.find((p) => p.id === passId);
+    if (!pass || !Number.isFinite(distanceM) || distanceM < 0) return;
+    this.update(profileId, (s) => { s.pass = { ...s.pass, distanceM: { ...s.pass?.distanceM, [passId]: Math.min(pass.lengthM, distanceM) } }; });
+  }
+  passSummit(profileId: string, passId: string): void {
+    if (!PASSES.some((p) => p.id === passId)) return;
+    this.update(profileId, (s) => {
+      s.pass = { ...s.pass, distanceM: { ...s.pass?.distanceM, [passId]: 0 }, summits: [...(s.pass?.summits ?? []), { passId, atMs: this.deps.nowMs() }] };
     });
   }
 

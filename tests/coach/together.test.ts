@@ -92,3 +92,9 @@ describe('summit book', () => {
     expect(computeTogether(both, [rides('a', []), rides('b', [])], NOW).summits).toEqual([]);
   });
 });
+
+test('the summit book also holds who climbed which real mountain, without watts', () => {
+  const a = { ...person('a', []), pass: { summits: [{ passId: 'brocken', atMs: NOW - DAY }] } } as unknown as CoachState;
+  const t = computeTogether([{ id: 'a', name: 'Anna', ftpW: 250 }], [a], NOW);
+  expect(t.climbed).toEqual([{ who: 'Anna', name: 'Brocken', atMs: NOW - DAY }]);
+});

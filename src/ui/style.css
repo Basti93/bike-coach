@@ -286,3 +286,19 @@ main.home .top .row button { padding: .35rem .85rem; font-size: .9rem; }
 .swatch { display: inline-block; width: 1.4rem; border-top: 2px solid var(--accent); }
 .swatch.fatigue { border-top: 2px dashed var(--muted); }
 .summit { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem .2rem; }
+
+.pass { flex: 1; min-height: 0; display: flex; flex-direction: column; background: linear-gradient(var(--card), var(--bg)); border-radius: 1.3rem; padding: .6rem 1rem 0; overflow: hidden; }
+.pass-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; color: var(--muted); }
+.pass-head b { color: var(--text); font-size: 1.15rem; }
+.pass-plot { position: relative; flex: 1; min-height: 0; }
+.mountain { width: 100%; height: 100%; display: block; overflow: visible; }
+.mountain-you { fill: #fff; font-size: 18px; font-weight: 700; }
+.pass-summit { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: #12201ae6; padding: 1rem 1.6rem; border-radius: 1rem; font-size: 1.5rem; font-weight: 700; text-align: center; }
+main.with-pass { gap: .6rem; }
+main.with-pass .hero { flex: none; }
+main.with-pass .hero-tile { padding: .35rem 1rem; }
+main.with-pass .hero-tile b { font-size: 3rem; }
+main.with-pass .stats .tile { padding: .3rem .8rem; }
+main.with-pass .stats .tile b { font-size: 1.6rem; }
+main.with-pass .workout { height: 2rem; }
+.pass-pick select { width: 100%; }

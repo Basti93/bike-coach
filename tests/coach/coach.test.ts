@@ -414,3 +414,42 @@ test('the coach may set a heart rate zone and a sudden climb, and both reach the
   expect(SYSTEM_PROMPT).toMatch(/hrZone/);
   expect(SYSTEM_PROMPT).toMatch(/sudden/);
 });
+
+describe('mountains across rides', () => {
+  const make = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pass-'));
+    const coach = new Coach({ ridesDir: path.join(root, 'r'), coachDir: root, ask: async () => ({}), nowMs: () => 5000 });
+    coach.scanRides([{ id: 'p', name: 'A', ftpW: 200 }]);
+    return { coach, root };
+  };
+  test('remembers the choice and the progress per mountain, also after a restart', () => {
+    const { coach, root } = make();
+    coach.passSelect('p', 'brocken');
+    coach.passProgress('p', 'brocken', 1200);
+    const again = new Coach({ ridesDir: path.join(root, 'r'), coachDir: root, ask: async () => ({}), nowMs: () => 6000 });
+    again.scanRides([{ id: 'p', name: 'A', ftpW: 200 }]);
+    expect(again.state('p').pass).toMatchObject({ selectedId: 'brocken', distanceM: { brocken: 1200 } });
+  });
+  test('the top goes into the book and the mountain starts again', () => {
+    const { coach } = make();
+    coach.passProgress('p', 'brocken', 8000);
+    coach.passSummit('p', 'brocken');
+    expect(coach.state('p').pass).toMatchObject({ distanceM: { brocken: 0 }, summits: [{ passId: 'brocken', atMs: 5000 }] });
+  });
+  test('unknown mountains and nonsense values are ignored', () => {
+    const { coach } = make();
+    coach.passSelect('p', 'gibt-es-nicht');
+    coach.passSummit('p', 'gibt-es-nicht');
+    coach.passProgress('p', 'brocken', -5);
+    coach.passProgress('p', 'brocken', Number.NaN);
+    expect(coach.state('p').pass?.selectedId).toBeUndefined();
+    expect(coach.state('p').pass?.summits ?? []).toEqual([]);
+    expect(coach.state('p').pass?.distanceM?.brocken ?? 0).toBe(0);
+  });
+  test('riding up a mountain does not make the coach replan', () => {
+    const { coach } = make();
+    coach.passProgress('p', 'brocken', 100);
+    coach.passSummit('p', 'brocken');
+    expect(coach.state('p').dirty).toBe(false);
+  });
+});

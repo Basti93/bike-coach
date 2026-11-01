@@ -17,7 +17,7 @@ const powerClass = (power: number | null | undefined, target: number | null): st
   return 'good';
 };
 
-export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode; hrMaxBpm?: number }) => {
+export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm, mountain }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode; hrMaxBpm?: number; mountain?: ReactNode }) => {
   const [ending, setEnding] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,7 +67,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
     );
   }
   return (
-    <main className="ride">
+    <main className={mountain ? 'ride with-pass' : 'ride'}>
       <header className="ride-head">
         <div>
           <h2>{engine.label}</h2>
@@ -85,6 +85,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm 
       {engine.autoReducedPct > 0 && <div className="banner info" role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</div>}
       {holdZone && step?.hrZone && <div className="banner info" role="status">Die Watt folgen deinem Puls: Zone {step.hrZone}, {holdZone.fromBpm} bis {holdZone.toBpm} bpm.</div>}
       {extra}
+      {mountain}
       <section className="hero">
         <div className="hero-tile">
           <span className="label">Vorgabe</span>

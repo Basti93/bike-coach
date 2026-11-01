@@ -43,10 +43,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -141,6 +141,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
                 </ul>
               </section>
             )}
+            {coachConnected && passCard}
             {garmin && coachConnected && garminAside && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
             {garmin && coachConnected && garmin.state === 'idle' && (
               <details className="card garmin-later">

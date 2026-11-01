@@ -22,6 +22,7 @@ With made-up demo data.
 - **Progress:** Best power per duration, training load, and a comparison only with your own similar rides: same power, fewer beats.
 - **Garmin (optional):** Recovery, other sports and profile values from Garmin Connect. The access is unofficial and can break at any time.
 - **Troubleshooting:** A local log of the last three days and a problem report that stays on your Mac.
+- **Mountains:** Climb a real pass such as Alpe d'Huez across your rides, as a large profile on the ride screen. Your power moves you up, the trainer keeps following the session. Can be switched off.
 - **More:** Dutch vocabulary in quiet phases, multiple profiles, a shared overview, movie mode.
 
 The training recommendations are not medical advice. Limits and own settings are described in [`docs/hr-zones.md`](docs/hr-zones.md), [`docs/motivation.md`](docs/motivation.md) and [`docs/ftp-estimate.md`](docs/ftp-estimate.md).

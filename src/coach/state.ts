@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { WordProgress } from '../shared/language';
+import type { PassState } from '../shared/passes';
 import type { Session } from '../shared/session';
 import type { ClaudeErrorKind } from './claude-client';
 import type { RideSummary } from './metrics';
@@ -21,6 +22,7 @@ export type CoachState = {
   alternatives?: { session: Session; why: string }[];
   rules?: { atMs: number; text: string }[];
   wordProgress?: WordProgress;
+  pass?: PassState;
   changes: { atMs: number; text: string }[];
   notes: { atMs: number; text: string; reply?: string }[];
   complaints?: Complaint[];

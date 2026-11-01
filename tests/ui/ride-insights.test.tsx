@@ -127,7 +127,7 @@ test('without a comparable ride there is no progress line', () => {
 
 describe('together', () => {
   const together = (over = {}) => ({
-    recent: [], metres: 300, lastRideMetres: 300, line: null, summits: [],
+    recent: [], metres: 300, lastRideMetres: 300, line: null, summits: [], climbed: [],
     peak: { name: 'Mont Ventoux', done: 300, total: 1600, next: 'Stilfser Joch' },
     people: [{ profileId: 'a', name: 'Anna', ridesThisWeek: 1, minutesThisWeek: 30, streakWeeks: 0, wordsLearned: 3, weeks: [30], onTargetPct: 60 }],
     ...over,
@@ -143,14 +143,14 @@ describe('together', () => {
     expect(screen.queryByText(/^0 Wochen/)).toBeNull();
   });
   test('the overview shows the summit book, newest first', () => {
-    render(<TogetherView onBack={vi.fn()} together={together({ summits: [{ name: 'Alpe d’Huez', atMs: Date.UTC(2026, 2, 12, 12) }, { name: 'Mont Ventoux', atMs: Date.UTC(2026, 9, 3, 12) }] })} />);
+    render(<TogetherView onBack={vi.fn()} together={together({ summits: [{ name: 'Alpe d’Huez', atMs: Date.UTC(2026, 2, 12, 12) }, { name: 'Mont Ventoux', atMs: Date.UTC(2026, 9, 3, 12) }], climbed: [] })} />);
     const items = screen.getByTestId('summits').querySelectorAll('li');
     expect(items[0].textContent).toContain('Mont Ventoux');
     expect(items[1].textContent).toContain('12. März');
   });
   test('a ride that reached the top says so after the ride', () => {
     const s = summary('b', 1);
-    render(<FeedbackView profileId="A" rideId="b" send={vi.fn()} detail={null} summary={s} together={together({ summits: [{ name: 'Alpe d’Huez', atMs: s.startedAtMs }] })} />);
+    render(<FeedbackView profileId="A" rideId="b" send={vi.fn()} detail={null} summary={s} together={together({ summits: [{ name: 'Alpe d’Huez', atMs: s.startedAtMs }], climbed: [] })} />);
     expect(screen.getByTestId('summit').textContent).toContain('Alpe d’Huez');
   });
   test('time on target stays visible in your own history', () => {

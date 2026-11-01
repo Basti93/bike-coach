@@ -26,7 +26,10 @@ export type CoachClientMessage =
   | { type: 'ride-detail'; profileId: string; rideId: string }
   | { type: 'remove-rule'; profileId: string; atMs: number }
   | { type: 'word-result'; profileId: string; nl: string; knew: boolean }
-  | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' };
+  | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' }
+  | { type: 'pass-select'; profileId: string; passId: string }
+  | { type: 'pass-progress'; profileId: string; passId: string; distanceM: number }
+  | { type: 'pass-summit'; profileId: string; passId: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; together: Together; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
 export const COACH_PORT = 7411;
