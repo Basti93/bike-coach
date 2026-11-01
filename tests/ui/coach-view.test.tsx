@@ -24,3 +24,14 @@ test('without the coach you can still ride a starter session', () => {
   fireEvent.click(screen.getByText('Los'));
   expect(ride.mock.calls[0][0]).toMatchObject({ type: 'start', ftpW: 150 });
 });
+
+test('the health page is offered only with a connected Garmin', () => {
+  const onHealth = vi.fn();
+  const props = { profile: { id: 'p', name: 'S', ftpW: 100 }, state: null, thinking: false, coachConnected: true, sendRide: vi.fn(), sendCoach: vi.fn(), onBack: vi.fn(), onHealth };
+  const first = render(<CoachView {...props} garmin={{ state: 'idle' }} />);
+  expect(screen.queryByRole('button', { name: 'Gesundheit' })).toBeNull();
+  first.unmount();
+  render(<CoachView {...props} garmin={{ state: 'connected' }} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Gesundheit' }));
+  expect(onHealth).toHaveBeenCalled();
+});

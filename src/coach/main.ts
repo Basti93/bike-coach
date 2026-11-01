@@ -11,6 +11,7 @@ import { Coach } from './coach';
 import { suggestProfile } from '../shared/garmin-profile';
 import { GarminLink } from './garmin';
 import { GarminDb } from './garmin-db';
+import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
 import { computeTogether } from './together';
@@ -106,6 +107,16 @@ const suggestionOf = (profileId: string) => {
     return data?.body ? suggestProfile(data.body, data.activities, Date.now()) : null;
   } catch { return null; }
 };
+const healthOf = (profileId: string, rangeDays: number | null) => {
+  if (!/^[A-Za-z0-9-]+$/.test(profileId)) throw new Error('Ungültiges Profil');
+  const now = Date.now();
+  const db = new GarminDb(path.join(dir, '..', 'garmin', 'data', profileId, 'garmin.db'));
+  coach.scanRides(profiles());
+  const state = coach.state(profileId);
+  const rated = state.summaries.flatMap((r) => { const rating = state.feedback[r.rideId]; return rating ? [{ startedAtMs: r.startedAtMs, rating }] : []; });
+  const from = rangeDays === null ? '0000-01-01' : new Date(now - rangeDays * 86_400_000).toISOString().slice(0, 10);
+  return healthData({ days: db.days(from), activities: db.activities(0), progress: db.progress(new Date(now).toISOString().slice(0, 10)), rated }, rangeDays, now);
+};
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
@@ -128,6 +139,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); return; }
+      if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
