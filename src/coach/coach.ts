@@ -149,6 +149,19 @@ export class Coach {
     this.update(profileId, (s) => { s.rules = (s.rules ?? []).filter((r) => r.atMs !== atMs); });
   }
 
+  /** Von Hand gesetzte FTP. Die aktuelle Einheit wird sofort damit neu berechnet, die KI plant danach nach. */
+  setFtp(profileId: string, ftpW: number): void {
+    this.update(profileId, (s) => {
+      const now = this.deps.nowMs();
+      s.ftpW = ftpW;
+      s.ftpCapW = undefined;
+      s.ftpHistory.push({ atMs: now, ftpW, source: 'manual' });
+      this.addChange(s, `Du hast deine FTP auf ${ftpW} W gesetzt.`, now);
+      s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
+      this.markDirty(s);
+    });
+  }
+
   adjustNext(profileId: string, how: 'easier' | 'harder' | 'shorter'): void {
     this.update(profileId, (s) => {
       s.next = { ...s.next, session: adjustSession(s.next.session, how, this.context(s)) };

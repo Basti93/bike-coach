@@ -126,6 +126,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-feedback') { coach.skipFeedback(m.profileId); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'note') { coach.note(m.profileId, m.text); if (noOpenRide()) refresh(m.profileId); }
+      if (m.type === 'set-ftp' && m.ftpW >= 50) { coach.setFtp(m.profileId, m.ftpW); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'adjust') coach.adjustNext(m.profileId, m.how);
       if (m.type === 'skip-ramp') coach.skipRamp(m.profileId);
       if (m.type === 'ride-detail') {

@@ -38,10 +38,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; onEdit?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, garmin, garminSync, garminReadiness }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, onEdit, garmin, garminSync, garminReadiness }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -69,6 +69,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
           {tools}
           {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
           {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}
+          {onEdit && <button className="ghost" onClick={onEdit}>Profil bearbeiten</button>}
           <button className="ghost" onClick={onBack}>Profil wechseln</button>
         </div>
       </div>

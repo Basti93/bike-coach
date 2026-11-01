@@ -12,6 +12,7 @@ export type CoachClientMessage =
   | { type: 'garmin-login'; profileId: string; email: string; password: string }
   | { type: 'garmin-mfa'; profileId: string; code: string }
   | { type: 'garmin-disconnect'; profileId: string }
+  | { type: 'set-ftp'; profileId: string; ftpW: number }
   | { type: 'subscribe'; profileId: string }
   | { type: 'feedback'; profileId: string; rideId: string; rating: Rating }
   | { type: 'skip-feedback'; profileId: string } | { type: 'skip-ramp'; profileId: string }

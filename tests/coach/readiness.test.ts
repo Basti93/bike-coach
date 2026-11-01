@@ -123,3 +123,13 @@ test('a failing Garmin read never stops the coach', async () => {
   await coach.refresh('p').catch(() => {});
   expect(prompts).toHaveLength(1);
 });
+
+test('a manual FTP becomes the valid one and is remembered with its source', () => {
+  const { coach } = coachWith();
+  coach.setFtp('p', 210);
+  const s = coach.state('p');
+  expect(s.ftpW).toBe(210);
+  expect(s.ftpHistory.at(-1)).toMatchObject({ ftpW: 210, source: 'manual' });
+  expect(s.dirty).toBe(true);
+  expect(s.next.source).toBe('rules');
+});
