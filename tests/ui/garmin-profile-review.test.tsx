@@ -70,3 +70,9 @@ test('no banner when everything already matches or there is no suggestion', () =
   rerender(<GarminProfileBanner profile={same} ftpW={183} suggestion={null} onReview={vi.fn()} />);
   expect(container.textContent).toBe('');
 });
+test('an estimate is not presented as a value from Garmin, and the sex reads in German', () => {
+  render(<GarminProfileReview profile={profile} ftpW={150} suggestion={{ ...suggestion, ftp: { startW: 140, source: 'estimate', capW: 183 } }} sendRide={vi.fn()} sendCoach={vi.fn()} onBack={vi.fn()} />);
+  expect(document.body.textContent).toContain('Schätzung: 140');
+  expect(document.body.textContent).not.toContain('Garmin: 140');
+  expect((screen.getByLabelText('Geschlecht') as HTMLInputElement).value).toBe('Mann');
+});

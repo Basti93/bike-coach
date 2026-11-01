@@ -62,12 +62,12 @@ export const GarminProfileReview = ({ profile, ftpW, suggestion, sendRide, sendC
       <section className="card form">
         <p className="muted">Wähle, was du übernehmen willst. Was du nicht wählst, bleibt, wie es ist.</p>
         {fields.map((f) => (
-          <div key={f.key} className="row">
+          <div key={f.key} className="review-row">
             <input type="checkbox" aria-label={`${f.label} übernehmen`} checked={!!selected[f.key]} onChange={(e) => setSelected({ ...selected, [f.key]: e.target.checked })} />
             <label>{f.label}
-              <input value={values[f.key] ?? ''} disabled={f.key === 'sex'} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+              <input value={f.key === 'sex' ? shown(values.sex ?? null) : values[f.key] ?? ''} disabled={f.key === 'sex'} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
             </label>
-            <span className="muted">Garmin: {shown(f.garmin)}, bei dir: {shown(f.own)}</span>
+            <span className="muted">{f.origin}: {shown(f.garmin)}, bei dir: {shown(f.own)}</span>
           </div>
         ))}
         {selected.ftpW && suggestion.ftp?.source === 'estimate' && <p className="notice" role="status">Das ist eine vorsichtige Schätzung, weil Garmins FTP fehlt oder veraltet ist.</p>}

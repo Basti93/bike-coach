@@ -56,7 +56,7 @@ export const suggestProfile = (body: GarminBody, activities: GarminActivity[], n
 };
 
 export type ReviewKey = 'birthDate' | 'sex' | 'heightCm' | 'weightKg' | 'ftpW' | 'maxHrBpm';
-export type ReviewField = { key: ReviewKey; label: string; garmin: string; own: string | null; selected: boolean };
+export type ReviewField = { key: ReviewKey; label: string; garmin: string; origin: 'Garmin' | 'Schätzung'; own: string | null; selected: boolean };
 
 /** Nur was fehlt oder abweicht. Leeres wird vorgeschlagen, Eigenes nie, und Training und Sicherheit entscheidest immer du. */
 export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion): ReviewField[] => {
@@ -72,6 +72,6 @@ export const reviewFields = (profile: Profile, ftpW: number, s: GarminSuggestion
   return rows.flatMap(([key, label, garmin, own]) => {
     if (garmin === null || String(garmin) === String(own ?? '')) return [];
     const empty = own === undefined || own === '';
-    return [{ key, label, garmin: String(garmin), own: empty ? null : String(own), selected: empty && !SENSITIVE.includes(key) }];
+    return [{ key, label, garmin: String(garmin), origin: key === 'ftpW' && s.ftp?.source === 'estimate' ? 'Schätzung' as const : 'Garmin' as const, own: empty ? null : String(own), selected: empty && !SENSITIVE.includes(key) }];
   });
 };

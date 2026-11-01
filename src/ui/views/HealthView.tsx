@@ -65,14 +65,17 @@ const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] })
         <span>{measure.title}</span>
         <span className="muted">{shown && dateText(shown.date)}: <b>{shownValue === null ? '–' : comma(shownValue)}</b> {measure.unit}</span>
       </figcaption>
+      <div className="trend-plot">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" role="img" onMouseMove={onMove} onMouseLeave={() => setHover(null)}
         aria-label={`${measure.title}: von ${comma(Math.min(...known))} bis ${comma(highest)} ${measure.unit}, zuletzt ${comma(known.at(-1)!)}`}>
         {measure.bars
           ? points.map((p, i) => { const v = value(p); return v === null ? null : <rect key={p.date} x={x(i) - barWidth / 2} y={y(v)} width={barWidth} height={HEIGHT - y(v)} rx={2} className="trend-bar" />; })
           : <path d={line} className="trend-line" />}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={0} y2={HEIGHT} className="trend-cross" />}
-        {!measure.bars && shownValue !== null && <circle cx={x(shownIndex)} cy={y(shownValue)} r={4} className="trend-dot" />}
       </svg>
+      {/* Eigenes Element: Das gestreckte Diagramm würde einen Kreis zur Ellipse verzerren. */}
+      {!measure.bars && shownValue !== null && <span className="trend-dot" style={{ left: `${(x(shownIndex) / WIDTH) * 100}%`, top: `${(y(shownValue) / HEIGHT) * 100}%` }} />}
+      </div>
       <div className="trend-axis muted">
         <span>{dateText(points[0].date)}</span>
         <span>{measure.bars ? `höchstens ${comma(highest)}` : `${comma(Math.min(...known))} bis ${comma(highest)}`}</span>

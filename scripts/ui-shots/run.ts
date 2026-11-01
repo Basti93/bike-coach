@@ -30,6 +30,19 @@ const TOGETHER = {
   recent: [{ name: 'Lena', startedAtMs: Date.now() - 3600000 * 20, sessionName: 'Locker, 30 Minuten', minutes: 30 }, { name: 'Max', startedAtMs: Date.now() - 86400000 * 2, sessionName: 'Intervalle, 45 Minuten', minutes: 45 }, { name: 'Lena', startedAtMs: Date.now() - 86400000 * 3, sessionName: 'Steigung, 40 Minuten', minutes: 40 }],
   metres: 2240, lastRideMetres: 300, line: 'Lena legt diese Woche vor. Max, das Rad wartet schon.', peak: { name: 'Mont Ventoux', done: 1140, total: 1600, next: 'Stilfser Joch' },
 };
+const HEALTH = {
+  points: Array.from({ length: 28 }, (_, i) => ({ date: new Date(Date.now() - (27 - i) * 86400000).toISOString().slice(0, 10), restingHrBpm: i % 11 === 5 ? null : 58 + Math.round(4 * Math.sin(i / 3)), vo2max: 51 + i * 0.02, sleepS: null, hrvMs: null, stressAvg: 25 + (i % 9), bodyBatteryMax: 70 + (i % 25), load: i % 5 === 0 ? 40 + i : null })),
+  years: [{ jahr: '2026', sport: 'cycling', anzahl: 18, stunden: 21.5 }, { jahr: '2026', sport: 'running', anzahl: 22, stunden: 14.2 }, { jahr: '2025', sport: 'virtual_ride', anzahl: 28, stunden: 25 }],
+  progress: { activities: 293, activitiesComplete: true, daysDone: 120, daysTotal: 2758, filesDone: 0, filesTotal: 293 }, pulseBeforeRides: null,
+};
+const GARMIN = {
+  health: HEALTH,
+  garminMsg: {
+    garmin: { state: 'connected' }, garminSync: { running: false, lastRunMs: Date.now() - 3600000, complete: false, problem: null },
+    garminReadiness: { level: 'careful', reasons: ['Ruhepuls seit 2 Tagen erhöht (66 statt um 60 bpm)'] },
+    garminSuggestion: { birthDate: '1990-01-15', sex: 'male', heightCm: 178, weightKg: 72, activity: 3, run5kMin: 23.3, ftp: { startW: 145, source: 'estimate', capW: 183 }, maxHrBpm: 190, missing: [] },
+  },
+};
 const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
@@ -57,6 +70,12 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'ride-reduced', ride: ride({ engine: engine({ autoReducedPct: 10, targetW: 180 }) }) },
   { name: 'recovery', ride: idle(), offer: { rideId: 'r', profileId: 'pa', sessionName: 'Intervalle, 45 Minuten', rideElapsedS: 1432 } },
   { name: 'film', ride: ride(), width: 340, height: 300, hash: '#film' },
+  { name: 'coach-garmin', ride: idle(), coach: coach(GARMIN), pick: true },
+  { name: 'coach-garmin-login', ride: idle(), coach: coach({ garminMsg: { garmin: { state: 'idle' } } }), pick: true },
+  { name: 'garmin-review', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Werte aus Garmin prüfen' },
+  { name: 'profile-edit', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Profil bearbeiten' },
+  { name: 'health', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Gesundheit', height: 1300 },
+  { name: 'status-off', ride: idle({ devices: { trainer: 'connected', hr: 'searching', clicker: 'off' }, deviceNames: { trainer: 'Zwift Hub' }, latest: {} }) },
 ];
 
 const stub = () => {
@@ -69,14 +88,14 @@ const stub = () => {
       setTimeout(() => {
         if (this.coach && !w.__coach) { this.readyState = 3; this.onclose?.(); return; }
         this.onopen?.();
-        if (this.coach) this.onmessage?.({ data: JSON.stringify({ type: 'coach-state', state: w.__coach, thinking: false, together: (w.__coach as { together?: unknown }).together }) });
+        if (this.coach) this.onmessage?.({ data: JSON.stringify({ type: 'coach-state', state: w.__coach, thinking: false, together: (w.__coach as { together?: unknown }).together, ...(w.__coach as { garminMsg?: object }).garminMsg }) });
         else {
           this.onmessage?.({ data: JSON.stringify(w.__ride) });
           if (w.__offer) this.onmessage?.({ data: JSON.stringify({ type: 'recovery-offer', ...(w.__offer as object) }) });
         }
       }, 0);
     }
-    send(raw: string) { const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
+    send(raw: string) { const h = (w.__coach as { health?: unknown } | null)?.health; if (this.coach && h && raw.includes('garmin-health')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'garmin-health', data: h }) }), 0); const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
   };
 };
 
