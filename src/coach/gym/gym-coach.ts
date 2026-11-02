@@ -26,7 +26,7 @@ const TEXT_MAX = 400;
 const QUESTION_MAX = 200;
 const NAME_MAX = 80;
 const GYM_QUESTION = 'Trainierst du noch im selben Studio, mit denselben Geräten?';
-const LEG_COMPLAINT = /knie|hüfte|huefte|oberschenkel|wade|knöchel|knoechel|fuß|fuss|achilles|bein/i;
+export const LEG_COMPLAINT = /knie|hüfte|huefte|oberschenkel|wade|knöchel|knoechel|fuß|fuss|achilles|bein/i;
 const COMPLAINT_HINT = 'Deine gemeldete Beschwerde habe ich so weit berücksichtigt, wie Regeln das können. Lass einfach weg, was dich stört.';
 const BREAK_NOTE = 'Nach der Pause fange ich ruhig an und taste mich wieder heran.';
 
@@ -40,6 +40,8 @@ type Deps = {
   ready: (id: string) => boolean;
   bike: (id: string) => { summaries: RideSummary[]; complaints: Complaint[] };
   complaint: (id: string, text: string) => void;
+  /** Recent mobility for the prompt, as data. */
+  mobility?: (id: string) => unknown;
   /** Own records of this Mac. Without one only Hevy counts, as before. */
   store?: RecordStore;
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
@@ -249,7 +251,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection }),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id) }),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
@@ -270,6 +272,8 @@ export class GymCoach {
       this.updateIf(gen, id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
     }
   }
+
+  private mobilityData(id: string): unknown { try { return this.deps.mobility?.(id) ?? undefined; } catch { return undefined; } }
 
   private rejection(raw: unknown, ctx: GymContext): string | null {
     const parsed = gymAnswerSchema.safeParse(raw);

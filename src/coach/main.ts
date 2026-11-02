@@ -24,6 +24,7 @@ import { strengthHealth, type StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
+import { MobilityCoach } from './mobility/mobility';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -61,6 +62,7 @@ const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () =>
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
   strength: (profileId) => hevy.workouts(profileId),
+  mobility: (profileId) => mobility.promptData(profileId),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
 
@@ -71,9 +73,11 @@ const gymWriter = (profileId: string): HevyRoutines | null => {
   const key = hevy.apiKey(profileId);
   return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs: () => Date.now() }) : null;
 };
+const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
 const gym = new GymCoach({
   dir: path.join(coachDir, 'gym'), nowMs: () => Date.now(),
-  store: new RecordStore({ dir: path.join(coachDir, 'tracking') }), hevy: gymConnected,
+  store: records, hevy: gymConnected,
+  mobility: (id) => mobility.promptData(id),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
   workouts: (id) => hevy.workouts(id),
   templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
@@ -84,6 +88,14 @@ const gym = new GymCoach({
   complaint: (id, text) => coach.addComplaintFromText(id, text),
   writer: gymWriter,
 });
+// Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
+const mobility = new MobilityCoach({
+  store: records, nowMs: () => Date.now(),
+  rides: (id) => coach.state(id).summaries,
+  strength: (id) => gym.history(id),
+  complaints: (id) => coach.state(id).complaints ?? [],
+});
+const mobilityOf = (profileId: string) => { try { return mobility.view(profileId); } catch { return null; } };
 const gymOf = (profileId: string) => {
   try {
     const connected = gymConnected(profileId);
@@ -168,7 +180,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -234,6 +246,9 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
       if (m.type.startsWith('gym-')) { handleGym(socket, m); return; }
+      // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
+      if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }
+      if (m.type === 'mobility-feel') { mobility.feel(m.profileId, m.text); publish(); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }

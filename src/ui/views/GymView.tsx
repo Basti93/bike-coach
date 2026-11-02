@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { GymPublic } from '../../coach/gym/public';
 import type { GymExercise, GymSet, GymWorkout } from '../../coach/gym/types';
 import type { CoachClientMessage, GymConfirmResult } from '../../shared/coach-protocol';
+import type { MobilityView } from '../../coach/mobility/mobility';
+import { MobilityCard } from './MobilityCard';
 
 type Props = {
   profileId: string;
@@ -14,6 +16,7 @@ type Props = {
   clear: (what: 'preview' | 'result' | 'all') => void;
   onBack: () => void;
   onHealth?: () => void;
+  mobility?: MobilityView | null;
 };
 
 const SET_TYPE: Record<GymSet['type'], string> = { warmup: 'Aufwärmen', normal: '', failure: 'bis nichts mehr geht', dropset: 'Dropset' };
@@ -53,7 +56,7 @@ const Question = ({ q, profileId, send }: { q: string; profileId: string; send: 
   );
 };
 
-export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth }: Props) => {
+export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth, mobility }: Props) => {
   const { state, ready, thinking } = gym;
   const next = state.next;
   const [note, setNote] = useState('');
@@ -89,6 +92,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
         <h1>Kraft</h1>
         <div className="row">{onHealth && <button className="ghost" onClick={onHealth}>Gesundheit</button>}<button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
+      <MobilityCard profileId={profileId} mobility={mobility} send={send} />
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}
       {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : gym.hevy ? 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.' : 'Sobald du trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}

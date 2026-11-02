@@ -1,3 +1,4 @@
+import type { MobilityView } from '../coach/mobility/mobility';
 import { useEffect, useRef, useState } from 'react';
 import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
@@ -21,6 +22,7 @@ export const useCoach = (profileId: string | null) => {
   const [garminSuggestion, setGarminSuggestion] = useState<GarminSuggestion | null>(null);
   const [garminHealth, setGarminHealth] = useState<GarminHealth | null>(null);
   const [gym, setGym] = useState<GymPublic | null>(null);
+  const [mobility, setMobility] = useState<MobilityView | null>(null);
   const [statusArrived, setStatusArrived] = useState(false);
   const [strengthHealth, setStrengthHealth] = useState<StrengthHealth | null>(null);
   const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean; leftOut?: string[] } | null>(null);
@@ -33,6 +35,7 @@ export const useCoach = (profileId: string | null) => {
     setState(null);
     setGarminHealth(null);
     setGym(null);
+    setMobility(null);
     setHevy({ state: 'idle' });
     setStrengthHealth(null);
     setStatusArrived(false);
@@ -55,7 +58,7 @@ export const useCoach = (profileId: string | null) => {
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
-        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); }
+        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -73,5 +76,5 @@ export const useCoach = (profileId: string | null) => {
     if (what !== 'result') { setGymPreview(null); setGymPreviewFailed(false); }
     if (what !== 'preview') setGymConfirmResult(null);
   };
-  return { gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { mobility, gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

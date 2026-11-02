@@ -5,6 +5,7 @@ import type { GarminSuggestion } from './garmin-profile';
 import type { GymPublic } from '../coach/gym/public';
 import type { GymWorkout } from '../coach/gym/types';
 import type { StrengthHealth } from '../coach/strength';
+import type { MobilityView } from '../coach/mobility/mobility';
 
 export type GarminStatus =
   | { state: 'idle' | 'connecting' | 'needs-mfa' | 'connected' }
@@ -53,8 +54,10 @@ export type CoachClientMessage =
   | { type: 'gym-start'; profileId: string }
   | { type: 'gym-forget'; profileId: string }
   | { type: 'gym-preview'; profileId: string }
-  | { type: 'gym-confirm'; profileId: string; name: string };
+  | { type: 'gym-confirm'; profileId: string; name: string }
+  | { type: 'mobility-done'; profileId: string; sessionId: string }
+  | { type: 'mobility-feel'; profileId: string; text: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
-export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null };
+export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null; mobility?: MobilityView | null };
 export const COACH_PORT = 7411;

@@ -19,6 +19,8 @@ import type { GarminReadiness } from '../../shared/garmin';
 import { SessionFacts, StepList, TrainingCard } from './TrainingCard';
 import { TogetherCard } from './TogetherCard';
 import { WorkoutBar } from './WorkoutBar';
+import { MobilityCard } from './MobilityCard';
+import type { MobilityView } from '../../coach/mobility/mobility';
 
 const NOTICE: Record<string, string> = {
   limit: 'Das Limit deines Claude-Plans ist gerade erreicht. Diese Einheit stammt vom Regelwerk, der Coach versucht es später erneut.',
@@ -44,10 +46,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean; mobility?: MobilityView | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink, mobility }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -95,6 +97,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
           <CoachLog notes={state.notes} changes={state.changes} />
         </Encouragement>
       )}
+      <MobilityCard profileId={profile.id} mobility={mobility} send={sendCoach} />
       <ReadinessNote readiness={garminReadiness} />
       {garmin && coachConnected && !garminAside && garmin.state !== 'idle' && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />}
       {onReviewGarmin && <GarminProfileBanner profile={profile} ftpW={ftpW} suggestion={garminSuggestion} onReview={onReviewGarmin} />}
