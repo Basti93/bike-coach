@@ -21,6 +21,7 @@ export const useCoach = (profileId: string | null) => {
   const [garminSuggestion, setGarminSuggestion] = useState<GarminSuggestion | null>(null);
   const [garminHealth, setGarminHealth] = useState<GarminHealth | null>(null);
   const [gym, setGym] = useState<GymPublic | null>(null);
+  const [statusArrived, setStatusArrived] = useState(false);
   const [strengthHealth, setStrengthHealth] = useState<StrengthHealth | null>(null);
   const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean } | null>(null);
   const [gymConfirmResult, setGymConfirmResult] = useState<GymConfirmResult | null>(null);
@@ -34,6 +35,7 @@ export const useCoach = (profileId: string | null) => {
     setGym(null);
     setHevy({ state: 'idle' });
     setStrengthHealth(null);
+    setStatusArrived(false);
     setGymPreview(null);
     setGymConfirmResult(null);
     setGymPreviewFailed(false);
@@ -53,7 +55,7 @@ export const useCoach = (profileId: string | null) => {
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
-        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); }
+        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -71,5 +73,5 @@ export const useCoach = (profileId: string | null) => {
     if (what !== 'result') { setGymPreview(null); setGymPreviewFailed(false); }
     if (what !== 'preview') setGymConfirmResult(null);
   };
-  return { gym, strengthHealth, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

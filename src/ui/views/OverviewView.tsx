@@ -11,7 +11,7 @@ export const OverviewView = ({ name, avatar, onBike, onStrength, onHealth, onBac
       <h1>{avatar && <span aria-hidden="true">{avatar} </span>}{name}</h1>
       <div className="row"><button className="ghost" onClick={onBack}>Profil wechseln</button></div>
     </div>
-    <div className="row overview">
+    <div className="choices">
       <button className="choice" onClick={onBike}>Rad</button>
       <button className="choice" onClick={onStrength}>Kraft</button>
       <button className="choice" onClick={onHealth}>Gesundheit</button>

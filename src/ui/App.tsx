@@ -26,6 +26,7 @@ import { PassCard } from './pass/PassCard';
 import { PassGuard } from './pass/PassGuard';
 import { PassView } from './pass/PassView';
 
+const STATUS_WAIT_MS = 500;
 const CALM_FRACTION = 0.75;
 const PASS_KEY = 'bike-coach.pass';
 const passStored = (): boolean => { try { return localStorage.getItem(PASS_KEY) !== 'off'; } catch { return true; } };
@@ -57,7 +58,16 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   // The strength page belongs to one profile and needs a Hevy connection.
   useEffect(() => { if (!coach.gym || strengthFor !== profile?.id) setStrengthFor(null); }, [coach.gym, strengthFor, profile?.id]);
   // The bike page chosen from the overview belongs to one profile and needs the overview to exist.
-  useEffect(() => { if (homeScreen(hevy) !== 'overview' || bikeFor !== profile?.id) setBikeFor(null); }, [hevy, bikeFor, profile?.id]);
+  // Test mocks without the field count as arrived.
+  const arrived = coach.statusArrived ?? true;
+  useEffect(() => { if (bikeFor !== profile?.id || (arrived && hevy.state === 'idle')) setBikeFor(null); }, [hevy.state, arrived, bikeFor, profile?.id]);
+  // Without a status the rider still gets the bike page after a short wait; a late status does not take it away again.
+  useEffect(() => {
+    if (!profile || arrived) return undefined;
+    const id = profile.id;
+    const timer = setTimeout(() => setBikeFor(id), STATUS_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [profile?.id, arrived]);
   const language = useLanguageLearning(state?.ride?.profileId ?? profile?.id ?? null);
   const [passOn, setPassOn] = useState(passStored);
   const passToggle = <button className="secondary" onClick={() => { try { localStorage.setItem(PASS_KEY, passOn ? 'off' : 'on'); } catch { /* then it only applies until the restart */ } setPassOn(!passOn); }}>Berg: {passOn ? 'an' : 'aus'}</button>;
@@ -86,14 +96,17 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
     return <>{notice}{dialog}<RideView state={state} send={send} hrMaxBpm={rideHrMax} tools={<>{passToggle}{languageToggle}</>} mountain={passOn && c && state.ride ? <PassGuard><PassView pass={passById(c.pass?.selectedId)} profileId={state.ride.profileId} startM={c.pass?.distanceM?.[passById(c.pass?.selectedId).id] ?? 0} powerW={state.latest.powerW} paused={state.engine.paused} send={coach.send} /></PassGuard> : undefined} extra={c && language.enabled ? <WordCard calm={calm} state={c} send={coach.send} click={click} /> : null} /></>;
   }
   if (editing && profile) return <>{notice}<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setEditing(false)} onDeleted={() => { setEditing(false); setProfile(null); }} /></>;
+  // A rider with Hevy and no Garmin at all sees no Garmin sections; any other Garmin state shows what a Garmin-only rider sees.
+  const garminSections = homeScreen(hevy) === 'bike' || coach.garmin?.state !== 'idle';
   const showHealth = (range: HealthRange): void => {
     setHealth(range);
-    if (profile && (coach.garmin?.state === 'connected' || homeScreen(hevy) === 'bike')) coach.send({ type: 'garmin-health', profileId: profile.id, rangeDays: range });
+    if (profile && (garminSections)) coach.send({ type: 'garmin-health', profileId: profile.id, rangeDays: range });
   };
-  if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} garmin={coach.garmin?.state === 'connected' || coach.strengthHealth == null} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
+  if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
   if (reviewing && profile && coach.garminSuggestion) return <>{notice}<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => setReviewing(false)} /></>;
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
   if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;
+  if (profile && !arrived && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach') return <>{notice}<main aria-busy="true" /></>;
   const overviewOpen = profile !== null && homeScreen(hevy) === 'overview' && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
   if (profile && overviewOpen) return <>{notice}<OverviewView name={profile.name} avatar={profile.avatar} onBike={() => setBikeFor(profile.id)} onStrength={() => setStrengthFor(profile.id)} onHealth={() => showHealth(28)} onBack={() => setProfile(null)} /></>;
   return (
