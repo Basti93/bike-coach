@@ -4,6 +4,7 @@ import { RecoveryDialog } from '../../src/ui/views/RecoveryDialog';
 import { RideView } from '../../src/ui/views/RideView';
 import { FilmView } from '../../src/ui/views/FilmView';
 import { hrZoneColor } from '../../src/ui/hr-zone-style';
+import { pickTip, TIP_GAP_S, TIP_SHOW_S, type TipContext } from '../../src/ui/ride-tips';
 import type { StateMessage } from '../../src/shared/protocol';
 
 afterEach(cleanup);
@@ -133,4 +134,37 @@ test('film mode colors the number by zone, the heart stays red', () => {
   render(<FilmView state={{ ...base, profiles: [{ ...filmProfile, hrMaxBpm: 200 }] }} send={vi.fn()} />);
   expect(screen.getByTestId('hr').getAttribute('style')).toContain('--hrz2');
   expect(screen.getByTestId('film-heart').getAttribute('style')).not.toContain('--hrz');
+});
+const tipSession: StateMessage['session'] = { id: 's', name: 'S', steps: [{ kind: 'erg', ftpFraction: 0.5, durationS: 3600, label: 'Locker' }] };
+const tipEngine = (t: number) => ({ ...base.engine!, rideElapsedS: t, stepRemainingS: 3600 - t, secondsToNext: 3600 - t, nextLabel: null });
+test('the coach gives a short tip, keeps its distance and takes it away again', () => {
+  const at = (t: number) => <RideView state={{ ...base, session: tipSession, engine: tipEngine(t) }} send={vi.fn()} />;
+  const { rerender } = render(at(600));
+  rerender(at(600 + TIP_GAP_S - 1));
+  expect(screen.queryByTestId('ride-tip')).toBeNull();
+  rerender(at(600 + TIP_GAP_S));
+  expect(screen.getByTestId('ride-tip').textContent).toContain('Coach:');
+  rerender(at(600 + TIP_GAP_S + TIP_SHOW_S));
+  expect(screen.queryByTestId('ride-tip')).toBeNull();
+});
+test('no tip during a pause', () => {
+  const at = (t: number, paused: boolean) => <RideView state={{ ...base, session: tipSession, engine: { ...tipEngine(t), paused } }} send={vi.fn()} />;
+  const { rerender } = render(at(600, true));
+  rerender(at(600 + TIP_GAP_S, true));
+  expect(screen.queryByTestId('ride-tip')).toBeNull();
+});
+const ctx = (over: Partial<TipContext> = {}): TipContext => ({ session: tipSession!, engine: tipEngine(100), cadences: [], zones: [], ...over });
+test('tips put the body first: heart rate above target wins', () => {
+  expect(pickTip(ctx({ zones: [4, 4], cadences: [50, 50], engine: tipEngine(1300) }), new Set())?.id).toBe('hr-0');
+});
+test('low cadence gets a tip only if the whole minute was low', () => {
+  expect(pickTip(ctx({ cadences: [50, 50] }), new Set())?.id).toBe('cadence-0');
+  expect(pickTip(ctx({ cadences: [50, 70] }), new Set())).toBeNull();
+});
+test('a tip is not repeated', () => {
+  expect(pickTip(ctx({ cadences: [50] }), new Set(['cadence-0']))).toBeNull();
+});
+test('prepares for a harder section ahead', () => {
+  const session = { ...tipSession!, steps: [tipSession!.steps[0], { kind: 'erg' as const, ftpFraction: 0.9, durationS: 240, label: 'Block' }] };
+  expect(pickTip(ctx({ session, engine: { ...tipEngine(100), stepRemainingS: 60 } }), new Set())?.id).toBe('prepare-0');
 });

@@ -48,3 +48,7 @@ Own settings, to be verified over real weeks: resting heart rate ≥ 5 bpm above
 ## Motivation through the coach (built on 2026-11-01)
 
 Foundations and own settings are in `docs/motivation.md`. Open: verify with the real AI and over real weeks whether the wording fits and the follow-up questions are not annoying.
+
+## Coach tips during the ride (live, 2026-11-02)
+
+Tips currently come from fixed rules in `src/ui/ride-tips.ts`. Tips from the AI, fitted to the person and their complaints, need the coach process and the protocol, so they are for after the ride.
