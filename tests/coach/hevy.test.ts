@@ -6,7 +6,7 @@ import { HevyLinks, HevySync } from '../../src/coach/hevy';
 const NOW = 1_800_000_000_000;
 const raw = (id: string, day = 1, over: object = {}) => ({
   id, title: `Einheit ${id}`, start_time: `2027-01-0${day}T10:00:00+00:00`, end_time: `2027-01-0${day}T10:30:00+00:00`,
-  exercises: [{ title: 'Kniebeuge', sets: [
+  exercises: [{ exercise_template_id: 'T1', title: 'Kniebeuge', sets: [
     { type: 'warmup', weight_kg: 20, reps: 10 },
     { type: 'normal', weight_kg: 50, reps: 10 },
     { type: 'normal', weight_kg: null, reps: 5 },
@@ -26,8 +26,47 @@ test('a workout is reduced to what the coach needs, warmup sets left out of the 
   await sync.tick();
   expect(sync.workouts()[0]).toEqual({
     id: 'w1', title: 'Einheit w1', startMs: Date.parse('2027-01-01T10:00:00Z'), durationS: 1800,
-    exercises: [{ title: 'Kniebeuge', sets: 2, reps: 15, volumeKg: 500 }],
+    exercises: [{ title: 'Kniebeuge', templateId: 'T1', sets: 2, reps: 15, volumeKg: 500, workSets: [
+      { type: 'warmup', weightKg: 20, reps: 10 }, { type: 'normal', weightKg: 50, reps: 10 }, { type: 'normal', weightKg: null, reps: 5 },
+    ] }],
   });
+});
+test('exercises carry template id and all sets', async () => {
+  const sync = make(pages(1));
+  await sync.tick();
+  const e = sync.workouts()[0].exercises[0];
+  expect(e.templateId).toBe('T1');
+  expect(e.workSets.map((x) => x.type)).toEqual(['warmup', 'normal', 'normal']);
+});
+const oldStore = () => fs.writeFileSync(path.join(dir, 'workouts.json'), JSON.stringify({
+  workouts: { old: { id: 'old', title: 'Alt', startMs: 1, durationS: 60, exercises: [] } }, nextPage: null, syncFromMs: NOW - 1000, lastTryMs: NOW,
+}));
+test('a store without a format version refetches from page 1 and keeps the old workouts meanwhile', async () => {
+  oldStore();
+  const f = pages(2);
+  const sync = make(f);
+  expect(sync.workouts().map((w) => w.id)).toEqual(['old']);
+  expect(sync.status().loading).toBe(true);
+  await sync.tick();
+  expect(new URL(String(f.mock.calls[0][0])).searchParams.get('page')).toBe('1');
+  expect(sync.workouts().map((w) => w.id).sort()).toEqual(['old', 'w1']);
+});
+test('ready is false during the refetch and true after', async () => {
+  oldStore();
+  const sync = make(pages(2));
+  expect(sync.ready()).toBe(false);
+  await sync.tick();
+  expect(sync.ready()).toBe(false);
+  await sync.tick();
+  expect(sync.ready()).toBe(true);
+  expect(make(pages(2)).ready()).toBe(true);
+});
+test('the refetch does not tell the bike coach anything changed until it ends', async () => {
+  oldStore();
+  const sync = make(pages(3));
+  expect(await sync.tick()).toBe(false);
+  expect(await sync.tick()).toBe(false);
+  expect(await sync.tick()).toBe(true);
 });
 test('sends the key as a header and only ever reads', async () => {
   const f = pages(1);

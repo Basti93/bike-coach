@@ -13,13 +13,20 @@ const KEY_FILE = 'api-key';
 
 export type StrengthWorkout = {
   id: string; title: string; startMs: number; durationS: number;
-  exercises: { title: string; sets: number; reps: number; volumeKg: number }[];
+  exercises: {
+    title: string; templateId: string; sets: number; reps: number; volumeKg: number;
+    workSets: { type: SetType; weightKg: number | null; reps: number | null }[];
+  }[];
 };
+export type SetType = 'warmup' | 'normal' | 'failure' | 'dropset';
+const SET_TYPES: readonly string[] = ['warmup', 'normal', 'failure', 'dropset'];
+/** Bump when the stored workouts gain details, so older stores are fetched again. */
+const STORE_VERSION = 2;
 type RawWorkout = {
   id: string; title: string; start_time: string; end_time: string;
-  exercises: { title: string; sets: { type: string; weight_kg: number | null; reps: number | null }[] }[];
+  exercises: { title: string; exercise_template_id?: string; sets: { type: string; weight_kg: number | null; reps: number | null }[] }[];
 };
-type Store = { workouts: Record<string, StrengthWorkout>; nextPage: number | null; syncFromMs: number | null; lastTryMs: number | null; lastOkMs?: number | null };
+type Store = { version?: number; workouts: Record<string, StrengthWorkout>; nextPage: number | null; syncFromMs: number | null; lastTryMs: number | null; lastOkMs?: number | null };
 type Options = { key: string; dir: string; nowMs: () => number; fetchFn?: typeof fetch };
 
 const toWorkout = (w: RawWorkout): StrengthWorkout => {
@@ -29,7 +36,9 @@ const toWorkout = (w: RawWorkout): StrengthWorkout => {
     exercises: w.exercises.map((e) => {
       const work = e.sets.filter((s) => s.type !== 'warmup');
       return {
-        title: e.title, sets: work.length,
+        title: e.title, templateId: e.exercise_template_id ?? '',
+        workSets: e.sets.map((x) => ({ type: (SET_TYPES.includes(x.type) ? x.type : 'normal') as SetType, weightKg: x.weight_kg ?? null, reps: x.reps ?? null })),
+        sets: work.length,
         reps: work.reduce((a, s) => a + (s.reps ?? 0), 0),
         volumeKg: Math.round(work.reduce((a, s) => a + (s.weight_kg ?? 0) * (s.reps ?? 0), 0)),
       };
@@ -55,9 +64,13 @@ export class HevySync {
   private load(): Store {
     try {
       const s = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Store;
-      if (s && typeof s.workouts === 'object') return s;
+      if (s && typeof s.workouts === 'object') {
+        // Older stores lack the set details: fetch everything again, keeping what is there meanwhile.
+        if (s.version !== STORE_VERSION) return { ...s, version: STORE_VERSION, nextPage: 1 };
+        return s;
+      }
     } catch { /* start over */ }
-    return { workouts: {}, nextPage: 1, syncFromMs: null, lastTryMs: null };
+    return { version: STORE_VERSION, workouts: {}, nextPage: 1, syncFromMs: null, lastTryMs: null };
   }
 
   private save(): void {
@@ -71,6 +84,9 @@ export class HevySync {
   status(): { workouts: number; loading: boolean; lastSyncMs: number | null; rejected: boolean } {
     return { workouts: Object.keys(this.store.workouts).length, loading: this.store.nextPage !== null, lastSyncMs: this.store.lastOkMs ?? null, rejected: this.rejected };
   }
+
+  /** True once every stored workout carries its set details. */
+  ready(): boolean { return this.store.nextPage === null; }
 
   workouts(): StrengthWorkout[] { return Object.values(this.store.workouts).sort((a, b) => a.startMs - b.startMs); }
 

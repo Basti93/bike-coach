@@ -12,7 +12,7 @@ const DAY = 86_400_000;
 const NOW = Date.parse('2027-06-15T12:00:00Z');
 const workout = (daysAgo: number, id = `w${daysAgo}`): StrengthWorkout => ({
   id, title: 'Beine', startMs: NOW - daysAgo * DAY, durationS: 1800,
-  exercises: [{ title: 'Kniebeuge', sets: 3, reps: 30, volumeKg: 1500 }, { title: 'Wadenheben', sets: 3, reps: 36, volumeKg: 900 }],
+  exercises: [{ title: 'Kniebeuge', templateId: 'T1', workSets: [], sets: 3, reps: 30, volumeKg: 1500 }, { title: 'Wadenheben', templateId: 'T2', workSets: [], sets: 3, reps: 36, volumeKg: 900 }],
 });
 
 test('recent workouts are listed and older ones only summed', () => {
