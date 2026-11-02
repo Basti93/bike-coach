@@ -13,6 +13,7 @@ export type Suggestion = { weightKg: number | null; reps: number; why: 'progress
 export function availableExercises(workouts: StrengthWorkout[], nowMs: number): Availability[] {
   const found = new Map<string, Availability>();
   for (const w of workouts) {
+    if (w.startMs > nowMs) continue;
     for (const e of w.exercises) {
       if (!e.templateId) continue;
       const known = found.get(e.templateId);
@@ -53,7 +54,9 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   const sessions = templateId ? sessionsOf(templateId, workouts, nowMs) : [];
   const last = sessions[sessions.length - 1];
   if (!last) return { weightKg: null, reps: REP_MIN, why: 'none' };
-  const reps = Math.max(1, last.minReps);
+  // Weighted work stays in the rep range; bodyweight work has no upper limit, since reps are its only progression.
+  const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(REP_MAX, Math.max(REP_MIN, r));
+  const reps = fit(last.minReps);
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
     return { weightKg: last.weightKg === null ? null : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
   }
@@ -62,7 +65,7 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   const before = comparable[comparable.length - 2];
   const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
   if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
-  if (last.weightKg === null || reps < REP_MAX) return { weightKg: last.weightKg, reps: reps + 1, why: 'progress' };
+  if (last.weightKg === null || last.minReps < REP_MAX) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
   const step = Math.max(last.weightKg * MAX_STEP_PCT / 100, MIN_STEP_KG);
   return { weightKg: toHalf(last.weightKg + step, 'floor'), reps: REP_MIN, why: 'progress' };
 }

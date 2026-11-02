@@ -78,3 +78,45 @@ describe('recentLegWork', () => {
     expect(recentLegWork([wk(3, [[60, 8]], 'sq')], templates, NOW)).toBe(false);
   });
 });
+
+describe('suggestNext fixes', () => {
+  const two = (a: S[], b: S[], d1 = 14, d2 = 7) => [wk(d1, a), wk(d2, b)];
+  it('keeps reps within range for weighted exercises on every path', () => {
+    expect(suggestNext('sq', two([[60, 14]], [[60, 15], [60, 15]]), NOW)).toEqual({ weightKg: 63, reps: 6, why: 'progress' });
+    expect(suggestNext('sq', [wk(7, [[60, 15]])], NOW)).toEqual({ weightKg: 60, reps: 12, why: 'keep' });
+    expect(suggestNext('sq', [wk(7, [[60, 3]])], NOW)).toEqual({ weightKg: 60, reps: 6, why: 'keep' });
+    expect(suggestNext('sq', [wk(40, [[60, 15]])], NOW)).toEqual({ weightKg: 54, reps: 12, why: 'step-back' });
+    expect(suggestNext('sq', [wk(40, [[60, 3]])], NOW)).toEqual({ weightKg: 54, reps: 6, why: 'step-back' });
+    expect(suggestNext('sq', two([[60, 3]], [[60, 4]]), NOW)).toEqual({ weightKg: 60, reps: 6, why: 'progress' });
+  });
+  it('a lower weight in the last session is not reached', () => {
+    expect(suggestNext('sq', two([[60, 8]], [[55, 9]]), NOW)).toEqual({ weightKg: 55, reps: 9, why: 'keep' });
+  });
+  it('a break of exactly 28 days is none, 29 days steps back', () => {
+    expect(suggestNext('sq', [wk(28, [[60, 8]])], NOW).why).toBe('keep');
+    expect(suggestNext('sq', [wk(29, [[60, 8]])], NOW).why).toBe('step-back');
+  });
+  it('sessions at exactly 56 days are comparable, at 57 days not', () => {
+    expect(suggestNext('sq', two([[60, 8]], [[60, 9]], 56, 7), NOW).why).toBe('progress');
+    expect(suggestNext('sq', two([[60, 8]], [[60, 9]], 57, 7), NOW).why).toBe('keep');
+  });
+  it('failure sets count toward reached, drop sets and warmups are ignored', () => {
+    expect(suggestNext('sq', two([[60, 8]], [[60, 8], [60, 5, 'failure']]), NOW).why).toBe('keep');
+    expect(suggestNext('sq', two([[60, 8]], [[60, 9], [60, 8, 'failure']]), NOW).why).toBe('progress');
+    expect(suggestNext('sq', two([[60, 8]], [[60, 8], [40, 3, 'dropset'], [80, 2, 'dropset']]), NOW)).toEqual({ weightKg: 60, reps: 9, why: 'progress' });
+  });
+  it('step-back on bodyweight keeps weight null', () => {
+    expect(suggestNext('pu', [wk(40, [[null, 10]], 'pu')], NOW)).toEqual({ weightKg: null, reps: 10, why: 'step-back' });
+  });
+  it('bodyweight reps may exceed REP_MAX and never fall below 1', () => {
+    expect(suggestNext('pu', [wk(7, [[null, 20]], 'pu')], NOW).reps).toBe(20);
+    expect(suggestNext('pu', [wk(7, [[null, 1]], 'pu')], NOW).reps).toBe(1);
+  });
+  it('after a weight rise the next suggestion keeps the weight', () => {
+    expect(suggestNext('sq', two([[40, 12]], [[42.5, 6]]), NOW)).toEqual({ weightKg: 42.5, reps: 6, why: 'keep' });
+  });
+  it('availableExercises ignores workouts after now', () => {
+    const r = availableExercises([wk(-2, [[60, 8]], 'fut', 'Future'), wk(5, [[60, 8]], 'sq')], NOW);
+    expect(r.map((x) => x.templateId)).toEqual(['sq']);
+  });
+});
