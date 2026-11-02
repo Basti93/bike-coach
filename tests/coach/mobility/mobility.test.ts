@@ -55,6 +55,28 @@ describe('suggestMobility', () => {
     expect(s.reason).not.toMatch(/knie/i);
     expect(s.reason).not.toMatch(/diagnos/i);
   });
+  it('a knee or leg complaint leaves out everything that loads the knee, kneeling included', () => {
+    const loaded = new Set(MOBILITY_EXERCISES.filter((e) => e.kneeLoad).map((e) => e.id));
+    for (const id of ['mob-hip-flexor-lunge', 'mob-childs-pose', 'mob-quad-standing']) expect(loaded.has(id)).toBe(true);
+    for (const text of ['Knie zwickt', 'Wade zieht', 'Oberschenkel zwickt']) {
+      const s = suggestMobility({ ...afterRide, complaints: [complaint(text)] });
+      expect(s).not.toBeNull();
+      for (const e of s!.exercises) expect(loaded.has(e.id)).toBe(false);
+    }
+    // Without a leg complaint they stay on offer.
+    expect(suggestMobility(afterRide)!.exercises.some((e) => loaded.has(e.id))).toBe(true);
+  });
+  it('short words match whole words only', () => {
+    expect(areas(suggestMobility({ ...afterRide, complaints: [complaint('Darmprobleme')] }))).toContain('brust');
+    expect(areas(suggestMobility({ ...afterRide, complaints: [complaint('Mir ist warm')] }))).toContain('brust');
+    expect(areas(suggestMobility({ ...afterRide, complaints: [complaint('Arm schmerzt')] }))).not.toContain('brust');
+  });
+  it('the hip flexor exercises differ and nothing is described as hurried', () => {
+    const hips = MOBILITY_EXERCISES.filter((e) => e.area === 'hueftbeuger');
+    expect(new Set(hips.map((e) => e.howTo)).size).toBe(hips.length);
+    expect(hips.some((e) => !e.kneeLoad)).toBe(true);
+    for (const e of MOBILITY_EXERCISES) expect(e.howTo).not.toMatch(/zügig/i);
+  });
   it('a complaint that is over changes nothing', () => {
     const s = suggestMobility({ ...afterRide, complaints: [complaint('Knie zwickt', 'over')] })!;
     expect(areas(s)).toContain('waden');
@@ -138,6 +160,29 @@ describe('MobilityCoach', () => {
     c.markDone('p', id);
     expect(done()).toHaveLength(1);
     expect((done()[0].body as { doneMs: number }).doneMs).toBe(NOW);
+  });
+  it('a tap on the previous offer still stores it after a newer session began', () => {
+    rides = [ride()];
+    const c = make();
+    const old = c.view('p')!.session!.id;
+    now += HOUR;
+    rides = [ride(), ride({ rideId: 'r2', startedAtMs: now - HOUR })];
+    expect(c.view('p')!.session!.id).not.toBe(old);
+    c.markDone('p', old);
+    expect(done().map((r) => r.id)).toEqual([old]);
+  });
+  it('a tap shortly after the 24 hours passed still stores it, a late one does not', () => {
+    rides = [ride()];
+    const c = make();
+    const id = c.view('p')!.session!.id;
+    now = rides[0].startedAtMs + rides[0].durationS * 1000 + 24.5 * HOUR;
+    c.markDone('p', id);
+    expect(done()).toHaveLength(1);
+    store = new RecordStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'mob-')) });
+    const late = make();
+    now += 5 * HOUR;
+    late.markDone('p', id);
+    expect(done()).toHaveLength(0);
   });
   it('an id that is not the current offer is ignored', () => {
     rides = [ride()];

@@ -11,6 +11,8 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const OFFER_WINDOW_MS = 24 * HOUR;
 const PAUSE_MS = 2 * DAY;
+/** A tap on an offer that has just run out still counts. */
+const TAP_GRACE_MS = HOUR;
 const FEEL_EVERY_MS = 42 * DAY;
 const FEEL_MIN_SESSIONS = 3;
 const PROMPT_WINDOW_MS = 28 * DAY;
@@ -41,10 +43,14 @@ const COMPLAINT_AREAS: { pattern: RegExp; areas: MobilityArea[] }[] = [
   { pattern: /knie/i, areas: ['oberschenkel-vorn', 'oberschenkel-hinten', 'waden'] },
   { pattern: /hüfte|huefte|leiste/i, areas: ['hueftbeuger', 'gesaess'] },
   { pattern: /wade|knöchel|knoechel|fuß|fuss|achilles/i, areas: ['waden'] },
-  { pattern: /rücken|ruecken|lws|kreuz/i, areas: ['ruecken', 'gesaess'] },
-  { pattern: /schulter|nacken|arm|ellbogen|handgelenk|brust/i, areas: ['schultern', 'nacken', 'brust'] },
+  { pattern: /rücken|ruecken|\blws\b|kreuz/i, areas: ['ruecken', 'gesaess'] },
+  { pattern: /schulter|nacken|\barme?n?\b|ellbogen|handgelenk|brust/i, areas: ['schultern', 'nacken', 'brust'] },
   { pattern: LEG_COMPLAINT, areas: ['oberschenkel-vorn', 'oberschenkel-hinten', 'waden', 'hueftbeuger', 'gesaess'] },
 ];
+
+/** A knee or any other leg complaint: everything that loads the knee goes, whatever its area. */
+const kneeLoadBlocked = (complaints: Complaint[]): boolean =>
+  complaints.some((c) => c.status !== 'over' && (/knie/i.test(c.text) || LEG_COMPLAINT.test(c.text)));
 
 const excludedAreas = (complaints: Complaint[]): Set<MobilityArea> => {
   const out = new Set<MobilityArea>();
@@ -76,16 +82,17 @@ export function suggestMobility(input: MobilityInput): MobilitySession | null {
   const triggerMs = forSession === 'strength' ? strength! : bike!;
 
   const excluded = excludedAreas(input.complaints);
+  const list = kneeLoadBlocked(input.complaints) ? MOBILITY_EXERCISES.filter((x) => !x.kneeLoad) : MOBILITY_EXERCISES;
   const fromMuscles = forSession === 'strength' ? [...new Set(input.usedMuscles.flatMap((m) => MUSCLE_AREAS[m] ?? []))] : [];
   const focus = [...(forSession === 'bike' ? RIDE_FOCUS : fromMuscles), ...FALLBACK].filter((a, i, all) => all.indexOf(a) === i && !excluded.has(a));
   const wanted = (forSession === 'bike' ? RIDE_FOCUS : fromMuscles).filter((a) => !excluded.has(a));
 
   // One per wanted area first, then a second one, then the rest only to reach the minimum.
-  const picked: typeof MOBILITY_EXERCISES = [];
+  const picked: typeof list = [];
   const take = (areas: MobilityArea[], perArea: number, limit: number): void => {
     for (let round = 0; round < perArea; round++) {
       for (const a of areas) {
-        const e = MOBILITY_EXERCISES.filter((x) => x.area === a)[round];
+        const e = list.filter((x) => x.area === a)[round];
         if (e && picked.length < limit && !picked.includes(e)) picked.push(e);
       }
     }
@@ -94,7 +101,7 @@ export function suggestMobility(input: MobilityInput): MobilitySession | null {
   if (picked.length < MIN_EXERCISES) take(focus, 1, MIN_EXERCISES);
   if (picked.length < MIN_EXERCISES) return null;
 
-  const left = excluded.size > 0 ? ' Bereiche, die dich gerade stören, habe ich weggelassen.' : '';
+  const left = excluded.size > 0 || list !== MOBILITY_EXERCISES ? ' Bereiche, die dich gerade stören, habe ich weggelassen.' : '';
   const reason = forSession === 'bike'
     ? `Nach dem Radfahren eine kurze, ruhige Beweglichkeitseinheit, nur wenn du magst.${left}`
     : `Nach dem Krafttraining eine kurze, ruhige Beweglichkeitseinheit für die Muskeln, die du genutzt hast, nur wenn du magst.${left}`;
@@ -159,13 +166,25 @@ export class MobilityCoach {
 
   view(id: string): MobilityView { return { session: this.suggestion(id), askFeel: this.askFeel(id) }; }
 
-  /** Only the session on offer can be marked, so a stale or invented id stores nothing. Marking twice keeps the first time. */
+  /**
+   * Only an offer this profile really had can be marked: the current one, or one from an earlier session that ended
+   * within 24 hours (plus a short grace). An invented id stores nothing. Marking twice keeps the first time.
+   */
   markDone(id: string, sessionId: string): void {
-    const s = this.suggestion(id);
-    if (!s || s.id !== sessionId) return;
-    if (this.deps.store.all(id, 'mobility').some((r) => r.id === s.id)) return;
     const now = this.deps.nowMs();
-    this.deps.store.put(id, { kind: 'mobility', id: s.id, updatedMs: now, deleted: false, body: { doneMs: now, forSession: s.forSession } });
+    const m = /^mobility-(bike|strength)-(\d+)$/.exec(sessionId);
+    if (!m) return;
+    const forSession = m[1] as 'bike' | 'strength';
+    const endMs = Number(m[2]);
+    const ends = forSession === 'bike'
+      ? this.deps.rides(id).filter((r) => r.status === 'finished' && r.durationS >= MIN_COUNTED_S).map((r) => r.startedAtMs + r.durationS * 1000)
+      : this.deps.strength(id).filter((w) => w.durationS > 0).map((w) => w.startMs + w.durationS * 1000);
+    if (!ends.includes(endMs) || endMs > now || now - endMs > OFFER_WINDOW_MS + TAP_GRACE_MS) return;
+    if (this.deps.store.all(id, 'mobility').some((r) => r.id === sessionId)) return;
+    // The same 2 day rule as for the offer, so a second session's card cannot add a second entry.
+    const doneMs = this.done(id).map((r) => bodyOf(r).doneMs as number);
+    if (doneMs.length && now - Math.max(...doneMs) < PAUSE_MS) return;
+    this.deps.store.put(id, { kind: 'mobility', id: sessionId, updatedMs: now, deleted: false, body: { doneMs: now, forSession } });
   }
 
   /** An empty text is a skip: it stores the skip, so nothing asks again before the next 6 weeks. */
