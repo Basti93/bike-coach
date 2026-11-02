@@ -124,3 +124,9 @@ test('strengthHealth does not throw on an old-format record with workSets absent
   } as unknown as StrengthWorkout;
   expect(strengthHealth([old], now).recent[0]).toMatchObject({ id: 'old', sets: 3, volumeKg: 1470 });
 });
+test('strengthHealth hands over the sessions of the twelve weeks with their duration', () => {
+  const now = new Date(2027, 5, 16, 12).getTime();
+  const w = (id: string, startMs: number): StrengthWorkout => ({ id, title: 'Beine', startMs, durationS: 3000, exercises: [] });
+  const h = strengthHealth([w('old', new Date(2027, 0, 4, 10).getTime()), w('new', new Date(2027, 5, 15, 10).getTime())], now);
+  expect(h.sessions).toEqual([{ id: 'new', title: 'Beine', startMs: new Date(2027, 5, 15, 10).getTime(), durationS: 3000 }]);
+});

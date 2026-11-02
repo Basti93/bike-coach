@@ -51,7 +51,12 @@ const years = (activities: GarminActivity[]): HealthYear[] => {
     .sort((a, b) => b.jahr.localeCompare(a.jahr) || b.stunden - a.stunden);
 };
 
-const pulseBeforeRides = ({ days, rated }: Input): GarminHealth['pulseBeforeRides'] => {
+/** Only what the combined week view needs, for the last 13 weeks (12 weeks plus the days up to Monday). */
+const recentActivities = (activities: GarminActivity[], nowMs: number): NonNullable<GarminHealth['activities']> =>
+  activities.filter((a) => a.startMs >= nowMs - 13 * 7 * DAY_MS)
+    .map((a) => ({ id: a.id, startMs: a.startMs, durationS: a.durationS, sport: a.sport, name: a.name, fromBikeCoach: a.fromBikeCoach }));
+
+const pulseBeforeRides =({ days, rated }: Input): GarminHealth['pulseBeforeRides'] => {
   const pulse = new Map(days.map((d) => [d.date, d.restingHrBpm]));
   const known = rated.flatMap((r) => { const v = pulse.get(iso(r.startedAtMs)); return v === null || v === undefined ? [] : [{ v, hard: r.rating === 'hard' }]; });
   const hard = mean(known.filter((k) => k.hard).map((k) => k.v));
@@ -62,4 +67,5 @@ const pulseBeforeRides = ({ days, rated }: Input): GarminHealth['pulseBeforeRide
 /** Condenses for the health page: days up to 90 days, then weeks, months for the whole history. */
 export const healthData = (input: Input, rangeDays: number | null, nowMs: number): GarminHealth => ({
   points: points(input, rangeDays, nowMs), years: years(input.activities), progress: input.progress, pulseBeforeRides: pulseBeforeRides(input),
+  activities: recentActivities(input.activities, nowMs),
 });

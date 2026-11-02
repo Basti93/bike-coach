@@ -1,7 +1,9 @@
-import { useState, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import type { GarminSyncInfo } from '../../shared/coach-protocol';
 import type { GarminHealth, GarminReadiness, HealthPoint } from '../../shared/garmin';
 import type { StrengthHealth } from '../../coach/strength';
+import { allTraining, type Part, type Source } from '../../coach/all-training';
+import type { RideSummary } from '../../coach/metrics';
 import { ReadinessNote } from './ReadinessNote';
 
 export type HealthRange = number | null;
@@ -86,10 +88,54 @@ const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] })
   );
 };
 
-type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack: () => void; strength?: StrengthHealth | null; garmin?: boolean };
+type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack: () => void; strength?: StrengthHealth | null; garmin?: boolean; rides?: RideSummary[] | null };
 
 const kg = (n: number): string => `${n.toLocaleString('de-DE')} kg`;
 const dayText = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+
+const SOURCES: { key: Source; label: string }[] = [{ key: 'rad', label: 'Rad' }, { key: 'kraft', label: 'Kraft' }, { key: 'andere', label: 'Andere' }];
+const duration = (minutes: number): string => (minutes < 60 ? `${minutes} Min.` : `${comma(Math.round(minutes / 6) / 10)} Std.`);
+
+/** All sources side by side, never merged: only time and number of sessions are added up, no load, watts or kilos. */
+const AllTrainingSection = ({ rides, strength, data }: { rides: RideSummary[] | null | undefined; strength: StrengthHealth | null | undefined; data: GarminHealth | null }) => {
+  const all = useMemo(() => allTraining({ rides, workouts: strength?.sessions, activities: data?.activities }, Date.now()), [rides, strength, data]);
+  if (!all) return null;
+  const shown = SOURCES.filter((s) => all.sources.includes(s.key));
+  const most = Math.max(1, ...all.weeks.map((w) => w.minutes));
+  const total = (key: Source): Part => all.weeks.reduce((a, w) => ({ sessions: a.sessions + w[key].sessions, minutes: a.minutes + w[key].minutes }), { sessions: 0, minutes: 0 });
+  return (
+    <section className="card all-training">
+      <h3>Training insgesamt</h3>
+      <p className="muted">Zeit und Einheiten der letzten zwölf Wochen, getrennt nach Herkunft.</p>
+      <ul className="all-legend">
+        {shown.map((s) => <li key={s.key}><span className={`swatch seg-${s.key}`} aria-hidden="true" /><b>{s.label}</b> {total(s.key).sessions} Einheiten, {duration(total(s.key).minutes)}</li>)}
+      </ul>
+      <ul className="all-bars" aria-label="Trainingszeit pro Woche, die letzten zwölf Wochen">
+        {all.weeks.map((w) => (
+          <li key={w.weekStartMs} title={`Woche ab ${dayText(w.weekStartMs)}: ${w.sessions === 0 ? 'nichts' : shown.filter((s) => w[s.key].sessions > 0).map((s) => `${s.label} ${duration(w[s.key].minutes)} (${w[s.key].sessions})`).join(', ')}`}>
+            <span className="all-plot">
+              <span className="all-stack" style={{ height: `${(w.minutes / most) * 100}%` }}>
+                {shown.filter((s) => w[s.key].minutes > 0).map((s) => <span key={s.key} className={`seg-${s.key}`} style={{ flexGrow: w[s.key].minutes }} />)}
+              </span>
+            </span>
+            <small>{w.sessions === 0 ? '0' : duration(w.minutes)}</small>
+            <small className="muted">{dayText(w.weekStartMs)}</small>
+          </li>
+        ))}
+      </ul>
+      <ul className="all-recent" aria-label="Letzte Einheiten">
+        {all.recent.map((s) => (
+          <li key={s.key}>
+            <span className="muted">{dayText(s.startMs)}</span>
+            <span className={`source source-${s.source}`}>{SOURCES.find((x) => x.key === s.source)!.label}</span>
+            <span>{s.source === 'rad' ? (s.title ?? 'Fahrt') : s.source === 'kraft' ? s.title : (SPORTS[s.sport ?? ''] ?? s.title ?? s.sport ?? 'Training')}</span>
+            <span className="muted">{duration(s.minutes)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 /** What was trained, without a comparison to anything else. */
 const StrengthSection = ({ strength }: { strength: StrengthHealth }) => {
@@ -113,7 +159,7 @@ const StrengthSection = ({ strength }: { strength: StrengthHealth }) => {
   );
 };
 
-export const HealthView = ({ data, range, onRange, readiness, sync, onBack, strength, garmin = true }: Props) => {
+export const HealthView = ({ data, range, onRange, readiness, sync, onBack, strength, garmin = true, rides }: Props) => {
   const withData = MEASURES.filter((m) => data?.points.some((p) => p[m.key] !== null));
   const without = MEASURES.filter((m) => !withData.includes(m));
   const updated = sync?.lastRunMs ? new Date(sync.lastRunMs).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
@@ -124,6 +170,7 @@ export const HealthView = ({ data, range, onRange, readiness, sync, onBack, stre
         <h1>Gesundheit</h1>
         <div className="row"><button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
+      <AllTrainingSection rides={rides} strength={strength} data={garmin ? data : null} />
       {!garmin ? (
         <>
           {strength && <StrengthSection strength={strength} />}
