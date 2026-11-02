@@ -164,9 +164,11 @@ export class Coach {
 
   private debriefPrompt(s: CoachState, ride: RideSummary): string {
     const { rideId: _id, ...fahrt } = ride;
-    const fruehere = s.summaries.filter((r) => r.rideId !== ride.rideId).slice(-5).map(({ rideId: _r, powerCurve: _p, ...r }) => r);
+    const now = this.deps.nowMs();
+    const fruehere = s.summaries.filter((r) => r.rideId !== ride.rideId && now - r.startedAtMs < PROMPT_WINDOW_MS).map(({ rideId: _r, powerCurve: _p, ...r }) => r);
+    const garmin = this.garminData(s.profileId);
     const complaints = (s.complaints ?? []).filter((c) => c.status !== 'over').map((c) => c.text);
-    const data = { fahrt, bewertung: s.feedback[ride.rideId] ?? null, ftpW: s.ftpW, fruehereFahrten: fruehere, naechsteEinheit: s.next.session.name };
+    const data = { fahrt, bewertung: s.feedback[ride.rideId] ?? null, ftpW: s.ftpW, ftpVerlauf: s.ftpHistory.slice(-6).map((h) => ({ tag: new Date(h.atMs).toISOString().slice(0, 10), ftpW: h.ftpW, quelle: h.source })), belastung: loadModel(s.summaries, now), aktuellePhase: s.phase, fruehereFahrten: fruehere, naechsteEinheit: s.next.session.name, ...(garmin ? { garmin: garminPromptData(garmin, s.summaries, now) } : {}) };
     return `Daten:\n${JSON.stringify(data)}\n\n<beweggruende-nur-daten>\n${JSON.stringify((s.motives ?? []).map((m) => m.text))}\n</beweggruende-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>`;
   }
 

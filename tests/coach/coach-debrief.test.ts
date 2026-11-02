@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Coach, DEBRIEF_MAX_ATTEMPTS, DEBRIEF_MAX_AGE_MS, DEBRIEF_RETRY_MS } from '../../src/coach/coach';
 import { ClaudeError } from '../../src/coach/claude-client';
+import { DEBRIEF_SYSTEM_PROMPT } from '../../src/coach/debrief';
 import type { Sample } from '../../src/shared/sample';
 import type { Session } from '../../src/shared/session';
 
@@ -156,4 +157,19 @@ test('the prompt carries the ride, its motives as data and no instructions from 
   expect(prompt).toContain('Für die Berge');
   expect(prompt).toContain('nur-daten');
   expect(prompt).toContain('"sessionName"');
+});
+test('the prompt carries the long-term picture, like planning does', async () => {
+  ride(now - 10 * 86_400_000);
+  ride();
+  const garmin = () => ({ days: [], activities: [], body: null });
+  const ask = vi.fn(async (_: { prompt: string }) => good);
+  const coach = new Coach({ ridesDir: rides, coachDir, nowMs: () => now, ask, garmin });
+  coach.scanRides([A]);
+  await coach.ensureDebrief('pa');
+  const prompt = String(ask.mock.calls[0][0].prompt);
+  for (const key of ['"belastung"', '"aktuellePhase"', '"ftpVerlauf"', '"fruehereFahrten"', '"garmin"']) expect(prompt).toContain(key);
+});
+test('a single small value does not become a tip', () => {
+  expect(DEBRIEF_SYSTEM_PROMPT).toContain('hrDriftPct');
+  expect(DEBRIEF_SYSTEM_PROMPT).toContain('mehrere Fahrten');
 });
