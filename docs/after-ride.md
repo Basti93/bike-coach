@@ -75,3 +75,7 @@ Upload rides to Garmin Connect from the FIT files in `rides/exports/`, with the 
 - Verify first that `garminconnect` can upload activities; it is an unofficial API, so a failed upload stays marked as open and can be retried. A ride stays safe locally either way, and an upload never blocks ending a ride.
 - Remember uploaded rides, so nothing goes up twice.
 - The coach must recognize its own uploaded rides in the Garmin data and not count them again as load from other sports. Warn about duplicates if a watch recorded the same ride.
+
+## Main window hidden after the ride (seen live, 2026-11-02)
+
+The film window floats over a fullscreen video on every Space, but the main window stays on its own Space. When a ride ends the film window only says "Keine laufende Fahrt" and the rating is out of sight. Wanted: when the ride ends, the film window offers a button that brings the main window forward, without pulling the rider out of the video by itself. Needs `src/main/**`, so it goes with the next restart.
