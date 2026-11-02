@@ -14,7 +14,7 @@ import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
-import { HevySync, readHevyConfig } from './hevy';
+import { HevyLinks } from './hevy';
 import { activityName, canUpload, REPO_DESCRIPTION } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
@@ -46,13 +46,12 @@ const garminData = (profileId: string): GarminCoachData | null => {
   return data;
 };
 
-// Optional: without a key nothing happens, and only this one profile ever sees the data.
-const hevyConfig = readHevyConfig({ envFile: path.resolve('.env'), configFile: path.join(dir, '..', 'config.json') }, process.env);
-const hevy = hevyConfig ? new HevySync({ key: hevyConfig.key, dir: path.join(dir, '..', 'hevy', hevyConfig.profileId), nowMs: () => Date.now() }) : null;
+// Optional and per profile: without a key nothing happens.
+const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () => Date.now(), onChange: (profileId) => { try { coach.strengthChanged(profileId); } catch { /* unknown profile */ } } });
 
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
-  strength: (profileId) => (hevy && profileId === hevyConfig?.profileId ? hevy.workouts() : []),
+  strength: (profileId) => hevy.workouts(profileId),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
 
@@ -128,7 +127,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -158,6 +157,9 @@ wss.on('connection', (socket) => {
     try {
       const m = JSON.parse(String(raw)) as CoachClientMessage;
       // Login credentials are only passed on, never stored or sent back.
+      // The key is only passed on and stored privately, never sent back.
+      if (m.type === 'hevy-connect') { void hevy.connect(m.profileId, m.key).catch(() => {}).finally(publish); publish(); return; }
+      if (m.type === 'hevy-disconnect') { hevy.disconnect(m.profileId); publish(); return; }
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
@@ -212,7 +214,7 @@ const scan = (): void => {
       refresh(p.id);
     }
     // Separate safeguard: Hevy must never disturb the coach run or a ride.
-    if (hevy && hevyConfig && free) void hevy.tick().then((changed) => { if (changed) coach.strengthChanged(hevyConfig.profileId); }).catch(() => {});
+    if (free) void hevy.tick(list.map((p) => p.id)).catch(() => {}).finally(publish);
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();

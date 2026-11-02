@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { HevyStatus } from '../shared/coach-protocol';
 
 const API = 'https://api.hevyapp.com';
 const PAGE_SIZE = 10;
@@ -7,6 +8,8 @@ const EVENT_INTERVAL_MS = 30 * 60_000;
 const RETRY_MS = 30 * 60_000;
 const TIMEOUT_MS = 20_000;
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
+const KEY_FORMAT = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const KEY_FILE = 'api-key';
 
 export type StrengthWorkout = {
   id: string; title: string; startMs: number; durationS: number;
@@ -16,7 +19,7 @@ type RawWorkout = {
   id: string; title: string; start_time: string; end_time: string;
   exercises: { title: string; sets: { type: string; weight_kg: number | null; reps: number | null }[] }[];
 };
-type Store = { workouts: Record<string, StrengthWorkout>; nextPage: number | null; syncFromMs: number | null; lastTryMs: number | null };
+type Store = { workouts: Record<string, StrengthWorkout>; nextPage: number | null; syncFromMs: number | null; lastTryMs: number | null; lastOkMs?: number | null };
 type Options = { key: string; dir: string; nowMs: () => number; fetchFn?: typeof fetch };
 
 const toWorkout = (w: RawWorkout): StrengthWorkout => {
@@ -40,6 +43,7 @@ class Rejected extends Error {}
 export class HevySync {
   private store: Store;
   private rejected = false;
+  private closed = false;
   private running = false;
   private file: string;
 
@@ -57,9 +61,15 @@ export class HevySync {
   }
 
   private save(): void {
+    if (this.closed) return;
     fs.mkdirSync(this.opts.dir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(`${this.file}.tmp`, JSON.stringify(this.store), { mode: 0o600 });
     fs.renameSync(`${this.file}.tmp`, this.file);
+  }
+
+  close(): void { this.closed = true; }
+  status(): { workouts: number; loading: boolean; lastSyncMs: number | null; rejected: boolean } {
+    return { workouts: Object.keys(this.store.workouts).length, loading: this.store.nextPage !== null, lastSyncMs: this.store.lastOkMs ?? null, rejected: this.rejected };
   }
 
   workouts(): StrengthWorkout[] { return Object.values(this.store.workouts).sort((a, b) => a.startMs - b.startMs); }
@@ -115,6 +125,7 @@ export class HevySync {
     try {
       const changed = nextPage === null ? await this.changes() : await this.firstRunPage(nextPage);
       this.store.lastTryMs = now;
+      this.store.lastOkMs = now;
       this.failedAtMs = null;
       this.save();
       return changed;
@@ -132,20 +143,72 @@ export class HevySync {
   private failedAtMs: number | null = null;
 }
 
-const parseEnv = (text: string): Record<string, string> => Object.fromEntries(
-  text.split('\n').flatMap((line) => {
-    const m = /^\s*([A-Z_]+)=(.*)$/.exec(line);
-    return m ? [[m[1], m[2].trim()]] : [];
-  }),
-);
-const readText = (file: string): string => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } };
+type LinkOptions = { baseDir: string; nowMs: () => number; fetchFn?: typeof fetch; onChange: (profileId: string) => void };
 
-/** Optional: without a key and a profile there is simply no Hevy. The key belongs to one person, so it needs both. */
-export const readHevyConfig = (files: { envFile: string; configFile: string }, env: Record<string, string | undefined>): { key: string; profileId: string } | null => {
-  const dotEnv = parseEnv(readText(files.envFile));
-  let config: { hevyApiKey?: unknown; hevyProfileId?: unknown } = {};
-  try { config = JSON.parse(readText(files.configFile)) as typeof config; } catch { /* no file, no values */ }
-  const key = env.HEVY_API_KEY || dotEnv.HEVY_API_KEY || (typeof config.hevyApiKey === 'string' ? config.hevyApiKey : '');
-  const profileId = env.HEVY_PROFILE_ID || dotEnv.HEVY_PROFILE_ID || (typeof config.hevyProfileId === 'string' ? config.hevyProfileId : '');
-  return key && SAFE_ID.test(profileId) ? { key, profileId } : null;
-};
+/** Every profile brings its own key, or none: without one nothing here ever runs. The key stays in a private file on this Mac. */
+export class HevyLinks {
+  private syncs = new Map<string, HevySync>();
+  private attempts = new Map<string, HevyStatus>();
+
+  constructor(private opts: LinkOptions) {}
+
+  private dir(profileId: string): string { return path.join(this.opts.baseDir, profileId); }
+
+  private sync(profileId: string): HevySync | null {
+    if (!SAFE_ID.test(profileId)) return null;
+    const known = this.syncs.get(profileId);
+    if (known) return known;
+    let key: string;
+    try { key = fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim(); } catch { return null; }
+    if (!key) return null;
+    const sync = new HevySync({ key, dir: this.dir(profileId), nowMs: this.opts.nowMs, ...(this.opts.fetchFn ? { fetchFn: this.opts.fetchFn } : {}) });
+    this.syncs.set(profileId, sync);
+    return sync;
+  }
+
+  status(profileId: string): HevyStatus {
+    const attempt = this.attempts.get(profileId);
+    if (attempt) return attempt;
+    const sync = this.sync(profileId);
+    if (!sync) return { state: 'idle' };
+    const { workouts, loading, lastSyncMs, rejected } = sync.status();
+    return rejected ? { state: 'failed', reason: 'expired' } : { state: 'connected', workouts, loading, lastSyncMs };
+  }
+
+  workouts(profileId: string): StrengthWorkout[] { return this.sync(profileId)?.workouts() ?? []; }
+
+  async connect(profileId: string, rawKey: string): Promise<void> {
+    if (!SAFE_ID.test(profileId)) return;
+    const key = rawKey.trim();
+    if (!KEY_FORMAT.test(key)) { this.attempts.set(profileId, { state: 'failed', reason: 'invalid' }); return; }
+    this.attempts.set(profileId, { state: 'connecting' });
+    try {
+      const res = await (this.opts.fetchFn ?? fetch)(`${API}/v1/user/info`, { method: 'GET', headers: { 'api-key': key, accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (res.status === 401 || res.status === 403) { this.attempts.set(profileId, { state: 'failed', reason: 'invalid' }); return; }
+      if (!res.ok) throw new Error(`Hevy ${res.status}`);
+    } catch { this.attempts.set(profileId, { state: 'failed', reason: 'failed' }); return; }
+    fs.mkdirSync(this.dir(profileId), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(this.dir(profileId), KEY_FILE), key, { mode: 0o600 });
+    fs.chmodSync(path.join(this.dir(profileId), KEY_FILE), 0o600);
+    this.syncs.get(profileId)?.close();
+    this.syncs.delete(profileId);
+    this.attempts.delete(profileId);
+  }
+
+  disconnect(profileId: string): void {
+    if (!SAFE_ID.test(profileId)) return;
+    this.syncs.get(profileId)?.close();
+    this.syncs.delete(profileId);
+    this.attempts.delete(profileId);
+    fs.rmSync(this.dir(profileId), { recursive: true, force: true });
+    this.opts.onChange(profileId);
+  }
+
+  /** One small step per connected profile. One profile failing changes nothing for the others. */
+  async tick(profileIds: string[]): Promise<void> {
+    await Promise.all(profileIds.map(async (id) => {
+      const sync = this.sync(id);
+      if (sync && await sync.tick().catch(() => false)) this.opts.onChange(id);
+    }));
+  }
+}

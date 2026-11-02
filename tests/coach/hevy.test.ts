@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { HevySync, readHevyConfig } from '../../src/coach/hevy';
+import { HevyLinks, HevySync } from '../../src/coach/hevy';
 
 const NOW = 1_800_000_000_000;
 const raw = (id: string, day = 1, over: object = {}) => ({
@@ -113,30 +113,120 @@ test('the key is never stored', async () => {
   expect(fs.readFileSync(path.join(dir, 'workouts.json'), 'utf8')).not.toContain('test-key');
 });
 
-describe('configuration', () => {
-  const files = (env: string | null, config: object | null) => {
-    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'cfg-'));
-    if (env !== null) fs.writeFileSync(path.join(d, '.env'), env);
-    if (config) fs.writeFileSync(path.join(d, 'config.json'), JSON.stringify(config));
-    return { envFile: path.join(d, '.env'), configFile: path.join(d, 'config.json') };
-  };
-  test('no key means no Hevy, without an error', () => {
-    expect(readHevyConfig(files(null, null), {})).toBeNull();
-    expect(readHevyConfig(files('HEVY_API_KEY=\nHEVY_PROFILE_ID=\n', { syncUrl: 'x' }), {})).toBeNull();
+test('reports its state without the key', async () => {
+  const sync = make(pages(2));
+  await sync.tick();
+  expect(sync.status()).toEqual({ workouts: 1, loading: true, lastSyncMs: NOW, rejected: false });
+  await sync.tick();
+  expect(sync.status()).toMatchObject({ workouts: 2, loading: false });
+});
+test('a closed sync writes nothing any more', async () => {
+  let release = (_: Response) => {};
+  const sync = make((() => new Promise<Response>((r) => { release = r; })) as never);
+  const run = sync.tick();
+  sync.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+  release(json({ page: 1, page_count: 1, workouts: [raw('w1')] }));
+  await run;
+  expect(fs.existsSync(dir)).toBe(false);
+});
+
+const KEY = '11111111-2222-3333-4444-555555555555';
+describe('connection per profile', () => {
+  const ok = () => vi.fn(async (url: string | URL | Request) => {
+    if (String(url).includes('/v1/user/info')) return json({ data: { name: 'Test' } });
+    return json({ page: 1, page_count: 1, workouts: [raw('w1')] });
   });
-  test('a key without a profile is not used, it belongs to one person', () => {
-    expect(readHevyConfig(files('HEVY_API_KEY=abc\n', null), {})).toBeNull();
+  const links = (fetchFn: unknown, onChange = vi.fn()) => new HevyLinks({ baseDir: dir, nowMs: () => now, fetchFn: fetchFn as typeof fetch, onChange });
+  const keyFile = (id: string) => path.join(dir, id, 'api-key');
+
+  test('without a key nothing happens and nothing is asked', async () => {
+    const f = ok();
+    const l = links(f);
+    await l.tick(['pa']);
+    expect(l.status('pa')).toEqual({ state: 'idle' });
+    expect(l.workouts('pa')).toEqual([]);
+    expect(f).not.toHaveBeenCalled();
   });
-  test('reads the .env file', () => {
-    expect(readHevyConfig(files('# x\nHEVY_API_KEY=abc\nHEVY_PROFILE_ID=p1\n', null), {})).toEqual({ key: 'abc', profileId: 'p1' });
+  test('a good key is checked, stored privately and starts the sync', async () => {
+    const onChange = vi.fn();
+    const l = links(ok(), onChange);
+    await l.connect('pa', ` ${KEY} `);
+    expect(fs.readFileSync(keyFile('pa'), 'utf8')).toBe(KEY);
+    expect(fs.statSync(keyFile('pa')).mode & 0o777).toBe(0o600);
+    expect(l.status('pa').state).toBe('connected');
+    await l.tick(['pa']);
+    expect(l.workouts('pa')).toHaveLength(1);
+    expect(onChange).toHaveBeenCalledWith('pa');
   });
-  test('the environment wins', () => {
-    expect(readHevyConfig(files('HEVY_API_KEY=abc\nHEVY_PROFILE_ID=p1\n', null), { HEVY_API_KEY: 'env', HEVY_PROFILE_ID: 'p2' })).toEqual({ key: 'env', profileId: 'p2' });
+  test('the connection survives a restart', async () => {
+    await links(ok()).connect('pa', KEY);
+    expect(links(ok()).status('pa').state).toBe('connected');
   });
-  test('the packaged app reads config.json', () => {
-    expect(readHevyConfig(files(null, { hevyApiKey: 'abc', hevyProfileId: 'p1' }), {})).toEqual({ key: 'abc', profileId: 'p1' });
+  test('every profile has its own key and data', async () => {
+    const l = links(ok());
+    await l.connect('pa', KEY);
+    await l.tick(['pa', 'pb']);
+    expect(l.workouts('pa')).toHaveLength(1);
+    expect(l.workouts('pb')).toEqual([]);
+    expect(l.status('pb')).toEqual({ state: 'idle' });
   });
-  test('an unsafe profile id is refused', () => {
-    expect(readHevyConfig(files('HEVY_API_KEY=abc\nHEVY_PROFILE_ID=../x\n', null), {})).toBeNull();
+  test('a rejected key is not stored and says so', async () => {
+    const l = links(vi.fn(async () => json({}, 401)));
+    await l.connect('pa', KEY);
+    expect(fs.existsSync(keyFile('pa'))).toBe(false);
+    expect(l.status('pa')).toEqual({ state: 'failed', reason: 'invalid' });
+  });
+  test('something that is no key is not even sent', async () => {
+    const f = ok();
+    const l = links(f);
+    await l.connect('pa', 'quatsch');
+    expect(f).not.toHaveBeenCalled();
+    expect(l.status('pa')).toEqual({ state: 'failed', reason: 'invalid' });
+  });
+  test('Hevy being away is not the fault of the key', async () => {
+    const l = links(vi.fn(async () => { throw new Error('weg'); }));
+    await l.connect('pa', KEY);
+    expect(l.status('pa')).toEqual({ state: 'failed', reason: 'failed' });
+  });
+  test('shows that it is connecting', async () => {
+    let release = (_: Response) => {};
+    const l = links(() => new Promise<Response>((r) => { release = r; }));
+    const run = l.connect('pa', KEY);
+    expect(l.status('pa')).toEqual({ state: 'connecting' });
+    release(json({ data: {} }));
+    await run;
+  });
+  test('a key revoked later asks to connect again', async () => {
+    await links(ok()).connect('pa', KEY);
+    const l = links(vi.fn(async () => json({}, 401)));
+    await l.tick(['pa']);
+    expect(l.status('pa')).toEqual({ state: 'failed', reason: 'expired' });
+  });
+  test('disconnecting removes key and data, and the coach forgets', async () => {
+    const onChange = vi.fn();
+    const l = links(ok(), onChange);
+    await l.connect('pa', KEY);
+    await l.tick(['pa']);
+    onChange.mockClear();
+    l.disconnect('pa');
+    expect(fs.existsSync(path.join(dir, 'pa'))).toBe(false);
+    expect(l.workouts('pa')).toEqual([]);
+    expect(l.status('pa')).toEqual({ state: 'idle' });
+    expect(onChange).toHaveBeenCalledWith('pa');
+  });
+  test('an unsafe profile id touches nothing', async () => {
+    const f = ok();
+    const l = links(f);
+    await l.connect('../x', KEY);
+    l.disconnect('../..');
+    expect(f).not.toHaveBeenCalled();
+    expect(fs.existsSync(dir)).toBe(true);
+    expect(l.status('../x')).toEqual({ state: 'idle' });
+  });
+  test('the status never carries the key', async () => {
+    const l = links(ok());
+    await l.connect('pa', KEY);
+    expect(JSON.stringify(l.status('pa'))).not.toContain(KEY);
   });
 });

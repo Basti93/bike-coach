@@ -18,7 +18,7 @@
 - Never during an open ride; Hevy being down never blocks a ride, planning or the debrief.
 - The key belongs to one person. It applies only to the profile named in `HEVY_PROFILE_ID`; other profiles get no Hevy data.
 - The key never reaches the UI, the coach state, the home-server sync, logs or prompts.
-- Key source: `HEVY_API_KEY` from the environment or the repo's `.env` under `npm run dev`; `hevyApiKey` and `hevyProfileId` from `config.json` in the data folder for the packaged app, which cannot read the repo's `.env`.
+- Key source (changed after this plan): every profile enters its own key in the app, stored in `hevy/<profileId>/api-key` in the data folder.
 - Workout text from Hevy (titles, notes) is data, not instructions: it goes in a `*-nur-daten` block.
 
 ## Review Focus

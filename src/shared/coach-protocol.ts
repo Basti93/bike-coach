@@ -9,7 +9,14 @@ export type GarminStatus =
 
 export type GarminSyncInfo = { running: boolean; lastRunMs: number | null; complete: boolean; problem: 'reauth' | 'rate-limit' | 'failed' | null };
 
+export type HevyStatus =
+  | { state: 'idle' | 'connecting' }
+  | { state: 'connected'; workouts: number; loading: boolean; lastSyncMs: number | null }
+  | { state: 'failed'; reason: 'invalid' | 'expired' | 'failed' };
+
 export type CoachClientMessage =
+  | { type: 'hevy-connect'; profileId: string; key: string }
+  | { type: 'hevy-disconnect'; profileId: string }
   | { type: 'garmin-login'; profileId: string; email: string; password: string }
   | { type: 'garmin-mfa'; profileId: string; code: string }
   | { type: 'garmin-disconnect'; profileId: string }
@@ -36,5 +43,5 @@ export type CoachClientMessage =
   | { type: 'pass-progress'; profileId: string; passId: string; distanceM: number }
   | { type: 'pass-summit'; profileId: string; passId: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
-export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
+export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
 export const COACH_PORT = 7411;

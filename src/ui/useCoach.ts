@@ -3,12 +3,13 @@ import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
 import type { GarminHealth, GarminReadiness } from '../shared/garmin';
 import type { GarminSuggestion } from '../shared/garmin-profile';
-import { COACH_PORT, type CoachClientMessage, type GarminStatus, type GarminSyncInfo, type RideDetail } from '../shared/coach-protocol';
+import { COACH_PORT, type CoachClientMessage, type GarminStatus, type GarminSyncInfo, type HevyStatus, type RideDetail } from '../shared/coach-protocol';
 
 export const useCoach = (profileId: string | null) => {
   const [state, setState] = useState<CoachState | null>(null);
   const [thinking, setThinking] = useState(false);
   const [debriefing, setDebriefing] = useState(false);
+  const [hevy, setHevy] = useState<HevyStatus>({ state: 'idle' });
   const [detail, setDetail] = useState<RideDetail | null>(null);
   const [together, setTogether] = useState<Together | null>(null);
   const [garmin, setGarmin] = useState<GarminStatus>({ state: 'idle' });
@@ -36,7 +37,7 @@ export const useCoach = (profileId: string | null) => {
         const m = JSON.parse(String(e.data));
         if (m.type === 'ride-detail') setDetail(m.detail);
         if (m.type === 'garmin-health') setGarminHealth(m.data);
-        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); }
+        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -50,5 +51,5 @@ export const useCoach = (profileId: string | null) => {
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { debriefing, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };
