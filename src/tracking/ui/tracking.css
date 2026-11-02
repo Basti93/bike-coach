@@ -1,0 +1,46 @@
+/* Standalone: the web build does not load the Electron CSS. Variables mirror src/ui/style.css and can be overridden. */
+.tk-screen {
+  --tk-bg: var(--bg, #12201a); --tk-text: var(--text, #f6eedd); --tk-ink: var(--ink, #1f1408); --tk-field: var(--field, #101b16);
+  --tk-card: var(--card, #1c2f26); --tk-line: var(--line, #33493c); --tk-muted: var(--muted, #aebba9); --tk-accent: var(--accent, #e8964a); --tk-good: var(--good, #9ccb68);
+  font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--tk-text);
+  display: flex; flex-direction: column; gap: .8rem; padding: 1rem; max-width: 640px; margin: 0 auto; box-sizing: border-box; width: 100%;
+}
+.tk-screen *, .tk-picker * { box-sizing: border-box; }
+.tk-screen .muted, .tk-picker .muted { color: var(--tk-muted); }
+.tk-title { font-size: 1.6rem; margin: 0; }
+.tk-screen h2 { font-size: 1.15rem; margin: 0; }
+.tk-picker h3 { font-size: .85rem; color: var(--tk-muted, #aebba9); margin: .8rem 0 .4rem; text-transform: uppercase; letter-spacing: .05em; }
+.tk-screen .card { background: var(--tk-card); border-radius: 1.1rem; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.tk-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.tk-row .spacer { flex: 1; }
+.tk-screen button, .tk-picker button {
+  font: inherit; font-weight: 600; min-height: 44px; min-width: 44px; padding: .5rem 1rem; border: 0; border-radius: 999px;
+  background: var(--accent, #e8964a); color: var(--ink, #1f1408); cursor: pointer;
+}
+.tk-screen button:disabled, .tk-picker button:disabled { opacity: .4; cursor: default; }
+.tk-screen button.secondary, .tk-picker button.secondary { background: #2d4638; color: var(--text, #f6eedd); }
+.tk-screen button.ghost, .tk-picker button.ghost { background: transparent; color: var(--muted, #aebba9); border: 1px solid var(--line, #33493c); }
+.tk-screen input, .tk-screen select, .tk-picker input, .tk-picker select {
+  font: inherit; min-height: 44px; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line, #33493c); background: var(--field, #101b16); color: inherit;
+}
+.tk-set { display: grid; grid-template-columns: 56px 1fr 1fr auto 44px 44px; gap: .4rem; align-items: center; }
+.tk-set .tk-num { width: 100%; min-width: 0; text-align: center; font-size: 1.1rem; }
+.tk-set .tk-type { width: 56px; padding: .5rem .2rem; }
+.tk-set .tk-icon { padding: 0; }
+.tk-check { border-radius: 50% !important; width: 44px; padding: 0 !important; background: #2d4638 !important; color: var(--ink, #1f1408) !important; }
+.tk-check.on { background: var(--good, #9ccb68) !important; }
+.tk-done .tk-num { opacity: .75; }
+.tk-notes { flex: 1; min-width: 8rem; }
+.tk-rest { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem 1rem; border-radius: 1rem; background: var(--good, #9ccb68); color: var(--ink, #1f1408); font-weight: 700; }
+.tk-note { background: var(--card, #1c2f26); border-left: 4px solid var(--low, #f2bd55); padding: .7rem 1rem; border-radius: .6rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.tk-list { display: flex; flex-direction: column; gap: .4rem; }
+.tk-pick { text-align: left; border-radius: .8rem !important; background: #243a30 !important; color: var(--text, #f6eedd) !important; }
+.tk-pick small { color: var(--muted, #aebba9); font-weight: 400; }
+.tk-picker { position: fixed; inset: 0; z-index: 10; overflow-y: auto; padding: 1rem; background: var(--bg, #12201a); color: var(--text, #f6eedd); display: flex; flex-direction: column; gap: .6rem; max-width: 640px; margin: 0 auto; }
+.tk-search { flex: 1; min-width: 0; }
+.tk-form { display: flex; flex-direction: column; gap: .6rem; }
+.tk-form label, .tk-field { display: flex; flex-direction: column; gap: .25rem; color: var(--muted, #aebba9); }
+.tk-progress { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.tk-progress li { display: grid; grid-template-columns: 6rem 1fr auto; gap: .5rem; align-items: center; font-size: .95rem; }
+.tk-bar { height: .7rem; border-radius: 999px; background: var(--accent, #e8964a); display: block; }
+@media (max-width: 400px) { .tk-screen { padding: .6rem; } .tk-set { gap: .25rem; grid-template-columns: 52px 1fr 1fr auto 44px 44px; } }

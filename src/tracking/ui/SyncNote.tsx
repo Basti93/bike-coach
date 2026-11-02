@@ -1,0 +1,10 @@
+import type { TrackingPort } from '../ports';
+import { usePortRecords } from './hooks';
+
+/** Calm note, no alarm: finished workouts that the server has not confirmed yet stay safe on this device. */
+export function SyncNote({ port }: { port: TrackingPort }) {
+  usePortRecords(port, 'workout'); // re-renders when the port changes
+  const { pending } = port.syncState();
+  if (pending <= 0) return null;
+  return <p role="status" className="tk-note">Noch nicht auf dem Server, aber sicher auf diesem Gerät gespeichert. Es wird nachgereicht, sobald es geht.</p>;
+}
