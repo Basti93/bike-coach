@@ -76,7 +76,7 @@ const writes = (calls: Call[]) => calls.filter((c) => c.method !== 'GET');
 
 describe('HevyRoutines', () => {
   it('the folder is found by title, also after a restart without state', async () => {
-    const world: World = { folders: Array.from({ length: 11 }, (_, i) => ({ id: i + 1, title: i === 10 ? 'Bike Coach' : `F${i}` })), routines: [] };
+    const world: World = { folders: Array.from({ length: 11 }, (_, i) => ({ id: i + 1, title: i === 10 ? 'Pandafit' : `F${i}` })), routines: [] };
     const { routines, calls } = make(world);
     await routines.writeRoutine(workout, none);
     expect(world.folders).toHaveLength(11);
@@ -88,13 +88,13 @@ describe('HevyRoutines', () => {
     const { routines, calls } = make(world);
     await routines.writeRoutine(workout, none);
     expect(calls.filter((c) => c.method === 'POST' && c.url.endsWith('/v1/routine_folders'))).toHaveLength(1);
-    expect(calls.find((c) => c.url.endsWith('/v1/routine_folders') && c.method === 'POST')!.body).toEqual({ routine_folder: { title: 'Bike Coach' } });
+    expect(calls.find((c) => c.url.endsWith('/v1/routine_folders') && c.method === 'POST')!.body).toEqual({ routine_folder: { title: 'Pandafit' } });
     await routines.writeRoutine(workout, none);
     expect(world.folders).toHaveLength(2);
   });
 
   it('a known routine is updated with PUT', async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [{ id: 'r9', folder_id: 5, updated_at: '2026-11-01T00:00:00Z' }] };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [{ id: 'r9', folder_id: 5, updated_at: '2026-11-01T00:00:00Z' }] };
     const { routines, calls } = make(world);
     const r = await routines.writeRoutine(workout, { routineId: 'r9', updatedAt: '2026-11-01T00:00:00Z' });
     expect(r).toEqual({ routineId: 'r9', updatedAt: '2026-11-02T11:00:00Z' });
@@ -103,7 +103,7 @@ describe('HevyRoutines', () => {
 
   it('without a known routine one found in the folder is reused', async () => {
     const world: World = {
-      folders: [{ id: 5, title: 'Bike Coach' }],
+      folders: [{ id: 5, title: 'Pandafit' }],
       routines: [{ id: 'x', folder_id: 1, updated_at: 'a' }, { id: 'mine', folder_id: 5, updated_at: 'b' }],
     };
     const { routines, calls } = make(world);
@@ -113,7 +113,7 @@ describe('HevyRoutines', () => {
   });
 
   it('a 404 on update creates a new routine', async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [] };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
     const { routines, calls } = make(world);
     const r = await routines.writeRoutine(workout, { routineId: 'gone', updatedAt: 'x' });
     expect(r.routineId).toBe('r1');
@@ -121,7 +121,7 @@ describe('HevyRoutines', () => {
   });
 
   it("the body matches Hevy's schema", async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [] };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
     const { routines, calls } = make(world);
     await routines.writeRoutine(workout, none);
     const body = calls.find((c) => c.method === 'POST' && c.url.endsWith('/v1/routines'))!.body;
@@ -177,21 +177,21 @@ describe('HevyRoutines', () => {
   });
 
   it('the PUT body has no folder_id, the POST body keeps it', async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [{ id: 'r9', folder_id: 5, updated_at: 'a' }] };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [{ id: 'r9', folder_id: 5, updated_at: 'a' }] };
     const { routines, calls } = make(world);
     await routines.writeRoutine(workout, { routineId: 'r9', updatedAt: 'a' });
     expect(calls.find((c) => c.method === 'PUT')!.body.routine).not.toHaveProperty('folder_id');
   });
 
   it('a folder list without page_count makes no POST', async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [], noPageCount: true };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [], noPageCount: true };
     const { routines, calls } = make(world);
     await expect(routines.writeRoutine(workout, none)).rejects.toThrow();
     expect(writes(calls)).toHaveLength(0);
   });
 
   it('a routine list without page_count makes no POST', async () => {
-    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [] };
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
     const { routines, calls } = make(world);
     const real = (routines as any).pages.bind(routines);
     (routines as any).pages = async (route: string, name: string, size: number) => {

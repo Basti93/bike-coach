@@ -40,7 +40,7 @@ export class Diagnostics {
     const logs = await Promise.all(names.map((n) => fs.promises.readFile(path.join(this.folder, n), 'utf8')));
     const now = this.nowMs();
     const text = [
-      'Bike Coach Problembericht', new Date(now).toISOString(), `${os.platform()} ${os.release()} ${os.arch()}`, '',
+      'Pandafit Problembericht', new Date(now).toISOString(), `${os.platform()} ${os.release()} ${os.arch()}`, '',
       'Was ist passiert:', note || '(keine Angabe)', '', 'Geräte:', JSON.stringify(status), '', 'Protokoll:', ...logs,
     ].join('\n');
     const folder = path.join(this.dir, 'reports');

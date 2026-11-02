@@ -1,4 +1,4 @@
-# Bike Coach
+# Pandafit
 
 A Mac app for indoor cycling training. It controls the smart trainer over Bluetooth, records every ride crash-safe and plans the next session with an AI coach.
 

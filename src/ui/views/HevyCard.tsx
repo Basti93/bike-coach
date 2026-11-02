@@ -53,7 +53,7 @@ export const HevyCard = ({ profileId, status, send }: { profileId: string; statu
           </div>
         )}
         {forgotten && <p className="muted">Das Gedächtnis des Kraft-Coaches ist gelöscht.</p>}
-        <p className="muted">Der Schlüssel bleibt nur auf diesem Mac. Bike Coach liest dein Training. Eine Routine legt er in Hevy nur nach deiner Bestätigung an, bestehende Routinen bleiben unberührt.</p>
+        <p className="muted">Der Schlüssel bleibt nur auf diesem Mac. Pandafit liest dein Training. Eine Routine legt er in Hevy nur nach deiner Bestätigung an, bestehende Routinen bleiben unberührt.</p>
       </form>
     </details>
   );

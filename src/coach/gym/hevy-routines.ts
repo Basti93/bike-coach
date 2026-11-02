@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { ExerciseTemplate, GymWorkout } from './types';
 
 const API = 'https://api.hevyapp.com';
-const FOLDER_TITLE = 'Bike Coach';
+const FOLDER_TITLE = 'Pandafit';
 const TIMEOUT_MS = 20_000;
 const TEMPLATE_PAGE = 100;
 const LIST_PAGE = 10;

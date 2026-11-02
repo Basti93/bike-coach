@@ -1,4 +1,4 @@
-# Bike Coach
+# Pandafit
 
 Spec: `docs/superpowers/specs/2026-10-31-bike-coach-design.md`. Top rule: A ride is never lost.
 

@@ -55,7 +55,7 @@
     "esbuild@0.28.2": true,
     "@serialport/bindings-cpp@12.0.1": true
   },
-  "productName": "Bike Coach",
+  "productName": "Pandafit",
   "build": {
     "appId": "de.bike-coach.app",
     "directories": {
@@ -78,8 +78,8 @@
       "identity": null,
       "category": "public.app-category.healthcare-fitness",
       "extendInfo": {
-        "NSBluetoothAlwaysUsageDescription": "Bike Coach verbindet sich per Bluetooth mit Trainer, Pulsgurt und Clicker.",
-        "NSBluetoothPeripheralUsageDescription": "Bike Coach verbindet sich per Bluetooth mit Trainer, Pulsgurt und Clicker."
+        "NSBluetoothAlwaysUsageDescription": "Pandafit verbindet sich per Bluetooth mit Trainer, Pulsgurt und Clicker.",
+        "NSBluetoothPeripheralUsageDescription": "Pandafit verbindet sich per Bluetooth mit Trainer, Pulsgurt und Clicker."
       }
     },
     "npmRebuild": false

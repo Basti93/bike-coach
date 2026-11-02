@@ -27,7 +27,7 @@ const median = (xs: number[]): number => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-/** Other sports of the last few weeks. Rides that Bike Coach knows itself do not count twice. */
+/** Other sports of the last few weeks. Rides that Pandafit knows itself do not count twice. */
 export const externalLoad = (activities: GarminActivity[], rides: RideSummary[], nowMs: number): ExternalLoad[] =>
   activities
     .filter((a) => nowMs - a.startMs < EXTERNAL_WINDOW_DAYS * DAY_MS && !a.fromBikeCoach)

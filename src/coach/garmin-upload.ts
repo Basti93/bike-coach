@@ -15,7 +15,7 @@ export const uploadSettings = (s: Pick<CoachState, 'garminUpload'>): GarminUploa
 
 export const withUploadMode = (s: Pick<CoachState, 'garminUpload'>, mode: UploadMode): GarminUploadSettings => ({ ...uploadSettings(s), mode });
 
-export const REPO_DESCRIPTION = 'Gefahren mit Bike Coach 🚴 https://github.com/Basti93/bike-coach #vibeIt';
+export const REPO_DESCRIPTION = 'Gefahren mit Pandafit 🚴 https://github.com/Basti93/bike-coach #vibeIt';
 
 /** Simple on purpose and from the data, so that no fanciful session name ends up in Garmin. */
 export const activityName = (ride: RideSummary): string => {

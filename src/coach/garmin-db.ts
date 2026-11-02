@@ -4,7 +4,7 @@ import type { GarminActivity, GarminBody, GarminDay, GarminProgress } from '../s
 
 const DAY_MS = 86_400_000;
 const MAX_PLAUSIBLE_HR = 240;
-// Bike Coach writes its FIT files with the manufacturer "development".
+// Pandafit writes its FIT files with the manufacturer "development".
 const OWN_MANUFACTURER = /^development$/i;
 
 type Raw = Record<string, unknown>;

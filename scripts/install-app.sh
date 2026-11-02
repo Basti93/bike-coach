@@ -3,8 +3,8 @@
 # Aborts while a ride is open: replacing the app would hit the running service.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SRC="release/mac-arm64/Bike Coach.app"
-DEST="/Applications/Bike Coach.app"
+SRC="release/mac-arm64/Pandafit.app"
+DEST="/Applications/Pandafit.app"
 LIVE_STATE=$(node -e "
 const W=require('ws');const w=new W('ws://127.0.0.1:7410');
 w.on('message',d=>{const m=JSON.parse(d);if(m.type==='state'){console.log(m.ride?'open':'none');process.exit(0)}});

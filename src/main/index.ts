@@ -40,7 +40,7 @@ const showMain = (): void => {
   app.focus({ steal: true });
 };
 const openMain = (): void => {
-  const win = new BrowserWindow({ width: 1200, height: 800, title: 'Bike Coach' });
+  const win = new BrowserWindow({ width: 1200, height: 800, title: 'Pandafit' });
   mainWindow = win;
   const url = process.env.ELECTRON_RENDERER_URL;
   if (url) void win.loadURL(url);
@@ -53,7 +53,7 @@ const openMain = (): void => {
 };
 
 // The data folder does not depend on the app name: the packaged app and npm run dev use the same rides.
-app.setName('Bike Coach');
+app.setName('Pandafit');
 app.setPath('userData', path.join(app.getPath('appData'), 'bike-coach'));
 
 // Two instances would write to the same ride.
