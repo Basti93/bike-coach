@@ -23,7 +23,8 @@ function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
  */
 export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: string } {
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
-  const legsTired = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
+  const recentLegs = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
+  const legsTired = recentLegs || ctx.avoidLegs === true;
   const allowed = (t: ExerciseTemplate): boolean => !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
   const since = ctx.nowMs - RECENT_DAYS * DAY_MS;
   const count = new Map<string, number>();
@@ -40,7 +41,9 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   if (core.length > 0) {
     return {
       workout: { name: 'Ganzkörper', exercises: core.map((t) => exerciseOf(t, ctx)) },
-      reason: legsTired
+      reason: legsTired && !recentLegs
+        ? 'Deine häufigsten Übungen der letzten Monate, ohne Beinarbeit, damit die Beine geschont bleiben.'
+        : legsTired
         ? 'Deine häufigsten Übungen der letzten Monate, ohne schwere Beinarbeit, weil die Beine noch Pause brauchen.'
         : 'Deine häufigsten Übungen der letzten Monate in ruhigem Aufbau, damit sich Fortschritt gut messen lässt.',
     };

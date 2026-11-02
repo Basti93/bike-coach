@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClaudeError } from '../../../src/coach/claude-client';
 import { Coach } from '../../../src/coach/coach';
+import { checkWorkout } from '../../../src/coach/gym/guardrails';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
 import type { HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
@@ -467,5 +468,111 @@ describe('bike coach', () => {
     expect(s.complaints?.map((x) => x.text)).toEqual(['Das Knie zwickt']);
     expect(s.notes).toEqual([]);
     expect(s.dirty).toBe(false);
+  });
+});
+
+describe('fix round 1', () => {
+  const mk = () => {
+    const writer = { editedSince: vi.fn(async (_id: string, _u: string) => false), writeRoutine: vi.fn(async (_w: unknown, _k: unknown) => ({ routineId: 'R1', updatedAt: 'U1' })) };
+    return { h: harness({ writer: writer as unknown as HevyRoutines }), writer };
+  };
+
+  it('preview and confirm do nothing while ready is false', async () => {
+    const { h, writer } = mk();
+    await h.coach.tick(ID);
+    await h.coach.preview(ID);
+    h.ready = false;
+    expect(await h.coach.preview(ID)).toBeNull();
+    expect(await h.coach.confirm(ID, 'A')).toBe('failed');
+    expect(writer.writeRoutine).not.toHaveBeenCalled();
+    expect(writer.editedSince).not.toHaveBeenCalled();
+  });
+
+  it('confirm checks ready again right before the write', async () => {
+    const { h, writer } = mk();
+    await h.coach.tick(ID);
+    await h.coach.preview(ID);
+    await h.coach.confirm(ID, 'A');
+    await h.coach.preview(ID);
+    writer.writeRoutine.mockClear();
+    writer.editedSince.mockImplementation(async () => { h.ready = false; return false; });
+    expect(await h.coach.confirm(ID, 'A')).toBe('failed');
+    expect(writer.writeRoutine).not.toHaveBeenCalled();
+  });
+
+  it('forget during a running tick leaves nothing behind', async () => {
+    const h = harness();
+    let release!: () => void;
+    h.hold = new Promise<void>((r) => { release = r; });
+    const running = h.coach.tick(ID);
+    await vi.waitFor(() => expect(h.calls.length).toBe(1));
+    h.coach.forget(ID);
+    release();
+    await running;
+    expect(fs.existsSync(path.join(dir, `${ID}.json`))).toBe(false);
+    expect(h.coach.state(ID).next).toBeNull();
+    expect(h.coach.state(ID).planned).toBe(false);
+  });
+
+  describe('rule workout and complaints', () => {
+    const legs = (): StrengthWorkout[] => [
+      wk(14, 'w14', [{ t: 'cp', kg: 40, reps: 8 }, { t: 'lp', kg: 80, reps: 8 }]),
+      wk(7, 'w7', [{ t: 'cp', kg: 40, reps: 8 }, { t: 'lp', kg: 80, reps: 8 }]),
+    ];
+    const rules = async (text: string | null) => {
+      const h = harness();
+      h.workouts = legs();
+      if (text) h.complaints = [{ id: 'c', text, status: 'active', startedMs: NOW, updatedMs: NOW }];
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      return h.coach.state(ID).next!;
+    };
+    it('an open knee complaint leaves leg exercises out and says so', async () => {
+      const n = await rules('Das Knie zwickt');
+      expect(n.source).toBe('rules');
+      expect(n.workout.exercises.map((e) => e.templateId)).toEqual(['cp']);
+      expect(n.reason).toMatch(/Beschwerde/);
+    });
+    it('a shoulder complaint keeps legs and has the hint', async () => {
+      const n = await rules('Die Schulter tut weh');
+      expect(n.workout.exercises.map((e) => e.templateId)).toContain('lp');
+      expect(n.reason).toMatch(/Beschwerde/);
+    });
+    it('no complaint, no hint', async () => {
+      const n = await rules(null);
+      expect(n.workout.exercises.map((e) => e.templateId)).toContain('lp');
+      expect(n.reason).not.toMatch(/Beschwerde/);
+    });
+    it('only legs in history and a knee complaint keeps the empty-list behaviour', async () => {
+      const h = harness();
+      h.workouts = [wk(14, 'a', [{ t: 'lp', kg: 80, reps: 8 }]), wk(7, 'b', [{ t: 'lp', kg: 80, reps: 8 }])];
+      h.templates = [TEMPLATES[2]];
+      h.complaints = [{ id: 'c', text: 'Knie', status: 'active', startedMs: NOW, updatedMs: NOW }];
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).next).toBeNull();
+      expect(h.coach.state(ID).emptyReason).toBeTruthy();
+    });
+  });
+
+  it('adjust results stay inside the limits', async () => {
+    const h = harness();
+    await h.coach.tick(ID);
+    const ctx = { workouts: h.workouts, templates: h.templates, nowMs: NOW };
+    for (const how of ['harder', 'easier', 'shorter'] as const) {
+      h.coach.adjust(ID, how);
+      const r = checkWorkout(h.coach.state(ID).next!.workout, ctx);
+      expect(r.ok, how).toBe(true);
+    }
+  });
+
+  it('a second concurrent confirm writes only once', async () => {
+    const { h, writer } = mk();
+    await h.coach.tick(ID);
+    await h.coach.preview(ID);
+    writer.writeRoutine.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 20)); return { routineId: 'R1', updatedAt: 'U1' }; });
+    const results = await Promise.all([h.coach.confirm(ID, 'A'), h.coach.confirm(ID, 'A')]);
+    expect(results.sort()).toEqual(['failed', 'written']);
+    expect(writer.writeRoutine).toHaveBeenCalledTimes(1);
   });
 });

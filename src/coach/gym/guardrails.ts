@@ -3,7 +3,7 @@ import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types'
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MAX_WIDOWMAKERS, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
 import { availableExercises, suggestNext } from './history';
 
-export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number };
+export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;

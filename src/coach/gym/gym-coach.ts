@@ -21,6 +21,8 @@ const TEXT_MAX = 400;
 const QUESTION_MAX = 200;
 const NAME_MAX = 80;
 const GYM_QUESTION = 'Trainierst du noch im selben Studio, mit denselben Geräten?';
+const LEG_COMPLAINT = /knie|hüfte|huefte|oberschenkel|wade|knöchel|knoechel|fuß|fuss|achilles|bein/i;
+const COMPLAINT_HINT = 'Deine gemeldete Beschwerde habe ich so weit berücksichtigt, wie Regeln das können. Lass einfach weg, was dich stört.';
 const BREAK_NOTE = 'Nach der Pause fange ich ruhig an und taste mich wieder heran.';
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
@@ -52,6 +54,7 @@ export class GymCoach {
   private running = new Map<string, Promise<void>>();
   private previews = new Map<string, { fp: string; edited: boolean }>();
   private writing = new Set<string>();
+  private generation = new Map<string, number>();
 
   constructor(private deps: Deps) {}
 
@@ -67,11 +70,16 @@ export class GymCoach {
     fn(s);
     saveGymState(this.deps.dir, s);
   }
+  private gen(id: string): number { return this.generation.get(id) ?? 0; }
+  /** Drops the change when `forget` ran since the work began. */
+  private updateIf(gen: number, id: string, fn: (s: GymState) => void): void {
+    if (this.gen(id) === gen) this.update(id, fn);
+  }
 
   tick(id: string): Promise<void> {
     const active = this.running.get(id);
     if (active) return active;
-    const run = this.plan(id).finally(() => this.running.delete(id));
+    const run: Promise<void> = this.plan(id).finally(() => { if (this.running.get(id) === run) this.running.delete(id); });
     this.running.set(id, run);
     return run;
   }
@@ -92,13 +100,16 @@ export class GymCoach {
     this.update(id, (x) => { x.dirty = true; x.attempts += 1; x.lastAttemptMs = now; });
     const wantNote = s.planned && unseen.length > 0;
     const previous = s.next;
+    const gen = this.gen(id);
     try {
       const templates = await this.deps.templates(id);
-      const ctx: GymContext = { workouts: real, templates, nowMs: now };
+      const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
+      if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
       // An empty rule workout is never stored as an offer; only its reason is kept.
-      this.update(id, (x) => {
+      this.updateIf(gen, id, (x) => {
         x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;
         x.emptyReason = hasRule ? null : rule.reason;
       });
@@ -114,14 +125,14 @@ export class GymCoach {
       }
       const parsed = gymAnswerSchema.safeParse(raw);
       const checked = parsed.success ? checkWorkout(parsed.data.workout, ctx) : null;
-      this.update(id, (x) => {
+      this.updateIf(gen, id, (x) => {
         if (parsed.success && checked?.ok) this.applyAnswer(x, parsed.data, checked.workout, real, wantNote, now);
         else x.lastError = 'invalid';
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
       });
     } catch (e) {
-      this.update(id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
+      this.updateIf(gen, id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
     }
   }
 
@@ -219,6 +230,8 @@ export class GymCoach {
   }
 
   forget(id: string): void {
+    this.generation.set(id, this.gen(id) + 1);
+    this.running.delete(id);
     this.states.delete(id);
     this.previews.delete(id);
     removeGymState(this.deps.dir, id);
@@ -228,7 +241,7 @@ export class GymCoach {
   async preview(id: string): Promise<{ workout: GymWorkout; edited: boolean } | null> {
     const writer = this.deps.writer(id);
     const s = this.state(id);
-    if (!writer || !s.next || s.next.workout.exercises.length === 0) return null;
+    if (!this.deps.ready(id) || !writer || !s.next || s.next.workout.exercises.length === 0) return null;
     const workout = structuredClone(s.next.workout);
     const fp = fingerprint(workout);
     try {
@@ -244,20 +257,22 @@ export class GymCoach {
   async confirm(id: string, name: string): Promise<'written' | 'stale' | 'failed'> {
     const writer = this.deps.writer(id);
     const start = this.state(id).next;
-    if (!writer || !start || start.workout.exercises.length === 0 || this.writing.has(id)) return 'failed';
+    if (!this.deps.ready(id) || !writer || !start || start.workout.exercises.length === 0 || this.writing.has(id)) return 'failed';
     const shown = this.previews.get(id);
     if (!shown || shown.fp !== fingerprint(start.workout)) return 'stale';
     this.writing.add(id);
+    const gen = this.gen(id);
     try {
       const known = this.state(id).routine;
       // An edit the rider already saw in the preview was confirmed with it. Only a new one makes this stale.
       if (known && !shown.edited && await writer.editedSince(known.routineId, known.updatedAt)) return 'stale';
       const current = this.state(id).next;
+      if (!this.deps.ready(id) || this.gen(id) !== gen) return 'failed';
       if (!current || fingerprint(current.workout) !== shown.fp) return 'stale';
       const workout = { ...structuredClone(current.workout), name: name.trim().slice(0, NAME_MAX) || current.workout.name };
       const written = await writer.writeRoutine(workout, { routineId: known?.routineId ?? null, updatedAt: known?.updatedAt ?? null });
       this.previews.delete(id);
-      this.update(id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
+      this.updateIf(gen, id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
       return 'written';
     } catch {
       return 'failed';
