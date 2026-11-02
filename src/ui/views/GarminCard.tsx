@@ -36,7 +36,7 @@ const UploadChoice = ({ profileId, upload, send }: { profileId: string; upload?:
         <label key={mode}><input type="radio" name={`garmin-upload-${profileId}`} checked={u.mode === mode} onChange={() => save(mode, u.minMinutes)} /> {label}</label>
       ))}
       {u.mode === 'auto' && (
-        <label>Mindestdauer in Minuten<input inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} onBlur={() => save(u.mode, Number(minutes))} /></label>
+        <label>Mindestdauer in Minuten<input inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} onBlur={() => { if (minutes.trim() && Number.isFinite(Number(minutes))) save(u.mode, Number(minutes)); else setMinutes(String(u.minMinutes)); }} /></label>
       )}
       {u.mode === 'auto' && <p className="muted">Es gehen nur Fahrten ab jetzt hoch, dein bisheriger Verlauf bleibt hier.</p>}
       {u.mode !== 'off' && <p className="muted">Zeichnet deine Uhr dieselbe Fahrt auf, steht sie danach doppelt in Garmin Connect.</p>}

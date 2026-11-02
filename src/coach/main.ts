@@ -138,6 +138,7 @@ const uploader = new GarminUploader({
   script: path.join(path.dirname(process.env.BIKE_GARMIN_SCRIPT ?? path.resolve('scripts', 'garmin', 'bridge.py')), 'garmin_upload.py'),
   exportsDir: path.join(dir, 'exports'),
   rideOpen: () => !noOpenRide(),
+  hasTokens: (profileId) => fs.existsSync(path.join(garminDir, 'tokens', profileId, 'garmin_tokens.json')),
   onResult: (profileId, rideId, result) => { coach.markUpload(profileId, rideId, result); publish(); },
 });
 const startUpload = (profileId: string, rideId: string): void => {
@@ -151,7 +152,7 @@ wss.on('connection', (socket) => {
       // Login credentials are only passed on, never stored or sent back.
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
-      if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); return; }
+      if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);

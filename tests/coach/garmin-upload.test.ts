@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { canUpload, dueAutoUploads, RETRY_UPLOAD_MS, uploadSettings, withUploadSettings } from '../../src/coach/garmin-upload';
+import { canUpload, dueAutoUploads, RATE_LIMIT_WAIT_MS, RETRY_UPLOAD_MS, uploadSettings, withUploadSettings } from '../../src/coach/garmin-upload';
 import { GarminUploader, type UploadResult } from '../../src/coach/garmin-uploader';
 import { externalLoad } from '../../src/coach/readiness';
 import type { RideSummary } from '../../src/coach/metrics';
@@ -33,6 +33,11 @@ test('a failed ride is due again after an hour', () => {
   const s = state({ garminUpload: auto({ new: { status: 'failed', atMs: 1000, reason: 'failed' } }) });
   expect(dueAutoUploads(s, 1000 + RETRY_UPLOAD_MS - 1)).toEqual([]);
   expect(dueAutoUploads(s, 1000 + RETRY_UPLOAD_MS)).toEqual(['new']);
+});
+test('a Garmin block pauses every upload for 6 hours', () => {
+  const s = state({ summaries: [summary('a', 2000), summary('b', 3000)], garminUpload: auto({ a: { status: 'failed', atMs: 1000, reason: 'rate-limit' } }) });
+  expect(dueAutoUploads(s, 1000 + RATE_LIMIT_WAIT_MS - 1)).toEqual([]);
+  expect(dueAutoUploads(s, 1000 + RATE_LIMIT_WAIT_MS)).toEqual(['a', 'b']);
 });
 test('expired login or a missing file waits for the button', () => {
   for (const reason of ['reauth', 'missing-file']) expect(dueAutoUploads(state({ garminUpload: auto({ new: { status: 'failed', atMs: 1, reason } }) }), RETRY_UPLOAD_MS * 9)).toEqual([]);
@@ -84,7 +89,7 @@ describe('uploader', () => {
   const make = (rideOpen = false) => {
     const f = fake();
     const results: [string, string, UploadResult][] = [];
-    const up = new GarminUploader({ python: 'py', script: 's.py', baseDir: '/g', exportsDir: '/x', rideOpen: () => rideOpen, onResult: (p, r, x) => results.push([p, r, x]), spawnFn: f.spawnFn as never });
+    const up = new GarminUploader({ python: 'py', script: 's.py', baseDir: '/g', exportsDir: '/x', rideOpen: () => rideOpen, hasTokens: (id) => id !== 'ohne', onResult: (p, r, x) => results.push([p, r, x]), spawnFn: f.spawnFn as never });
     return { ...f, results, up };
   };
   const finish = (c: ReturnType<typeof fake>['children'][number], line: string) => { c.stdout.emit('data', Buffer.from(`${line}\n`)); c.emit('close', 0); };
@@ -98,6 +103,11 @@ describe('uploader', () => {
     const { up, spawnFn } = make();
     expect(up.upload('pa', '../../etc/passwd')).toBe(false);
     expect(up.upload('../pa', 'ride-1')).toBe(false);
+    expect(spawnFn).not.toHaveBeenCalled();
+  });
+  test('does nothing without a Garmin login', () => {
+    const { up, spawnFn } = make();
+    expect(up.upload('ohne', 'ride-1')).toBe(false);
     expect(spawnFn).not.toHaveBeenCalled();
   });
   test('does nothing while a ride is open', () => {

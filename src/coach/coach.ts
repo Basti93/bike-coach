@@ -131,8 +131,12 @@ export class Coach {
       const parsed = debriefAnswerSchema.safeParse(raw);
       if (!parsed.success) return;
       this.update(profileId, (s) => {
-        const honest = (text: string) => { const t = this.honestReason(s, text, s.next.session); return t === NEUTRAL_REASON ? null : t; };
-        s.debriefs![ride.rideId] = cleanDebrief(parsed.data, ride.rideId, this.deps.nowMs(), attempts, honest);
+        const honest = (text: string) => (this.honestReason(s, text, s.next.session) === NEUTRAL_REASON ? null : text);
+        const cleaned = cleanDebrief(parsed.data, ruleDebrief(ride, now), this.deps.nowMs(), attempts, honest);
+        if (!cleaned) return;
+        s.debriefs![ride.rideId] = cleaned;
+        // Also for those who rated while it was still being written: otherwise its questions could never be answered.
+        s.debriefToShow = ride.rideId;
       });
     } catch { /* The rule version stays and is tried again later. */ } finally {
       this.debriefing.delete(profileId);
@@ -149,6 +153,11 @@ export class Coach {
     });
   }
 
+  garminDisconnected(profileId: string): void {
+    const u = uploadSettings(this.state(profileId));
+    this.setUploadSettings(profileId, 'off', u.minMinutes);
+  }
+
   debriefSeen(profileId: string): void { this.update(profileId, (s) => { s.debriefToShow = null; }); }
   private dropDebriefQuestion(s: CoachState, rideId: string, question: string): void {
     const d = s.debriefs?.[rideId];
@@ -156,7 +165,8 @@ export class Coach {
   }
   answerDebrief(profileId: string, rideId: string, question: string, text: string): void {
     this.update(profileId, (s) => { this.dropDebriefQuestion(s, rideId, question); });
-    this.note(profileId, `Rückfrage: ${question} Antwort: ${text}`);
+    // Only the answer can be a complaint: the question naming a knee says nothing about the knee.
+    this.note(profileId, `Rückfrage: ${question} Antwort: ${text}`, text);
   }
   skipDebriefQuestion(profileId: string, rideId: string, question: string): void {
     this.update(profileId, (s) => { this.dropDebriefQuestion(s, rideId, question); });
@@ -212,14 +222,14 @@ export class Coach {
   }
   /** Rating skipped: the ride still counts. */
   skipFeedback(profileId: string): void { this.update(profileId, (s) => { s.awaitingFeedback = null; s.debriefToShow = null; }); }
-  note(profileId: string, text: string): void {
+  note(profileId: string, text: string, complaintText = text): void {
     this.update(profileId, (s) => {
       const now = this.deps.nowMs();
       s.notes.push({ atMs: now, text });
-      const status = complaintFromNote(text);
+      const status = complaintFromNote(complaintText);
       if (status) {
         const list = s.complaints ?? [];
-        s.complaints = [...list, { id: `c-${now}-${list.length}`, text: text.slice(0, 200), status, startedMs: now, updatedMs: now }];
+        s.complaints = [...list, { id: `c-${now}-${list.length}`, text: complaintText.slice(0, 200), status, startedMs: now, updatedMs: now }];
         // Safe immediately, even if the AI is not answering right now.
         s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       }
@@ -382,7 +392,7 @@ export class Coach {
   /** Watt figures in the text must match the data, otherwise only a neutral sentence remains. */
   private honestReason(s: CoachState, reason: string, session: Session): string {
     const known = [s.ftpW, ...s.ftpHistory.map((h) => h.ftpW), ...s.ftpForecast.map((f) => f.ftpW),
-      ...s.summaries.flatMap((r) => [r.avgPowerW, r.normalizedPowerW, r.bestMinutePowerW].flatMap((x) => (x === null ? [] : [x]))),
+      ...s.summaries.flatMap((r) => [r.avgPowerW, r.normalizedPowerW, r.bestMinutePowerW, ...Object.values(r.powerCurve ?? {})].flatMap((x) => (x === null ? [] : [x]))),
       ...session.steps.flatMap((x) => (x.kind === 'erg' ? [x.ftpFraction * s.ftpW] : []))];
     const claimed = [...reason.matchAll(/(\d{2,4})\s*(?:W\b|Watt)/g)].map((m) => Number(m[1]));
     const invented = claimed.some((w) => !known.some((k) => Math.abs(k - w) <= 5));

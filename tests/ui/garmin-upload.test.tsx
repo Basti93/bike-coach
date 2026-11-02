@@ -88,6 +88,13 @@ test('warns about duplicates once uploading is on, and the minimum is adjustable
   expect(send).toHaveBeenCalledWith({ type: 'garmin-upload-settings', profileId: 'p', mode: 'auto', minMinutes: 30 });
 });
 
+test('an empty minimum keeps the old value', () => {
+  const send = card({ mode: 'auto', minMinutes: 10, enabledAtMs: 1, rides: {} });
+  fireEvent.change(screen.getByLabelText(/Mindestdauer/), { target: { value: '' } });
+  fireEvent.blur(screen.getByLabelText(/Mindestdauer/));
+  expect(send).not.toHaveBeenCalled();
+  expect((screen.getByLabelText(/Mindestdauer/) as HTMLInputElement).value).toBe('10');
+});
 test('after the ride the film window leads back to the main window', () => {
   const open = vi.spyOn(window, 'open').mockReturnValue(null);
   render(<FilmView state={null} send={vi.fn()} />);

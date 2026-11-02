@@ -44,9 +44,10 @@ export const ruleDebrief = (ride: RideSummary, nowMs: number): RideDebrief => {
   };
 };
 
+/** Null when nothing usable came back. Text that did not hold up gives way to the rule text, it never leaves a gap. */
 export const cleanDebrief = (
-  answer: z.infer<typeof debriefAnswerSchema>, rideId: string, nowMs: number, attempts: number, honest: (text: string) => string | null,
-): RideDebrief => {
+  answer: z.infer<typeof debriefAnswerSchema>, rule: RideDebrief, nowMs: number, attempts: number, honest: (text: string) => string | null,
+): RideDebrief | null => {
   const clean = (t: string): string | null => {
     const trimmed = t.trim();
     if (!trimmed) return null;
@@ -54,8 +55,12 @@ export const cleanDebrief = (
     return checked === null ? null : checked.slice(0, DEBRIEF_TEXT_MAX);
   };
   const list = (xs: string[], max: number) => xs.flatMap((x) => clean(x) ?? []).slice(0, max);
+  const summary = clean(answer.summary);
+  const motivation = clean(answer.motivation);
+  const tips = list(answer.tips, MAX_TIPS);
+  if (summary === null && motivation === null && tips.length === 0) return null;
   return {
-    rideId, source: 'claude', atMs: nowMs, attempts,
-    summary: clean(answer.summary) ?? '', tips: list(answer.tips, MAX_TIPS), motivation: clean(answer.motivation) ?? '', questions: list(answer.questions, MAX_QUESTIONS),
+    rideId: rule.rideId, source: 'claude', atMs: nowMs, attempts,
+    summary: summary ?? rule.summary, tips, motivation: motivation ?? rule.motivation, questions: list(answer.questions, MAX_QUESTIONS),
   };
 };

@@ -116,7 +116,10 @@ test('a text with an invented watt figure is dropped', async () => {
   const id = ride();
   const { coach } = setup(async () => ({ ...good, summary: 'Du hattest 999 W im Schnitt.' }));
   await coach.ensureDebrief('pa');
-  expect(coach.state('pa').debriefs?.[id]).toMatchObject({ source: 'claude', summary: '', motivation: 'Gut gemacht.' });
+  const d = coach.state('pa').debriefs?.[id];
+  expect(d).toMatchObject({ source: 'claude', motivation: 'Gut gemacht.' });
+  expect(d?.summary).not.toContain('999');
+  expect(d?.summary).toContain('Minuten');
 });
 test('answering a question stores a note, removes the question and asks for a new plan', async () => {
   const id = ride();
@@ -172,4 +175,61 @@ test('the prompt carries the long-term picture, like planning does', async () =>
 test('a single small value does not become a tip', () => {
   expect(DEBRIEF_SYSTEM_PROMPT).toContain('hrDriftPct');
   expect(DEBRIEF_SYSTEM_PROMPT).toContain('mehrere Fahrten');
+});
+test('naming the body in the question does not turn a fine answer into a complaint', async () => {
+  const id = ride();
+  const { coach } = setup(async () => good);
+  await coach.ensureDebrief('pa');
+  coach.answerDebrief('pa', id, 'Wie ging es den Knien?', 'Gut');
+  expect(coach.state('pa').complaints ?? []).toEqual([]);
+});
+test('a real complaint in the answer still counts', async () => {
+  const id = ride();
+  const { coach } = setup(async () => good);
+  await coach.ensureDebrief('pa');
+  coach.answerDebrief('pa', id, 'Wie war es?', 'Das Knie tut weh');
+  expect(coach.state('pa').complaints?.[0]).toMatchObject({ status: 'active', text: 'Das Knie tut weh' });
+});
+test('an empty AI answer keeps the rule version and counts as a failed attempt', async () => {
+  const id = ride();
+  const { coach, ask } = setup(async () => ({ summary: '', tips: [], motivation: ' ', questions: [] }));
+  await coach.ensureDebrief('pa');
+  expect(coach.state('pa').debriefs?.[id]).toMatchObject({ source: 'rules', attempts: 1 });
+  now += DEBRIEF_RETRY_MS;
+  await coach.ensureDebrief('pa');
+  expect(ask).toHaveBeenCalledTimes(2);
+});
+test('a true value from the power curve is not treated as invented', async () => {
+  const id = ride();
+  const { coach } = setup(async () => good);
+  const best = coach.state('pa').summaries[0].powerCurve!;
+  coach.state('pa').summaries[0].powerCurve = { ...best, 300: 187 };
+  const again = new Coach({ ridesDir: rides, coachDir, nowMs: () => now, ask: async () => ({ ...good, summary: 'Deine besten 5 Minuten lagen bei 187 W.' }) });
+  (again as unknown as { states: Map<string, unknown> }).states.set('pa', coach.state('pa'));
+  await again.ensureDebrief('pa');
+  expect(again.state('pa').debriefs?.[id]?.summary).toContain('187 W');
+});
+test('long text is kept up to the debrief limit', async () => {
+  const id = ride();
+  const { coach } = setup(async () => ({ ...good, summary: 'x'.repeat(500) }));
+  await coach.ensureDebrief('pa');
+  expect(coach.state('pa').debriefs?.[id]?.summary.length).toBe(500);
+});
+test('rating while the coach still writes brings the AI version up once', async () => {
+  const id = ride();
+  let release = (_: unknown) => {};
+  const { coach } = setup(() => new Promise((r) => { release = r; }));
+  const run = coach.ensureDebrief('pa');
+  coach.feedback('pa', id, 'right');
+  expect(coach.state('pa').debriefToShow).toBeNull();
+  release(good);
+  await run;
+  expect(coach.state('pa').debriefToShow).toBe(id);
+});
+test('disconnecting from Garmin switches uploading off', () => {
+  ride();
+  const { coach } = setup(async () => good);
+  coach.setUploadSettings('pa', 'auto', 20);
+  coach.garminDisconnected('pa');
+  expect(coach.state('pa').garminUpload).toMatchObject({ mode: 'off', enabledAtMs: null, minMinutes: 20 });
 });

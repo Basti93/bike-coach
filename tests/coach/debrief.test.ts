@@ -5,6 +5,7 @@ const ride: RideSummary = {
   rideId: 'r1', startedAtMs: 1, status: 'finished', sessionId: 's', ftpW: 200, durationS: 2700,
   avgPowerW: 120, normalizedPowerW: 125, intensityFactor: 0.6, tss: 30, avgHrBpm: 122, maxHrBpm: 140, bestMinutePowerW: 150, completedFraction: 1,
 };
+const rule = ruleDebrief(ride, 1);
 const answer = { summary: 'Ruhige Fahrt.', tips: ['a', 'b', 'c', 'd'], motivation: 'Gut gemacht.', questions: ['q1', 'q2', 'q3'] };
 
 test('the rule version names duration and power and asks nothing', () => {
@@ -23,17 +24,20 @@ test('an ended-early ride is not called complete', () => {
   expect(ruleDebrief(ride, 5).summary).not.toContain('%');
 });
 test('cleaning keeps at most 3 tips and 2 questions', () => {
-  const d = cleanDebrief(answer, 'r1', 9, 1, (t) => t);
+  const d = cleanDebrief(answer, rule, 9, 1, (t) => t)!;
   expect(d).toMatchObject({ source: 'claude', atMs: 9, attempts: 1 });
   expect(d.tips).toEqual(['a', 'b', 'c']);
   expect(d.questions).toEqual(['q1', 'q2']);
 });
 test('cleaning shortens long text', () => {
-  const d = cleanDebrief({ ...answer, summary: 'x'.repeat(5000) }, 'r1', 9, 1, (t) => t);
+  const d = cleanDebrief({ ...answer, summary: 'x'.repeat(5000) }, rule, 9, 1, (t) => t)!;
   expect(d.summary.length).toBe(DEBRIEF_TEXT_MAX);
 });
-test('cleaning drops every text that is not honest', () => {
-  const d = cleanDebrief(answer, 'r1', 9, 1, (t) => (t === 'a' || t === 'Ruhige Fahrt.' ? null : t));
-  expect(d.summary).toBe('');
+test('cleaning drops dishonest text and keeps the rule text instead', () => {
+  const d = cleanDebrief(answer, rule, 9, 1, (t) => (t === 'a' || t === 'Ruhige Fahrt.' ? null : t))!;
+  expect(d.summary).toBe(rule.summary);
   expect(d.tips).toEqual(['b', 'c', 'd']);
+});
+test('an answer with nothing usable is no answer', () => {
+  expect(cleanDebrief({ summary: ' ', tips: [], motivation: '', questions: ['q'] }, rule, 9, 1, (t) => t)).toBeNull();
 });

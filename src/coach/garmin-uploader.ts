@@ -6,7 +6,7 @@ const TIMEOUT_MS = 120_000;
 
 export type UploadResult = { status: 'uploaded' } | { status: 'failed'; reason: string };
 type Options = {
-  python: string; script: string; baseDir: string; exportsDir: string; rideOpen: () => boolean;
+  python: string; script: string; baseDir: string; exportsDir: string; rideOpen: () => boolean; hasTokens: (profileId: string) => boolean;
   onResult: (profileId: string, rideId: string, result: UploadResult) => void; spawnFn?: typeof spawn;
 };
 const FAILED: UploadResult = { status: 'failed', reason: 'failed' };
@@ -19,14 +19,14 @@ const parse = (out: string): UploadResult => {
   } catch { return FAILED; }
 };
 
-/** Runs the upload program, one per profile. A ride in progress always goes first. */
+/** Runs the upload program, one per profile. None starts during a ride or without a Garmin login. */
 export class GarminUploader {
   private running = new Set<string>();
 
   constructor(private opts: Options) {}
 
   upload(profileId: string, rideId: string): boolean {
-    if (!SAFE_ID.test(profileId) || !SAFE_ID.test(rideId) || this.opts.rideOpen() || this.running.has(profileId)) return false;
+    if (!SAFE_ID.test(profileId) || !SAFE_ID.test(rideId) || this.opts.rideOpen() || !this.opts.hasTokens(profileId) || this.running.has(profileId)) return false;
     this.running.add(profileId);
     const child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
       this.opts.script, '--tokens', path.join(this.opts.baseDir, 'tokens', profileId), '--file', path.join(this.opts.exportsDir, `${rideId}.fit`),

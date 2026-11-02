@@ -1,6 +1,8 @@
 import type { CoachState } from './state';
 
 export const RETRY_UPLOAD_MS = 3600_000;
+/** As long as the Garmin sync waits: retrying early can extend the block. */
+export const RATE_LIMIT_WAIT_MS = 6 * 3600_000;
 const DEFAULT_MIN_MINUTES = 10;
 const MAX_MIN_MINUTES = 240;
 const NO_AUTO_RETRY = new Set(['reauth', 'missing-file']);
@@ -24,6 +26,8 @@ export const withUploadSettings = (s: Pick<CoachState, 'garminUpload'>, mode: Up
 export const dueAutoUploads = (s: CoachState, nowMs: number): string[] => {
   const u = uploadSettings(s);
   if (u.mode !== 'auto' || u.enabledAtMs === null) return [];
+  const blocked = Object.values(u.rides).some((r) => r.status === 'failed' && r.reason === 'rate-limit' && nowMs - r.atMs < RATE_LIMIT_WAIT_MS);
+  if (blocked) return [];
   return s.summaries
     .filter((r) => r.startedAtMs >= u.enabledAtMs! && r.durationS >= u.minMinutes * 60)
     .filter((r) => {
