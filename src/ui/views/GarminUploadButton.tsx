@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { RideUpload } from '../../coach/garmin-upload';
+import { activityName, type RideUpload } from '../../coach/garmin-upload';
 import type { RideSummary } from '../../coach/metrics';
 
 const REASON: Record<string, string> = {
@@ -12,7 +12,7 @@ const REASON: Record<string, string> = {
 const Preview = ({ ride, onConfirm, onCancel }: { ride: RideSummary; onConfirm: () => void; onCancel: () => void }) => {
   const started = new Date(ride.startedAtMs);
   const rows: [string, string | null][] = [
-    ['Fahrt', ride.sessionName ?? 'Fahrt'],
+    ['Name', activityName(ride)],
     ['Start', `${started.toLocaleDateString('de-DE')} ${started.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`],
     ['Dauer', `${Math.round(ride.durationS / 60)} Min.`],
     ['Leistung im Schnitt', ride.avgPowerW === null ? null : `${ride.avgPowerW} W`],

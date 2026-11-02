@@ -22,7 +22,7 @@ test('the first click only shows a preview, nothing goes up', () => {
   const onUpload = button();
   fireEvent.click(screen.getByRole('button', { name: 'Zu Garmin hochladen' }));
   const preview = screen.getByRole('dialog').textContent;
-  for (const text of ['Grundlage', '30 Min.', '100 W', '100 bpm', 'r1.fit', 'doppelt']) expect(preview).toContain(text);
+  for (const text of ['Indoor Cycling', '30 Min.', '100 W', '100 bpm', 'r1.fit', 'doppelt']) expect(preview).toContain(text);
   expect(onUpload).not.toHaveBeenCalled();
 });
 test('it goes up only after confirming', () => {

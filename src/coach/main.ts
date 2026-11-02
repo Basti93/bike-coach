@@ -14,7 +14,7 @@ import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
-import { canUpload } from './garmin-upload';
+import { activityName, canUpload } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
@@ -142,7 +142,9 @@ const uploader = new GarminUploader({
   onResult: (profileId, rideId, result) => { coach.markUpload(profileId, rideId, result); publish(); },
 });
 const startUpload = (profileId: string, rideId: string): void => {
-  if (canUpload(coach.state(profileId), rideId) && uploader.upload(profileId, rideId)) coach.markUpload(profileId, rideId, { status: 'uploading' });
+  const s = coach.state(profileId);
+  const ride = s.summaries.find((r) => r.rideId === rideId);
+  if (ride && canUpload(s, rideId) && uploader.upload(profileId, rideId, activityName(ride), ride.startedAtMs)) coach.markUpload(profileId, rideId, { status: 'uploading' });
 };
 
 wss.on('connection', (socket) => {

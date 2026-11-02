@@ -1,3 +1,5 @@
+import { RAMP_ID } from './guardrails';
+import type { RideSummary } from './metrics';
 import type { CoachState } from './state';
 
 export type UploadMode = 'off' | 'ask';
@@ -12,6 +14,18 @@ export const uploadSettings = (s: Pick<CoachState, 'garminUpload'>): GarminUploa
 };
 
 export const withUploadMode = (s: Pick<CoachState, 'garminUpload'>, mode: UploadMode): GarminUploadSettings => ({ ...uploadSettings(s), mode });
+
+/** Simple on purpose and from the data, so that no fanciful session name ends up in Garmin. */
+export const activityName = (ride: RideSummary): string => {
+  const base = 'Indoor Cycling';
+  if (ride.sessionId === RAMP_ID) return `${base} Rampentest`;
+  if (ride.intervalsPlanned) return `${base} Intervalle`;
+  const f = ride.intensityFactor;
+  if (f === null) return base;
+  if (f < 0.56) return `${base} Locker`;
+  if (f < 0.76) return `${base} Grundlage`;
+  return `${base} ${f < 0.91 ? 'Tempo' : 'Hart'}`;
+};
 
 /** Only known rides that are not up or on their way. */
 export const canUpload = (s: CoachState, rideId: string): boolean => {

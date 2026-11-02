@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Coach, DEBRIEF_MAX_ATTEMPTS, DEBRIEF_MAX_AGE_MS, DEBRIEF_RETRY_MS } from '../../src/coach/coach';
+import { Coach, SYSTEM_PROMPT, DEBRIEF_MAX_ATTEMPTS, DEBRIEF_MAX_AGE_MS, DEBRIEF_RETRY_MS } from '../../src/coach/coach';
 import { ClaudeError } from '../../src/coach/claude-client';
 import { DEBRIEF_SYSTEM_PROMPT } from '../../src/coach/debrief';
 import type { Sample } from '../../src/shared/sample';
@@ -239,4 +239,8 @@ test('without Garmin the debrief works and its prompt has no empty section', asy
   await coach.ensureDebrief('pa');
   expect(coach.state('pa').debriefs?.[id]?.source).toBe('claude');
   expect(String(ask.mock.calls[0][0].prompt)).not.toContain('"garmin"');
+});
+test('the coach is told to use simple session names', () => {
+  expect(SYSTEM_PROMPT).toContain('Name der Einheit');
+  expect(SYSTEM_PROMPT).toContain('Locker, 30 Minuten');
 });

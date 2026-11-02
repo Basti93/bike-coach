@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { canUpload, uploadSettings, withUploadMode } from '../../src/coach/garmin-upload';
+import { RAMP_ID } from '../../src/coach/guardrails';
+import { activityName, canUpload, uploadSettings, withUploadMode } from '../../src/coach/garmin-upload';
 import { GarminUploader, type UploadResult } from '../../src/coach/garmin-uploader';
 import { externalLoad } from '../../src/coach/readiness';
 import type { RideSummary } from '../../src/coach/metrics';
@@ -21,6 +22,16 @@ test('an older automatic setting counts as asking, nothing goes up by itself', (
 test('changing the mode keeps what is already uploaded', () => {
   const rides = { new: { status: 'uploaded' as const, atMs: 1 } };
   expect(withUploadMode(state({ garminUpload: { mode: 'ask', rides } }), 'off')).toEqual({ mode: 'off', rides });
+});
+const named = (over: Partial<RideSummary>) => activityName({ sessionId: 's', intensityFactor: 0.6, ...over } as RideSummary);
+test('the name at Garmin is simple and always says indoor cycling', () => {
+  expect(named({ intensityFactor: 0.5 })).toBe('Indoor Cycling Locker');
+  expect(named({ intensityFactor: 0.62, sessionName: 'Grundlage mit Schnörkeln' })).toBe('Indoor Cycling Grundlage');
+  expect(named({ intensityFactor: 0.85 })).toBe('Indoor Cycling Tempo');
+  expect(named({ intensityFactor: 0.97 })).toBe('Indoor Cycling Hart');
+  expect(named({ intervalsPlanned: 4 })).toBe('Indoor Cycling Intervalle');
+  expect(named({ sessionId: RAMP_ID })).toBe('Indoor Cycling Rampentest');
+  expect(named({ intensityFactor: null })).toBe('Indoor Cycling');
 });
 test('the button works in any mode, for known rides that are not up yet', () => {
   expect(canUpload(state(), 'new')).toBe(true);
@@ -64,49 +75,49 @@ describe('uploader', () => {
 
   test('runs the script with the tokens and file of that ride', () => {
     const { up, spawnFn } = make();
-    expect(up.upload('pa', 'ride-1-a')).toBe(true);
-    expect(spawnFn).toHaveBeenCalledWith('py', ['s.py', '--tokens', path.join('/g', 'tokens', 'pa'), '--file', path.join('/x', 'ride-1-a.fit')], expect.anything());
+    expect(up.upload('pa', 'ride-1-a', 'Indoor Cycling Locker', 5000)).toBe(true);
+    expect(spawnFn).toHaveBeenCalledWith('py', ['s.py', '--tokens', path.join('/g', 'tokens', 'pa'), '--file', path.join('/x', 'ride-1-a.fit'), '--name', 'Indoor Cycling Locker', '--start-ms', '5000'], expect.anything());
   });
   test('rejects ids that could leave the folder', () => {
     const { up, spawnFn } = make();
-    expect(up.upload('pa', '../../etc/passwd')).toBe(false);
-    expect(up.upload('../pa', 'ride-1')).toBe(false);
+    expect(up.upload('pa', '../../etc/passwd', 'n', 1)).toBe(false);
+    expect(up.upload('../pa', 'ride-1', 'n', 1)).toBe(false);
     expect(spawnFn).not.toHaveBeenCalled();
   });
   test('does nothing without a Garmin login', () => {
     const { up, spawnFn } = make();
-    expect(up.upload('ohne', 'ride-1')).toBe(false);
+    expect(up.upload('ohne', 'ride-1', 'n', 1)).toBe(false);
     expect(spawnFn).not.toHaveBeenCalled();
   });
   test('does nothing while a ride is open', () => {
     const { up, spawnFn } = make(true);
-    expect(up.upload('pa', 'ride-1')).toBe(false);
+    expect(up.upload('pa', 'ride-1', 'n', 1)).toBe(false);
     expect(spawnFn).not.toHaveBeenCalled();
   });
   test('one upload per profile at a time', () => {
     const { up, spawnFn, children } = make();
-    up.upload('pa', 'ride-1');
-    expect(up.upload('pa', 'ride-2')).toBe(false);
-    expect(up.upload('pb', 'ride-3')).toBe(true);
+    up.upload('pa', 'ride-1', 'n', 1);
+    expect(up.upload('pa', 'ride-2', 'n', 1)).toBe(false);
+    expect(up.upload('pb', 'ride-3', 'n', 1)).toBe(true);
     expect(spawnFn).toHaveBeenCalledTimes(2);
     finish(children[0], '{"status":"uploaded"}');
-    expect(up.upload('pa', 'ride-2')).toBe(true);
+    expect(up.upload('pa', 'ride-2', 'n', 1)).toBe(true);
   });
   test('a duplicate counts as uploaded', () => {
     const { up, children, results } = make();
-    up.upload('pa', 'ride-1');
+    up.upload('pa', 'ride-1', 'n', 1);
     finish(children[0], '{"status":"duplicate"}');
     expect(results).toEqual([['pa', 'ride-1', { status: 'uploaded' }]]);
   });
   test('reports the reason of a failure', () => {
     const { up, children, results } = make();
-    up.upload('pa', 'ride-1');
+    up.upload('pa', 'ride-1', 'n', 1);
     finish(children[0], '{"status":"failed","reason":"reauth"}');
     expect(results[0][2]).toEqual({ status: 'failed', reason: 'reauth' });
   });
   test('unreadable output or a crash is a failure, reported once', () => {
     const { up, children, results } = make();
-    up.upload('pa', 'ride-1');
+    up.upload('pa', 'ride-1', 'n', 1);
     children[0].stdout.emit('data', Buffer.from('Quatsch\n'));
     children[0].emit('error', new Error('weg'));
     children[0].emit('close', 1);
