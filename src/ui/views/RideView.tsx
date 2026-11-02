@@ -77,8 +77,8 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
       <main className="film">
         {banners}
         <div className="film-main">
-          <div><span className="label">Vorgabe</span><b data-testid="target">{target}<small>W</small></b></div>
-          <div><span className="label">Leistung</span><b data-testid="power" className={powerClass(latest.powerW, engine.targetW)}>{value(latest.powerW)}</b></div>
+          <div><span className="label" title="Vorgabe">Soll</span><b data-testid="target">{target}<small>W</small></b></div>
+          <div><span className="label" title="Leistung">Ist</span><b data-testid="power" className={powerClass(latest.powerW, engine.targetW)}>{value(latest.powerW)}</b></div>
         </div>
         <div className="film-side">
           <span><span data-testid="film-heart" className={hr ? 'heart beating' : 'heart'} style={hr ? { animationDuration: `${60 / hr}s` } : undefined}>♥</span> <b data-testid="hr" style={{ color: hrZoneColor(zone) }}>{value(latest.hrBpm)}</b></span>
