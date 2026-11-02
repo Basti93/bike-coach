@@ -27,7 +27,7 @@ const workout: GymWorkout = {
 };
 const none = { routineId: null, updatedAt: null };
 
-type World = { folders: { id: number; title: string }[]; routines: { id: string; folder_id: number | null; updated_at: string }[]; failing?: boolean; missing?: Set<string> };
+type World = { folders: { id: number; title: string }[]; routines: { id: string; folder_id: number | null; updated_at: string }[]; failing?: boolean; noPageCount?: boolean; missing?: Set<string> };
 function fake(world: World) {
   const calls: Call[] = [];
   const fetchFn = (async (input: any, init: any = {}) => {
@@ -40,7 +40,7 @@ function fake(world: World) {
     if (world.failing) return json(500, { error: 'boom' });
     const page = Number(u.searchParams.get('page') ?? 1);
     const size = Number(u.searchParams.get('pageSize') ?? 10);
-    const paged = <T,>(items: T[], name: string) => json(200, { page, page_count: Math.max(1, Math.ceil(items.length / size)), [name]: items.slice((page - 1) * size, page * size) });
+    const paged = <T,>(items: T[], name: string) => json(200, { page, ...(world.noPageCount ? {} : { page_count: Math.ceil(items.length / size) }), [name]: items.slice((page - 1) * size, page * size) });
     if (u.pathname === '/v1/routine_folders' && method === 'GET') return paged(world.folders, 'routine_folders');
     if (u.pathname === '/v1/routine_folders' && method === 'POST') {
       const f = { id: 100 + world.folders.length, title: body.routine_folder.title };
@@ -174,6 +174,39 @@ describe('HevyRoutines', () => {
     expect(await routines.editedSince('r1', '2026-11-02T10:00:00Z')).toBe(false);
     expect(await routines.editedSince('r1', '2026-11-01T10:00:00Z')).toBe(true);
     expect(await routines.editedSince('gone', 'x')).toBe(false);
+  });
+
+  it('the PUT body has no folder_id, the POST body keeps it', async () => {
+    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [{ id: 'r9', folder_id: 5, updated_at: 'a' }] };
+    const { routines, calls } = make(world);
+    await routines.writeRoutine(workout, { routineId: 'r9', updatedAt: 'a' });
+    expect(calls.find((c) => c.method === 'PUT')!.body.routine).not.toHaveProperty('folder_id');
+  });
+
+  it('a folder list without page_count makes no POST', async () => {
+    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [], noPageCount: true };
+    const { routines, calls } = make(world);
+    await expect(routines.writeRoutine(workout, none)).rejects.toThrow();
+    expect(writes(calls)).toHaveLength(0);
+  });
+
+  it('a routine list without page_count makes no POST', async () => {
+    const world: World = { folders: [{ id: 5, title: 'Bike Coach' }], routines: [] };
+    const { routines, calls } = make(world);
+    const real = (routines as any).pages.bind(routines);
+    (routines as any).pages = async (route: string, name: string, size: number) => {
+      if (route === '/v1/routines') world.noPageCount = true;
+      return real(route, name, size);
+    };
+    await expect(routines.writeRoutine(workout, none)).rejects.toThrow();
+    expect(writes(calls)).toHaveLength(0);
+  });
+
+  it('an empty list or page_count 0 means nothing there', async () => {
+    const world: World = { folders: [], routines: [] };
+    const { routines, calls } = make(world);
+    await expect(routines.writeRoutine(workout, none)).resolves.toMatchObject({ routineId: 'r1' });
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(2);
   });
 
   it('no DELETE is ever sent', async () => {

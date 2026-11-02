@@ -44,7 +44,9 @@ export class HevyRoutines {
     while (page <= count) {
       const data = await this.call<Record<string, unknown> & { page_count?: number }>('GET', `${route}?page=${page}&pageSize=${size}`);
       all.push(...((data[name] as T[] | undefined) ?? []));
-      count = data.page_count ?? 1;
+      // A missing count must never read as "one page": a wrong "not found" would create a duplicate that cannot be deleted.
+      if (typeof data.page_count !== 'number') throw new Error('Hevy list incomplete');
+      count = data.page_count;
       page += 1;
     }
     return all;
@@ -77,9 +79,9 @@ export class HevyRoutines {
     return found;
   }
 
-  private body(workout: GymWorkout, folderId: number) {
+  private body(workout: GymWorkout, folderId: number | null) {
     return { routine: {
-      title: workout.name, folder_id: folderId, notes: '',
+      title: workout.name, ...(folderId !== null ? { folder_id: folderId } : {}), notes: '',
       exercises: workout.exercises.map((e) => ({
         exercise_template_id: e.templateId, superset_id: e.supersetId, rest_seconds: e.restS, notes: e.notes,
         sets: e.sets.map((s) => ({ type: s.type, weight_kg: s.weightKg, reps: s.reps, rep_range: s.repRange ?? null })),
@@ -93,7 +95,10 @@ export class HevyRoutines {
     return { routineId: r.id, updatedAt: r.updated_at };
   }
 
-  /** Updates the known routine or one found in the coach's folder; creates one only when there is none. */
+  /**
+   * Caller contract: call `editedSince` before asking the rider to confirm, and call this only after the confirmation,
+   * which covers overwriting hand edits. `known.updatedAt` is deliberately not checked here.
+   * Updates the known routine or one found in the coach's folder; creates one only when there is none. */
   async writeRoutine(workout: GymWorkout, known: { routineId: string | null; updatedAt: string | null }): Promise<{ routineId: string; updatedAt: string }> {
     const folderId = await this.ensureFolder();
     const body = this.body(workout, folderId);
@@ -104,7 +109,7 @@ export class HevyRoutines {
     }
     if (id) {
       try {
-        return HevyRoutines.result(await this.call('PUT', `/v1/routines/${encodeURIComponent(id)}`, body));
+        return HevyRoutines.result(await this.call('PUT', `/v1/routines/${encodeURIComponent(id)}`, this.body(workout, null)));
       } catch (e) {
         if (!(e instanceof NotFound)) throw e;
       }
