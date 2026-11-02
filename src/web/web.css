@@ -1,0 +1,13 @@
+/* Only the shell. Everything else comes from the tracking screens' own tracking.css and its variables. */
+:root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; color-scheme: dark light; }
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; }
+  .tk-screen button.secondary, .tk-picker button.secondary, .tk-check, .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
+}
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.web-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: .4rem; padding: .5rem; background: var(--bg); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.web-nav button { font: inherit; min-height: 44px; padding: .5rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.web-nav button[aria-pressed='true'] { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+.web-main { padding-bottom: 2rem; }
+.web-login label { display: flex; flex-direction: column; gap: .3rem; }
