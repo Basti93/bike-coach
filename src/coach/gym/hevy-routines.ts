@@ -14,7 +14,11 @@ type Options = { key: string; dir: string; nowMs: () => number; fetchFn?: typeof
 type RawRoutine = { id: string; folder_id?: number | null; updated_at: string };
 type RawTemplate = { id: string; title: string; type?: string; primary_muscle_group?: string; equipment?: string };
 
-class NotFound extends Error {}
+/** Carries the status only, never the key or a response body. */
+export class HevyError extends Error {
+  constructor(readonly status: number) { super(`Hevy ${status}`); }
+}
+class NotFound extends HevyError {}
 
 /**
  * The only place that writes to Hevy: one folder, one routine in it, and updates of that routine.
@@ -32,8 +36,8 @@ export class HevyRoutines {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (res.status === 404) throw new NotFound('Hevy 404');
-    if (!res.ok) throw new Error(`Hevy ${res.status}`);
+    if (res.status === 404) throw new NotFound(404);
+    if (!res.ok) throw new HevyError(res.status);
     return await res.json() as T;
   }
 
@@ -58,6 +62,12 @@ export class HevyRoutines {
       const cached = JSON.parse(fs.readFileSync(file, 'utf8')) as { fetchedMs: number; templates: ExerciseTemplate[] };
       if (Array.isArray(cached.templates) && this.opts.nowMs() - cached.fetchedMs < TEMPLATE_TTL_MS) return cached.templates;
     } catch { /* fetch again */ }
+    return this.refreshTemplates();
+  }
+
+  /** Fetches past the cache, for when a stored template id may be out of date. Only reads from Hevy. */
+  async refreshTemplates(): Promise<ExerciseTemplate[]> {
+    const file = path.join(this.opts.dir, TEMPLATE_FILE);
     const raw = await this.pages<RawTemplate>('/v1/exercise_templates', 'exercise_templates', TEMPLATE_PAGE);
     const templates = raw.map((t) => ({ id: t.id, title: t.title, type: t.type ?? '', primaryMuscle: t.primary_muscle_group ?? '', equipment: t.equipment ?? '' }));
     fs.mkdirSync(this.opts.dir, { recursive: true, mode: 0o700 });

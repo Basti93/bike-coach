@@ -62,7 +62,7 @@ export function buildGymPrompt(i: PromptInput): string {
   const history = availableExercises(i.workouts, i.nowMs);
   const titleOf = new Map(i.workouts.flatMap((w) => w.exercises.map((e) => [e.templateId, e.title] as const)));
   const byId = new Map(i.templates.map((t) => [t.id, t]));
-  const available = history.filter((a) => { const t = byId.get(a.templateId); return !t || isRepBased(t); });
+  const available = history.filter((a) => { const t = byId.get(a.templateId); return !!t && isRepBased(t); });
   const knownIds = new Set(available.map((a) => a.templateId));
   const equipment = new Set(available.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
   const blocks = [

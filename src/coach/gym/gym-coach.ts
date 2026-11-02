@@ -3,7 +3,7 @@ import type { StrengthWorkout } from '../hevy';
 import type { RideSummary } from '../metrics';
 import { complaintFromNote, type Complaint } from '../motivation';
 import { checkWorkout, WIDOWMAKER_REPS, type GymContext } from './guardrails';
-import type { HevyRoutines } from './hevy-routines';
+import { HevyError, type HevyRoutines } from './hevy-routines';
 import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
@@ -30,6 +30,8 @@ type Deps = {
   dir: string; ask: Ask; nowMs: () => number;
   workouts: (id: string) => StrengthWorkout[];
   templates: (id: string) => Promise<ExerciseTemplate[]>;
+  /** Fetches past the template cache. Only reads from Hevy. */
+  refreshTemplates: (id: string) => Promise<ExerciseTemplate[]>;
   ready: (id: string) => boolean;
   bike: (id: string) => { summaries: RideSummary[]; complaints: Complaint[] };
   complaint: (id: string, text: string) => void;
@@ -37,6 +39,8 @@ type Deps = {
   writer: (id: string) => HevyRoutines | null;
 };
 
+/** Hevy refuses what we sent, so the stored workout cannot be written. Auth, limits, its own trouble and the network are no such answer. */
+const refusedByHevy = (e: unknown): boolean => e instanceof HevyError && e.status >= 400 && e.status < 500 && ![401, 403, 429].includes(e.status);
 const fingerprint = (w: GymWorkout): string => JSON.stringify(w);
 const isWidowmaker = (e: GymExercise): boolean => /^\s*widowmaker\b/i.test(e.notes);
 const isWidowSet = (e: GymExercise, i: number): boolean => isWidowmaker(e) && e.sets[i].reps === WIDOWMAKER_REPS && !e.sets[i].repRange;
@@ -102,7 +106,12 @@ export class GymCoach {
     const previous = s.next;
     const gen = this.gen(id);
     try {
-      const templates = await this.deps.templates(id);
+      let templates = await this.deps.templates(id);
+      const ids = new Set(templates.map((t) => t.id));
+      if (real.some((w) => w.exercises.some((e) => e.templateId && !ids.has(e.templateId)))) {
+        // Once per plan. A failure keeps what is known; such exercises are left out.
+        try { templates = await this.deps.refreshTemplates(id); } catch { /* keep the known list */ }
+      }
       const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');
       const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
@@ -276,8 +285,13 @@ export class GymCoach {
       this.previews.delete(id);
       this.updateIf(gen, id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
       return 'written';
-    } catch {
-      return 'failed';
+    } catch (e) {
+      if (!refusedByHevy(e)) return 'failed';
+      // Probably a template that vanished: retrying the same workout would never work, so the rider gets a rebuilt plan.
+      if (this.deps.ready(id)) { try { await this.deps.refreshTemplates(id); } catch { /* the plan uses what is known */ } }
+      this.previews.delete(id);
+      this.updateIf(gen, id, (s) => { s.dirty = true; s.attempts = 0; });
+      return 'stale';
     } finally {
       this.writing.delete(id);
     }

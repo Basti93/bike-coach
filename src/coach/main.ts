@@ -71,6 +71,7 @@ const gym = new GymCoach({
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
   workouts: (id) => hevy.workouts(id),
   templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
+  refreshTemplates: async (id) => { const w = gymWriter(id); return w ? w.refreshTemplates() : []; },
   ready: (id) => gymConnected(id) && hevy.strengthReady(id),
   bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
   complaint: (id, text) => coach.addComplaintFromText(id, text),

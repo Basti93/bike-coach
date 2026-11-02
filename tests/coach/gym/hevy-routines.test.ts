@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HevyLinks } from '../../../src/coach/hevy';
-import { HevyRoutines } from '../../../src/coach/gym/hevy-routines';
+import { HevyError, HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { GymWorkout } from '../../../src/coach/gym/types';
 
 const KEY = '00000000-1111-2222-3333-444444444444';
@@ -229,5 +229,30 @@ describe('HevyLinks.apiKey', () => {
     expect(links.apiKey('p1')).toBe(KEY);
     expect(links.apiKey('p2')).toBeNull();
     expect(links.apiKey('../p1')).toBeNull();
+  });
+
+  describe('errors and refreshing templates', () => {
+    const status = (code: number) => (async () => new Response('{"error":"Secret body"}', { status: code })) as unknown as typeof fetch;
+    it('errors expose the status and neither the key nor the body', async () => {
+      for (const code of [400, 404, 429, 500]) {
+        const r = new HevyRoutines({ key: KEY, dir, nowMs: () => NOW, fetchFn: status(code) });
+        const e = await r.writeRoutine(workout, none).catch((x: unknown) => x);
+        expect(e).toBeInstanceOf(HevyError);
+        expect((e as HevyError).status).toBe(code);
+        expect(`${(e as Error).message} ${JSON.stringify(e)}`).not.toMatch(new RegExp(`${KEY}|Secret`));
+      }
+    });
+    it('refreshTemplates fetches past a fresh cache and stores the result', async () => {
+      const world: World = { folders: [], routines: [] };
+      const { routines, calls } = make(world);
+      await routines.templates();
+      calls.length = 0;
+      expect(await routines.refreshTemplates()).toHaveLength(230);
+      expect(calls).toHaveLength(3);
+      expect(calls.every((c) => c.method === 'GET')).toBe(true);
+      calls.length = 0;
+      await routines.templates();
+      expect(calls).toHaveLength(0);
+    });
   });
 });

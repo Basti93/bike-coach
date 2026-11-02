@@ -8,7 +8,7 @@ import { checkWorkout } from '../../../src/coach/gym/guardrails';
 import { suggestNext } from '../../../src/coach/gym/history';
 import { ruleWorkout } from '../../../src/coach/gym/rules';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
-import type { HevyRoutines } from '../../../src/coach/gym/hevy-routines';
+import { HevyError, type HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
 import type { StrengthWorkout } from '../../../src/coach/hevy';
 import type { RideSummary } from '../../../src/coach/metrics';
@@ -46,6 +46,7 @@ function harness(opts: { writer?: HevyRoutines | null } = {}) {
     now: NOW, ready: true, workouts: history(), templates: TEMPLATES,
     summaries: [] as RideSummary[], complaints: [] as Complaint[],
     replies: [] as unknown[], calls: [] as Input[], hold: null as Promise<void> | null, filed: [] as string[],
+    templatesFail: false, refreshFail: false, refreshes: 0, afterRefresh: null as ExerciseTemplate[] | null,
     coach: null as unknown as GymCoach,
     make(): GymCoach {
       return new GymCoach({
@@ -57,7 +58,8 @@ function harness(opts: { writer?: HevyRoutines | null } = {}) {
           if (r instanceof Error) throw r;
           return r ?? answer();
         },
-        workouts: () => h.workouts, templates: async () => h.templates, ready: () => h.ready,
+        workouts: () => h.workouts, templates: async () => { if (h.templatesFail) throw new Error('offline'); return h.templates; }, ready: () => h.ready,
+        refreshTemplates: async () => { h.refreshes += 1; if (h.refreshFail) throw new Error('offline'); h.templates = h.afterRefresh ?? h.templates; return h.templates; },
         bike: () => ({ summaries: h.summaries, complaints: h.complaints }),
         complaint: (_id, text) => { h.filed.push(text); },
         writer: () => opts.writer ?? null,
@@ -666,6 +668,89 @@ describe('final review', () => {
       expect(check(20)).toBe(true);
       expect(check(22)).toBe(false);
       expect(check(15)).toBe(false);
+    });
+  });
+
+  describe('I2 a template that vanished', () => {
+    const mk = () => {
+      const writer = { editedSince: vi.fn(async () => false), writeRoutine: vi.fn(async (): Promise<{ routineId: string; updatedAt: string }> => ({ routineId: 'R1', updatedAt: 'U1' })) };
+      return { h: harness({ writer: writer as unknown as HevyRoutines }), writer };
+    };
+    const rejected = async (status: number) => {
+      const { h, writer } = mk();
+      await h.coach.tick(ID);
+      await h.coach.preview(ID);
+      const before = h.coach.state(ID).next;
+      writer.writeRoutine.mockRejectedValue(new HevyError(status));
+      return { h, before, result: await h.coach.confirm(ID, 'A') };
+    };
+    it('a 400 from the write is stale, refreshes the templates and marks dirty, state otherwise kept', async () => {
+      const { h, before, result } = await rejected(400);
+      expect(result).toBe('stale');
+      expect(h.refreshes).toBe(1);
+      const s = h.coach.state(ID);
+      expect(s.dirty).toBe(true);
+      expect(s.next).toEqual(before);
+      expect(s.routine).toBeNull();
+    });
+    it('the rider gets a rebuilt plan without the vanished exercise', async () => {
+      const { h } = await rejected(400);
+      h.afterRefresh = null;
+      h.templates = TEMPLATES.filter((t) => t.id !== 'lr');
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).next?.workout.exercises.map((e) => e.templateId)).toEqual(['cp']);
+    });
+    it('a refresh that fails still answers stale', async () => {
+      const { h, writer } = mk();
+      await h.coach.tick(ID);
+      await h.coach.preview(ID);
+      h.refreshFail = true;
+      writer.writeRoutine.mockRejectedValue(new HevyError(422));
+      expect(await h.coach.confirm(ID, 'A')).toBe('stale');
+    });
+    it('401, 403, 429, 5xx and network errors still fail without a refresh', async () => {
+      for (const status of [401, 403, 429, 500, 503]) {
+        const { h, result } = await rejected(status);
+        expect(result, String(status)).toBe('failed');
+        expect(h.refreshes, String(status)).toBe(0);
+        expect(h.coach.state(ID).dirty).toBe(false);
+      }
+      const { h, writer } = mk();
+      await h.coach.tick(ID);
+      await h.coach.preview(ID);
+      writer.writeRoutine.mockRejectedValue(new TypeError('fetch failed'));
+      expect(await h.coach.confirm(ID, 'A')).toBe('failed');
+      expect(h.refreshes).toBe(0);
+    });
+    it('uebungen holds only exercises with a known template', async () => {
+      const h = harness();
+      h.workouts = [...history(), wk(3, 'w3', [{ t: 'gone', kg: 30, reps: 8 }])];
+      await h.coach.tick(ID);
+      expect(block(h.calls[0].prompt, 'uebungen-nur-daten').map((e: any) => e.templateId)).not.toContain('gone');
+    });
+    it('an unknown id in the history refreshes the templates once per plan and uses the result', async () => {
+      const h = harness();
+      h.workouts = [...history(), wk(3, 'w3', [{ t: 'fresh', kg: 30, reps: 8 }, { t: 'gone', kg: 30, reps: 8 }])];
+      h.afterRefresh = [...TEMPLATES, T('fresh', 'machine', 'biceps')];
+      await h.coach.tick(ID);
+      expect(h.refreshes).toBe(1);
+      expect(block(h.calls[0].prompt, 'uebungen-nur-daten').map((e: any) => e.templateId)).toContain('fresh');
+      await h.coach.tick(ID);
+      expect(h.refreshes).toBe(1);
+    });
+    it('a failing refresh during planning keeps the known templates', async () => {
+      const h = harness();
+      h.workouts = [...history(), wk(3, 'w3', [{ t: 'gone', kg: 30, reps: 8 }])];
+      h.refreshFail = true;
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).next?.source).toBe('claude');
+      expect(h.coach.state(ID).lastError).toBeNull();
+    });
+    it('known ids never refresh', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      expect(h.refreshes).toBe(0);
     });
   });
 });
