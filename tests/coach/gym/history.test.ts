@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StrengthWorkout, SetType } from '../../../src/coach/hevy';
-import { availableExercises, recentLegWork, suggestNext } from '../../../src/coach/gym/history';
+import { availableExercises, isAssisted, isRepBased, recentLegWork, suggestNext } from '../../../src/coach/gym/history';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 2, 12);
@@ -118,5 +118,18 @@ describe('suggestNext fixes', () => {
   it('availableExercises ignores workouts after now', () => {
     const r = availableExercises([wk(-2, [[60, 8]], 'fut', 'Future'), wk(5, [[60, 8]], 'sq')], NOW);
     expect(r.map((x) => x.templateId)).toEqual(['sq']);
+  });
+});
+
+describe('the exercise types Hevy really sends', () => {
+  const template = (type: string) => ({ id: 't', title: 'Invented', type, primaryMuscle: 'lats', equipment: 'none' });
+  it('counts weighted and assisted bodyweight exercises as rep-based', () => {
+    for (const type of ['bodyweight_weighted', 'bodyweight_assisted', 'bodyweight_assisted_reps']) expect(isRepBased(template(type)), type).toBe(true);
+    for (const type of ['duration', 'distance_duration', 'short_distance_weight', 'floors_duration', 'steps_duration']) expect(isRepBased(template(type)), type).toBe(false);
+  });
+  it('treats both assisted names as assisted', () => {
+    expect(isAssisted('bodyweight_assisted')).toBe(true);
+    expect(isAssisted('bodyweight_assisted_reps')).toBe(true);
+    expect(isAssisted('bodyweight_weighted')).toBe(false);
   });
 });

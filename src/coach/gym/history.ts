@@ -7,9 +7,9 @@ export const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
 const LEG_WINDOW_MS = 48 * 3_600_000;
 
 /** The assistance is weight_kg here, so more of it is easier. In this first version its weight is simply kept. */
-export const ASSISTED_TYPE = 'bodyweight_assisted_reps';
+export const isAssisted = (type: string | undefined): boolean => type === 'bodyweight_assisted' || type === 'bodyweight_assisted_reps';
 /** Hevy's rep-based exercise types. Timed and distance exercises cannot become sets of reps. */
-const REP_TYPES = ['weight_reps', 'reps_only', 'bodyweight_reps', ASSISTED_TYPE];
+const REP_TYPES = ['weight_reps', 'reps_only', 'bodyweight_reps', 'bodyweight_weighted', 'bodyweight_assisted', 'bodyweight_assisted_reps'];
 export const isRepBased = (t: ExerciseTemplate): boolean => REP_TYPES.includes(t.type);
 
 export type Availability = { templateId: string; title: string; lastMs: number; recent: boolean };
@@ -63,7 +63,7 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   // Weighted work stays in the rep range; bodyweight work has no upper limit, since reps are its only progression.
   const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(REP_MAX, Math.max(REP_MIN, r));
   const reps = fit(last.minReps);
-  const assisted = type === ASSISTED_TYPE;
+  const assisted = isAssisted(type);
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
     return { weightKg: last.weightKg === null || assisted ? last.weightKg : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
   }

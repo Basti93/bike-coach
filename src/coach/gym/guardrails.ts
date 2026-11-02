@@ -1,7 +1,7 @@
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MAX_WIDOWMAKERS, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
-import { ASSISTED_TYPE, availableExercises, isRepBased, suggestNext } from './history';
+import { availableExercises, isAssisted, isRepBased, suggestNext } from './history';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
@@ -79,7 +79,7 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
     if (s.type === 'failure' && barbell) no(`${where}: Muskelversagen nicht an der Langhantel`);
     if (s.weightKg !== null) {
       if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
-      if (t.type === ASSISTED_TYPE && s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`);
+      if (isAssisted(t.type) && s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`);
       if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s))) no(`${where}: Gewicht zu hoch`);
     }
     if (s.type === 'warmup') continue;
