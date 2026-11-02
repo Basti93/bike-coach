@@ -8,7 +8,7 @@ import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { EXERCISES, linkHevyTemplates } from '../../shared/exercises';
-import type { LoggedWorkout } from '../../shared/records';
+import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { hevyRecord } from '../tracking/hevy-import';
 import { historyFromLogged, mergeHistory } from '../tracking/merge';
 import type { RecordStore } from '../tracking/store';
@@ -115,11 +115,21 @@ export class GymCoach {
   importHevy(id: string): void {
     if (!this.deps.store || !this.isHevy(id)) return;
     const hevy = this.deps.workouts(id);
-    const records = hevy.map(hevyRecord);
+    const now = this.deps.nowMs();
+    const stored = new Map(this.deps.store.all(id, 'workout').map((r) => [r.id, r]));
+    const records: TrackedRecord[] = [];
+    for (const w of hevy) {
+      const r = hevyRecord(w);
+      const have = stored.get(r.id);
+      // Present in Hevy again after a tombstone: written live and newer, so a rebuild cannot let the tombstone win.
+      if (have?.deleted) records.push({ ...r, updatedMs: Math.max(now, have.updatedMs + 1) });
+      // Already live with the same content under a newer time (a revived one): nothing to write.
+      else if (have && have.updatedMs > r.updatedMs && JSON.stringify(have.body) === JSON.stringify(r.body)) continue;
+      else records.push(r);
+    }
     // Only a complete list can say a workout is gone. While Hevy still loads, nothing is removed.
     if (this.deps.ready(id)) {
       const present = new Set(hevy.map((w) => w.id));
-      const now = this.deps.nowMs();
       for (const r of this.deps.store.all(id, 'workout')) {
         if (!r.deleted && (r.body as LoggedWorkout | null)?.source === 'hevy' && !present.has(r.id)) records.push({ ...r, deleted: true, updatedMs: now });
       }

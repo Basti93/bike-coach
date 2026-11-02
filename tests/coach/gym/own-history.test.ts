@@ -200,6 +200,29 @@ describe('own history', () => {
     expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h2']);
   });
 
+  it('a workout back in the Hevy list after a tombstone is live again and stays so', () => {
+    const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8)] });
+    h.coach.importHevy(ID);
+    h.workouts = [];
+    h.coach.importHevy(ID);
+    h.hevy = false;
+    expect(h.coach.history(ID)).toEqual([]);
+    h.hevy = true;
+    h.workouts = [hevyWorkout('h1', 14, 'x', 50, 8)];
+    h.coach.importHevy(ID);
+    h.hevy = false;
+    expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h1']);
+    const rec = h.store.all(ID, 'workout').find((r) => r.id === 'h1')!;
+    expect(rec.deleted).toBe(false);
+    expect(rec.updatedMs).toBe(NOW + 1);
+    h.hevy = true;
+    const cursor = h.store.changedSince(ID, 0).cursor;
+    h.coach.importHevy(ID);
+    expect(h.store.changedSince(ID, 0).cursor).toBe(cursor);
+    // Only the tombstone and the live copy it replaced; the repeated import adds nothing.
+    expect(h.store.overwritten(ID)).toHaveLength(2);
+  });
+
   it('never tombstones while Hevy is loading', () => {
     const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8)] });
     h.coach.importHevy(ID);
