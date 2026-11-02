@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { uploadSettings, type GarminUploadSettings, type UploadMode } from '../../coach/garmin-upload';
 import type { CoachClientMessage, GarminStatus, GarminSyncInfo } from '../../shared/coach-protocol';
 
 const REASON: Record<string, string> = {
@@ -21,8 +22,30 @@ const syncText = (sync: GarminSyncInfo): string => {
   return parts.join(' · ');
 };
 
+const MODES: [UploadMode, string][] = [['off', 'Aus'], ['ask', 'Jedes Mal fragen'], ['auto', 'Automatisch']];
+
+/** What goes to Garmin is the rider's choice. Off until switched on. */
+const UploadChoice = ({ profileId, upload, send }: { profileId: string; upload?: GarminUploadSettings; send: (m: CoachClientMessage) => void }) => {
+  const u = uploadSettings({ garminUpload: upload });
+  const [minutes, setMinutes] = useState(String(u.minMinutes));
+  const save = (mode: UploadMode, minMinutes: number) => send({ type: 'garmin-upload-settings', profileId, mode, minMinutes });
+  return (
+    <fieldset className="garmin-upload-choice">
+      <legend>Fahrten zu Garmin hochladen</legend>
+      {MODES.map(([mode, label]) => (
+        <label key={mode}><input type="radio" name={`garmin-upload-${profileId}`} checked={u.mode === mode} onChange={() => save(mode, u.minMinutes)} /> {label}</label>
+      ))}
+      {u.mode === 'auto' && (
+        <label>Mindestdauer in Minuten<input inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} onBlur={() => save(u.mode, Number(minutes))} /></label>
+      )}
+      {u.mode === 'auto' && <p className="muted">Es gehen nur Fahrten ab jetzt hoch, dein bisheriger Verlauf bleibt hier.</p>}
+      {u.mode !== 'off' && <p className="muted">Zeichnet deine Uhr dieselbe Fahrt auf, steht sie danach doppelt in Garmin Connect.</p>}
+    </fieldset>
+  );
+};
+
 /** Connects a profile to Garmin Connect. The password stays in the form only until it is submitted. */
-export const GarminCard = ({ profileId, status, sync, send }: { profileId: string; status: GarminStatus; sync?: GarminSyncInfo | null; send: (m: CoachClientMessage) => void }) => {
+export const GarminCard = ({ profileId, status, sync, send, upload }: { profileId: string; status: GarminStatus; sync?: GarminSyncInfo | null; send: (m: CoachClientMessage) => void; upload?: GarminUploadSettings }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -32,6 +55,7 @@ export const GarminCard = ({ profileId, status, sync, send }: { profileId: strin
       <details className="card garmin-later">
         <summary><span className="dot on">Garmin verbunden</span></summary>
         {sync && <p className="muted" role="status">{syncText(sync)}</p>}
+        <UploadChoice profileId={profileId} upload={upload} send={send} />
         <button className="ghost" onClick={() => send({ type: 'garmin-disconnect', profileId })}>Trennen</button>
       </details>
     );

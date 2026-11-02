@@ -7,18 +7,21 @@ import type { CoachClientMessage, RideDetail } from '../../shared/coach-protocol
 import type { RideDebrief } from '../../coach/debrief';
 import type { CoachState } from '../../coach/state';
 import { DebriefCard, debriefHandlers } from './DebriefCard';
+import type { GarminUploadSettings } from '../../coach/garmin-upload';
+import { GarminUploadButton } from './GarminUploadButton';
 import { RideCharts } from './RideCharts';
 
 type Props = {
   profileId: string; rideId: string; send: (m: CoachClientMessage) => void; together?: Together | null;
   summary?: RideSummary; summaries?: RideSummary[]; detail: RideDetail | null;
   debrief?: RideDebrief; debriefing?: boolean; next?: CoachState['next'];
+  garminConnected?: boolean; upload?: GarminUploadSettings;
 };
 
 const value = (v: number | null, unit: string) => (v === null ? '–' : `${v} ${unit}`);
 
 /** First show how the ride went, then ask how it felt. */
-export const FeedbackView = ({ profileId, rideId, send, together, summary, summaries = [], detail, debrief, debriefing = false, next }: Props) => {
+export const FeedbackView = ({ profileId, rideId, send, together, summary, summaries = [], detail, debrief, debriefing = false, next, garminConnected = false, upload }: Props) => {
   const progress = summary ? rideProgress(summary, summaries) : null;
   const summit = summary && together?.summits?.filter((s) => s.atMs === summary.startedAtMs).at(-1);
   // Without send in the dependencies: useCoach returns a new one on every render, and the response would re-request endlessly.
@@ -44,6 +47,7 @@ export const FeedbackView = ({ profileId, rideId, send, together, summary, summa
       {detail?.rideId === rideId && <section className="card"><RideCharts detail={detail} /></section>}
       {summary?.hrZoneMinutes && <p className="muted" data-testid="ride-zones">Minuten je Pulszone: {summary.hrZoneMinutes.map((m, i) => <span key={i}>{i > 0 && ' · '}<ZoneChip zone={i + 1}>{i + 1}</ZoneChip>: {m}</span>)}{summary.hrTargetPct === undefined ? '' : `. ${summary.hrTargetPct} % der Zeit im Ziel oder darunter.`}</p>}
       {debrief && <DebriefCard debrief={debrief} next={next} thinking={debriefing} {...debriefHandlers(profileId, rideId, send)} />}
+      {upload && upload.mode !== 'off' && <GarminUploadButton status={upload.rides[rideId]} connected={garminConnected} onUpload={() => send({ type: 'garmin-upload', profileId, rideId })} />}
       <h2>Wie war’s heute?</h2>
       <div className="choices">
         <button className="choice" onClick={() => rate('easy')}><span aria-hidden="true">🌱 </span>Zu leicht</button>

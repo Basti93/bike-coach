@@ -32,13 +32,21 @@ const onServiceMessage = (m: { riding?: boolean }): void => {
   if (!riding && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
 };
 
+let mainWindow: BrowserWindow | null = null;
+const showMain = (): void => {
+  if (!mainWindow || mainWindow.isDestroyed()) { openMain(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  app.focus({ steal: true });
+};
 const openMain = (): void => {
   const win = new BrowserWindow({ width: 1200, height: 800, title: 'Bike Coach' });
+  mainWindow = win;
   const url = process.env.ELECTRON_RENDERER_URL;
   if (url) void win.loadURL(url);
   else void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   win.webContents.setWindowOpenHandler(({ url: u }) => {
-    if (u.endsWith('#film')) { openFilmWindow(u); return { action: 'deny' }; }
+    if (u.endsWith('#film')) { openFilmWindow(u, showMain); return { action: 'deny' }; }
     return { action: 'deny' };
   });
 };

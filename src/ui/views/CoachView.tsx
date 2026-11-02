@@ -92,7 +92,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
         </Encouragement>
       )}
       <ReadinessNote readiness={garminReadiness} />
-      {garmin && coachConnected && !garminAside && garmin.state !== 'idle' && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
+      {garmin && coachConnected && !garminAside && garmin.state !== 'idle' && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />}
       {onReviewGarmin && <GarminProfileBanner profile={profile} ftpW={ftpW} suggestion={garminSuggestion} onReview={onReviewGarmin} />}
       <div className="coach">
         <div className="stack">
@@ -142,11 +142,11 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </section>
             )}
             {coachConnected && passCard}
-            {garmin && coachConnected && garminAside && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />}
+            {garmin && coachConnected && garminAside && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />}
             {garmin && coachConnected && garmin.state === 'idle' && (
               <details className="card garmin-later">
                 <summary>Garmin verbinden</summary>
-                <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} />
+                <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />
               </details>
             )}
           </div>

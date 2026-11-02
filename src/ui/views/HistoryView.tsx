@@ -1,3 +1,5 @@
+import { uploadSettings } from '../../coach/garmin-upload';
+import { GarminUploadButton } from './GarminUploadButton';
 import { DebriefCard } from './DebriefCard';
 import { useState } from 'react';
 import { bestPowers, loadSeries } from '../../coach/metrics';
@@ -33,9 +35,9 @@ const WeekBars = ({ weeks }: { weeks: { startMs: number; minutes: number }[] }) 
   );
 };
 
-type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack: () => void };
+type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack: () => void; garminConnected?: boolean };
 
-export const HistoryView = ({ state, detail, send, onBack }: Props) => {
+export const HistoryView = ({ state, detail, send, onBack, garminConnected = false }: Props) => {
   const [open, setOpen] = useState<string | null>(null);
   const stats = rideStats(state.summaries, Date.now());
   const rides = [...state.summaries].sort((a, b) => b.startedAtMs - a.startedAtMs);
@@ -96,6 +98,7 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
                     {r.suspectData ? 'Viele Messfehler, zählt nicht für Bestwerte. ' : ''}
                     Die FIT-Datei für Garmin liegt unter rides/exports.
                   </p>
+                  <GarminUploadButton status={uploadSettings(state).rides[r.rideId]} connected={garminConnected} onUpload={() => send({ type: 'garmin-upload', profileId: state.profileId, rideId: r.rideId })} />
                   {state.debriefs?.[r.rideId] && <DebriefCard debrief={state.debriefs[r.rideId]} thinking={false} />}
                   {detail?.rideId === r.rideId ? (
                     <RideCharts detail={detail} />
