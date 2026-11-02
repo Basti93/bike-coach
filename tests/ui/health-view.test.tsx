@@ -73,3 +73,26 @@ test('the pulse comparison appears once there are enough rides', () => {
   expect(document.body.textContent).toContain('66');
   expect(document.body.textContent).toContain('12 bewerteten Fahrten');
 });
+
+const strength = { recent: [{ id: 'w', title: 'Beine', startMs: Date.parse('2027-06-14T10:00:00'), minutes: 45, sets: 9, volumeKg: 4200 }], weeks: [{ weekStartMs: Date.parse('2027-06-14T00:00:00'), workouts: 1, volumeKg: 4200 }, { weekStartMs: Date.parse('2027-06-07T00:00:00'), workouts: 0, volumeKg: 0 }] };
+test('Gesundheit shows Hevy workouts next to Garmin', () => {
+  view({ strength });
+  expect(screen.getByRole('heading', { name: 'Krafttraining' })).toBeTruthy();
+  expect(document.body.textContent).toContain('Beine');
+  expect(document.body.textContent).toContain('45 Min.');
+  expect(document.body.textContent).toContain('4.200 kg');
+  expect(screen.getByRole('img', { name: /Ruhepuls/ })).toBeTruthy();
+});
+test('Gesundheit with only Hevy shows no empty Garmin sections', () => {
+  view({ strength, garmin: false, data: null, sync: null });
+  expect(screen.getByRole('heading', { name: 'Krafttraining' })).toBeTruthy();
+  expect(screen.queryByText(/Seite lädt/)).toBeNull();
+  expect(screen.queryByText(/Keine Daten/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '28 Tage' })).toBeNull();
+  expect(screen.queryByText(/Garmin|Uhr/)).toBeNull();
+});
+test('Gesundheit with only Garmin looks as it does today', () => {
+  view({ strength: null });
+  expect(screen.queryByRole('heading', { name: 'Krafttraining' })).toBeNull();
+  expect(screen.getByRole('button', { name: '28 Tage' })).toBeTruthy();
+});

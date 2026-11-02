@@ -4,6 +4,7 @@ import type { GarminHealth, GarminReadiness } from './garmin';
 import type { GarminSuggestion } from './garmin-profile';
 import type { GymPublic } from '../coach/gym/public';
 import type { GymWorkout } from '../coach/gym/types';
+import type { StrengthHealth } from '../coach/strength';
 
 export type GarminStatus =
   | { state: 'idle' | 'connecting' | 'needs-mfa' | 'connected' }
@@ -54,5 +55,5 @@ export type CoachClientMessage =
   | { type: 'gym-confirm'; profileId: string; name: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
-export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null };
+export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null };
 export const COACH_PORT = 7411;

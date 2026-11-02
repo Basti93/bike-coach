@@ -32,3 +32,29 @@ export const strengthPromptData = (workouts: StrengthWorkout[], nowMs: number): 
     .map((m) => ({ ...m, stunden: Math.round(m.stunden * 10) / 10 }));
   return { letzte14Tage, monate };
 };
+
+const HEALTH_RECENT = 10;
+const HEALTH_WEEKS = 12;
+type Totals = { sets: number; volumeKg: number };
+/** Warmup sets are not training volume. Falls back to the stored totals, which already leave them out. */
+const workTotals = (w: StrengthWorkout): Totals => w.exercises.reduce<Totals>((acc, e) => {
+  if (e.workSets.length === 0) return { sets: acc.sets + e.sets, volumeKg: acc.volumeKg + e.volumeKg };
+  const work = e.workSets.filter((s) => s.type !== 'warmup');
+  return { sets: acc.sets + work.length, volumeKg: acc.volumeKg + Math.round(work.reduce((a, s) => a + (s.weightKg ?? 0) * (s.reps ?? 0), 0)) };
+}, { sets: 0, volumeKg: 0 });
+
+/** Only from local workouts. Weeks start on Monday in local time; built from calendar dates, as a week is not always 7 x 24 hours. */
+export const strengthHealth = (workouts: StrengthWorkout[], nowMs: number) => {
+  const now = new Date(nowMs);
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const starts = Array.from({ length: HEALTH_WEEKS + 1 }, (_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (HEALTH_WEEKS - 1 - i)).getTime());
+  const weeks = starts.slice(0, HEALTH_WEEKS).map((weekStartMs, i) => {
+    const inWeek = workouts.filter((w) => w.startMs >= weekStartMs && w.startMs < (starts[i + 1] ?? Infinity));
+    return { weekStartMs, workouts: inWeek.length, volumeKg: inWeek.reduce((a, w) => a + workTotals(w).volumeKg, 0) };
+  });
+  const recent = [...workouts].sort((a, b) => b.startMs - a.startMs).slice(0, HEALTH_RECENT).map((w) => ({
+    id: w.id, title: w.title, startMs: w.startMs, minutes: Math.round(w.durationS / 60), ...workTotals(w),
+  }));
+  return { recent, weeks };
+};
+export type StrengthHealth = ReturnType<typeof strengthHealth>;

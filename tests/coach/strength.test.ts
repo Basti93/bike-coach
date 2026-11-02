@@ -4,7 +4,7 @@ import path from 'node:path';
 import { Coach, SYSTEM_PROMPT } from '../../src/coach/coach';
 import { DEBRIEF_SYSTEM_PROMPT } from '../../src/coach/debrief';
 import type { StrengthWorkout } from '../../src/coach/hevy';
-import { strengthPromptData } from '../../src/coach/strength';
+import { strengthHealth, strengthPromptData } from '../../src/coach/strength';
 import type { Sample } from '../../src/shared/sample';
 import type { Session } from '../../src/shared/session';
 
@@ -83,4 +83,35 @@ test('another profile gets no strength data from this key', async () => {
   expect(block('pa')).toContain('Kniebeuge');
   expect(block('pb')).toBe('');
   expect(seen).toEqual(['pa', 'pb']);
+});
+
+test('strengthHealth counts weeks without workouts as zero and leaves out warmup sets', () => {
+  const now = new Date(2027, 2, 31, 12).getTime(); // a Wednesday, one day after the clocks change in Europe
+  const at = (y: number, m: number, d: number) => new Date(y, m, d, 10).getTime();
+  const w = (id: string, startMs: number, workSets: StrengthWorkout['exercises'][0]['workSets']): StrengthWorkout => ({
+    id, title: 'Beine', startMs, durationS: 2700,
+    exercises: [{ title: 'Kniebeuge', templateId: 'T1', workSets, sets: 99, reps: 0, volumeKg: 99999 }],
+  });
+  const sets = [{ type: 'warmup' as const, weightKg: 20, reps: 10 }, { type: 'normal' as const, weightKg: 50, reps: 10 }, { type: 'normal' as const, weightKg: 52.5, reps: 8 }];
+  const h = strengthHealth([w('a', at(2027, 2, 29), sets), w('b', at(2027, 2, 2), sets)], now);
+  expect(h.weeks).toHaveLength(12);
+  const last = h.weeks[11];
+  expect(last.weekStartMs).toBe(new Date(2027, 2, 29).getTime());
+  expect(last).toEqual({ weekStartMs: last.weekStartMs, workouts: 1, volumeKg: 920 });
+  expect(h.weeks[10]).toMatchObject({ workouts: 0, volumeKg: 0 });
+  expect(h.weeks[7]).toMatchObject({ workouts: 1 });
+  h.weeks.forEach((x, i) => {
+    const d = new Date(x.weekStartMs);
+    expect(d.getDay()).toBe(1);
+    expect(d.getHours()).toBe(0);
+    if (i > 0) expect(x.weekStartMs).toBeGreaterThan(h.weeks[i - 1].weekStartMs);
+  });
+  expect(h.recent[0]).toEqual({ id: 'a', title: 'Beine', startMs: at(2027, 2, 29), minutes: 45, sets: 2, volumeKg: 920 });
+});
+test('strengthHealth lists the last ten workouts, newest first', () => {
+  const now = Date.parse('2027-06-15T12:00:00Z');
+  const many = Array.from({ length: 15 }, (_, i) => workout(i));
+  const h = strengthHealth(many, now);
+  expect(h.recent).toHaveLength(10);
+  expect(h.recent[0].id).toBe('w0');
 });

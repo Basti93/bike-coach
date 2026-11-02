@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from 'react';
 import type { GarminSyncInfo } from '../../shared/coach-protocol';
 import type { GarminHealth, GarminReadiness, HealthPoint } from '../../shared/garmin';
+import type { StrengthHealth } from '../../coach/strength';
 import { ReadinessNote } from './ReadinessNote';
 
 export type HealthRange = number | null;
@@ -85,9 +86,34 @@ const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] })
   );
 };
 
-type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack: () => void };
+type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack: () => void; strength?: StrengthHealth | null; garmin?: boolean };
 
-export const HealthView = ({ data, range, onRange, readiness, sync, onBack }: Props) => {
+const kg = (n: number): string => `${n.toLocaleString('de-DE')} kg`;
+const dayText = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+
+/** What was trained, without a comparison to anything else. */
+const StrengthSection = ({ strength }: { strength: StrengthHealth }) => {
+  const most = Math.max(1, ...strength.weeks.map((w) => w.workouts));
+  return (
+    <section className="card">
+      <h3>Krafttraining</h3>
+      {strength.recent.length === 0 ? <p className="muted">Noch keine Einheiten aus Hevy.</p> : (
+        <table className="health-table">
+          <thead><tr><th>Tag</th><th>Training</th><th>Dauer</th><th>Sätze</th><th>Volumen</th></tr></thead>
+          <tbody>{strength.recent.map((w) => <tr key={w.id}><td>{dayText(w.startMs)}</td><td>{w.title}</td><td>{w.minutes} Min.</td><td>{w.sets}</td><td>{kg(w.volumeKg)}</td></tr>)}</tbody>
+        </table>
+      )}
+      <figure className="trend">
+        <figcaption><span>Einheiten pro Woche</span></figcaption>
+        <ul className="week-bars" aria-label="Einheiten pro Woche, die letzten zwölf Wochen">
+          {strength.weeks.map((w) => <li key={w.weekStartMs} title={`Woche ab ${dayText(w.weekStartMs)}: ${w.workouts} Einheiten, ${kg(w.volumeKg)}`}><span className="trend-bar" style={{ height: `${(w.workouts / most) * 100}%` }} /><small>{w.workouts}</small></li>)}
+        </ul>
+      </figure>
+    </section>
+  );
+};
+
+export const HealthView = ({ data, range, onRange, readiness, sync, onBack, strength, garmin = true }: Props) => {
   const withData = MEASURES.filter((m) => data?.points.some((p) => p[m.key] !== null));
   const without = MEASURES.filter((m) => !withData.includes(m));
   const updated = sync?.lastRunMs ? new Date(sync.lastRunMs).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
@@ -98,6 +124,12 @@ export const HealthView = ({ data, range, onRange, readiness, sync, onBack }: Pr
         <h1>Gesundheit</h1>
         <div className="row"><button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
+      {!garmin ? (
+        <>
+          {strength && <StrengthSection strength={strength} />}
+          <p className="muted">Keine medizinische Auswertung.</p>
+        </>
+      ) : <>
       {sync?.problem === 'reauth' && <p className="notice" role="alert">Die Garmin-Anmeldung ist abgelaufen. Bitte auf der Startseite erneut anmelden.</p>}
       <ReadinessNote readiness={readiness} />
       <div className="row health-ranges">
@@ -124,6 +156,8 @@ export const HealthView = ({ data, range, onRange, readiness, sync, onBack }: Pr
         {p && !sync?.complete && `Verlauf lädt noch: ${p.activities} Aktivitäten, ${p.daysDone} von ${p.daysTotal} Tagen, ${p.filesDone} von ${p.filesTotal} Dateien. `}
         Trends aus deiner Uhr, keine medizinische Auswertung.
       </p>
+      {strength && <StrengthSection strength={strength} />}
+      </>}
     </main>
   );
 };
