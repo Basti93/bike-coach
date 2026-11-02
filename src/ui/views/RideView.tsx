@@ -77,7 +77,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
           <div><span className="label">Leistung</span><b data-testid="power" className={powerClass(latest.powerW, engine.targetW)}>{value(latest.powerW)}</b></div>
         </div>
         <div className="film-side">
-          <span><span data-testid="film-heart" className={hr ? 'heart beating' : 'heart'} style={{ ...(hr ? { animationDuration: `${60 / hr}s` } : {}), color: hrZoneColor(zone) }}>♥</span> <b data-testid="hr" style={{ color: hrZoneColor(zone) }}>{value(latest.hrBpm)}</b></span>
+          <span><span data-testid="film-heart" className={hr ? 'heart beating' : 'heart'} style={hr ? { animationDuration: `${60 / hr}s` } : undefined}>♥</span> <b data-testid="hr" style={{ color: hrZoneColor(zone) }}>{value(latest.hrBpm)}</b></span>
           <span>↻ <b>{value(latest.cadenceRpm)}</b></span>
           <span>⏱ <b data-testid="remaining">{mmss(engine.stepRemainingS)}</b></span>
         </div>

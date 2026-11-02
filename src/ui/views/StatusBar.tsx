@@ -27,7 +27,7 @@ export const StatusBar = ({ state, connected, send, reportPath = null }: { state
   return (
     <div className="status-bar" role="status" aria-label="Gerätestatus">
       <span data-testid="status-hr">
-        <span data-testid="heart" className={beating ? 'heart beating' : 'heart'} style={{ ...(beating ? { animationDuration: `${60 / hr}s` } : {}), color: zoneColor }}>♥</span>
+        <span data-testid="heart" className={beating ? 'heart beating' : 'heart'} style={beating ? { animationDuration: `${60 / hr}s` } : undefined}>♥</span>
         {' '}<b style={{ color: zoneColor }}>{hr === null || hr === undefined ? '–' : Math.round(hr)}</b> bpm
       </span>
       {DEVICES.map(({ kind, label, id }) => (

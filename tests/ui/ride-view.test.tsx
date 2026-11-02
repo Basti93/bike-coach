@@ -129,7 +129,8 @@ test('heart rate zones keep their fixed color', () => {
   expect(hrZoneColor(2)).toBe('var(--hrz2)');
   expect(hrZoneColor(0)).toBeUndefined();
 });
-test('film mode colors the heart by zone', () => {
+test('film mode colors the number by zone, the heart stays red', () => {
   render(<FilmView state={{ ...base, profiles: [{ ...filmProfile, hrMaxBpm: 200 }] }} send={vi.fn()} />);
-  expect(screen.getByTestId('film-heart').getAttribute('style')).toContain('--hrz2');
+  expect(screen.getByTestId('hr').getAttribute('style')).toContain('--hrz2');
+  expect(screen.getByTestId('film-heart').getAttribute('style')).not.toContain('--hrz');
 });
