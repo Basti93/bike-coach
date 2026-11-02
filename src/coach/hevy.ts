@@ -182,6 +182,12 @@ export class HevyLinks {
     return sync;
   }
 
+  /** For the coach process only: never part of a status, a log or a prompt. */
+  apiKey(profileId: string): string | null {
+    if (!SAFE_ID.test(profileId)) return null;
+    try { return fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim() || null; } catch { return null; }
+  }
+
   status(profileId: string): HevyStatus {
     const attempt = this.attempts.get(profileId);
     if (attempt) return attempt;
