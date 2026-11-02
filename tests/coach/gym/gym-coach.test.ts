@@ -753,4 +753,47 @@ describe('final review', () => {
       expect(h.refreshes).toBe(0);
     });
   });
+
+  describe('I4 offline during first planning', () => {
+    it('a template failure does not count toward the attempts and retries after 10 minutes', async () => {
+      const h = harness();
+      h.templatesFail = true;
+      for (let i = 0; i < 6; i++) {
+        await h.coach.tick(ID);
+        h.now += 10 * 60_000;
+      }
+      const s = h.coach.state(ID);
+      expect(s.attempts).toBe(0);
+      expect(s.dirty).toBe(true);
+      expect(s.lastError).toBe('failed');
+      expect(h.calls).toHaveLength(0);
+      h.templatesFail = false;
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(1);
+      expect(h.coach.state(ID).next?.source).toBe('claude');
+    });
+    it('it waits the 10 minutes before fetching again', async () => {
+      const h = harness();
+      let fetches = 0;
+      h.templatesFail = true;
+      const coach = new GymCoach({
+        dir, nowMs: () => h.now, ask: async () => answer(), workouts: () => h.workouts,
+        templates: async () => { fetches += 1; throw new Error('offline'); },
+        refreshTemplates: async () => h.templates, ready: () => true,
+        bike: () => ({ summaries: [], complaints: [] }), complaint: () => {}, writer: () => null,
+      });
+      await coach.tick(ID);
+      await coach.tick(ID);
+      expect(fetches).toBe(1);
+      h.now += 10 * 60_000;
+      await coach.tick(ID);
+      expect(fetches).toBe(2);
+    });
+    it('AI failures still stop after three attempts', async () => {
+      const h = harness();
+      h.replies = [new ClaudeError('limit', 'x'), new ClaudeError('limit', 'x'), new ClaudeError('limit', 'x')];
+      for (let i = 0; i < 5; i++) { await h.coach.tick(ID); h.now += 10 * 60_000; }
+      expect(h.calls).toHaveLength(3);
+    });
+  });
 });

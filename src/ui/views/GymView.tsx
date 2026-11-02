@@ -91,7 +91,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
       </div>
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}
-      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
+      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
       <div className="coach">
         <div className="stack">
           {next && (

@@ -255,4 +255,25 @@ describe('HevyLinks.apiKey', () => {
       expect(calls).toHaveLength(0);
     });
   });
+
+  describe('templates when offline', () => {
+    const down = (async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch;
+    it('an expired cache is the fallback when the fetch fails', async () => {
+      const { routines } = make({ folders: [], routines: [] });
+      await routines.templates();
+      const later = new HevyRoutines({ key: KEY, dir, nowMs: () => NOW + 30 * DAY, fetchFn: down });
+      expect(await later.templates()).toHaveLength(230);
+    });
+    it('without any cache the failure reaches the caller', async () => {
+      const r = new HevyRoutines({ key: KEY, dir, nowMs: () => NOW, fetchFn: down });
+      await expect(r.templates()).rejects.toThrow();
+    });
+    it('a disk failure keeps the fetched templates', async () => {
+      const blocked = path.join(dir, 'a-file');
+      fs.writeFileSync(blocked, 'x');
+      const world: World = { folders: [], routines: [] };
+      const r = new HevyRoutines({ key: KEY, dir: blocked, nowMs: () => NOW, fetchFn: fake(world).fetchFn });
+      expect(await r.templates()).toHaveLength(230);
+    });
+  });
 });

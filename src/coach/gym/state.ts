@@ -25,13 +25,15 @@ export type GymState = {
   attemptKey: string | null;
   lastError: ClaudeErrorKind | null;
   lastAttemptMs: number | null;
+  /** When fetching the templates last failed. Such a failure is no attempt: it only waits and tries again. */
+  templatesFailedMs: number | null;
 };
 
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialGymState = (profileId: string): GymState => ({
   profileId, goal: 'muscle', next: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
-  routine: null, planned: false, gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null,
+  routine: null, planned: false, gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null,
 });
 
 export const loadGymState = (dir: string, profileId: string): GymState => {

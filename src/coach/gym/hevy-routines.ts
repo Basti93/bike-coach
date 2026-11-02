@@ -57,12 +57,20 @@ export class HevyRoutines {
   }
 
   async templates(): Promise<ExerciseTemplate[]> {
-    const file = path.join(this.opts.dir, TEMPLATE_FILE);
+    let expired: ExerciseTemplate[] | null = null;
     try {
-      const cached = JSON.parse(fs.readFileSync(file, 'utf8')) as { fetchedMs: number; templates: ExerciseTemplate[] };
-      if (Array.isArray(cached.templates) && this.opts.nowMs() - cached.fetchedMs < TEMPLATE_TTL_MS) return cached.templates;
+      const cached = JSON.parse(fs.readFileSync(path.join(this.opts.dir, TEMPLATE_FILE), 'utf8')) as { fetchedMs: number; templates: ExerciseTemplate[] };
+      if (Array.isArray(cached.templates)) {
+        if (this.opts.nowMs() - cached.fetchedMs < TEMPLATE_TTL_MS) return cached.templates;
+        expired = cached.templates;
+      }
     } catch { /* fetch again */ }
-    return this.refreshTemplates();
+    try {
+      return await this.refreshTemplates();
+    } catch (e) {
+      if (expired) return expired;
+      throw e;
+    }
   }
 
   /** Fetches past the cache, for when a stored template id may be out of date. Only reads from Hevy. */
@@ -70,9 +78,11 @@ export class HevyRoutines {
     const file = path.join(this.opts.dir, TEMPLATE_FILE);
     const raw = await this.pages<RawTemplate>('/v1/exercise_templates', 'exercise_templates', TEMPLATE_PAGE);
     const templates = raw.map((t) => ({ id: t.id, title: t.title, type: t.type ?? '', primaryMuscle: t.primary_muscle_group ?? '', equipment: t.equipment ?? '' }));
-    fs.mkdirSync(this.opts.dir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(`${file}.tmp`, JSON.stringify({ fetchedMs: this.opts.nowMs(), templates }), { mode: 0o600 });
-    fs.renameSync(`${file}.tmp`, file);
+    try {
+      fs.mkdirSync(this.opts.dir, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify({ fetchedMs: this.opts.nowMs(), templates }), { mode: 0o600 });
+      fs.renameSync(`${file}.tmp`, file);
+    } catch { /* The fetched templates still count; the next plan fetches again. */ }
     return templates;
   }
 

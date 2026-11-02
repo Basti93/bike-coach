@@ -101,12 +101,20 @@ export class GymCoach {
     const key = (newest(unseen) ?? newest(real))?.id ?? 'none';
     if (s.attemptKey !== key) this.update(id, (x) => { x.attemptKey = key; x.attempts = 0; });
     if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return;
-    this.update(id, (x) => { x.dirty = true; x.attempts += 1; x.lastAttemptMs = now; });
+    if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return;
+    this.update(id, (x) => { x.dirty = true; });
     const wantNote = s.planned && unseen.length > 0;
     const previous = s.next;
     const gen = this.gen(id);
+    let templates: ExerciseTemplate[];
     try {
-      let templates = await this.deps.templates(id);
+      templates = await this.deps.templates(id);
+    } catch {
+      this.updateIf(gen, id, (x) => { x.lastError = 'failed'; x.templatesFailedMs = now; });
+      return;
+    }
+    this.updateIf(gen, id, (x) => { x.templatesFailedMs = null; x.attempts += 1; x.lastAttemptMs = now; });
+    try {
       const ids = new Set(templates.map((t) => t.id));
       if (real.some((w) => w.exercises.some((e) => e.templateId && !ids.has(e.templateId)))) {
         // Once per plan. A failure keeps what is known; such exercises are left out.

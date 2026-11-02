@@ -24,7 +24,7 @@ const workout = (): GymWorkout => ({
   ],
 });
 const gymOf = (over: Partial<GymPublic['state']> = {}, ready = true, thinking = false): GymPublic => ({
-  ready, thinking,
+  ready, thinking, complaints: [], hasHistory: false,
   state: { ...initialGymState('p'), next: { workout: workout(), reason: 'Zuletzt zwei Mal Oberkörper, jetzt Beine.', source: 'rules' }, planned: true, ...over },
 });
 
@@ -227,4 +227,20 @@ test('after an adjustment the preview is gone', () => {
   expect(screen.getByRole('button', { name: 'Jetzt anlegen' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Härter' }));
   expect(screen.queryByRole('button', { name: 'Jetzt anlegen' })).toBeNull();
+});
+
+test('with history and no plan yet it says honestly that the coach tries again', () => {
+  for (const over of [{ lastError: 'failed' as const }, { dirty: true }]) {
+    show({ gym: { ...gymOf({ next: null, planned: false, ...over }), hasHistory: true } });
+    const text = screen.getByRole('status').textContent;
+    expect(text).toMatch(/konnte .*noch nicht planen/);
+    expect(text).toMatch(/versucht es/);
+    expect(text).not.toMatch(/Sobald/);
+    cleanup();
+  }
+});
+
+test('"Sobald" appears with really no history, even after an error', () => {
+  show({ gym: gymOf({ next: null, planned: false, lastError: 'failed', dirty: true }) });
+  expect(screen.getByRole('status').textContent).toMatch(/Sobald/);
 });

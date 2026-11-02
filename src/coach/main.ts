@@ -78,7 +78,7 @@ const gym = new GymCoach({
   writer: gymWriter,
 });
 const gymOf = (profileId: string) => {
-  try { return gymPublic(hevy.status(profileId), gym.state(profileId), gym.isThinking(profileId), gymConnected(profileId) && hevy.strengthReady(profileId)); } catch { return null; }
+  try { return gymPublic(hevy.status(profileId), gym.state(profileId), gym.isThinking(profileId), gymConnected(profileId) && hevy.strengthReady(profileId), { complaints: coach.state(profileId).complaints ?? [], hasHistory: hevy.workouts(profileId).length > 0 }); } catch { return null; }
 };
 
 // Local workouts only, no Hevy call.

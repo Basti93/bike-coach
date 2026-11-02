@@ -11,7 +11,7 @@ vi.mock('../../src/ui/useRide', () => ({ useRide: () => ({
   offer: null, clearOffer: () => {}, connected: true, send: () => {}, error: null,
 }) }));
 
-const gym = () => ({ ready: true, thinking: false, state: { ...initialGymState('a'), emptyReason: 'Noch nichts.' } });
+const gym = () => ({ ready: true, thinking: false, complaints: [], hasHistory: false, state: { ...initialGymState('a'), emptyReason: 'Noch nichts.' } });
 
 test('the next profile starts at home, not on the strength page', () => {
   h.gym = gym();

@@ -4,14 +4,15 @@ import { gymPublic } from '../../../src/coach/gym/public';
 
 describe('gymPublic', () => {
   const state = initialGymState('p1');
+  const extra = { complaints: [], hasHistory: true };
   it('is null without a connection', () => {
-    expect(gymPublic({ state: 'idle' }, state, false, true)).toBeNull();
-    expect(gymPublic({ state: 'connecting' }, state, false, true)).toBeNull();
-    expect(gymPublic({ state: 'failed', reason: 'invalid' }, state, false, true)).toBeNull();
+    expect(gymPublic({ state: 'idle' }, state, false, true, extra)).toBeNull();
+    expect(gymPublic({ state: 'connecting' }, state, false, true, extra)).toBeNull();
+    expect(gymPublic({ state: 'failed', reason: 'invalid' }, state, false, true, extra)).toBeNull();
   });
   it('carries state, thinking and ready for a connected profile, and never a key', () => {
-    const g = gymPublic({ state: 'connected', workouts: 3, loading: false, lastSyncMs: 1 }, state, true, false);
-    expect(g).toEqual({ state, thinking: true, ready: false });
+    const g = gymPublic({ state: 'connected', workouts: 3, loading: false, lastSyncMs: 1 }, state, true, false, extra);
+    expect(g).toEqual({ state, thinking: true, ready: false, complaints: [], hasHistory: true });
     expect(JSON.stringify(g)).not.toMatch(/api-?key|"key"/i);
   });
 });

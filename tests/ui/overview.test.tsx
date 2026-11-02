@@ -8,7 +8,7 @@ afterEach(cleanup);
 const h = vi.hoisted(() => ({ hevy: { state: 'idle' } as unknown, garmin: { state: 'idle' } as unknown, coachState: null as unknown, arrived: true, engine: null as unknown, sent: [] as unknown[] }));
 vi.mock('../../src/ui/useCoach', () => ({ useCoach: () => ({
   statusArrived: h.arrived, state: h.coachState, thinking: false, connected: true, send: (m: unknown) => { h.sent.push(m); }, hevy: h.hevy, garmin: h.garmin, together: null,
-  gym: (h.hevy as { state: string }).state === 'connected' ? { ready: true, thinking: false, state: { ...initialGymState('a'), emptyReason: 'Noch nichts.' } } : null,
+  gym: (h.hevy as { state: string }).state === 'connected' ? { ready: true, thinking: false, complaints: [], hasHistory: false, state: { ...initialGymState('a'), emptyReason: 'Noch nichts.' } } : null,
   gymPreview: null, gymPreviewFailed: false, gymConfirmResult: null, clearGym: () => {},
   strengthHealth: (h.hevy as { state: string }).state === 'connected' ? { recent: [{ id: 'w', title: 'Beine', startMs: Date.parse('2027-06-14T10:00:00Z'), minutes: 45, sets: 9, volumeKg: 4200 }], weeks: [{ weekStartMs: Date.parse('2027-06-14T00:00:00Z'), workouts: 1, volumeKg: 4200 }] } : null,
   garminHealth: null,
