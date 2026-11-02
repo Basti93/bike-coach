@@ -153,4 +153,39 @@ describe('RecordStore', () => {
     expect(s.all('b')).toEqual([]);
     expect(fs.readdirSync(dir).some(f => f.startsWith('b.json.broken'))).toBe(true);
   });
+
+  it('persists the reset after a broken file, so cursors from a read-only call stay valid', () => {
+    const s = new RecordStore({ dir });
+    s.put('a', rec('w1', 1));
+    const old = s.changedSince('a', 0).cursor;
+    fs.writeFileSync(path.join(dir, 'a.json'), '{not json');
+    const readOnly = s.changedSince('a', old).cursor;
+    s.put('a', rec('w2', 2));
+    expect(s.changedSince('a', old).records.map(r => r.id)).toEqual(['w2']);
+    expect(s.changedSince('a', readOnly).records.map(r => r.id)).toEqual(['w2']);
+  });
+
+  it('a transient read error does not move a good file aside', () => {
+    const s = new RecordStore({ dir });
+    s.put('a', rec('w1', 1));
+    const real = fs.readFileSync;
+    vi.spyOn(fs, 'readFileSync').mockImplementation(((f: fs.PathOrFileDescriptor, o?: unknown) => {
+      if (String(f).endsWith('a.json')) throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+      return (real as (...a: unknown[]) => unknown)(f, o);
+    }) as typeof fs.readFileSync);
+    expect(() => s.all('a')).toThrow('busy');
+    vi.restoreAllMocks();
+    expect(fs.readdirSync(dir).filter(f => f.includes('broken'))).toEqual([]);
+    expect(s.all('a').length).toBe(1);
+  });
+
+  it('two broken files in the same millisecond do not collide', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const s = new RecordStore({ dir });
+    fs.writeFileSync(path.join(dir, 'a.json'), 'x1');
+    s.all('a');
+    fs.writeFileSync(path.join(dir, 'a.json'), 'x2');
+    s.all('a');
+    expect(fs.readdirSync(dir).filter(f => f.startsWith('a.json.broken')).length).toBe(2);
+  });
 });

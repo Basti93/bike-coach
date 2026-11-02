@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { applyRecord, type RecordKind, type TrackedRecord } from '../../shared/records';
 
 const MAX_OVERWRITTEN = 200;
@@ -28,17 +29,19 @@ export class RecordStore {
   private load(profileId: string): FileData {
     const f = this.file(profileId);
     if (!fs.existsSync(f)) return empty();
-    try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(f, 'utf8'));
-      if (!valid(parsed)) throw new Error('not a record file');
-      return parsed;
-    } catch {
-      // A workout must never be lost: move the broken file aside instead of overwriting it.
-      // If that fails, throw: carrying on would let the next put overwrite the broken file.
-      fs.renameSync(f, `${f}.broken-${Date.now()}`);
-      // Start the sequence at the clock so a cursor handed out before the break still sees everything new.
-      return { ...empty(), seq: Date.now() };
-    }
+    // A read error (busy, no permission) is not corruption: let it through, the file is fine.
+    const text = fs.readFileSync(f, 'utf8');
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { parsed = undefined; }
+    if (valid(parsed)) return parsed;
+    // A workout must never be lost: move the broken file aside instead of overwriting it.
+    // If that fails, throw: carrying on would let the next put overwrite the broken file.
+    fs.renameSync(f, `${f}.broken-${Date.now()}-${randomBytes(3).toString('hex')}`);
+    // Start the sequence at the clock so a cursor handed out before the break still sees everything new.
+    // Persist it now, so a read-only call cannot hand out a cursor the file later falls below.
+    const reset: FileData = { ...empty(), seq: Date.now() };
+    this.save(profileId, reset);
+    return reset;
   }
 
   private save(profileId: string, data: FileData): void {
@@ -46,7 +49,7 @@ export class RecordStore {
     const f = this.file(profileId);
     const fd = fs.openSync(`${f}.tmp`, 'w');
     try {
-      fs.writeSync(fd, JSON.stringify(data));
+      fs.writeFileSync(fd, JSON.stringify(data));
       fs.fsyncSync(fd);
     } finally { fs.closeSync(fd); }
     fs.renameSync(`${f}.tmp`, f);
