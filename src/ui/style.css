@@ -97,6 +97,10 @@ main.film { padding: .5rem; height: 100%; display: flex; flex-direction: column;
 .film-main small { font-size: .35em; color: var(--muted); margin-left: .1em; font-weight: 500; }
 .film-side { display: flex; justify-content: space-between; color: var(--muted); padding: 0 .3rem; font-size: 1.15rem; }
 .film-side b { color: var(--text); font-variant-numeric: tabular-nums; }
+/* Small profile: gives way when a banner needs the room, the numbers come first. */
+.film .workout, .film .workout.with-route { flex: none; height: 1.2rem; min-height: 0; }
+.film:has(.banner) .workout { display: none; }
+.film .workout-now { width: 2px; }
 .film-next { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .5rem; border-left: .35rem solid var(--muted); font-size: 1.15rem; white-space: nowrap; overflow: hidden; }
 .film-next .label { font-size: .75rem; }
 .film-next b { font-variant-numeric: tabular-nums; }

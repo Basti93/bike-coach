@@ -109,3 +109,14 @@ test('film mode shows nothing next in the last section', () => {
   film({ session: filmSession, profiles: [filmProfile], engine: { ...base.engine!, stepIndex: 1 } });
   expect(screen.queryByTestId('film-next')).toBeNull();
 });
+test('film mode beats the heart at the measured rate and shows the profile', () => {
+  const { container } = film({ session: filmSession, profiles: [filmProfile] });
+  const heart = screen.getByTestId('film-heart');
+  expect(heart.className).toContain('beating');
+  expect(heart.style.animationDuration).toBe(`${60 / 130}s`);
+  expect(container.querySelectorAll('.workout-step')).toHaveLength(2);
+});
+test('film mode keeps the heart still without a heart rate', () => {
+  film({ latest: { powerW: 148, cadenceRpm: 85 } });
+  expect(screen.getByTestId('film-heart').className).not.toContain('beating');
+});
