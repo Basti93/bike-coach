@@ -28,11 +28,14 @@ export function createCoachTrackingPort(o: {
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
   now?: () => number;
   timeoutMs?: number;
+  retryMs?: number;
 }): CoachTrackingPort {
   const { profileId } = o;
   const now = o.now ?? Date.now;
   const timeoutMs = o.timeoutMs ?? 10_000;
+  const retryMs = o.retryMs ?? 15_000;
   const storageKey = `pandafit.tracking.queue.${profileId}`;
+  const refusedKey = `pandafit.tracking.refused.${profileId}`;
   const store = (): Pick<Storage, 'getItem' | 'setItem'> => o.storage ?? localStorage;
   const subs = new Set<() => void>();
   const waiting = new Map<string, { settle: (a: Answer | null) => void; timer: ReturnType<typeof setTimeout> }>();
@@ -44,12 +47,13 @@ export function createCoachTrackingPort(o: {
   let disposed = false;
   const notify = () => subs.forEach((f) => { try { f(); } catch { /* one listener must not stop the rest */ } });
 
-  const readQueue = (): Entry[] => {
+  const readList = (key: string): Entry[] => {
     try {
-      const v = JSON.parse(store().getItem(storageKey) ?? '[]') as unknown;
+      const v = JSON.parse(store().getItem(key) ?? '[]') as unknown;
       return Array.isArray(v) ? v.filter((e): e is Entry => typeof e === 'object' && e !== null && typeof (e as Entry).record === 'object') : [];
     } catch { return []; }
   };
+  const readQueue = (): Entry[] => readList(storageKey);
   const writeQueue = (q: Entry[]): void => store().setItem(storageKey, JSON.stringify(q));
 
   const enqueue = (r: TrackedRecord): void => {
@@ -96,12 +100,19 @@ export function createCoachTrackingPort(o: {
         try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: head.record }); } finally { inflight--; }
         if (!a || a.type !== 'records-put-result') break;
         if (a.ok) { lastOkMs = now(); remember(head.record); dequeue(head.record); notify(); continue; }
-        // A refusal never turns into a yes; keeping it would block everything behind it.
-        if (a.refused) { dequeue(head.record); continue; }
+        // A refusal never turns into a yes and must not block the rest. It is kept, apart from the queue, never deleted.
+        if (a.refused) {
+          store().setItem(refusedKey, JSON.stringify([...readList(refusedKey), head]));
+          dequeue(head.record);
+          continue;
+        }
         break;
       }
     } catch { /* stays queued, the next connection tries again */ } finally { flushing = false; notify(); }
   };
+
+  // A waiting queue is tried again now and then, not only when the socket reconnects.
+  const retry = setInterval(() => { if (readQueue().length > 0) void flush(); }, retryMs);
 
   return {
     async list(kind) {
@@ -141,13 +152,32 @@ export function createCoachTrackingPort(o: {
       notify();
     },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
-    syncState: () => ({ pending: readQueue().length + (inflight > 0 && readQueue().length === 0 ? inflight : 0), lastOkMs }),
+    syncState: () => ({ pending: readQueue().length + (inflight > 0 && readQueue().length === 0 ? inflight : 0), lastOkMs, refused: readList(refusedKey).length }),
     handle(m) {
       if (m.type === 'records-changed') { if (m.profileId === profileId) notify(); return; }
       if (m.type === 'records' || m.type === 'records-put-result') waiting.get(m.requestId)?.settle(m);
     },
     opened() { void flush(); notify(); },
     closed() { for (const w of [...waiting.values()]) w.settle(null); },
-    dispose() { disposed = true; subs.clear(); for (const w of [...waiting.values()]) w.settle(null); },
+    dispose() { disposed = true; clearInterval(retry); subs.clear(); for (const w of [...waiting.values()]) w.settle(null); },
+  };
+}
+
+/**
+ * One port per profile, kept for as long as the window lives. A workout store that outlives a profile switch keeps
+ * writing through its own port, under its own profile. Answers are matched by request id across all ports.
+ */
+export function createTrackingPorts(o: Omit<Parameters<typeof createCoachTrackingPort>[0], 'profileId'>) {
+  const ports = new Map<string, CoachTrackingPort>();
+  return {
+    get(profileId: string): CoachTrackingPort {
+      let p = ports.get(profileId);
+      if (!p) { p = createCoachTrackingPort({ ...o, profileId }); ports.set(profileId, p); }
+      return p;
+    },
+    handle(m: CoachServerMessage): void { for (const p of ports.values()) p.handle(m); },
+    opened(): void { for (const p of ports.values()) p.opened(); },
+    closed(): void { for (const p of ports.values()) p.closed(); },
+    dispose(): void { for (const p of ports.values()) p.dispose(); ports.clear(); },
   };
 }

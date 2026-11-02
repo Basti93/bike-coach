@@ -22,11 +22,13 @@ export function validRecord(x: unknown): TrackedRecord | null {
 type Deps = {
   store: Pick<RecordStore, 'put' | 'all'>;
   gym: { start(id: string): void; workoutFinished(id: string): void };
+  /** Ids of the profiles that exist. Nothing is stored or created for any other id. */
+  profiles: () => string[];
 };
 type Result = { reply: CoachServerMessage; changed?: string };
 
-const finishedOwnWorkout = (r: TrackedRecord): boolean | null => {
-  if (r.kind !== 'workout' || r.deleted || typeof r.body !== 'object' || r.body === null) return null;
+const finishedOwnWorkout = (r: TrackedRecord | undefined): boolean | null => {
+  if (!r || r.kind !== 'workout' || r.deleted || typeof r.body !== 'object' || r.body === null) return null;
   const b = r.body as { endMs?: unknown; source?: unknown };
   if (b.source === 'hevy') return null;
   return typeof b.endMs === 'number' && Number.isFinite(b.endMs);
@@ -34,7 +36,7 @@ const finishedOwnWorkout = (r: TrackedRecord): boolean | null => {
 
 /** Local reads and writes only: no AI, no Hevy, no Garmin, so also fine with a ride open. */
 export function handleRecords(deps: Deps, m: Extract<CoachClientMessage, { type: 'records-put' | 'records-list' }>): Result {
-  const profileOk = typeof m.profileId === 'string' && m.profileId !== '';
+  const profileOk = typeof m.profileId === 'string' && m.profileId !== '' && deps.profiles().includes(m.profileId);
   if (m.type === 'records-list') {
     const kind = RECORD_KINDS.includes(m.kind) ? m.kind : null;
     const records = profileOk && kind ? deps.store.all(m.profileId, kind) : [];
@@ -42,11 +44,18 @@ export function handleRecords(deps: Deps, m: Extract<CoachClientMessage, { type:
   }
   const record = profileOk ? validRecord(m.record) : null;
   if (!record) return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false, refused: true } };
-  try { deps.store.put(m.profileId, record); } catch { return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false } }; }
+  let before: TrackedRecord | undefined;
+  let after: TrackedRecord | undefined;
+  try {
+    before = record.kind === 'workout' ? deps.store.all(m.profileId, 'workout').find((r) => r.id === record.id) : undefined;
+    deps.store.put(m.profileId, record);
+    after = record.kind === 'workout' ? deps.store.all(m.profileId, 'workout').find((r) => r.id === record.id) : undefined;
+  } catch { return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false } }; }
   // Stored, so the answer may go out. What follows is bookkeeping and must not turn a kept record into a failure.
   try {
-    const finished = finishedOwnWorkout(record);
-    if (finished !== null) { deps.gym.start(m.profileId); if (finished) deps.gym.workoutFinished(m.profileId); }
+    // Only the first change from open to finished plans; edits, replays and older copies do not.
+    const finished = finishedOwnWorkout(after);
+    if (finished !== null) { deps.gym.start(m.profileId); if (finished && finishedOwnWorkout(before) !== true) deps.gym.workoutFinished(m.profileId); }
   } catch { /* the next scan sees the stored workout anyway */ }
   return { reply: { type: 'records-put-result', requestId: m.requestId, ok: true }, changed: m.profileId };
 }

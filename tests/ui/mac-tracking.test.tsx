@@ -5,10 +5,11 @@ import path from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { handleRecords } from '../../src/coach/tracking/records-api';
 import { RecordStore } from '../../src/coach/tracking/store';
-import { createCoachTrackingPort } from '../../src/ui/coachTrackingPort';
+import { createCoachTrackingPort, createTrackingPorts } from '../../src/ui/coachTrackingPort';
 import type { CoachClientMessage, CoachServerMessage } from '../../src/shared/coach-protocol';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
 import { initialGymState } from '../../src/coach/gym/state';
+import { fakePort } from '../tracking/fake-port';
 import { App } from '../../src/ui/App';
 
 afterEach(cleanup);
@@ -33,6 +34,7 @@ let tmp: string;
 beforeEach(() => { tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mac-tracking-')); localStorage.clear(); h.ride = false; });
 afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+const profiles = () => ['a'];
 const gymSpy = () => ({ start: vi.fn(), workoutFinished: vi.fn() });
 
 describe('server side', () => {
@@ -41,7 +43,7 @@ describe('server side', () => {
     const order: string[] = [];
     const put = store.put.bind(store);
     store.put = (p, r) => { put(p, r); order.push('stored'); };
-    const out = handleRecords({ store, gym: gymSpy() }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
+    const out = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
     order.push('answered');
     expect(order).toEqual(['stored', 'answered']);
     expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q1', ok: true });
@@ -52,7 +54,7 @@ describe('server side', () => {
   test('a failing store answers not ok and announces no change', () => {
     const store = new RecordStore({ dir: tmp });
     store.put = () => { throw new Error('disk'); };
-    const out = handleRecords({ store, gym: gymSpy() }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
+    const out = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
     expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q1', ok: false });
     expect(out.changed).toBeUndefined();
   });
@@ -65,12 +67,12 @@ describe('server side', () => {
       { ...wk(), deleted: 'no' }, { ...wk(), body: 'x'.repeat(1_000_001) }, null, 'text',
     ];
     for (const record of bad) {
-      const out = handleRecords({ store, gym }, { type: 'records-put', requestId: 'q', profileId: 'a', record: record as TrackedRecord });
+      const out = handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: record as TrackedRecord });
       expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q', ok: false, refused: true });
     }
     expect(store.all('a')).toEqual([]);
     expect(gym.start).not.toHaveBeenCalled();
-    const noProfile = handleRecords({ store, gym }, { type: 'records-put', requestId: 'q', profileId: '', record: wk() });
+    const noProfile = handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: '', record: wk() });
     expect(noProfile.reply).toMatchObject({ ok: false, refused: true });
   });
 
@@ -79,24 +81,51 @@ describe('server side', () => {
     store.put('a', wk());
     store.put('b', { ...wk(), id: 'other', body: {} });
     store.put('a', { kind: 'routine', id: 'r', updatedMs: 1, deleted: false, body: {} });
-    const out = handleRecords({ store, gym: gymSpy() }, { type: 'records-list', requestId: 'l1', profileId: 'a', kind: 'workout' });
+    const out = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-list', requestId: 'l1', profileId: 'a', kind: 'workout' });
     expect(out.reply).toMatchObject({ type: 'records', kind: 'workout', requestId: 'l1' });
     expect((out.reply as Extract<CoachServerMessage, { type: 'records' }>).records.map((r) => r.id)).toEqual(['w1']);
-    const unknown = handleRecords({ store, gym: gymSpy() }, { type: 'records-list', requestId: 'l2', profileId: 'a', kind: 'zzz' as never });
+    const unknown = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-list', requestId: 'l2', profileId: 'a', kind: 'zzz' as never });
     expect((unknown.reply as Extract<CoachServerMessage, { type: 'records' }>).records).toEqual([]);
   });
 
   test('a finished workout marks the gym coach dirty, an open one only starts it', () => {
     const store = new RecordStore({ dir: tmp });
     const gym = gymSpy();
-    handleRecords({ store, gym }, { type: 'records-put', requestId: 'q', profileId: 'a', record: wk() });
+    handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: wk() });
     expect(gym.start).toHaveBeenCalledWith('a');
     expect(gym.workoutFinished).not.toHaveBeenCalled();
-    handleRecords({ store, gym }, { type: 'records-put', requestId: 'q', profileId: 'a', record: wk({ endMs: 99 }) });
+    handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: { ...wk({ endMs: 99 }), updatedMs: 20 } });
     expect(gym.workoutFinished).toHaveBeenCalledWith('a');
     const routine: TrackedRecord = { kind: 'routine', id: 'r', updatedMs: 1, deleted: false, body: { endMs: 5 } };
-    handleRecords({ store, gym }, { type: 'records-put', requestId: 'q', profileId: 'a', record: routine });
+    handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: routine });
     expect(gym.workoutFinished).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('server rules', () => {
+  test('a finished workout plans once, not on edits or replays', () => {
+    const store = new RecordStore({ dir: tmp });
+    const gym = gymSpy();
+    const put = (r: TrackedRecord) => handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: r });
+    put(wk());
+    put({ ...wk({ endMs: 99 }), updatedMs: 20 });
+    expect(gym.workoutFinished).toHaveBeenCalledTimes(1);
+    put({ ...wk({ endMs: 99, title: 'geändert' }), updatedMs: 30 });
+    put({ ...wk({ endMs: 99 }), updatedMs: 20 });
+    put(wk());
+    expect(gym.workoutFinished).toHaveBeenCalledTimes(1);
+  });
+
+  test('an unknown profile is refused and no file is created', () => {
+    const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
+    const gym = gymSpy();
+    const out = handleRecords({ store, gym, profiles }, { type: 'records-put', requestId: 'q', profileId: '../evil', record: wk() });
+    expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q', ok: false, refused: true });
+    expect(out.changed).toBeUndefined();
+    const list = handleRecords({ store, gym, profiles }, { type: 'records-list', requestId: 'l', profileId: 'zz', kind: 'workout' });
+    expect((list.reply as { records: unknown[] }).records).toEqual([]);
+    expect(fs.existsSync(path.join(tmp, 'tracking'))).toBe(false);
+    expect(gym.start).not.toHaveBeenCalled();
   });
 });
 
@@ -155,6 +184,17 @@ describe('port', () => {
     expect(port.syncState().lastOkMs).not.toBeNull();
   });
 
+  test('a refused record on replay is kept apart and shown, and the queue goes on', async () => {
+    localStorage.setItem('pandafit.tracking.queue.a', JSON.stringify([{ record: wk() }, { record: { ...wk(), id: 'w2' } }]));
+    const { port, sent } = rig();
+    port.opened();
+    port.handle({ type: 'records-put-result', requestId: putOf(sent[0]).requestId, ok: false, refused: true });
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(JSON.parse(localStorage.getItem('pandafit.tracking.refused.a')!).map((e: { record: TrackedRecord }) => e.record.id)).toEqual(['w1']);
+    expect(queued().map((q) => q.record.id)).toEqual(['w2']);
+    expect(port.syncState()).toMatchObject({ refused: 1 });
+  });
+
   test('a queue from a previous start is replayed', async () => {
     localStorage.setItem('pandafit.tracking.queue.a', JSON.stringify([{ record: wk() }]));
     const { port, sent } = rig();
@@ -199,6 +239,39 @@ describe('port', () => {
   });
 });
 
+describe('port lifetime', () => {
+  const putOf = (m: CoachClientMessage | undefined) => m as Extract<CoachClientMessage, { type: 'records-put' }>;
+  test('after a profile switch the old port still delivers under its own profile', async () => {
+    const sent: CoachClientMessage[] = [];
+    const ctl = { up: false };
+    const ports = createTrackingPorts({ send: (m) => { if (!ctl.up) return false; sent.push(m); return true; }, timeoutMs: 2000 });
+    const a = ports.get('a');
+    ports.get('b'); // the rider switched profile
+    expect(ports.get('a')).toBe(a);
+    await a.put(wk());
+    ctl.up = true;
+    ports.opened();
+    expect(putOf(sent[0]).profileId).toBe('a');
+    ports.handle({ type: 'records-put-result', requestId: putOf(sent[0]).requestId, ok: true });
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('pandafit.tracking.queue.a')!)).toEqual([]));
+    ports.dispose();
+  });
+
+  test('a waiting queue is retried on a timer', async () => {
+    vi.useFakeTimers();
+    try {
+      const sent: CoachClientMessage[] = [];
+      const ctl = { up: false };
+      const ports = createTrackingPorts({ send: (m) => { if (!ctl.up) return false; sent.push(m); return true; }, timeoutMs: 2000 });
+      await ports.get('a').put(wk());
+      ctl.up = true;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(sent).toHaveLength(1);
+      ports.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe('screen', () => {
   const gym = () => ({ ready: true, thinking: false, hevy: false, complaints: [], hasHistory: false, state: { ...initialGymState('a'), emptyReason: 'Noch nichts.' } });
   const portStub = () => ({ list: async () => [], put: async () => {}, subscribe: () => () => {}, syncState: () => ({ pending: 0, lastOkMs: null }) });
@@ -209,7 +282,28 @@ describe('screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
     fireEvent.click(screen.getByRole('button', { name: 'Training starten' }));
-    expect(await screen.findByRole('button', { name: /Leeres Training|Training beginnen|Los geht/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Training starten' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Leeres Training starten' })).toBeTruthy();
+  });
+
+  test('returning from a ride brings back the same in-progress workout', async () => {
+    const open: TrackedRecord = { kind: 'workout', id: 'open1', updatedMs: 5, deleted: false, body: { id: 'open1', title: 'Zuhause', startMs: 1000, endMs: null, source: 'pandafit', exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: 62.5, reps: 8, durationS: null, doneMs: null }] }] } };
+    const fp = fakePort([open]);
+    h.gym = gym(); h.port = fp.port;
+    const { rerender } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Training starten' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    expect(((await screen.findByLabelText('Gewicht Satz 1')) as HTMLInputElement).value).toBe('62,5');
+    h.ride = true;
+    rerender(<App />);
+    expect(screen.getByTestId('target')).toBeTruthy();
+    h.ride = false;
+    rerender(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    expect(((await screen.findByLabelText('Gewicht Satz 1')) as HTMLInputElement).value).toBe('62,5');
+    expect(fp.map.size).toBe(1);
   });
 
   test('an open ride shows RideView and does not start planning from it', async () => {
@@ -224,7 +318,7 @@ describe('screen', () => {
     // opening or leaving a workout screen never asks the server to plan
     const store = new RecordStore({ dir: tmp });
     const g = gymSpy();
-    handleRecords({ store, gym: g }, { type: 'records-put', requestId: 'q', profileId: 'a', record: wk() });
+    handleRecords({ store, gym: g, profiles }, { type: 'records-put', requestId: 'q', profileId: 'a', record: wk() });
     expect(g.workoutFinished).not.toHaveBeenCalled();
   });
 

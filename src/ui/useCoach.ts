@@ -1,6 +1,6 @@
 import type { MobilityView } from '../coach/mobility/mobility';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createCoachTrackingPort } from './coachTrackingPort';
+import { createTrackingPorts } from './coachTrackingPort';
 import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
 import type { GarminHealth, GarminReadiness } from '../shared/garmin';
@@ -31,12 +31,12 @@ export const useCoach = (profileId: string | null) => {
   const [gymPreviewFailed, setGymPreviewFailed] = useState(false);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
-  // One tracking port per profile, so a record can never be written under another profile.
-  const tracking = useMemo(() => profileId ? createCoachTrackingPort({
-    profileId,
+  // One tracking port per profile, kept after a switch: a workout store of the old profile still writes through its own.
+  const ports = useMemo(() => createTrackingPorts({
     send: (m) => { if (socket.current?.readyState !== WebSocket.OPEN) return false; socket.current.send(JSON.stringify(m)); return true; },
-  }) : null, [profileId]);
-  useEffect(() => () => tracking?.dispose(), [tracking]);
+  }), []);
+  useEffect(() => () => ports.dispose(), [ports]);
+  const tracking = profileId ? ports.get(profileId) : null;
 
   useEffect(() => {
     setState(null);
@@ -58,11 +58,11 @@ export const useCoach = (profileId: string | null) => {
       ws.onopen = () => {
         setConnected(true);
         ws.send(JSON.stringify({ type: 'subscribe', profileId }));
-        tracking?.opened();
+        ports.opened();
       };
       ws.onmessage = (e) => {
         const m = JSON.parse(String(e.data));
-        if (m.type === 'records' || m.type === 'records-put-result' || m.type === 'records-changed') { tracking?.handle(m); return; }
+        if (m.type === 'records' || m.type === 'records-put-result' || m.type === 'records-changed') { ports.handle(m); return; }
         if (m.type === 'ride-detail') setDetail(m.detail);
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
@@ -71,13 +71,13 @@ export const useCoach = (profileId: string | null) => {
       };
       ws.onclose = () => {
         setConnected(false);
-        tracking?.closed();
+        ports.closed();
         if (!closed) timer = setTimeout(open, 1000);
       };
     };
     open();
     return () => { closed = true; clearTimeout(timer); socket.current?.close(); };
-  }, [profileId, tracking]);
+  }, [profileId, ports]);
 
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));

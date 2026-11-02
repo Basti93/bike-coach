@@ -247,7 +247,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
       if (m.type === 'records-put' || m.type === 'records-list') {
-        const out = handleRecords({ store: records, gym }, m);
+        const out = handleRecords({ store: records, gym, profiles: () => profiles().map((p) => p.id) }, m);
         socket.send(JSON.stringify(out.reply));
         if (out.changed) {
           const note = JSON.stringify({ type: 'records-changed', profileId: out.changed } satisfies CoachServerMessage);

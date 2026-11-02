@@ -7,5 +7,6 @@ export type TrackingPort = {
   put(r: TrackedRecord): Promise<void>;
   /** Fires after every local `put` and after every remote change that arrives. Listeners must tell the two apart by comparing `updatedMs`. */
   subscribe(fn: () => void): () => void;
-  syncState(): { pending: number; lastOkMs: number | null };
+  /** `refused` counts records the other side did not accept; they stay safe on this device. */
+  syncState(): { pending: number; lastOkMs: number | null; refused?: number };
 };
