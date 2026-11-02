@@ -13,7 +13,9 @@ const keyOf = (r: { kind: string; id: string }) => `${r.kind}:${r.id}`;
 const valid = (d: unknown): d is FileData => {
   if (typeof d !== 'object' || d === null) return false;
   const f = d as FileData;
-  return typeof f.seq === 'number' && Array.isArray(f.overwritten) && typeof f.entries === 'object' && f.entries !== null && !Array.isArray(f.entries);
+  if (typeof f.seq !== 'number' || !Array.isArray(f.overwritten) || typeof f.entries !== 'object' || f.entries === null || Array.isArray(f.entries)) return false;
+  return Object.values(f.entries).every(e => typeof e === 'object' && e !== null && typeof e.seq === 'number'
+    && typeof e.record === 'object' && e.record !== null && typeof e.record.kind === 'string' && typeof e.record.id === 'string');
 };
 
 /** The Mac's own copy of tracked records, one file per profile. Writes are synchronous: temp file, then rename. */
@@ -32,31 +34,42 @@ export class RecordStore {
       return parsed;
     } catch {
       // A workout must never be lost: move the broken file aside instead of overwriting it.
-      try { fs.renameSync(f, `${f}.broken-${Date.now()}`); } catch { /* start empty anyway */ }
-      return empty();
+      // If that fails, throw: carrying on would let the next put overwrite the broken file.
+      fs.renameSync(f, `${f}.broken-${Date.now()}`);
+      // Start the sequence at the clock so a cursor handed out before the break still sees everything new.
+      return { ...empty(), seq: Date.now() };
     }
   }
 
   private save(profileId: string, data: FileData): void {
     fs.mkdirSync(this.dir, { recursive: true });
     const f = this.file(profileId);
-    fs.writeFileSync(`${f}.tmp`, JSON.stringify(data));
+    const fd = fs.openSync(`${f}.tmp`, 'w');
+    try {
+      fs.writeSync(fd, JSON.stringify(data));
+      fs.fsyncSync(fd);
+    } finally { fs.closeSync(fd); }
     fs.renameSync(`${f}.tmp`, f);
   }
 
-  put(profileId: string, r: TrackedRecord): void {
+  put(profileId: string, r: TrackedRecord): void { this.putMany(profileId, [r]); }
+
+  /** Many records with one load and one save, for bulk imports. */
+  putMany(profileId: string, records: TrackedRecord[]): void {
     const data = this.load(profileId);
-    const key = keyOf(r);
-    const current = data.entries[key]?.record;
-    const { keep, overwritten } = applyRecord(current, r);
     let changed = false;
-    if (keep !== current) { data.entries[key] = { record: keep, seq: ++data.seq }; changed = true; }
-    if (overwritten) {
-      const text = JSON.stringify(overwritten);
-      if (!data.overwritten.some(o => JSON.stringify(o) === text)) {
-        data.overwritten.push(overwritten);
-        data.overwritten = data.overwritten.slice(-MAX_OVERWRITTEN);
-        changed = true;
+    for (const r of records) {
+      const key = keyOf(r);
+      const current = data.entries[key]?.record;
+      const { keep, overwritten } = applyRecord(current, r);
+      if (keep !== current) { data.entries[key] = { record: keep, seq: ++data.seq }; changed = true; }
+      if (overwritten) {
+        const text = JSON.stringify(overwritten);
+        if (!data.overwritten.some(o => JSON.stringify(o) === text)) {
+          data.overwritten.push(overwritten);
+          if (data.overwritten.length > MAX_OVERWRITTEN) data.overwritten.splice(0, data.overwritten.length - MAX_OVERWRITTEN);
+          changed = true;
+        }
       }
     }
     if (changed) this.save(profileId, data);

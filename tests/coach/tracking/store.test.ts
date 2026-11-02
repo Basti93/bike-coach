@@ -105,4 +105,52 @@ describe('RecordStore', () => {
     s.put('a', rec('w2', 2));
     expect(new RecordStore({ dir }).all('a').length).toBe(2);
   });
+
+  it('throws when a broken file cannot be moved aside, so it is never overwritten', () => {
+    fs.writeFileSync(path.join(dir, 'a.json'), '{not json');
+    const real = fs.renameSync;
+    vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => { if (String(to).includes('broken')) throw new Error('nope'); return real(from, to); });
+    const s = new RecordStore({ dir });
+    expect(() => s.put('a', rec('w1', 1))).toThrow();
+    expect(() => s.all('a')).toThrow();
+    expect(fs.readFileSync(path.join(dir, 'a.json'), 'utf8')).toBe('{not json');
+  });
+
+  it('an existing cursor still sees new records after a broken file', () => {
+    const s = new RecordStore({ dir });
+    s.put('a', rec('w1', 1));
+    s.put('a', rec('w2', 2));
+    const c = s.changedSince('a', 0).cursor;
+    fs.writeFileSync(path.join(dir, 'a.json'), '{not json');
+    s.put('a', rec('w3', 3));
+    expect(s.changedSince('a', c).records.map(r => r.id)).toEqual(['w3']);
+  });
+
+  it('putMany writes the file once', () => {
+    const s = new RecordStore({ dir });
+    const spy = vi.spyOn(fs, 'renameSync');
+    s.putMany('a', Array.from({ length: 2000 }, (_, i) => rec(`w${i}`, i)));
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(s.all('a').length).toBe(2000);
+    expect(s.changedSince('a', 0).records.length).toBe(2000);
+  });
+
+  it('syncs the temp file to disk before the rename', () => {
+    const order: string[] = [];
+    const fsync = fs.fsyncSync, rename = fs.renameSync;
+    vi.spyOn(fs, 'fsyncSync').mockImplementation(fd => { order.push('fsync'); return fsync(fd); });
+    vi.spyOn(fs, 'renameSync').mockImplementation((a, b) => { order.push('rename'); return rename(a, b); });
+    new RecordStore({ dir }).put('a', rec('w1', 1));
+    expect(order).toEqual(['fsync', 'rename']);
+  });
+
+  it('a file with a bad entry counts as broken and moves aside', () => {
+    fs.writeFileSync(path.join(dir, 'a.json'), JSON.stringify({ seq: 1, overwritten: [], entries: { 'workout:w1': { seq: 'x', record: { kind: 'workout', id: 'w1' } } } }));
+    const s = new RecordStore({ dir });
+    expect(s.all('a')).toEqual([]);
+    expect(fs.readdirSync(dir).some(f => f.startsWith('a.json.broken'))).toBe(true);
+    fs.writeFileSync(path.join(dir, 'b.json'), JSON.stringify({ seq: 1, overwritten: [], entries: { k: { seq: 1, record: null } } }));
+    expect(s.all('b')).toEqual([]);
+    expect(fs.readdirSync(dir).some(f => f.startsWith('b.json.broken'))).toBe(true);
+  });
 });
