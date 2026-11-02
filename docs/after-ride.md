@@ -64,3 +64,14 @@ The feedback screen (`src/ui/views/FeedbackView.tsx`) already shows numbers, cha
 - Follow-up questions the person can answer or skip (reuse `answer-question`, at most one or two, everything skippable).
 
 Needs a new field in the coach answer and state, so `src/coach/**` and the coach protocol change and the app has to restart. The coach must not invent anything: no claims without data in the summary. The screen must also work without the AI (offline, error): show a rule-based short version, and never block the rating or the saved ride.
+
+## Garmin upload under the rider's control (requested live, 2026-11-02)
+
+Upload rides to Garmin Connect from the FIT files in `rides/exports/`, with the rider deciding whether and what:
+
+- Off by default, a setting per profile. Nothing leaves the Mac without it being switched on.
+- Choice per ride: an upload button on the feedback screen and in the history, showing whether a ride is already uploaded.
+- Optional setting "always ask" or "upload automatically". Possibly a minimum duration, so test rides stay local.
+- Verify first that `garminconnect` can upload activities; it is an unofficial API, so a failed upload stays marked as open and can be retried. A ride stays safe locally either way, and an upload never blocks ending a ride.
+- Remember uploaded rides, so nothing goes up twice.
+- The coach must recognize its own uploaded rides in the Garmin data and not count them again as load from other sports. Warn about duplicates if a watch recorded the same ride.
