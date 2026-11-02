@@ -5,6 +5,7 @@ import type { PassState } from '../shared/passes';
 import type { Session } from '../shared/session';
 import type { ClaudeErrorKind } from './claude-client';
 import type { RideDebrief } from './debrief';
+import type { GarminUploadSettings } from './garmin-upload';
 import type { RideSummary } from './metrics';
 import { RAMP_ID } from './guardrails';
 import type { Complaint, Motive } from './motivation';
@@ -30,6 +31,7 @@ export type CoachState = {
   motives?: Motive[];
   lastQuestionMs?: number;
   encouragement?: string;
+  garminUpload?: GarminUploadSettings;
   debriefs?: Record<string, RideDebrief>;
   /** Ride whose debrief still has to be shown once. */
   debriefToShow?: string | null;
@@ -58,6 +60,8 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
   if (!fs.existsSync(f)) return initial(profileId, initialFtpW, nowMs);
   try {
     const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
+    // An upload cut off by a restart: unknown whether it arrived, a repeat is harmless because Garmin recognizes it.
+    for (const r of Object.values(s.garminUpload?.rides ?? {})) if (r.status === 'uploading') { r.status = 'failed'; r.reason = 'failed'; }
     // The ramp test is no longer mandatory: older states without a ride start with a normal session.
     if (s.next.session.id === RAMP_ID && s.summaries.length === 0) s.next = initial(profileId, s.ftpW, nowMs).next;
     // Older states: take out short rides that were already counted and have them replanned.

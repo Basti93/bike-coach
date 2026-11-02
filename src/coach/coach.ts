@@ -10,6 +10,7 @@ import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
 import { cleanDebrief, debriefAnswerSchema, debriefJsonSchema, DEBRIEF_SYSTEM_PROMPT, ruleDebrief } from './debrief';
+import { uploadSettings, withUploadSettings, type RideUpload, type UploadMode } from './garmin-upload';
 import { garminPromptData, readinessFrom, type GarminCoachData } from './readiness';
 import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide, type RideSummary } from './metrics';
 import { complaintFromNote, type ComplaintStatus } from './motivation';
@@ -136,6 +137,16 @@ export class Coach {
     } catch { /* The rule version stays and is tried again later. */ } finally {
       this.debriefing.delete(profileId);
     }
+  }
+
+  setUploadSettings(profileId: string, mode: UploadMode, minMinutes: number): void {
+    this.update(profileId, (s) => { s.garminUpload = withUploadSettings(s, mode, minMinutes, this.deps.nowMs()); });
+  }
+  markUpload(profileId: string, rideId: string, upload: Omit<RideUpload, 'atMs'>): void {
+    this.update(profileId, (s) => {
+      const u = uploadSettings(s);
+      s.garminUpload = { ...u, rides: { ...u.rides, [rideId]: { ...upload, atMs: this.deps.nowMs() } } };
+    });
   }
 
   debriefSeen(profileId: string): void { this.update(profileId, (s) => { s.debriefToShow = null; }); }

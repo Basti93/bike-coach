@@ -14,6 +14,8 @@ import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
+import { canUpload, dueAutoUploads } from './garmin-upload';
+import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
 
@@ -130,6 +132,17 @@ const refresh = (profileId: string): void => {
   publish();
 };
 const noOpenRide = (): boolean => findOpenRides(dir).length === 0;
+const uploader = new GarminUploader({
+  baseDir: garminDir,
+  python: path.join(garminDir, 'venv', 'bin', 'python'),
+  script: path.join(path.dirname(process.env.BIKE_GARMIN_SCRIPT ?? path.resolve('scripts', 'garmin', 'bridge.py')), 'garmin_upload.py'),
+  exportsDir: path.join(dir, 'exports'),
+  rideOpen: () => !noOpenRide(),
+  onResult: (profileId, rideId, result) => { coach.markUpload(profileId, rideId, result); publish(); },
+});
+const startUpload = (profileId: string, rideId: string): void => {
+  if (canUpload(coach.state(profileId), rideId) && uploader.upload(profileId, rideId)) coach.markUpload(profileId, rideId, { status: 'uploading' });
+};
 
 wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
@@ -149,6 +162,8 @@ wss.on('connection', (socket) => {
       if (m.type === 'answer-question') { coach.answerQuestion(m.profileId, m.questionId, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-question') coach.skipQuestion(m.profileId);
       if (m.type === 'debrief-seen') coach.debriefSeen(m.profileId);
+      if (m.type === 'garmin-upload-settings') coach.setUploadSettings(m.profileId, m.mode, m.minMinutes);
+      if (m.type === 'garmin-upload') startUpload(m.profileId, m.rideId);
       if (m.type === 'debrief-answer') { coach.answerDebrief(m.profileId, m.rideId, m.question, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'debrief-skip-question') coach.skipDebriefQuestion(m.profileId, m.rideId, m.question);
       if (m.type === 'remove-motive') { coach.removeMotive(m.profileId, m.atMs); if (noOpenRide()) refresh(m.profileId); }
@@ -189,6 +204,8 @@ const scan = (): void => {
     }
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
+    // Also separate: an upload must never disturb the coach run or the ride.
+    for (const p of list) { try { for (const rideId of dueAutoUploads(coach.state(p.id), now).slice(0, 1)) startUpload(p.id, rideId); } catch { /* try again on the next run */ } }
     publish();
   } catch (e) {
     console.error('Coach-Lauf fehlgeschlagen', e);
