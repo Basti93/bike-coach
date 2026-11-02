@@ -7,6 +7,7 @@ import {
   addExercise, addSet, confirmSet, editNotes, editSet, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
   swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
+import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
 import { ExercisePicker } from './ExercisePicker';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
@@ -27,21 +28,42 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const [removing, setRemoving] = useState<string | null>(null);
   const ending = useRef(false);
   const leaving = useRef(false);
-  const remote = usePortRecords(port, 'workout').records;
+  const remote = usePortRecords(port, 'workout').all;
+  const [notice, setNotice] = useState<string | null>(null);
+  const pendingLeave = useRef<string | null>(null);
   useWakeLock(true);
   useTick(w.rest != null);
-  useEffect(() => () => store.dispose(), [store]);
+  // Leaving the screen: a clean store is let go, a dirty one keeps retrying in the registry until it is clean.
+  useEffect(() => () => releaseStore(port, store), [store, port]);
   const remaining = restRemainingS(w, now());
 
-  // A newer copy from another device: finished or deleted there means we step aside and say so, otherwise we continue from it.
+  // Unsaved work on this device always wins. Only a clean store steps aside for what happened elsewhere.
   useEffect(() => {
     if (!remote || leaving.current) return;
     const rec = remote.find((r) => r.id === w.id);
-    if (!rec) { onLeave('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.'); return; }
-    if (rec.updatedMs <= store.updatedMs()) return;
-    if ((rec.body as LoggedWorkout).endMs !== null) { onLeave('Dieses Training wurde auf einem anderen Gerät beendet. Die Ansicht wurde neu geladen.'); return; }
-    store.reload(rec);
+    if (rec && rec.updatedMs <= store.updatedMs()) return; // ours, or older
+    const stepAside = (leave: string, stay: string) => {
+      store.flushDrafts(); // a note still being typed counts as unsaved work
+      if (store.dirty()) { if (rec) store.reload(rec); setNotice(stay); return; }
+      closeStore(port, store);
+      onLeave(leave);
+    };
+    if (!rec) {
+      if (!store.everSaved()) return; // never saved yet: the list cannot know it, keep it open and keep retrying
+      stepAside('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
+    } else if (rec.deleted) {
+      stepAside('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
+    } else if ((rec.body as LoggedWorkout).endMs !== null) {
+      stepAside('Dieses Training wurde auf einem anderen Gerät beendet. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät beendet. Deine ungespeicherten Änderungen hier bleiben offen und werden weitergeschrieben.');
+    } else {
+      store.reload(rec);
+    }
   }, [remote]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A finish that could not be saved at first leaves the screen once a retry succeeds.
+  useEffect(() => {
+    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; closeStore(port, store); onLeave(m); }
+  }, [save, w]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
 
@@ -52,8 +74,14 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       const r = await store.finish(choice);
       if (r.status === 'ask') { leaving.current = false; setAsk(r); return; }
       setAsk(null);
-      if (!r.saved) { leaving.current = false; return; }
-      onLeave(r.status === 'discard' ? 'Das Training wurde verworfen.' : 'Training gespeichert. Gut gemacht.');
+      const msg = r.status === 'discard' ? 'Das Training wurde verworfen.' : 'Training gespeichert. Gut gemacht.';
+      if (!r.saved) {
+        if (r.status === 'finished') pendingLeave.current = msg; // stays here, calmly, until a retry works
+        else leaving.current = false;
+        return;
+      }
+      closeStore(port, store);
+      onLeave(msg);
     } finally { ending.current = false; }
   }
   useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,6 +96,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
           {' '}<button type="button" className="secondary" onClick={() => act((x) => x)}>Jetzt nochmal speichern</button>
         </p>
       )}
+      {notice && <p role="note" className="tk-note">{notice}</p>}
       {w.rest && remaining > 0 && (
         <div role="timer" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
@@ -82,7 +111,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             <span className="spacer" />
             <button type="button" className="ghost" aria-label={`${e.title} tauschen`} onClick={() => setPicker({ mode: 'swap', ex: e.rid })}>Tauschen</button>
             <button type="button" className="ghost" aria-label={`${e.title} entfernen`}
-              onClick={() => (e.sets.some((s) => s.doneMs !== null) ? setRemoving(e.rid) : act((x) => removeExercise(x, e.rid)))}>Entfernen</button>
+              onClick={() => (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null) ? setRemoving(e.rid) : act((x) => removeExercise(x, e.rid)))}>Entfernen</button>
           </div>
           {removing === e.rid && (
             <p className="tk-note">
@@ -93,13 +122,14 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
           )}
           {e.sets.map((s, si) => (
             <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
+              confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
               onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
               onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
               onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
           ))}
           <div className="tk-row">
             <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
-            <NotesField label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
+            <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
           </div>
         </section>
       ))}
@@ -179,7 +209,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     if (starting.current) return; // a double tap makes one workout
     starting.current = true;
     try {
-      const s = createWorkoutStore(port, w, now);
+      const s = acquireStore(port, w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
       setMessage(null);
       setStore({ s, autoEnd: false });
@@ -208,10 +238,12 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
         {message && <p role="status" className="tk-note">{message}</p>}
         {openRecs.map((rec, i) => (
           <OpenCard key={rec.id} rec={rec} primary={i === 0}
-            onResume={() => setStore({ s: createWorkoutStore(port, rec, now), autoEnd: false })}
-            onEnd={() => setStore({ s: createWorkoutStore(port, rec, now), autoEnd: true })}
+            onResume={() => setStore({ s: acquireStore(port, rec, now), autoEnd: false })}
+            onEnd={() => setStore({ s: acquireStore(port, rec, now), autoEnd: true })}
             onDiscard={async () => {
-              const ok = await createWorkoutStore(port, rec, now).remove();
+              // One-shot: a throwaway store, disposed at once, so a failed delete is never retried.
+              const once = createWorkoutStore(port, rec, now);
+              const ok = await once.remove().finally(() => once.dispose());
               if (!ok) setMessage('Gerade nicht gespeichert. Das Training bleibt offen, versuch es gleich nochmal.');
             }} />
         ))}

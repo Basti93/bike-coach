@@ -6,6 +6,8 @@ export type SaveState = 'saved' | 'unsaved';
 export type StoreView = { workout: TrackedWorkout; save: SaveState };
 export type FinishOutcome = Exclude<FinishResult, { status: 'finished' } | { status: 'discard' }> | { status: 'finished' | 'discard'; saved: boolean };
 
+export type Draft = { pending: () => boolean; flush: () => void };
+
 export const PUT_TIMEOUT_MS = 10_000;
 export const RETRY_MS = 15_000;
 
@@ -27,6 +29,10 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
   let chain: Promise<unknown> = Promise.resolve();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+  let closed = false;
+  let pending = 0; // queued or in flight
+  let everSaved = isRecord(source);
+  const drafts = new Set<Draft>();
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((l) => l());
 
@@ -42,13 +48,25 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
     last = Math.max(now(), last + 1);
     let ok = true;
     try { await putWithTimeout({ kind: 'workout', id: w.id, updatedMs: last, deleted, body: w }); } catch { ok = false; }
+    if (ok) everSaved = true;
     snapshot = { workout: w, save: ok ? 'saved' : 'unsaved' };
-    if (!ok && !disposed) timer = setTimeout(() => { timer = null; enqueue(writeNow); }, RETRY_MS);
+    if (!ok && !disposed && !closed) timer = setTimeout(() => { timer = null; enqueue(writeNow); }, RETRY_MS);
     notify();
     return ok;
   }
+  /** A delete is written once. If it fails, the workout stays live: the retry timer and later edits never carry the delete. */
+  async function writeDeleted(): Promise<boolean> {
+    deleted = true;
+    const ok = await writeNow();
+    deleted = false;
+    return ok;
+  }
+  const isDirty = (): boolean => pending > 0 || snapshot.save === 'unsaved' || [...drafts].some((d) => d.pending());
+  const dispose = (): void => { disposed = true; if (timer) { clearTimeout(timer); timer = null; } };
+
   function enqueue<T>(job: () => Promise<T>): Promise<T> {
-    const p = chain.then(job);
+    pending++;
+    const p = chain.then(job).finally(() => { pending--; });
     chain = p.catch(() => {});
     return p;
   }
@@ -59,26 +77,48 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
     updatedMs: (): number => last,
     subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn); }; },
     /** Resolves true when saved. The change is applied to memory at once, so quick taps never overwrite each other. */
-    apply(fn: (w: TrackedWorkout) => TrackedWorkout): Promise<boolean> { current = fn(current); return enqueue(writeNow); },
+    apply(fn: (w: TrackedWorkout) => TrackedWorkout): Promise<boolean> {
+      if (closed) return Promise.resolve(false);
+      current = fn(current);
+      return enqueue(writeNow);
+    },
+    /** The newest state, including changes whose save has not answered yet. Decide on this, not on the display. */
+    current: (): TrackedWorkout => current,
+    /** Anything queued, in flight, failed, or typed but not yet applied. Unsaved work on this device always wins. */
+    dirty: isDirty,
+    /** True once a write has gone through (or the workout was opened from a stored record). */
+    everSaved: (): boolean => everSaved,
+    registerDraft(d: Draft) { drafts.add(d); return () => { drafts.delete(d); }; },
+    flushDrafts(): void { [...drafts].forEach((d) => d.flush()); },
     /** Finish or discard, decided against the newest state when its turn comes. Only asks, or saves what it decided. */
     finish(choice?: FinishChoice): Promise<FinishOutcome> {
+      if (closed) return Promise.resolve({ status: 'finished' as const, saved: false });
       return enqueue(async () => {
         const r = finish(current, now(), choice);
         if (r.status === 'ask') return r;
-        if (r.status === 'discard') { deleted = true; return { status: 'discard' as const, saved: await writeNow() }; }
+        if (r.status === 'discard') return { status: 'discard' as const, saved: await writeDeleted() };
         current = r.workout;
         return { status: 'finished' as const, saved: await writeNow() };
       });
     },
     /** Writes a tombstone for a deliberate delete the person has confirmed. */
-    remove(): Promise<boolean> { return enqueue(() => { deleted = true; return writeNow(); }); },
-    /** Takes a newer copy from elsewhere and continues from it. */
+    remove(): Promise<boolean> { return closed ? Promise.resolve(false) : enqueue(writeDeleted); },
+    /**
+     * Takes a newer copy from elsewhere. Only a clean store replaces its state; with unsaved work the local state
+     * stays and the clock floor is raised, so the next write lands above the remote copy.
+     */
     reload(record: TrackedRecord): void {
-      current = ensureIds(record.body as TrackedWorkout);
+      const raised = record.updatedMs > last;
       last = Math.max(last, record.updatedMs);
+      if (closed) return;
+      // A write already on its way was stamped below the remote copy: write again above it.
+      if (isDirty()) { if (raised) void enqueue(writeNow); return; }
+      current = ensureIds(record.body as TrackedWorkout);
       snapshot = { workout: current, save: 'saved' };
       notify();
     },
-    dispose(): void { disposed = true; if (timer) { clearTimeout(timer); timer = null; } },
+    /** The workout is no longer ours (stepped aside): no more writes, nothing flushed. */
+    close(): void { closed = true; dispose(); },
+    dispose,
   };
 }

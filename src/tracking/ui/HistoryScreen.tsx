@@ -3,7 +3,8 @@ import { dedupeSessions } from '../../shared/history';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { editSet, formatDecimal, lastValues, removeSet, type TrackedSet, type TrackedWorkout } from '../session';
-import { createWorkoutStore } from '../store';
+import { acquireStore, releaseStore } from '../registry';
+import { useEffect } from 'react';
 import { usePortRecords, useStoreView, type WorkoutStore } from './hooks';
 import { dateLabel } from './labels';
 import { SetRow } from './SetRow';
@@ -35,8 +36,9 @@ function Progress({ exerciseId, history }: { exerciseId: string; history: Logged
   );
 }
 
-function Detail({ store, history, onBack, onDeleted }: { store: WorkoutStore; history: LoggedWorkout[]; onBack: () => void; onDeleted: () => void }) {
+function Detail({ port, store, history, onBack, onDeleted }: { port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; onBack: () => void; onDeleted: () => void }) {
   const { workout: w, save } = useStoreView(store);
+  useEffect(() => () => releaseStore(port, store), [port, store]);
   const [confirming, setConfirming] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
@@ -54,6 +56,7 @@ function Detail({ store, history, onBack, onDeleted }: { store: WorkoutStore; hi
           {progress === e.exerciseId && <Progress exerciseId={e.exerciseId} history={history} />}
           {e.sets.map((s, si) => (
             <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
+              confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
               onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))} onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
           ))}
         </section>
@@ -103,7 +106,7 @@ export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; no
   const [tab, setTab] = useState<'workouts' | 'exercises'>('workouts');
   const [exercise, setExercise] = useState<string | null>(null);
 
-  if (store) return <Detail store={store} history={history} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
+  if (store) return <Detail port={port} store={store} history={history} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
   const exercises = new Map<string, string>();
   for (const w of history) for (const e of w.exercises) if (e.sets.some((s) => s.doneMs !== null) && !exercises.has(e.exerciseId)) exercises.set(e.exerciseId, e.title);
   if (exercise !== null) return <ExerciseHistory exerciseId={exercise} title={exercises.get(exercise) ?? ''} history={history} onBack={() => setExercise(null)} />;
@@ -121,7 +124,7 @@ export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; no
       {tab === 'workouts' ? (
         <div className="tk-list">
           {history.map((w) => (
-            <button type="button" key={w.id} className="tk-pick" onClick={() => setStore(createWorkoutStore(port, recOf.get(w.id) ?? (w as TrackedWorkout), now))}>
+            <button type="button" key={w.id} className="tk-pick" onClick={() => setStore(acquireStore(port, recOf.get(w.id) ?? (w as TrackedWorkout), now))}>
               {w.title} · {dateLabel(w.endMs ?? w.startMs)}
               <small> · {w.exercises.reduce((n, e) => n + e.sets.filter((s) => s.doneMs !== null).length, 0)} Sätze</small>
             </button>

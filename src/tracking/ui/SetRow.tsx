@@ -31,8 +31,10 @@ function NumField({ label, value, placeholder, integer, onCommit, onValidity }: 
 
 const TYPE_LABEL = { normal: 'Satz', warmup: 'Aufwärmen', failure: 'Bis zum Versagen', dropset: 'Dropset' } as const;
 
-export function SetRow({ index, set, timed, onEdit, onToggle, onRemove }: {
+export function SetRow({ index, set, timed, confirmedNow, onEdit, onToggle, onRemove }: {
   index: number; set: TrackedSet; timed: boolean;
+  /** Is this set confirmed in the newest state? The display can lag behind a pending save. */
+  confirmedNow?: () => boolean;
   onEdit: (patch: Partial<Pick<TrackedSet, 'weightKg' | 'reps' | 'durationS' | 'type'>>) => void;
   onToggle?: () => void; onRemove: () => void;
 }) {
@@ -52,7 +54,7 @@ export function SetRow({ index, set, timed, onEdit, onToggle, onRemove }: {
         : <NumField label={`Wiederholungen Satz ${n}`} value={set.reps} placeholder="Wdh." integer onValidity={(r) => setBad((b) => ({ ...b, r }))} onCommit={(reps) => onEdit({ reps })} />}
       {set.repRange && <span className="tk-range muted">{set.repRange.start}–{set.repRange.end}</span>}
       {onToggle && <button type="button" className={`tk-check${done ? ' on' : ''}`} aria-label={`Satz ${n} erledigt`} aria-pressed={done} disabled={blocked && !done} onClick={onToggle}>{done ? '✓' : ''}</button>}
-      <button type="button" className="tk-icon ghost" aria-label={`Satz ${n} entfernen`} onClick={() => (done ? setAsking(true) : onRemove())}>×</button>
+      <button type="button" className="tk-icon ghost" aria-label={`Satz ${n} entfernen`} onClick={() => ((confirmedNow ? confirmedNow() : done) ? setAsking(true) : onRemove())}>×</button>
       {asking && (
         <p className="tk-note tk-wide">
           Dieser erledigte Satz geht dabei weg. Wirklich entfernen?{' '}

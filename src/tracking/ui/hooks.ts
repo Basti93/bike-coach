@@ -7,18 +7,18 @@ import type { createWorkoutStore, StoreView } from '../store';
 
 export type WorkoutStore = ReturnType<typeof createWorkoutStore>;
 
-export type PortRecords = { records: TrackedRecord[] | null; failed: boolean; retry: () => void };
+export type PortRecords = { records: TrackedRecord[] | null; /** Including tombstones, so a writer can stay above them. */ all: TrackedRecord[] | null; failed: boolean; retry: () => void };
 
 /** Live records of one kind, null until the first answer. Tombstones are already filtered out. A failed first read is `failed`, with a retry. */
 export function usePortRecords(port: TrackingPort, kind: RecordKind): PortRecords {
-  const [records, setRecords] = useState<TrackedRecord[] | null>(null);
+  const [all, setAll] = useState<TrackedRecord[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     const load = () => {
       port.list(kind).then(
-        (r) => { if (alive) { setRecords(r.filter((x) => !x.deleted)); setFailed(false); } },
+        (r) => { if (alive) { setAll(r); setFailed(false); } },
         () => { if (alive) setFailed(true); },
       );
     };
@@ -26,7 +26,8 @@ export function usePortRecords(port: TrackingPort, kind: RecordKind): PortRecord
     const off = port.subscribe(load);
     return () => { alive = false; off(); };
   }, [port, kind, attempt]);
-  return { records, failed: failed && records === null, retry: () => setAttempt((n) => n + 1) };
+  const records = useMemo(() => (all === null ? null : all.filter((x) => !x.deleted)), [all]);
+  return { records, all, failed: failed && all === null, retry: () => setAttempt((n) => n + 1) };
 }
 
 export const finishedWorkouts = (records: TrackedRecord[] | null): LoggedWorkout[] =>
@@ -104,6 +105,9 @@ export function useDraft(value: string, commit: (text: string) => void, debounce
       if (debounceMs <= 0) flush();
       else { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(flush, debounceMs); }
     },
+    /** Typed but not yet applied. */
+    pending: () => dirty.current,
+    flush,
     onFocus() { focused.current = true; },
     onBlur() { focused.current = false; flush(); },
     setDraft,

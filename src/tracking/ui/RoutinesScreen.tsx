@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { GymExercise, GymWorkout } from '../../coach/gym/types';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
 import { usePortRecords } from './hooks';
 
-type Draft = { id: string | null; name: string; exercises: GymExercise[]; updatedMs: number };
+type Draft = { id: string; isNew: boolean; name: string; exercises: GymExercise[]; updatedMs: number };
 /** Always newer than the stored copy, whatever the clock says, so the last edit wins. */
 const after = (now: () => number, prev: number): number => Math.max(now(), prev + 1);
 const emptySet = () => ({ type: 'normal' as const, weightKg: null, reps: null });
@@ -18,6 +18,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
   const [draft, setDraft] = useState<Draft | null>(null);
   const [picking, setPicking] = useState(false);
   const [failed, setFailed] = useState(false);
+  const saving = useRef(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const write = async (r: TrackedRecord): Promise<boolean> => { try { await port.put(r); setFailed(false); return true; } catch { setFailed(true); return false; } };
@@ -28,7 +29,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
       set({ exercises: draft.exercises.flatMap((e, k) => (k === i ? (f(e) ? [f(e)!] : []) : [e])) });
     return (
       <div className="tk-screen">
-        <h1 className="tk-title">{draft.id ? 'Routine bearbeiten' : 'Neue Routine'}</h1>
+        <h1 className="tk-title">{draft.isNew ? 'Neue Routine' : 'Routine bearbeiten'}</h1>
         <label className="tk-field">Name der Routine<input value={draft.name} onChange={(e) => set({ name: e.target.value })} /></label>
         {draft.exercises.map((e, i) => (
           <div key={i} className="card tk-row">
@@ -42,8 +43,12 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
         {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Die Routine bleibt hier offen, versuch es gleich nochmal.</p>}
         <div className="tk-row">
           <button type="button" disabled={draft.name.trim() === ''} onClick={async () => {
-            const body: GymWorkout = { name: draft.name.trim(), exercises: draft.exercises };
-            if (await write({ kind: 'routine', id: draft.id ?? newId(), updatedMs: after(now, draft.updatedMs), deleted: false, body })) setDraft(null);
+            if (saving.current) return; // a double tap saves once
+            saving.current = true;
+            try {
+              const body: GymWorkout = { name: draft.name.trim(), exercises: draft.exercises };
+              if (await write({ kind: 'routine', id: draft.id, updatedMs: after(now, draft.updatedMs), deleted: false, body })) setDraft(null);
+            } finally { saving.current = false; }
           }}>Routine speichern</button>
           <button type="button" className="ghost" onClick={() => { setDraft(null); setFailed(false); }}>Abbrechen</button>
         </div>
@@ -67,7 +72,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
             <div className="tk-row">
               <h2>{body.name}</h2><span className="muted">{body.exercises.length} Übungen</span><span className="spacer" />
               <button type="button" aria-label={`${body.name} starten`} onClick={() => onStart(body)}>Starten</button>
-              <button type="button" className="secondary" aria-label={`${body.name} bearbeiten`} onClick={() => setDraft({ id: r.id, name: body.name, exercises: body.exercises, updatedMs: r.updatedMs })}>Bearbeiten</button>
+              <button type="button" className="secondary" aria-label={`${body.name} bearbeiten`} onClick={() => setDraft({ id: r.id, isNew: false, name: body.name, exercises: body.exercises, updatedMs: r.updatedMs })}>Bearbeiten</button>
               <button type="button" className="ghost" aria-label={`${body.name} löschen`} onClick={() => setDeleting(r.id)}>Löschen</button>
             </div>
             {deleting === r.id && (
@@ -80,7 +85,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
         );
       })}
       {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>}
-      <button type="button" onClick={() => setDraft({ id: null, name: '', exercises: [], updatedMs: 0 })}>Neue Routine</button>
+      <button type="button" onClick={() => setDraft({ id: newId(), isNew: true, name: '', exercises: [], updatedMs: 0 })}>Neue Routine</button>
     </div>
   );
 }

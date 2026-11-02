@@ -381,3 +381,124 @@ test('a Hevy copy of an own session is listed once in the history', async () => 
   await screen.findByRole('button', { name: /Beine/ });
   expect(screen.queryByRole('button', { name: /Hevy-Beine/ })).toBeNull();
 });
+
+// ---- fix round 2 ----
+test('a failed first save with a list that lacks the record keeps the screen open and retrying', async () => {
+  const { port, map, state } = fakePort();
+  state.failPuts = true;
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Leeres Training starten' }));
+  expect((await screen.findByRole('status')).textContent).toMatch(/nicht gespeichert/);
+  await new Promise((r) => setTimeout(r, 30));
+  expect(screen.getByRole('button', { name: 'Training beenden' })).toBeTruthy(); // not stepped aside
+  state.failPuts = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
+  await waitFor(() => expect(map.get('workout:new-id')).toBeTruthy());
+});
+
+async function dirtyOpen() {
+  const h = fakePort([rec(open())]);
+  render(<WorkoutScreen port={h.port} {...ids} />);
+  await resume();
+  h.state.failPuts = true;
+  fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' }));
+  await screen.findByRole('status');
+  return h;
+}
+
+test('a tombstone from elsewhere with unsaved work here: stay open, say so, and the next write wins', async () => {
+  const { port, map, state, notify } = await dirtyOpen();
+  map.set('workout:open1', { ...rec(open()), deleted: true, updatedMs: 5_000_000 });
+  notify();
+  expect((await screen.findByRole('note')).textContent).toMatch(/anderen Gerät/);
+  expect(screen.getByLabelText('Gewicht Satz 1')).toBeTruthy();
+  state.failPuts = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
+  await waitFor(() => expect(map.get('workout:open1')!.deleted).toBe(false));
+  expect(map.get('workout:open1')!.updatedMs).toBeGreaterThan(5_000_000);
+  expect(bodyOf(map, 'workout:open1').exercises[0].sets[0].doneMs).toBe(100_000);
+});
+
+test('a remote finish with unsaved work here: stay open and keep writing', async () => {
+  const { port, map, state, notify } = await dirtyOpen();
+  map.set('workout:open1', { ...rec(open({ endMs: 99_999 })), updatedMs: 5_000_000 });
+  notify();
+  expect((await screen.findByRole('note')).textContent).toMatch(/beendet/);
+  state.failPuts = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets[0].doneMs).toBe(100_000));
+  expect(map.get('workout:open1')!.updatedMs).toBeGreaterThan(5_000_000);
+});
+
+test('a failed discard from the open-workout card does not retry; the workout can be resumed', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const { port, map, state } = fakePort([rec(open())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training verwerfen' }));
+    state.failPuts = true;
+    fireEvent.click(await screen.findByRole('button', { name: 'Ja, verwerfen' }));
+    await screen.findByRole('status');
+    state.failPuts = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(map.get('workout:open1')!.deleted).toBe(false);
+    expect(state.puts.some((p) => p.deleted)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Training fortsetzen' }));
+    expect(await screen.findByLabelText('Gewicht Satz 1')).toBeTruthy();
+  } finally { vi.useRealTimers(); }
+});
+
+test('leaving the screen with an unsaved set keeps retrying in the background', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const { port, map, state } = fakePort([rec(open())]);
+    const view = render(<WorkoutScreen port={port} {...ids} />);
+    await resume();
+    state.failPuts = true;
+    fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' }));
+    await screen.findByRole('status');
+    view.unmount();
+    state.failPuts = false;
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(bodyOf(map, 'workout:open1').exercises[0].sets[0].doneMs).toBe(100_000);
+  } finally { vi.useRealTimers(); }
+});
+
+test('removing a set asks when it is confirmed in the newest state, even if the display lags', async () => {
+  const { port, map, state } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  let release!: () => void; state.gate = new Promise<void>((r) => { release = r; });
+  fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' })); // display not updated until put answers
+  fireEvent.click(screen.getByRole('button', { name: 'Satz 1 entfernen' }));
+  expect(await screen.findByRole('button', { name: 'Ja, entfernen' })).toBeTruthy();
+  state.gate = null; release();
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(2));
+});
+
+test('after a failed finish, a successful retry leaves the screen', async () => {
+  const w = open({ exercises: [{ exerciseId: 'a', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(60, 8, 500), set(60, 8, null)] }] });
+  const { port, map, state } = fakePort([rec(w)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
+  state.failPuts = true;
+  fireEvent.click(await screen.findByRole('button', { name: 'Offene Sätze weglassen' }));
+  await screen.findByRole('status');
+  state.failPuts = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
+  expect(await screen.findByRole('heading', { name: 'Training starten' })).toBeTruthy();
+  expect(bodyOf(map, 'workout:open1').endMs).not.toBeNull();
+});
+
+test('a double tap on saving a routine makes one routine with one id per draft', async () => {
+  const { port, state } = fakePort();
+  let n = 0;
+  render(<RoutinesScreen port={port} onStart={() => {}} now={() => 100_000} newId={() => `r${++n}`} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Neue Routine' }));
+  fireEvent.change(screen.getByLabelText('Name der Routine'), { target: { value: 'Push' } });
+  const save = screen.getByRole('button', { name: 'Routine speichern' });
+  fireEvent.click(save); fireEvent.click(save);
+  await screen.findByRole('button', { name: 'Push starten' });
+  expect(state.puts.filter((p) => p.kind === 'routine').map((p) => p.id)).toEqual(['r1']);
+});
