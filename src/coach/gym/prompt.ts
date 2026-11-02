@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { StrengthWorkout } from '../hevy';
 import type { RideSummary } from '../metrics';
 import type { Complaint } from '../motivation';
-import { availableExercises, suggestNext } from './history';
+import { availableExercises, isRepBased, suggestNext } from './history';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
 import type { GymState } from './state';
 import type { ExerciseTemplate } from './types';
@@ -40,7 +40,7 @@ Grundlagen, alles Tendenzen und keine Gewissheiten: Mehr Wochensätze pro Muskel
 Techniken setzt du ein, wo sie passen, und nie zur Show; bei wenigen Einheiten pro Woche kommen die Grundlagen zuerst. Erkläre in wenigen Worten, warum eine Technik da ist. Drop-Sets sparen Zeit (wenige, kurze Studien). Supersätze sparen Zeit, ohne bewiesenen Mehrwuchs. Pyramidensätze haben keinen belegten Vorteil, biete sie nur für Abwechslung an. Aufwärmsätze sind Vorbereitung vor allem vor schweren Grundübungen. Ein Widowmaker ist ein Satz mit 20 Wiederholungen bei etwa dem 10er-Maximum, selten und bewusst, ein Old-School-Verfahren ohne eigene Belege, das darfst du offen sagen.
 Muskelversagen nur am letzten Satz sicherer Übungen wie Maschinen, Kabelzug und Isolationsübungen, nie bei schweren freien Übungen ohne Sicherung wie Langhantel-Kniebeuge oder Bankdrücken. Offene Beschwerden gehen der Härte vor; du stellst keine Diagnose und rätst bei ernsten Beschwerden zu ärztlichem Rat.
 So kommt das Training nach Hevy: Aufwärmsätze sind type "warmup", Muskelversagen "failure", Drop-Sets "dropset", Supersätze teilen eine supersetId (mindestens zwei Übungen), Pyramiden sind unterschiedliche Gewichte. Ein Widowmaker hat keinen eigenen Typ: Die Notiz der Übung beginnt mit „Widowmaker“ und genau ein Satz hat 20 Wiederholungen.
-Grenzen, die nicht verhandelbar sind: höchstens ${MAX_EXERCISES} Übungen, ${MAX_SETS} Sätze, ${MAX_FAILURE_SETS} Versagenssätze und ein Widowmaker pro Training. Wiederholungen ${REP_MIN} bis ${REP_MAX} (Körpergewichtsübungen dürfen mehr). Nutze nur templateId-Werte aus den Datenblöcken. Gewichte nur für Übungen mit Verlauf, nie über dem Vorschlag plus einem Schritt (${MAX_STEP_PCT} %, mindestens ${MIN_STEP_KG} kg); ohne Verlauf weight null. Nutze Übungen, die in den letzten Monaten gemacht wurden, oder Übungen mit Geräten, die in diesem Verlauf vorkommen. Der Vorschlag je Übung (vorschlag) ist die Grundlage für Gewicht und Wiederholungen. Sieh dir an, was wirklich gemacht wurde, nicht nur, was geplant war: ausgelassene oder geänderte Übungen sind einfach das, was passiert ist.
+Grenzen, die nicht verhandelbar sind: höchstens ${MAX_EXERCISES} Übungen, ${MAX_SETS} Sätze, ${MAX_FAILURE_SETS} Versagenssätze und ein Widowmaker pro Training. Wiederholungen ${REP_MIN} bis ${REP_MAX} (Körpergewichtsübungen dürfen mehr). Nutze nur templateId-Werte aus den Datenblöcken. Gewichte nur für Übungen mit Verlauf, nie über dem Vorschlag plus einem Schritt (${MAX_STEP_PCT} %, mindestens ${MIN_STEP_KG} kg); ohne Verlauf weight null. Bei unterstützten Übungen bleibt das Gewicht genau beim Vorschlag. Nutze Übungen, die in den letzten Monaten gemacht wurden, oder Übungen mit Geräten, die in diesem Verlauf vorkommen. Der Vorschlag je Übung (vorschlag) ist die Grundlage für Gewicht und Wiederholungen. Sieh dir an, was wirklich gemacht wurde, nicht nur, was geplant war: ausgelassene oder geänderte Übungen sind einfach das, was passiert ist.
 Schreibe reason in ein bis zwei Sätzen. Nenne nur Gewichte, Wiederholungen und Satzzahlen, die in den Daten stehen oder im Training, das du planst. Nach schwerer Beinarbeit oder harter Radfahrt in den letzten zwei Tagen plane die Beine schonender, ebenso umgekehrt.
 note: eine kurze Rückmeldung zum letzten Training, ein bis zwei Sätze, nur wenn es verlangt wird. questions: höchstens zwei freiwillige Rückfragen, nur wenn die Antwort die Planung ändern würde, sonst leer. newRule: nur eine dauerhafte Vorliebe oder Einschränkung der Person als kurzer Satz.
 Keine Schuld, kein Druck, kein „musst“, keine Vergleiche mit anderen, keine Serien und kein Zählen oder Nachholen verpasster Einheiten. Es gibt keinen Kalender.
@@ -59,9 +59,10 @@ export function buildGymPrompt(i: PromptInput): string {
   const recent = i.workouts.filter((w) => i.nowMs - w.startMs <= PROMPT_DAYS * DAY_MS);
   const newest = i.workouts.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
   const shown = (recent.length > 0 || !newest ? recent : [newest]).sort((a, b) => a.startMs - b.startMs);
-  const available = availableExercises(i.workouts, i.nowMs);
+  const history = availableExercises(i.workouts, i.nowMs);
   const titleOf = new Map(i.workouts.flatMap((w) => w.exercises.map((e) => [e.templateId, e.title] as const)));
   const byId = new Map(i.templates.map((t) => [t.id, t]));
+  const available = history.filter((a) => { const t = byId.get(a.templateId); return !t || isRepBased(t); });
   const knownIds = new Set(available.map((a) => a.templateId));
   const equipment = new Set(available.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
   const blocks = [
@@ -72,9 +73,9 @@ export function buildGymPrompt(i: PromptInput): string {
     dataBlock('geplant', i.previous ? { name: i.previous.workout.name, exercises: i.previous.workout.exercises.map((e) => ({ templateId: e.templateId, title: e.title, sets: e.sets.length })) } : null),
     dataBlock('uebungen', available.map((a) => ({
       templateId: a.templateId, title: titleOf.get(a.templateId) ?? byId.get(a.templateId)?.title ?? '', tageHer: days(a.lastMs), kuerzlich: a.recent,
-      vorschlag: suggestNext(a.templateId, i.workouts, i.nowMs),
+      vorschlag: suggestNext(a.templateId, i.workouts, i.nowMs, byId.get(a.templateId)?.type),
     }))),
-    dataBlock('vorlagen', i.templates.filter((t) => !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
+    dataBlock('vorlagen', i.templates.filter((t) => isRepBased(t) && !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
       .map((t) => ({ templateId: t.id, title: t.title, muskel: t.primaryMuscle, geraet: t.equipment }))),
     dataBlock('fahrten', i.summaries.filter((r) => i.nowMs - r.startedAtMs <= PROMPT_DAYS * DAY_MS)
       .map((r) => ({ tageHer: days(r.startedAtMs), minuten: Math.round(r.durationS / 60), avgPowerW: r.avgPowerW, tss: r.tss, name: r.sessionName ?? null }))),

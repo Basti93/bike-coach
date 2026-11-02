@@ -6,6 +6,12 @@ const DAY_MS = 86_400_000;
 export const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
 const LEG_WINDOW_MS = 48 * 3_600_000;
 
+/** The assistance is weight_kg here, so more of it is easier. In this first version its weight is simply kept. */
+export const ASSISTED_TYPE = 'bodyweight_assisted_reps';
+/** Hevy's rep-based exercise types. Timed and distance exercises cannot become sets of reps. */
+const REP_TYPES = ['weight_reps', 'reps_only', 'bodyweight_reps', ASSISTED_TYPE];
+export const isRepBased = (t: ExerciseTemplate): boolean => REP_TYPES.includes(t.type);
+
 export type Availability = { templateId: string; title: string; lastMs: number; recent: boolean };
 export type Suggestion = { weightKg: number | null; reps: number; why: 'progress' | 'keep' | 'step-back' | 'none' };
 
@@ -50,15 +56,16 @@ const toHalf = (kg: number, mode: 'round' | 'floor'): number => Math[mode](kg * 
  * Double progression: reps first, then weight. "All reps reached" means every top-weight set of the last
  * session did at least as many reps as the lowest set of the session before it, at the same or a lower weight.
  */
-export function suggestNext(templateId: string, workouts: StrengthWorkout[], nowMs: number): Suggestion {
+export function suggestNext(templateId: string, workouts: StrengthWorkout[], nowMs: number, type?: string): Suggestion {
   const sessions = templateId ? sessionsOf(templateId, workouts, nowMs) : [];
   const last = sessions[sessions.length - 1];
   if (!last) return { weightKg: null, reps: REP_MIN, why: 'none' };
   // Weighted work stays in the rep range; bodyweight work has no upper limit, since reps are its only progression.
   const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(REP_MAX, Math.max(REP_MIN, r));
   const reps = fit(last.minReps);
+  const assisted = type === ASSISTED_TYPE;
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
-    return { weightKg: last.weightKg === null ? null : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
+    return { weightKg: last.weightKg === null || assisted ? last.weightKg : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
   }
   const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
   if (comparable.length < MIN_COMPARABLE) return { weightKg: last.weightKg, reps, why: 'keep' };
@@ -66,6 +73,7 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
   if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
   if (last.weightKg === null || last.minReps < REP_MAX) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
+  if (assisted) return { weightKg: last.weightKg, reps, why: 'keep' };
   const step = Math.max(last.weightKg * MAX_STEP_PCT / 100, MIN_STEP_KG);
   return { weightKg: toHalf(last.weightKg + step, 'floor'), reps: REP_MIN, why: 'progress' };
 }

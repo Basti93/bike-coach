@@ -1,6 +1,6 @@
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { RECENT_DAYS } from './limits';
-import { LEG_MUSCLES, availableExercises, recentLegWork, suggestNext } from './history';
+import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
 import type { GymContext } from './guardrails';
 
 const DAY_MS = 86_400_000;
@@ -11,7 +11,7 @@ const REST_S = 90;
 const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'shoulders', 'hamstrings', 'triceps', 'biceps'];
 
 function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
-  const s = suggestNext(t.id, ctx.workouts, ctx.nowMs);
+  const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t.type);
   const reps = s.why === 'none' ? START_REPS : s.reps;
   return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
 }
@@ -25,7 +25,7 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
   const recentLegs = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
   const legsTired = recentLegs || ctx.avoidLegs === true;
-  const allowed = (t: ExerciseTemplate): boolean => !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
+  const allowed = (t: ExerciseTemplate): boolean => isRepBased(t) && !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
   const since = ctx.nowMs - RECENT_DAYS * DAY_MS;
   const count = new Map<string, number>();
   for (const w of ctx.workouts) {

@@ -1,7 +1,7 @@
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MAX_WIDOWMAKERS, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
-import { availableExercises, suggestNext } from './history';
+import { ASSISTED_TYPE, availableExercises, isRepBased, suggestNext } from './history';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
@@ -20,7 +20,8 @@ const no = (reason: string): never => { throw new Refuse(reason); };
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const isWidowmaker = (notes: string): boolean => /^\s*widowmaker\b/i.test(notes);
-const toHalf = (kg: number): number => Math.round(kg * 2) / 2;
+/** Hevy's own weights are not always on a 0.5 kg grid, e.g. 61.25 or a converted 22.68. */
+const twoDecimals = (kg: number): boolean => Math.round(kg * 100) / 100 === kg;
 
 /** Highest weight accepted for an exercise: the suggestion plus one step, or the suggestion alone. */
 export function weightCap(suggested: number, withStep: boolean): number {
@@ -32,7 +33,7 @@ function parseSet(raw: unknown, where: string): GymSet {
   const type = SET_TYPES.find((t) => t === raw.type);
   if (!type) return no(`${where}: Satztyp ungültig`);
   const w = raw.weightKg;
-  if (w !== null && !(typeof w === 'number' && Number.isFinite(w) && w > 0 && w <= 1000 && toHalf(w) === w)) return no(`${where}: Gewicht ungültig`);
+  if (w !== null && !(typeof w === 'number' && Number.isFinite(w) && w > 0 && w <= 1000 && twoDecimals(w))) return no(`${where}: Gewicht ungültig`);
   const reps = raw.reps;
   if (reps !== null && !(isInt(reps) && reps > 0)) return no(`${where}: Wiederholungen ungültig`);
   const out: GymSet = { type, weightKg: w, reps };
@@ -63,7 +64,8 @@ function parseExercise(raw: unknown, i: number, byId: Map<string, ExerciseTempla
 
 function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, recentEquipment: Set<string>, known: Set<string>): void {
   const where = ex.title;
-  const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs);
+  if (!isRepBased(t)) no(`${where}: nur Übungen mit Wiederholungen`);
+  const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs, t.type);
   if (!known.has(ex.templateId) && !recentEquipment.has(t.equipment)) no(`${where}: Gerät in den letzten Monaten nicht benutzt`);
   const widow = isWidowmaker(ex.notes);
   const barbell = t.equipment === 'barbell';
@@ -77,6 +79,7 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
     if (s.type === 'failure' && barbell) no(`${where}: Muskelversagen nicht an der Langhantel`);
     if (s.weightKg !== null) {
       if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
+      if (t.type === ASSISTED_TYPE && s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`);
       if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s))) no(`${where}: Gewicht zu hoch`);
     }
     if (s.type === 'warmup') continue;

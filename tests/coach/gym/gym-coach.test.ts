@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClaudeError } from '../../../src/coach/claude-client';
 import { Coach } from '../../../src/coach/coach';
 import { checkWorkout } from '../../../src/coach/gym/guardrails';
+import { suggestNext } from '../../../src/coach/gym/history';
+import { ruleWorkout } from '../../../src/coach/gym/rules';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
 import type { HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
@@ -581,5 +583,89 @@ describe('fix round 1', () => {
     const results = await Promise.all([h.coach.confirm(ID, 'A'), h.coach.confirm(ID, 'A')]);
     expect(results.sort()).toEqual(['failed', 'written']);
     expect(writer.writeRoutine).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('final review', () => {
+  const tpl = (id: string, type: string, equipment = 'machine', muscle = 'chest'): ExerciseTemplate => ({ id, title: `Title ${id}`, type, primaryMuscle: muscle, equipment });
+
+  describe('I3 weights off the 0.5 kg grid', () => {
+    const ctx = () => ({
+      workouts: [wk(14, 'a', [{ t: 'cp', kg: 61.25, reps: 8 }, { t: 'lr', kg: 22.68, reps: 8 }]), wk(7, 'b', [{ t: 'cp', kg: 61.25, reps: 8 }, { t: 'lr', kg: 22.68, reps: 8 }])],
+      templates: TEMPLATES, nowMs: NOW,
+    });
+    const check = (id: string, kg: number) => checkWorkout({ name: 'A', exercises: [ex(id, [set(kg, 9)])] }, ctx());
+    it('a weight of 61.25 or 22.68 passes', () => {
+      expect(check('cp', 61.25).ok).toBe(true);
+      expect(check('lr', 22.68).ok).toBe(true);
+    });
+    it('more than 2 decimals and weights above the cap are still refused', () => {
+      expect(check('lr', 22.685).ok).toBe(false);
+      expect(check('lr', 25.19).ok).toBe(false);
+      expect(check('cp', 70).ok).toBe(false);
+    });
+  });
+
+  describe('I1 only rep-based exercises', () => {
+    const others = ['duration', 'weight_duration', 'distance_duration', 'short_distance_weight'];
+    const timed = others.map((type, i) => tpl(`t${i}`, type));
+    const timedHistory = (): StrengthWorkout[] => [14, 7].map((d) => ({
+      id: `h${d}`, title: 'Day', startMs: NOW - d * DAY, durationS: 3600,
+      exercises: [
+        ...timed.map((t) => ({ title: t.id, templateId: t.id, sets: 2, reps: 0, volumeKg: 0, workSets: [{ type: 'normal' as const, weightKg: null, reps: null }] })),
+        { title: 'cp', templateId: 'cp', sets: 2, reps: 16, volumeKg: 0, workSets: [{ type: 'normal' as const, weightKg: 40, reps: 8 }] },
+      ],
+    }));
+    const templates = [...TEMPLATES, ...timed];
+
+    it('the rule core and the machine fallback leave non-rep exercises out', () => {
+      const core = ruleWorkout({ workouts: timedHistory(), templates, nowMs: NOW }).workout.exercises.map((e) => e.templateId);
+      expect(core).toEqual(['cp']);
+      const fallback = ruleWorkout({ workouts: [], templates: timed, nowMs: NOW }).workout.exercises;
+      expect(fallback).toEqual([]);
+    });
+    it('uebungen and vorlagen in the prompt hold only rep-based exercises', async () => {
+      const h = harness();
+      h.workouts = timedHistory();
+      h.templates = [...templates, tpl('new-d', 'duration'), tpl('new-r', 'weight_reps')];
+      await h.coach.tick(ID);
+      const p = h.calls[0].prompt;
+      expect(block(p, 'uebungen-nur-daten').map((e: any) => e.templateId)).toEqual(['cp']);
+      const offered = block(p, 'vorlagen-nur-daten').map((e: any) => e.templateId);
+      expect(offered).toContain('new-r');
+      expect(offered).not.toContain('new-d');
+    });
+    it('checkWorkout refuses non-rep types, and keeps bodyweight rep types', () => {
+      const types = [...others, 'weight_reps', 'reps_only', 'bodyweight_reps', 'bodyweight_assisted_reps'];
+      const list = types.map((type) => tpl(type, type));
+      const workouts = [wk(7, 'a', [{ t: 'cp', kg: 40, reps: 8 }])];
+      const ok = (type: string) => checkWorkout({ name: 'A', exercises: [ex(type, [set(null, 10), set(null, 10), set(null, 10)])] }, { workouts, templates: [...TEMPLATES, ...list], nowMs: NOW }).ok;
+      for (const type of others) expect(ok(type), type).toBe(false);
+      for (const type of ['weight_reps', 'reps_only', 'bodyweight_reps', 'bodyweight_assisted_reps']) expect(ok(type), type).toBe(true);
+    });
+  });
+
+  describe('I1 assisted exercises keep their weight', () => {
+    const ASSISTED = 'bodyweight_assisted_reps';
+    const atTop = () => [wk(14, 'a', [{ t: 'as', kg: 20, reps: 12 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 12 }])];
+    it('reaching the top of the range does not raise the assistance', () => {
+      expect(suggestNext('as', atTop(), NOW, ASSISTED)).toEqual({ weightKg: 20, reps: 12, why: 'keep' });
+      expect(suggestNext('as', atTop(), NOW).weightKg).toBeGreaterThan(20);
+    });
+    it('a long break does not lower the assistance', () => {
+      expect(suggestNext('as', [wk(40, 'a', [{ t: 'as', kg: 20, reps: 10 }])], NOW, ASSISTED).weightKg).toBe(20);
+    });
+    it('reps still progress below the top of the range', () => {
+      const s = suggestNext('as', [wk(14, 'a', [{ t: 'as', kg: 20, reps: 8 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 8 }])], NOW, ASSISTED);
+      expect(s).toEqual({ weightKg: 20, reps: 9, why: 'progress' });
+    });
+    const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED, 'machine', 'lats')], nowMs: NOW });
+    it('the rule workout and the check hold the weight', () => {
+      expect(ruleWorkout(ctx()).workout.exercises[0].sets[0].weightKg).toBe(20);
+      const check = (kg: number) => checkWorkout({ name: 'A', exercises: [ex('as', [set(kg, 12)])] }, ctx()).ok;
+      expect(check(20)).toBe(true);
+      expect(check(22)).toBe(false);
+      expect(check(15)).toBe(false);
+    });
   });
 });
