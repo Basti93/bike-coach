@@ -41,6 +41,7 @@ type Deps = {
 
 /** Hevy refuses what we sent, so the stored workout cannot be written. Auth, limits, its own trouble and the network are no such answer. */
 const refusedByHevy = (e: unknown): boolean => e instanceof HevyError && e.status >= 400 && e.status < 500 && ![401, 403, 429].includes(e.status);
+const complaintsFingerprint = (open: Complaint[]): string => open.map((c) => `${c.id}:${c.status}`).sort().join(',');
 const fingerprint = (w: GymWorkout): string => JSON.stringify(w);
 const isWidowmaker = (e: GymExercise): boolean => /^\s*widowmaker\b/i.test(e.notes);
 const isWidowSet = (e: GymExercise, i: number): boolean => isWidowmaker(e) && e.sets[i].reps === WIDOWMAKER_REPS && !e.sets[i].repRange;
@@ -51,7 +52,7 @@ const clean = (text: string | undefined, max: number): string | null => {
 
 /**
  * The strength coach. It plans from the rider's Hevy history and only writes to Hevy in `confirm`, after a `preview`.
- * It reacts to real workouts and notes only: bike rides and the bike plan never trigger a replan.
+ * It reacts to real workouts, notes and changed open complaints: bike rides and the bike plan never trigger a replan.
  */
 export class GymCoach {
   private states = new Map<string, GymState>();
@@ -94,6 +95,10 @@ export class GymCoach {
     const real = this.deps.workouts(id).filter((w) => w.startMs <= now);
     this.askAboutGym(id, real, now);
     const s = this.state(id);
+    const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');
+    const used = complaintsFingerprint(open);
+    // Stored right away, so a failing plan retries through dirty and the attempts limit, not through this.
+    if (used !== s.complaintsFingerprint) this.update(id, (x) => { x.complaintsFingerprint = used; x.dirty = true; x.attempts = 0; });
     const seen = new Set(s.seenWorkoutIds);
     const unseen = real.filter((w) => !seen.has(w.id));
     if (s.planned && !s.dirty && unseen.length === 0) return;
@@ -103,7 +108,10 @@ export class GymCoach {
     if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return;
     if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return;
     this.update(id, (x) => { x.dirty = true; });
-    const wantNote = s.planned && unseen.length > 0;
+    const latest = newest(real);
+    // Old workouts surfacing during a break get no feedback, which would also replace the note about the break.
+    const onBreak = latest !== null && now - latest.startMs > LONG_BREAK_DAYS * DAY_MS;
+    const wantNote = s.planned && unseen.length > 0 && !onBreak;
     const previous = s.next;
     const gen = this.gen(id);
     let templates: ExerciseTemplate[];
@@ -120,7 +128,6 @@ export class GymCoach {
         // Once per plan. A failure keeps what is known; such exercises are left out.
         try { templates = await this.deps.refreshTemplates(id); } catch { /* keep the known list */ }
       }
-      const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');
       const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
@@ -179,13 +186,17 @@ export class GymCoach {
     } : null;
   }
 
-  /** After a long break the coach asks once whether the gym is still the same. */
+  /** After a long break the coach asks once whether the gym is still the same, and rebuilds the plan with stepped-back weights. */
   private askAboutGym(id: string, real: StrengthWorkout[], now: number): void {
     const s = this.state(id);
-    if (s.gymAsked || real.length === 0) return;
+    if (real.length === 0) return;
     const newest = real.reduce((m, w) => (w.startMs > m.startMs ? w : m), real[0]);
-    if (now - newest.startMs <= LONG_BREAK_DAYS * DAY_MS) return;
-    this.update(id, (x) => { x.gymAsked = true; x.lastNote = { workoutId: newest.id, text: BREAK_NOTE, questions: [GYM_QUESTION], atMs: now }; });
+    if (now - newest.startMs <= LONG_BREAK_DAYS * DAY_MS) {
+      if (s.gymAsked) this.update(id, (x) => { x.gymAsked = false; });
+      return;
+    }
+    if (s.gymAsked) return;
+    this.update(id, (x) => { x.gymAsked = true; x.dirty = true; x.attempts = 0; x.lastNote = { workoutId: newest.id, text: BREAK_NOTE, questions: [GYM_QUESTION], atMs: now }; });
   }
 
   adjust(id: string, how: 'easier' | 'harder' | 'shorter'): void {

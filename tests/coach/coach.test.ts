@@ -182,6 +182,21 @@ test('ai FTP change is limited to 5 % and to once in 14 days', async () => {
   await c.refresh('pa');
   expect(c.state('pa').ftpW).toBe(205);
 });
+test('a complaint from the gym area during a running plan runs it again, without a note', async () => {
+  let asks = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  const c = make(async () => { asks += 1; if (asks === 1) await gate; return answer(); });
+  afterRamp(c);
+  const running = c.refresh('pa');
+  await vi.waitFor(() => expect(asks).toBe(1));
+  c.addComplaintFromText('pa', 'Das Knie zwickt');
+  release();
+  await running;
+  expect(asks).toBe(2);
+  expect(c.state('pa').notes).toEqual([]);
+});
+
 test('call while one is running only marks dirty and reruns once', async () => {
   let release = () => {};
   const ask = vi.fn(() => new Promise((r) => { release = () => r(answer()); }));

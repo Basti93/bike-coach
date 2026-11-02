@@ -473,12 +473,28 @@ describe('bike coach', () => {
     const coachDir = fs.mkdtempSync(path.join(tmp, 'coach-'));
     const c = new Coach({ ridesDir: rides, coachDir, ask: async () => ({}), nowMs: () => NOW });
     c.scanRides([{ id: 'pa', name: 'Max', ftpW: 200 }]);
+    const planned = c.state('pa');
+    planned.next = { ...planned.next, source: 'claude' };
     c.addComplaintFromText('pa', 'Das Knie zwickt');
     c.addComplaintFromText('pa', 'Heute lief es gut');
     const s = c.state('pa');
     expect(s.complaints?.map((x) => x.text)).toEqual(['Das Knie zwickt']);
     expect(s.notes).toEqual([]);
     expect(s.dirty).toBe(false);
+    // The safe rule session, the same one the normal note path swaps in.
+    expect(s.next?.source).toBe('rules');
+    const other = new Coach({ ridesDir: rides, coachDir: fs.mkdtempSync(path.join(tmp, 'coach-')), ask: async () => ({}), nowMs: () => NOW });
+    other.scanRides([{ id: 'pa', name: 'Max', ftpW: 200 }]);
+    other.note('pa', 'Das Knie zwickt');
+    expect(s.next).toEqual(other.state('pa').next);
+  });
+
+  it('addComplaintFromText leaves the plan alone when the text is no complaint', () => {
+    const c = new Coach({ ridesDir: fs.mkdtempSync(path.join(tmp, 'rides-')), coachDir: fs.mkdtempSync(path.join(tmp, 'coach-')), ask: async () => ({}), nowMs: () => NOW });
+    c.scanRides([{ id: 'pa', name: 'Max', ftpW: 200 }]);
+    const before = structuredClone(c.state('pa').next);
+    c.addComplaintFromText('pa', 'Heute lief es gut');
+    expect(c.state('pa').next).toEqual(before);
   });
 });
 
@@ -794,6 +810,125 @@ describe('final review', () => {
       h.replies = [new ClaudeError('limit', 'x'), new ClaudeError('limit', 'x'), new ClaudeError('limit', 'x')];
       for (let i = 0; i < 5; i++) { await h.coach.tick(ID); h.now += 10 * 60_000; }
       expect(h.calls).toHaveLength(3);
+    });
+  });
+
+  describe('I5 complaints cross between the coaches', () => {
+    const c = (status: Complaint['status'], text = 'Das Knie zwickt'): Complaint => ({ id: 'c1', text, status, startedMs: NOW, updatedMs: NOW });
+    const legs = (): StrengthWorkout[] => [
+      wk(14, 'w14', [{ t: 'cp', kg: 40, reps: 8 }, { t: 'lp', kg: 80, reps: 8 }]),
+      wk(7, 'w7', [{ t: 'cp', kg: 40, reps: 8 }, { t: 'lp', kg: 80, reps: 8 }]),
+    ];
+    it('a complaint from the bike side replans once, and leg work leaves the rule workout', async () => {
+      const h = harness();
+      h.workouts = legs();
+      h.replies = [answer({ workout: { name: 'A', exercises: [ex('cp', [set(40, 9)])] } })];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(1);
+      h.complaints = [c('active')];
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(2);
+      expect(h.coach.state(ID).next?.workout.exercises.map((e) => e.templateId)).toEqual(['cp']);
+      expect(block(h.calls[1].prompt, 'beschwerden-nur-daten')).toHaveLength(1);
+    });
+    it('the plan used it, so it does not replan again', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.complaints = [c('active')];
+      await h.coach.tick(ID);
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(2);
+      expect(h.coach.state(ID).dirty).toBe(false);
+    });
+    it('a changed status or a closed complaint replans too', async () => {
+      const h = harness();
+      h.complaints = [c('active')];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(1);
+      h.complaints = [c('healing')];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(2);
+      h.complaints = [c('over')];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(3);
+    });
+    it('the fingerprint survives a restart', async () => {
+      const h = harness();
+      h.complaints = [c('active')];
+      await h.coach.tick(ID);
+      const again = h.make();
+      await again.tick(ID);
+      expect(h.calls).toHaveLength(1);
+    });
+    it('AI failures after a new complaint still stop after three attempts', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.complaints = [c('active')];
+      h.replies = Array.from({ length: 5 }, () => new ClaudeError('limit', 'x'));
+      for (let i = 0; i < 6; i++) { await h.coach.tick(ID); h.now += 10 * 60_000; }
+      expect(h.calls).toHaveLength(4);
+    });
+    it('a complaint made in the gym replans only once', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.coach.note(ID, 'Das Knie zwickt');
+      h.complaints = [c('active')];
+      await h.coach.tick(ID);
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(2);
+    });
+  });
+
+  describe('I6 a long break', () => {
+    const break40 = 40 * DAY;
+    it('a stored pre-break plan is replaced by stepped-back weights', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).next?.workout.exercises[0].sets[0].weightKg).toBe(40);
+      h.now += break40;
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      expect(h.calls).toHaveLength(2);
+      expect(h.coach.state(ID).next?.source).toBe('rules');
+      expect(h.coach.state(ID).next?.workout.exercises[0].sets[0].weightKg).toBe(36);
+    });
+    it('the note survives the replan, also when old workouts are still unseen', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.workouts = [...h.workouts, wk(5, 'w5', [{ t: 'cp', kg: 40, reps: 8 }])];
+      h.now += break40;
+      h.replies = [answer({ workout: { name: 'Zurück', exercises: [ex('cp', [set(36, 8)])] } })];
+      await h.coach.tick(ID);
+      const note = h.coach.state(ID).lastNote;
+      expect(note?.questions).toHaveLength(1);
+      expect(note?.questions[0]).toMatch(/Studio/);
+      expect(h.calls[1].prompt).toContain('Lasse note und questions leer');
+    });
+    it('the note survives an AI failure and its retry', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.workouts = [...h.workouts, wk(5, 'w5', [{ t: 'cp', kg: 40, reps: 8 }])];
+      h.now += break40;
+      h.replies = [new ClaudeError('failed', 'x')];
+      await h.coach.tick(ID);
+      h.now += 10 * 60_000;
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).lastNote?.questions[0]).toMatch(/Studio/);
+    });
+    it('a recent workout resets the question, so a second break asks again', async () => {
+      const h = harness();
+      await h.coach.tick(ID);
+      h.now += break40;
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).gymAsked).toBe(true);
+      h.workouts = [...h.workouts, { ...wk(0, 'back', [{ t: 'cp', kg: 36, reps: 8 }]), startMs: h.now - DAY }];
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).gymAsked).toBe(false);
+      h.now += break40;
+      await h.coach.tick(ID);
+      expect(h.coach.state(ID).gymAsked).toBe(true);
+      expect(h.coach.state(ID).lastNote?.questions[0]).toMatch(/Studio/);
     });
   });
 });

@@ -235,9 +235,15 @@ export class Coach {
       this.markDirty(s);
     });
   }
-  /** A complaint from the gym coach's area: same detection, but no note and no replanning. */
+  /** A complaint from the gym coach's area: same detection and the same safe session, but no note and no new AI plan. */
   addComplaintFromText(profileId: string, text: string): void {
-    this.update(profileId, (s) => { this.addComplaint(s, text, this.deps.nowMs()); });
+    this.update(profileId, (s) => {
+      if (!this.addComplaint(s, text, this.deps.nowMs())) return;
+      s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
+      // A plan already running knows nothing of this and would overwrite the safe session.
+      const rerun = this.pendingRerun.get(profileId);
+      if (rerun) rerun.requested = true;
+    });
   }
   private addComplaint(s: CoachState, text: string, now: number): boolean {
     const status = complaintFromNote(text);

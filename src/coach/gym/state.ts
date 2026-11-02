@@ -18,7 +18,9 @@ export type GymState = {
   routine: { routineId: string; updatedAt: string } | null;
   /** True once a plan completed (by AI or by the rules after a refused answer). */
   planned: boolean;
-  /** The gym question after a long break is asked once. */
+  /** The open complaints the plan took into account. The only thing from the bike coach that can trigger a replan. */
+  complaintsFingerprint: string;
+  /** The gym question after a long break is asked once per break. */
   gymAsked: boolean;
   dirty: boolean;
   attempts: number;
@@ -33,7 +35,7 @@ const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComp
 
 export const initialGymState = (profileId: string): GymState => ({
   profileId, goal: 'muscle', next: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
-  routine: null, planned: false, gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null,
+  routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null,
 });
 
 export const loadGymState = (dir: string, profileId: string): GymState => {
