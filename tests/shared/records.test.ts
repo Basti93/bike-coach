@@ -31,6 +31,23 @@ describe('applyRecord', () => {
   });
 });
 
+describe('applyRecord guards', () => {
+  it('throws on a different kind or id', () => {
+    expect(() => applyRecord(rec(1), { ...rec(2), id: 'other' })).toThrow();
+    expect(() => applyRecord(rec(1), { ...rec(2), kind: 'plan' })).toThrow();
+  });
+  it('a tombstone in a tie ends the same in either order', () => {
+    const live = rec(3, { a: 1 }), gone = rec(3, null, true);
+    expect(applyRecord(live, gone).keep).toEqual(applyRecord(gone, live).keep);
+  });
+  it('three records end the same in every order', () => {
+    const all = [rec(1, { a: 1 }), rec(3, { a: 2 }), rec(3, { a: 3 }), rec(2, null, true)];
+    const perms = (xs: TrackedRecord[]): TrackedRecord[][] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p]));
+    const ends = perms(all).map((p) => p.reduce<TrackedRecord | undefined>((cur, r) => applyRecord(cur, r).keep, undefined));
+    for (const e of ends) expect(e).toEqual(ends[0]);
+  });
+});
+
 describe('EXERCISES', () => {
   it('exercise ids are unique and each has a known type, muscle and equipment', () => {
     const types = ['weight_reps', 'reps_only', 'bodyweight_weighted', 'bodyweight_assisted', 'duration', 'distance_duration', 'short_distance_weight', 'floors_duration', 'steps_duration'];
@@ -54,7 +71,17 @@ describe('EXERCISES', () => {
     const map = linkHevyTemplates([
       { id: 'H1', title: squat.hevyTitle! }, { id: 'H2', title: squat.hevyTitle!.toLowerCase() }, { id: 'H3', title: 'Nonsense Move' },
     ]);
-    expect(map.get('pf-squat')).toBe('H1');
+    expect(map.get('H1')).toBe('pf-squat');
     expect(map.size).toBe(1);
+  });
+  it('two Hevy templates with the same title both link to the own exercise', () => {
+    const t = EXERCISES.find((e) => e.id === 'pf-squat')!.hevyTitle!;
+    const map = linkHevyTemplates([{ id: 'H1', title: t }, { id: 'H2', title: t }]);
+    expect([...map.entries()]).toEqual([['H1', 'pf-squat'], ['H2', 'pf-squat']]);
+  });
+  it('the cable glute kickback agrees between equipment and Hevy title', () => {
+    const e = EXERCISES.find((x) => x.id === 'pf-cable-kickback')!;
+    expect(e.hevyTitle).toMatch(/Cable/);
+    expect(e.equipment).toBe('machine');
   });
 });

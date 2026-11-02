@@ -1,13 +1,10 @@
-/** Own exercise list. Structurally an ExerciseTemplate plus links to Hevy; src/shared must not import from src/coach. */
-export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyId?: string; hevyTitle?: string };
+/** Own exercise list. Structurally an ExerciseTemplate plus the exact English Hevy title; src/shared must not import from src/coach. */
+export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string };
 
 const x = (id: string, title: string, type: string, primaryMuscle: string, equipment: string, hevyTitle?: string): Exercise =>
   ({ id, title, type, primaryMuscle, equipment, ...(hevyTitle ? { hevyTitle } : {}) });
 
-/**
- * hevyId stays unset: real Hevy ids are unknown here. Set them by running linkHevyTemplates on a rider's
- * Hevy template list; hevyTitle is the exact English Hevy name to match on.
- */
+/** hevyTitle is the exact English Hevy name that linkHevyTemplates matches on. */
 export const EXERCISES: Exercise[] = [
   x('pf-squat', 'Kniebeuge', 'weight_reps', 'quadriceps', 'barbell', 'Squat (Barbell)'),
   x('pf-front-squat', 'Frontkniebeuge', 'weight_reps', 'quadriceps', 'barbell', 'Front Squat (Barbell)'),
@@ -33,7 +30,7 @@ export const EXERCISES: Exercise[] = [
   x('pf-hip-thrust', 'Hip Thrust', 'weight_reps', 'glutes', 'barbell', 'Hip Thrust (Barbell)'),
   x('pf-glute-bridge', 'Beckenheben', 'weight_reps', 'glutes', 'barbell', 'Glute Bridge (Barbell)'),
   x('pf-glute-bridge-bw', 'Beckenheben ohne Gewicht', 'reps_only', 'glutes', 'none', 'Glute Bridge'),
-  x('pf-cable-kickback', 'Gesäß-Kickback am Kabel', 'weight_reps', 'glutes', 'machine', 'Glute Kickback (Machine)'),
+  x('pf-cable-kickback', 'Gesäß-Kickback am Kabel', 'weight_reps', 'glutes', 'machine', 'Glute Kickback (Cable)'),
   x('pf-hip-abduction', 'Abduktorenmaschine', 'weight_reps', 'abductors', 'machine', 'Hip Abduction (Machine)'),
   x('pf-hip-adduction', 'Adduktorenmaschine', 'weight_reps', 'adductors', 'machine', 'Hip Adduction (Machine)'),
   x('pf-calf-raise-standing', 'Wadenheben stehend', 'weight_reps', 'calves', 'machine', 'Standing Calf Raise (Machine)'),
@@ -60,7 +57,7 @@ export const EXERCISES: Exercise[] = [
   x('pf-lateral-raise', 'Seitheben', 'weight_reps', 'shoulders', 'dumbbell', 'Lateral Raise (Dumbbell)'),
   x('pf-lateral-raise-cable', 'Seitheben am Kabel', 'weight_reps', 'shoulders', 'machine', 'Lateral Raise (Cable)'),
   x('pf-front-raise', 'Frontheben', 'weight_reps', 'shoulders', 'dumbbell', 'Front Raise (Dumbbell)'),
-  x('pf-rear-delt-fly', 'Hintere Schulter Fliegende', 'weight_reps', 'shoulders', 'dumbbell', 'Rear Delt Reverse Fly (Dumbbell)'),
+  x('pf-rear-delt-fly', 'Reverse Flys an der Maschine', 'weight_reps', 'shoulders', 'dumbbell', 'Rear Delt Reverse Fly (Dumbbell)'),
   x('pf-face-pull', 'Face Pull', 'weight_reps', 'shoulders', 'machine', 'Face Pull'),
   x('pf-upright-row', 'Aufrechtes Rudern', 'weight_reps', 'shoulders', 'barbell', 'Upright Row (Barbell)'),
   x('pf-shrug', 'Schulterheben', 'weight_reps', 'traps', 'dumbbell', 'Shrug (Dumbbell)'),
@@ -113,7 +110,7 @@ export const EXERCISES: Exercise[] = [
   x('pf-dead-hang', 'Hängen an der Stange', 'duration', 'lats', 'none', 'Dead Hang'),
   x('pf-burpee', 'Burpee', 'reps_only', 'full_body', 'none', 'Burpee'),
   x('pf-kettlebell-swing', 'Kettlebell Swing', 'weight_reps', 'glutes', 'kettlebell', 'Kettlebell Swing'),
-  x('pf-turkish-get-up', 'Türkischer Aufstehen', 'weight_reps', 'full_body', 'kettlebell', 'Turkish Get Up'),
+  x('pf-turkish-get-up', 'Türkisches Aufstehen', 'weight_reps', 'full_body', 'kettlebell', 'Turkish Get Up'),
   x('pf-clean-press', 'Umsetzen und Drücken', 'weight_reps', 'full_body', 'barbell', 'Clean and Press (Barbell)'),
   x('pf-box-jump', 'Kastensprung', 'reps_only', 'quadriceps', 'other', 'Box Jump'),
   x('pf-jump-squat', 'Sprunghocke', 'reps_only', 'quadriceps', 'none', 'Jump Squat'),
@@ -126,18 +123,18 @@ export const EXERCISES: Exercise[] = [
   x('pf-walking', 'Gehen', 'steps_duration', 'cardio', 'none', 'Walking'),
 ];
 
-/** Own exercise id to Hevy template id, matched on the exact English Hevy title. Unknown titles are ignored. */
+/**
+ * Hevy template id to own exercise id, matched on the exact English Hevy title. Several Hevy templates with one title
+ * all link to the same own exercise. Unknown titles are ignored. The own id is the one history is kept under; to send
+ * an own exercise to Hevy, look up the first Hevy id that maps to it.
+ */
 export function linkHevyTemplates(templates: { id: string; title: string }[]): Map<string, string> {
-  const byTitle = new Map<string, string>();
-  for (const t of templates) if (!byTitle.has(t.title)) byTitle.set(t.title, t.id);
+  const ownByTitle = new Map<string, string>();
+  for (const e of EXERCISES) if (e.hevyTitle) ownByTitle.set(e.hevyTitle, e.id);
   const links = new Map<string, string>();
-  for (const e of EXERCISES) {
-    const id = e.hevyTitle ? byTitle.get(e.hevyTitle) : undefined;
-    if (id) links.set(e.id, id);
+  for (const t of templates) {
+    const own = ownByTitle.get(t.title);
+    if (own) links.set(t.id, own);
   }
   return links;
 }
-
-/** Own id to Hevy id for the exercises whose hevyId is set. Empty by default. */
-export const knownHevyLinks = (): Map<string, string> =>
-  new Map(EXERCISES.filter((e) => e.hevyId).map((e) => [e.id, e.hevyId as string]));

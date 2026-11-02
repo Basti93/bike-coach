@@ -8,6 +8,7 @@ export type LoggedWorkout = { id: string; title: string; startMs: number; endMs:
 /** Newer wins; a tie goes to the greater JSON text so every device ends the same. The loser is returned, never dropped silently. */
 export function applyRecord(current: TrackedRecord | undefined, incoming: TrackedRecord): { keep: TrackedRecord; overwritten: TrackedRecord | null } {
   if (!current) return { keep: incoming, overwritten: null };
+  if (current.kind !== incoming.kind || current.id !== incoming.id) throw new Error('applyRecord: records differ in kind or id');
   const a = JSON.stringify(current), b = JSON.stringify(incoming);
   if (a === b) return { keep: current, overwritten: null };
   const incomingWins = incoming.updatedMs !== current.updatedMs ? incoming.updatedMs > current.updatedMs : b > a;
