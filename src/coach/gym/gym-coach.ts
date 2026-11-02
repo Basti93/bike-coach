@@ -174,6 +174,7 @@ export class GymCoach {
   adjust(id: string, how: 'easier' | 'harder' | 'shorter'): void {
     const next = this.state(id).next;
     if (!next || next.workout.exercises.length === 0) return;
+    if (how !== 'easier' && how !== 'harder' && how !== 'shorter') return;
     const w = structuredClone(next.workout);
     if (how === 'easier') {
       for (const e of w.exercises) {
@@ -186,7 +187,8 @@ export class GymCoach {
         const last = e.sets.map((s, i) => ({ s, i })).filter(({ s, i }) => s.type === 'normal' && !isWidowSet(e, i)).pop();
         if (last && !isWidowmaker(e)) e.sets.push({ ...last.s });
       }
-    } else if (w.exercises.length > 1) {
+    } else if (how === 'shorter') {
+      if (w.exercises.length <= 1) return;
       w.exercises.splice(w.exercises.length - Math.ceil(w.exercises.length / 3));
       const ids = w.exercises.map((e) => e.supersetId).filter((v): v is number => v !== null);
       for (const e of w.exercises) if (e.supersetId !== null && ids.filter((v) => v === e.supersetId).length < 2) e.supersetId = null;

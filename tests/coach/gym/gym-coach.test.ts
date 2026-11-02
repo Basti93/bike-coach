@@ -350,6 +350,13 @@ describe('adjust', () => {
     h.coach.adjust(ID, 'shorter');
     expect(h.coach.state(ID).next!.workout.exercises).toHaveLength(1);
   });
+  it('ignores an unknown adjustment', async () => {
+    const h = harness();
+    await h.coach.tick(ID);
+    const before = JSON.stringify(h.coach.state(ID).next);
+    h.coach.adjust(ID, 'bogus' as never);
+    expect(JSON.stringify(h.coach.state(ID).next)).toBe(before);
+  });
   it('does nothing without a workout', () => {
     const h = harness();
     h.coach.adjust(ID, 'harder');
