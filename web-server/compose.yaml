@@ -1,0 +1,79 @@
+# Pandafit web server. Own Tailscale node with Funnel on 443; the API listens only on 127.0.0.1 of the host.
+# Variables via Compose interpolation from ./.env (chmod 600). No env_file, so that api does not see the Tailscale key.
+# Build context is the repo root: run from this folder, `docker compose build`.
+name: pandafit
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: web-server/Dockerfile
+    image: pandafit-api:local
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      PORT: "8080"
+      HOST: 0.0.0.0
+      PANDAFIT_DB: /data/pandafit.db
+      PANDAFIT_STATIC: /app/out/web
+      PANDAFIT_TRUST_PROXY_CIDR: ${PANDAFIT_TRUST_PROXY_CIDR:-172.16.0.0/12}
+    ports:
+      - "127.0.0.1:${PANDAFIT_PORT:-7003}:8080"
+    volumes:
+      - data:/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  tailscale:
+    # Own Tailscale node, no host port. Userspace mode: no /dev/net/tun, no capabilities.
+    # Version pinned; raise it deliberately after reading the release notes.
+    image: tailscale/tailscale:v1.76.1
+    restart: unless-stopped
+    logging: *default-logging
+    hostname: pandafit
+    environment:
+      TS_HOSTNAME: pandafit
+      TS_USERSPACE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tsstate:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
+    depends_on:
+      - api
+    mem_limit: 128m
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale --socket=/tmp/tailscaled.sock status >/dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  data:
+    name: pandafit_data
+  tsstate:
+    name: pandafit_tsstate
