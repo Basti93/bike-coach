@@ -147,6 +147,17 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
               <button type="submit" className="secondary">Senden</button>
             </form>
           </section>
+          {gym.complaints.length > 0 && (
+            <section className="card">
+              <h3>Deine Beschwerden</h3>
+              <p className="muted">Der Coach plant vorsichtig darum herum. Schließe sie, sobald es für dich wieder passt.</p>
+              <ul className="rules">
+                {gym.complaints.map((c) => (
+                  <li key={c.id}><span>{c.text}</span><button className="ghost" onClick={() => send({ type: 'complaint-update', profileId, id: c.id, status: 'over' })}>Wieder gut</button></li>
+                ))}
+              </ul>
+            </section>
+          )}
           {state.rules.length > 0 && (
             <section className="card">
               <h3>Das merkt sich der Coach</h3>

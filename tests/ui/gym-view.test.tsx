@@ -244,3 +244,22 @@ test('"Sobald" appears with really no history, even after an error', () => {
   show({ gym: gymOf({ next: null, planned: false, lastError: 'failed', dirty: true }) });
   expect(screen.getByRole('status').textContent).toMatch(/Sobald/);
 });
+
+test('open complaints show on the strength page and can be closed with the same message as on the bike page', () => {
+  const complaint = { id: 'c1', text: 'Das Knie zwickt', status: 'active' as const, startedMs: 1, updatedMs: 1 };
+  const { send } = show({ gym: { ...gymOf(), complaints: [complaint] } });
+  expect(screen.getByText(/Das Knie zwickt/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Wieder gut' }));
+  expect(send).toHaveBeenCalledWith({ type: 'complaint-update', profileId: 'p', id: 'c1', status: 'over' });
+});
+
+test('without open complaints there is no complaint section', () => {
+  show();
+  expect(screen.queryByRole('button', { name: 'Wieder gut' })).toBeNull();
+});
+
+test('"Entfernen" on a rule stays a rule action', () => {
+  const { send } = show({ gym: gymOf({ rules: [{ atMs: 5, text: 'Keine tiefen Kniebeugen' }] }) });
+  fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
+  expect(send).toHaveBeenCalledWith({ type: 'gym-remove-rule', profileId: 'p', atMs: 5 });
+});

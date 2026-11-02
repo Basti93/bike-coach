@@ -15,4 +15,9 @@ describe('gymPublic', () => {
     expect(g).toEqual({ state, thinking: true, ready: false, complaints: [], hasHistory: true });
     expect(JSON.stringify(g)).not.toMatch(/api-?key|"key"/i);
   });
+  it('hands on open complaints only', () => {
+    const c = (id: string, status: 'active' | 'healing' | 'over') => ({ id, text: id, status, startedMs: 1, updatedMs: 1 });
+    const g = gymPublic({ state: 'connected', workouts: 3, loading: false, lastSyncMs: 1 }, state, false, true, { complaints: [c('a', 'active'), c('b', 'healing'), c('d', 'over')], hasHistory: true });
+    expect(g?.complaints.map((x) => x.id)).toEqual(['a', 'b']);
+  });
 });
