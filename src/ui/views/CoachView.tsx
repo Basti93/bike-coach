@@ -121,6 +121,15 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </div>
             </section>
           )}
+          <section className="library">
+            <h3>Andere Trainings</h3>
+            <div className="trainings">
+              {library.map((t) => (
+                <TrainingCard key={t.session.id} session={t.session} ftpW={ftpW} tag={t.tag} why={t.why} selected={picked?.session.id === t.session.id}
+                  onPick={() => { setPicked(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
+              ))}
+            </div>
+          </section>
         </div>
         {state && (
           <div className="stack">
@@ -152,15 +161,6 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
           </div>
         )}
       </div>
-      <section className="library">
-        <h3>Andere Trainings</h3>
-        <div className="trainings">
-          {library.map((t) => (
-            <TrainingCard key={t.session.id} session={t.session} ftpW={ftpW} tag={t.tag} why={t.why} selected={picked?.session.id === t.session.id}
-              onPick={() => { setPicked(t); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-          ))}
-        </div>
-      </section>
     </main>
   );
 };
