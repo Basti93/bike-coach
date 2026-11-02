@@ -19,7 +19,7 @@ const SET_TYPE: Record<GymSet['type'], string> = { warmup: 'Aufwärmen', normal:
 
 const setText = (s: GymSet): string => {
   const reps = s.repRange ? `${s.repRange.start}–${s.repRange.end}` : s.reps !== null ? String(s.reps) : null;
-  const weight = s.weightKg ? `${s.weightKg} kg` : 'nach Gefühl';
+  const weight = s.weightKg ? `${String(s.weightKg).replace('.', ',')} kg` : 'nach Gefühl';
   const label = SET_TYPE[s.type];
   return `${reps ? `${reps} Wdh.` : 'Wdh. nach Gefühl'}, ${weight}${label ? ` · ${label}` : ''}`;
 };
@@ -71,7 +71,11 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
     confirming.current = true;
     send({ type: 'gym-confirm', profileId, name });
   };
-  const adjust = (how: 'easier' | 'harder' | 'shorter') => send({ type: 'gym-adjust', profileId, how });
+  const adjust = (how: 'easier' | 'harder' | 'shorter') => {
+    // The shown preview would no longer match the workout.
+    clear('all');
+    send({ type: 'gym-adjust', profileId, how });
+  };
   const sendNote = () => {
     if (!note.trim()) return;
     send({ type: 'gym-note', profileId, text: note.trim() });

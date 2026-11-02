@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import * as React from 'react';
 import type { GymPublic } from '../../src/coach/gym/public';
 import { initialGymState } from '../../src/coach/gym/state';
 import type { GymWorkout } from '../../src/coach/gym/types';
@@ -198,4 +199,32 @@ test('after disconnecting the Hevy card offers to delete the coach\'s memory', (
   rerender(<HevyCard profileId="p" status={{ state: 'idle' }} send={send} />);
   fireEvent.click(screen.getByRole('button', { name: /Gedächtnis löschen/ }));
   expect(send).toHaveBeenCalledWith({ type: 'gym-forget', profileId: 'p' });
+});
+
+test('a decimal weight uses a comma', () => {
+  const w = workout();
+  w.exercises[0].sets[1].weightKg = 62.5;
+  const { container } = render(<GymView profileId="p" gym={gymOf({ next: { workout: w, reason: 'x', source: 'rules' } })} preview={{ workout: w, edited: false }} previewFailed={false} result={null} send={() => {}} clear={() => {}} onBack={() => {}} />);
+  expect(container.textContent).toContain('62,5 kg');
+  expect(container.textContent).not.toContain('62.5');
+});
+
+test('an adjustment closes the preview and clears the old result', () => {
+  const clear = vi.fn();
+  const send = vi.fn();
+  render(<GymView profileId="p" gym={gymOf()} preview={{ workout: workout(), edited: false }} previewFailed={false} result="failed" send={send} clear={clear} onBack={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Härter' }));
+  expect(clear).toHaveBeenCalledWith('all');
+  expect(send).toHaveBeenCalledWith({ type: 'gym-adjust', profileId: 'p', how: 'harder' });
+});
+
+test('after an adjustment the preview is gone', () => {
+  const Host = () => {
+    const [preview, setPreview] = React.useState<{ workout: GymWorkout; edited: boolean } | null>({ workout: workout(), edited: false });
+    return <GymView profileId="p" gym={gymOf()} preview={preview} previewFailed={false} result={null} send={() => {}} clear={() => setPreview(null)} onBack={() => {}} />;
+  };
+  render(<Host />);
+  expect(screen.getByRole('button', { name: 'Jetzt anlegen' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Härter' }));
+  expect(screen.queryByRole('button', { name: 'Jetzt anlegen' })).toBeNull();
 });

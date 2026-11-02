@@ -339,3 +339,4 @@ main.with-pass .workout { height: 2rem; }
 .gym-questions { list-style: none; padding: 0; margin: .6rem 0 0; display: flex; flex-direction: column; gap: .8rem; }
 .gym-question p { margin: 0 0 .3rem; }
 .gym-preview .notice { margin: .6rem 0; }
+.gym-exercise b { overflow-wrap: anywhere; }

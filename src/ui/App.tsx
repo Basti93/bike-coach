@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { hrMaxFor } from '../shared/hr-zones';
 import type { Profile } from '../shared/profiles';
 import { useCoach } from './useCoach';
@@ -49,8 +49,10 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const [health, setHealth] = useState<HealthRange | undefined>(undefined);
   const [history, setHistory] = useState(false);
   const [overview, setOverview] = useState(false);
-  const [strength, setStrength] = useState(false);
+  const [strengthFor, setStrengthFor] = useState<string | null>(null);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
+  // The strength page belongs to one profile and needs a Hevy connection.
+  useEffect(() => { if (!coach.gym || strengthFor !== profile?.id) setStrengthFor(null); }, [coach.gym, strengthFor, profile?.id]);
   const language = useLanguageLearning(state?.ride?.profileId ?? profile?.id ?? null);
   const [passOn, setPassOn] = useState(passStored);
   const passToggle = <button className="secondary" onClick={() => { try { localStorage.setItem(PASS_KEY, passOn ? 'off' : 'on'); } catch { /* then it only applies until the restart */ } setPassOn(!passOn); }}>Berg: {passOn ? 'an' : 'aus'}</button>;
@@ -86,7 +88,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
   if (reviewing && profile && coach.garminSuggestion) return <>{notice}<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => setReviewing(false)} /></>;
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
-  if (strength && profile && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} onBack={() => setStrength(false)} /></>;
+  if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} onBack={() => setStrengthFor(null)} /></>;
   return (
     <>
       {notice}
@@ -95,7 +97,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
           ? <DebriefView profileId={profile.id} debrief={coach.state.debriefs![coach.state.debriefToShow]} next={coach.state.next} thinking={coach.debriefing} title={coach.state.summaries.find((r) => r.rideId === coach.state?.debriefToShow)?.sessionName} send={coach.send} />
           : coach.state?.awaitingFeedback
           ? <FeedbackView garminConnected={coach.garmin.state === 'connected'} upload={coach.state.garminUpload} debrief={coach.state.debriefs?.[coach.state.awaitingFeedback]} debriefing={coach.debriefing} next={coach.state.next} together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
-          : <CoachView gym={coach.gym} onGym={() => setStrength(true)} onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} hevyCard={<HevyCard profileId={profile.id} status={coach.hevy} send={coach.send} />} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+          : <CoachView gym={coach.gym} onGym={() => setStrengthFor(profile.id)} onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} hevyCard={<HevyCard profileId={profile.id} status={coach.hevy} send={coach.send} />} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );
