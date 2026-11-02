@@ -14,6 +14,7 @@ import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
+import { HevySync, readHevyConfig } from './hevy';
 import { activityName, canUpload } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
@@ -45,8 +46,13 @@ const garminData = (profileId: string): GarminCoachData | null => {
   return data;
 };
 
+// Optional: without a key nothing happens, and only this one profile ever sees the data.
+const hevyConfig = readHevyConfig({ envFile: path.resolve('.env'), configFile: path.join(dir, '..', 'config.json') }, process.env);
+const hevy = hevyConfig ? new HevySync({ key: hevyConfig.key, dir: path.join(dir, '..', 'hevy', hevyConfig.profileId), nowMs: () => Date.now() }) : null;
+
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
+  strength: (profileId) => (hevy && profileId === hevyConfig?.profileId ? hevy.workouts() : []),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
 
@@ -205,6 +211,8 @@ const scan = (): void => {
       if (s.lastError && s.lastAttemptMs && now - s.lastAttemptMs < RETRY_MS) continue;
       refresh(p.id);
     }
+    // Separate safeguard: Hevy must never disturb the coach run or a ride.
+    if (hevy && hevyConfig && free) void hevy.tick().then((changed) => { if (changed) coach.strengthChanged(hevyConfig.profileId); }).catch(() => {});
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();
