@@ -71,7 +71,7 @@ describe('countdown', () => {
 test('a section that holds the heart rate says so', () => {
   const session = { id: 'p', name: 'Puls', steps: [{ kind: 'erg' as const, durationS: 600, ftpFraction: 0.55, label: 'Puls halten', hrZone: 2, hrHold: true }] };
   render(<RideView state={{ ...ride, session }} send={vi.fn()} hrMaxBpm={200} />);
-  expect(screen.getByText(/Die Watt folgen deinem Puls: Zone 2, 120 bis 140 bpm/)).toBeTruthy();
+  expect(screen.getAllByRole('status').some((e) => /Die Watt folgen deinem Puls: Zone 2, 120 bis 140 bpm/.test(e.textContent ?? ''))).toBe(true);
 });
 
 describe('problem report', () => {

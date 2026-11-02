@@ -1,3 +1,5 @@
+import { zoneOf } from '../../shared/hr-zones';
+import { hrZoneColor, rideHrMax } from '../hr-zone-style';
 import type { DeviceKind } from '../../service/ble/device-port';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
 import { ProblemReport } from './ProblemReport';
@@ -20,11 +22,13 @@ export const StatusBar = ({ state, connected, send, reportPath = null }: { state
   const live = connected ? state : null;
   const hr = live?.latest.hrBpm;
   const beating = !!hr && hr > 0;
+  const hrMax = rideHrMax(live, Date.now());
+  const zoneColor = hrZoneColor(beating && hrMax ? zoneOf(hr, hrMax) : null);
   return (
     <div className="status-bar" role="status" aria-label="Gerätestatus">
       <span data-testid="status-hr">
-        <span data-testid="heart" className={beating ? 'heart beating' : 'heart'} style={beating ? { animationDuration: `${60 / hr}s` } : undefined}>♥</span>
-        {' '}<b>{hr === null || hr === undefined ? '–' : Math.round(hr)}</b> bpm
+        <span data-testid="heart" className={beating ? 'heart beating' : 'heart'} style={{ ...(beating ? { animationDuration: `${60 / hr}s` } : {}), color: zoneColor }}>♥</span>
+        {' '}<b style={{ color: zoneColor }}>{hr === null || hr === undefined ? '–' : Math.round(hr)}</b> bpm
       </span>
       {DEVICES.map(({ kind, label, id }) => (
         <span key={kind} className="status-device">

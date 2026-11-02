@@ -1,3 +1,4 @@
+import { ZoneChip } from '../hr-zone-style';
 import { useState } from 'react';
 import type { CoachClientMessage } from '../../shared/coach-protocol';
 import type { ClientMessage } from '../../shared/protocol';
@@ -91,7 +92,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
         <label>Maximalpuls (leer: aus dem Alter geschätzt)<input inputMode="numeric" value={hrMaxText} onChange={(e) => setHrMax(e.target.value)} /></label>
         {zones && (
           <p className="muted" data-testid="hr-zones">
-            Pulszonen{zones.estimated ? ', geschätzt, rund ±10 Schläge' : ''}: {ZONES.map((z) => { const b = zoneBounds(z, zones.bpm); return `${z}: ${b.fromBpm}–${b.toBpm}`; }).join(' · ')}
+            Pulszonen{zones.estimated ? ', geschätzt, rund ±10 Schläge' : ''}: {ZONES.map((z, i) => { const b = zoneBounds(z, zones.bpm); return <span key={z}>{i > 0 && ' · '}<ZoneChip zone={z}>{z}</ZoneChip>: {b.fromBpm}–{b.toBpm}</span>; })}
           </p>
         )}
         {ftpChanged && !invalid.length && <p className="notice" role="status">Mit der neuen FTP plant der Coach deine nächste Einheit neu.</p>}

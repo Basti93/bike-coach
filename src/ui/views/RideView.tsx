@@ -4,6 +4,7 @@ import { stepTargetZone, zoneBounds, zoneOf } from '../../shared/hr-zones';
 import { clampTargetW } from '../../shared/guardrails';
 import { stepFtpFraction, type Step } from '../../shared/session';
 import { beep, beepsAt, saveSoundEnabled, soundEnabled } from '../countdown';
+import { hrZoneColor, ZoneChip } from '../hr-zone-style';
 import { powerZone, WorkoutBar } from './WorkoutBar';
 
 const WARN_BEFORE_S = 15;
@@ -24,10 +25,10 @@ const FilmNext = ({ step, ftpW }: { step: Step; ftpW: number | undefined }) => {
   const fraction = stepFtpFraction(step);
   const hold = step.kind === 'erg' && step.hrHold;
   return (
-    <div className="film-next" data-testid="film-next" style={hold ? undefined : { borderLeftColor: `var(--z${powerZone(fraction)})` }}>
+    <div className="film-next" data-testid="film-next" style={{ borderLeftColor: hold ? hrZoneColor(step.hrZone) : `var(--z${powerZone(fraction)})` }}>
       <span className="label">Danach</span>
       {hold
-        ? <b>Puls{step.hrZone ? ` Zone ${step.hrZone}` : ''}</b>
+        ? <b>Puls{step.hrZone ? <> <ZoneChip zone={step.hrZone}>Zone {step.hrZone}</ZoneChip></> : ''}</b>
         : <b>{ftpW ? `${Math.round(clampTargetW(fraction * ftpW, ftpW))} W · ` : ''}Z{powerZone(fraction)}</b>}
       <span className="film-next-label">{step.label}</span>
     </div>
@@ -76,7 +77,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
           <div><span className="label">Leistung</span><b data-testid="power" className={powerClass(latest.powerW, engine.targetW)}>{value(latest.powerW)}</b></div>
         </div>
         <div className="film-side">
-          <span><span data-testid="film-heart" className={hr ? 'heart beating' : 'heart'} style={hr ? { animationDuration: `${60 / hr}s` } : undefined}>♥</span> <b data-testid="hr">{value(latest.hrBpm)}</b></span>
+          <span><span data-testid="film-heart" className={hr ? 'heart beating' : 'heart'} style={{ ...(hr ? { animationDuration: `${60 / hr}s` } : {}), color: hrZoneColor(zone) }}>♥</span> <b data-testid="hr" style={{ color: hrZoneColor(zone) }}>{value(latest.hrBpm)}</b></span>
           <span>↻ <b>{value(latest.cadenceRpm)}</b></span>
           <span>⏱ <b data-testid="remaining">{mmss(engine.stepRemainingS)}</b></span>
         </div>
@@ -102,7 +103,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
       {devices.trainer !== 'connected' && <div className="banner warn" role="status">Trainer wird gesucht. Die Fahrt läuft weiter und ist gespeichert.</div>}
       {hrMaxBpm !== undefined && devices.hr !== 'connected' && <div className="banner info" role="status">Kein Puls, die Fahrt läuft nach Watt weiter.</div>}
       {engine.autoReducedPct > 0 && <div className="banner info" role="status">Vorgabe automatisch um {engine.autoReducedPct} % gesenkt.</div>}
-      {holdZone && step?.hrZone && <div className="banner info" role="status">Die Watt folgen deinem Puls: Zone {step.hrZone}, {holdZone.fromBpm} bis {holdZone.toBpm} bpm.</div>}
+      {holdZone && step?.hrZone && <div className="banner info" role="status">Die Watt folgen deinem Puls: <ZoneChip zone={step.hrZone}>Zone {step.hrZone}</ZoneChip>, {holdZone.fromBpm} bis {holdZone.toBpm} bpm.</div>}
       {extra}
       {mountain}
       <section className="hero">
@@ -117,7 +118,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
       </section>
       <section className="stats">
         <div className="tile"><span className="label">Restzeit Abschnitt</span><b data-testid="remaining">{mmss(engine.stepRemainingS)}</b></div>
-        <div className="tile"><span className="label">Puls</span><b data-testid="hr">{value(latest.hrBpm)}</b>{zone !== null && zoneTarget !== null && <span data-testid="hr-zone" className={zone > zoneTarget ? 'hr-zone high' : 'hr-zone'}>{zone === 0 ? 'Unter Zone 1' : `Zone ${zone}`} · Ziel {zoneTarget}</span>}</div>
+        <div className="tile"><span className="label">Puls</span><b data-testid="hr" style={{ color: hrZoneColor(zone) }}>{value(latest.hrBpm)}</b>{zone !== null && zoneTarget !== null && <span data-testid="hr-zone" className={zone > zoneTarget ? 'hr-zone high' : 'hr-zone'}>{zone === 0 ? 'Unter Zone 1' : <ZoneChip zone={zone}>Zone {zone}</ZoneChip>} · <ZoneChip zone={zoneTarget}>Ziel {zoneTarget}</ZoneChip></span>}</div>
         <div className="tile"><span className="label">Trittfrequenz</span><b>{value(latest.cadenceRpm)}</b></div>
         <div className="tile"><span className="label">Noch insgesamt</span><b>{totalLeft === null ? '–' : mmss(totalLeft)}</b></div>
       </section>

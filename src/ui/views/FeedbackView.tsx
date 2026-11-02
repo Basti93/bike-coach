@@ -1,3 +1,4 @@
+import { ZoneChip } from '../hr-zone-style';
 import { useEffect } from 'react';
 import type { RideSummary } from '../../coach/metrics';
 import { progressText, rideProgress } from '../../coach/progress';
@@ -37,7 +38,7 @@ export const FeedbackView = ({ profileId, rideId, send, together, summary, summa
         </>
       )}
       {detail?.rideId === rideId && <section className="card"><RideCharts detail={detail} /></section>}
-      {summary?.hrZoneMinutes && <p className="muted" data-testid="ride-zones">Minuten je Pulszone: {summary.hrZoneMinutes.map((m, i) => `${i + 1}: ${m}`).join(' · ')}{summary.hrTargetPct === undefined ? '' : `. ${summary.hrTargetPct} % der Zeit im Ziel oder darunter.`}</p>}
+      {summary?.hrZoneMinutes && <p className="muted" data-testid="ride-zones">Minuten je Pulszone: {summary.hrZoneMinutes.map((m, i) => <span key={i}>{i > 0 && ' · '}<ZoneChip zone={i + 1}>{i + 1}</ZoneChip>: {m}</span>)}{summary.hrTargetPct === undefined ? '' : `. ${summary.hrTargetPct} % der Zeit im Ziel oder darunter.`}</p>}
       <h2>Wie war’s heute?</h2>
       <div className="choices">
         <button className="choice" onClick={() => rate('easy')}><span aria-hidden="true">🌱 </span>Zu leicht</button>

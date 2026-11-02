@@ -2,6 +2,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { RecoveryDialog } from '../../src/ui/views/RecoveryDialog';
 import { RideView } from '../../src/ui/views/RideView';
+import { FilmView } from '../../src/ui/views/FilmView';
+import { hrZoneColor } from '../../src/ui/hr-zone-style';
 import type { StateMessage } from '../../src/shared/protocol';
 
 afterEach(cleanup);
@@ -119,4 +121,15 @@ test('film mode beats the heart at the measured rate and shows the profile', () 
 test('film mode keeps the heart still without a heart rate', () => {
   film({ latest: { powerW: 148, cadenceRpm: 85 } });
   expect(screen.getByTestId('film-heart').className).not.toContain('beating');
+});
+test('heart rate zones keep their fixed color', () => {
+  render(<RideView state={{ ...base, session: filmSession }} send={vi.fn()} hrMaxBpm={200} />);
+  const chip = screen.getByTestId('hr-zone').querySelector('[data-zone]');
+  expect(chip?.getAttribute('data-zone')).toBe('2');
+  expect(hrZoneColor(2)).toBe('var(--hrz2)');
+  expect(hrZoneColor(0)).toBeUndefined();
+});
+test('film mode colors the heart by zone', () => {
+  render(<FilmView state={{ ...base, profiles: [{ ...filmProfile, hrMaxBpm: 200 }] }} send={vi.fn()} />);
+  expect(screen.getByTestId('film-heart').getAttribute('style')).toContain('--hrz2');
 });

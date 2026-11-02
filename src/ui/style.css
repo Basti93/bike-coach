@@ -2,6 +2,7 @@
   font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); background: var(--bg);
   --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16;
   --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; --low: #f2bd55; --high: #ec7355;
+  --hrz1: #9aa3ad; --hrz2: #4a9fe0; --hrz3: #5fbf6a; --hrz4: #e8963c; --hrz5: #e5534b;
   --z1: #6f8272; --z2: #7fa864; --z3: #d9b44a; --z4: #e08a3c; --z5: #c9532f;
 }
 * { box-sizing: border-box; }
@@ -233,6 +234,7 @@ main > .notice, main > .garmin { margin: 0 0 1rem; }
 .motivation label { display: block; margin: .6rem 0 .4rem; }
 .motivation input { width: 100%; }
 .motivation { margin-bottom: 1rem; }
+.hrz-chip { display: inline-block; padding: 0 .35em; border-radius: .3em; color: #111; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hr-zone { display: block; font-size: .85rem; color: var(--muted, #9aa0aa); }
 .hr-zone.high { color: #e07a5f; font-weight: 700; }
 
