@@ -79,3 +79,8 @@ Upload rides to Garmin Connect from the FIT files in `rides/exports/`, with the 
 ## Main window hidden after the ride (seen live, 2026-11-02)
 
 The film window floats over a fullscreen video on every Space, but the main window stays on its own Space. When a ride ends the film window only says "Keine laufende Fahrt" and the rating is out of sight. Wanted: when the ride ends, the film window offers a button that brings the main window forward, without pulling the rider out of the video by itself. Needs `src/main/**`, so it goes with the next restart.
+
+## Transparency about the AI (requested 2026-11-02)
+
+- Token usage: show what the coach's AI calls use, per coach and over time, and which call used how much.
+- AI login: show in the app which account `claude` is logged in with, and whether the login works.
