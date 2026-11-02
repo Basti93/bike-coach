@@ -55,6 +55,8 @@ export const strengthHealth = (workouts: StrengthWorkout[], nowMs: number) => {
   const recent = [...workouts].sort((a, b) => b.startMs - a.startMs).slice(0, HEALTH_RECENT).map((w) => ({
     id: w.id, title: w.title, startMs: w.startMs, minutes: Math.round(w.durationS / 60), ...workTotals(w),
   }));
-  return { recent, weeks };
+  // Only start and duration of the twelve weeks, for the combined week view.
+  const sessions = workouts.filter((w) => w.startMs >= starts[0] && w.startMs < nowMs + DAY_MS).map((w) => ({ id: w.id, title: w.title, startMs: w.startMs, durationS: w.durationS }));
+  return { recent, weeks, sessions };
 };
 export type StrengthHealth = ReturnType<typeof strengthHealth>;

@@ -53,3 +53,7 @@ test('the pulse before rides is compared only with at least 10 rated rides', () 
   expect(make(days, [], 90, rated(9)).pulseBeforeRides).toBeNull();
   expect(make(days, [], 90, rated(12)).pulseBeforeRides).toEqual({ hard: 70, other: 60, rides: 12 });
 });
+test('the last thirteen weeks of activities come along for the combined week view', () => {
+  const h = make([], [activity(1, { id: 'near', sport: 'hiking', name: 'Runde' }), activity(120, { id: 'far' })], 7);
+  expect(h.activities).toEqual([{ id: 'near', startMs: NOW - DAY, durationS: 3600, sport: 'hiking', name: 'Runde', fromBikeCoach: false }]);
+});

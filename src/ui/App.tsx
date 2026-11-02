@@ -102,7 +102,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
     setHealth(range);
     if (profile && (garminSections)) coach.send({ type: 'garmin-health', profileId: profile.id, rangeDays: range });
   };
-  if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
+  if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
   if (reviewing && profile && coach.garminSuggestion) return <>{notice}<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => setReviewing(false)} /></>;
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
   if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;

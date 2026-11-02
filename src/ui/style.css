@@ -344,3 +344,23 @@ main.with-pass .workout { height: 2rem; }
 .week-bars li { position: relative; padding-bottom: 1.3rem; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: .25rem; }
 .week-bars .trend-bar { display: block; width: 100%; min-height: 2px; background: var(--accent); border-radius: .3rem .3rem 0 0; }
 .week-bars small { position: absolute; bottom: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.all-training > p { margin: .2rem 0 .8rem; }
+.all-training .seg-rad { background: var(--accent); }
+.all-training .seg-kraft { background: var(--good); }
+.all-training .seg-andere { background: var(--hrz2); }
+.all-legend { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; }
+.all-legend li { display: inline-flex; align-items: center; gap: .45rem; font-variant-numeric: tabular-nums; }
+.all-legend .swatch { width: .9rem; height: .9rem; border-radius: .25rem; display: inline-block; }
+.all-bars { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .4rem; height: 11rem; }
+.all-bars li { display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; height: 100%; gap: .2rem; min-width: 0; border-bottom: 1px solid var(--line); }
+.all-bars .all-plot { flex: 1; min-height: 0; display: flex; align-items: flex-end; }
+.all-bars .all-stack { display: flex; flex-direction: column-reverse; gap: 2px; width: 100%; min-height: 2px; overflow: hidden; border-radius: .3rem .3rem 0 0; }
+.all-bars .all-stack span { display: block; min-height: 3px; }
+.all-bars small { text-align: center; font-size: .75rem; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.all-bars li > small:first-of-type { color: var(--text); }
+.all-recent { list-style: none; margin: 1.1rem 0 0; padding: 0; display: grid; gap: .1rem; }
+.all-recent li { display: grid; grid-template-columns: 4.5rem 5.5rem 1fr auto; gap: .6rem; align-items: center; padding: .4rem 0; border-top: 1px solid var(--line); }
+.all-recent .source { justify-self: start; padding: .1rem .6rem; border-radius: 1rem; font-size: .85rem; font-weight: 600; color: var(--ink); }
+.all-recent .source-rad { background: var(--accent); }
+.all-recent .source-kraft { background: var(--good); }
+.all-recent .source-andere { background: var(--hrz2); }

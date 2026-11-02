@@ -11,4 +11,6 @@ export type GarminProgress = { activities: number; activitiesComplete: boolean; 
 export type GarminReadiness = { level: 'normal' | 'careful' | 'unknown'; reasons: string[] };
 export type HealthPoint = { date: string; restingHrBpm: number | null; vo2max: number | null; sleepS: number | null; hrvMs: number | null; stressAvg: number | null; bodyBatteryMax: number | null; load: number | null };
 export type HealthYear = { jahr: string; sport: string; anzahl: number; stunden: number };
-export type GarminHealth = { points: HealthPoint[]; years: HealthYear[]; progress: GarminProgress; pulseBeforeRides: { hard: number; other: number; rides: number } | null };
+export type GarminHealth = { points: HealthPoint[]; years: HealthYear[]; progress: GarminProgress; pulseBeforeRides: { hard: number; other: number; rides: number } | null;
+  /** Start, duration and sport of the last 13 weeks, for the combined week view. */
+  activities?: Pick<GarminActivity, 'id' | 'startMs' | 'durationS' | 'sport' | 'name' | 'fromBikeCoach'>[] };
