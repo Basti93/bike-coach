@@ -22,6 +22,9 @@ export type CoachClientMessage =
   | { type: 'complaint-update'; profileId: string; id: string; status: 'active' | 'healing' | 'over' }
   | { type: 'answer-question'; profileId: string; questionId: string; text: string }
   | { type: 'skip-question'; profileId: string }
+  | { type: 'debrief-seen'; profileId: string }
+  | { type: 'debrief-answer'; profileId: string; rideId: string; question: string; text: string }
+  | { type: 'debrief-skip-question'; profileId: string; rideId: string; question: string }
   | { type: 'remove-motive'; profileId: string; atMs: number }
   | { type: 'ride-detail'; profileId: string; rideId: string }
   | { type: 'remove-rule'; profileId: string; atMs: number }
@@ -31,5 +34,5 @@ export type CoachClientMessage =
   | { type: 'pass-progress'; profileId: string; passId: string; distanceM: number }
   | { type: 'pass-summit'; profileId: string; passId: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
-export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; together: Together; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
+export type CoachServerMessage = { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null };
 export const COACH_PORT = 7411;

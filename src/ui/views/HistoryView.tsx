@@ -1,3 +1,4 @@
+import { DebriefCard } from './DebriefCard';
 import { useState } from 'react';
 import { bestPowers, loadSeries } from '../../coach/metrics';
 import { progressText, rideProgress } from '../../coach/progress';
@@ -95,6 +96,7 @@ export const HistoryView = ({ state, detail, send, onBack }: Props) => {
                     {r.suspectData ? 'Viele Messfehler, zählt nicht für Bestwerte. ' : ''}
                     Die FIT-Datei für Garmin liegt unter rides/exports.
                   </p>
+                  {state.debriefs?.[r.rideId] && <DebriefCard debrief={state.debriefs[r.rideId]} thinking={false} />}
                   {detail?.rideId === r.rideId ? (
                     <RideCharts detail={detail} />
                   ) : <p className="muted">Lädt…</p>}

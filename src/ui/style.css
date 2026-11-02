@@ -317,3 +317,11 @@ main.with-pass .workout { height: 2rem; }
 .climbing { flex-wrap: wrap; }
 .climbing-bar { flex-basis: 100%; height: .4rem; margin-top: .35rem; background: var(--line); border-radius: .2rem; overflow: hidden; }
 .climbing-bar i { display: block; height: 100%; background: var(--accent); }
+
+/* The coach's words after a ride */
+.debrief { display: flex; flex-direction: column; gap: .4rem; }
+.debrief h3 { margin: .5rem 0 0; }
+.debrief ul { margin: 0; padding-left: 1.2rem; }
+.debrief .motivation-words { font-size: 1.25rem; }
+.debrief-question { margin-top: .5rem; }
+.debrief-actions { display: flex; gap: .5rem; }
