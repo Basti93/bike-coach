@@ -1,0 +1,118 @@
+import type { StrengthWorkout } from '../hevy';
+import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
+import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MAX_WIDOWMAKERS, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
+import { availableExercises, suggestNext } from './history';
+
+export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number };
+export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
+
+export const WIDOWMAKER_PREFIX = 'Widowmaker:';
+export const WIDOWMAKER_REPS = 20;
+const MAX_REST_S = 600;
+const MAX_NOTES = 500;
+const MAX_NAME = 80;
+const MAX_BODYWEIGHT_REPS = 100;
+const SET_TYPES = ['warmup', 'normal', 'failure', 'dropset'] as const;
+const BODYWEIGHT_TYPES = ['bodyweight_reps', 'reps_only'];
+
+class Refuse extends Error {}
+const no = (reason: string): never => { throw new Refuse(reason); };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
+const isWidowmaker = (notes: string): boolean => notes.startsWith(WIDOWMAKER_PREFIX);
+const toHalf = (kg: number): number => Math.round(kg * 2) / 2;
+
+/** Highest weight accepted for an exercise: the suggestion plus one step, or the suggestion alone. */
+export function weightCap(suggested: number, withStep: boolean): number {
+  return withStep ? suggested + Math.max(suggested * MAX_STEP_PCT / 100, MIN_STEP_KG) : suggested;
+}
+
+function parseSet(raw: unknown, where: string): GymSet {
+  if (!isRecord(raw)) return no(`${where}: Satz ungültig`);
+  const type = SET_TYPES.find((t) => t === raw.type);
+  if (!type) return no(`${where}: Satztyp ungültig`);
+  const w = raw.weightKg;
+  if (w !== null && !(typeof w === 'number' && Number.isFinite(w) && w > 0 && w <= 1000 && toHalf(w) === w)) return no(`${where}: Gewicht ungültig`);
+  const reps = raw.reps;
+  if (reps !== null && !(isInt(reps) && reps > 0)) return no(`${where}: Wiederholungen ungültig`);
+  const out: GymSet = { type, weightKg: w, reps };
+  if (raw.repRange !== undefined && raw.repRange !== null) {
+    const rr = raw.repRange;
+    if (!isRecord(rr) || !isInt(rr.start) || !isInt(rr.end) || rr.start < 1 || rr.start > rr.end) return no(`${where}: Wiederholungsbereich ungültig`);
+    out.repRange = { start: rr.start, end: rr.end };
+  }
+  if (reps === null && !out.repRange) return no(`${where}: Wiederholungen fehlen`);
+  return out;
+}
+
+function parseExercise(raw: unknown, i: number, byId: Map<string, ExerciseTemplate>): { ex: GymExercise; template: ExerciseTemplate } {
+  const where = `Übung ${i + 1}`;
+  if (!isRecord(raw)) return no(`${where}: ungültig`);
+  const template = typeof raw.templateId === 'string' ? byId.get(raw.templateId) : undefined;
+  if (!template) return no(`${where}: unbekannte Übungsvorlage`);
+  const restS = raw.restS;
+  if (restS !== null && !(isInt(restS) && restS >= 0 && restS <= MAX_REST_S)) return no(`${where}: Pause ungültig`);
+  const supersetId = raw.supersetId;
+  if (supersetId !== null && !(isInt(supersetId) && supersetId >= 0)) return no(`${where}: Superset-Id ungültig`);
+  const notes = raw.notes;
+  if (typeof notes !== 'string' || notes.length > MAX_NOTES) return no(`${where}: Notiz ungültig`);
+  if (!Array.isArray(raw.sets) || raw.sets.length === 0) return no(`${where}: keine Sätze`);
+  const sets = raw.sets.map((s) => parseSet(s, where));
+  return { ex: { templateId: template.id, title: template.title, restS, supersetId, notes, sets }, template };
+}
+
+function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, recentEquipment: Set<string>, known: Set<string>): void {
+  const where = ex.title;
+  const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs);
+  if (!known.has(ex.templateId) && !recentEquipment.has(t.equipment)) no(`${where}: Gerät in den letzten Monaten nicht benutzt`);
+  const widow = isWidowmaker(ex.notes);
+  const barbell = t.equipment === 'barbell';
+  if (widow && barbell) no(`${where}: Widowmaker nicht an der Langhantel`);
+  if (widow && sug.why === 'none') no(`${where}: Widowmaker nur mit Verlauf`);
+  const bodyweight = BODYWEIGHT_TYPES.includes(t.type) || (sug.why !== 'none' && sug.weightKg === null);
+  const widowSets = ex.sets.filter((s) => s.reps === WIDOWMAKER_REPS);
+  if (widow && (widowSets.length !== 1 || widowSets[0].type !== 'normal')) no(`${where}: Widowmaker braucht genau einen Satz mit ${WIDOWMAKER_REPS}`);
+  for (const s of ex.sets) {
+    if (s.type === 'failure' && barbell) no(`${where}: Muskelversagen nicht an der Langhantel`);
+    if (s.weightKg !== null) {
+      if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
+      const isWidowSet = widow && s.reps === WIDOWMAKER_REPS;
+      if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet)) no(`${where}: Gewicht zu hoch`);
+    }
+    if (s.type === 'warmup') continue;
+    const lows = s.repRange ? [s.repRange.start, s.repRange.end] : [s.reps as number];
+    for (const r of lows) {
+      if (widow && s.reps === WIDOWMAKER_REPS && !s.repRange) continue;
+      if (bodyweight) { if (r < 1 || r > MAX_BODYWEIGHT_REPS) no(`${where}: Wiederholungen außerhalb des Rahmens`); }
+      else if (r < REP_MIN || r > REP_MAX) no(`${where}: Wiederholungen außerhalb von ${REP_MIN} bis ${REP_MAX}`);
+    }
+  }
+}
+
+/** Hard limits for an AI workout. Anything outside them is refused whole; nothing is repaired here. */
+export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
+  try {
+    if (!isRecord(raw)) return no('Training ungültig');
+    if (typeof raw.name !== 'string' || raw.name.trim() === '' || raw.name.length > MAX_NAME) return no('Name ungültig');
+    if (!Array.isArray(raw.exercises) || raw.exercises.length === 0) return no('keine Übungen');
+    if (raw.exercises.length > MAX_EXERCISES) return no(`mehr als ${MAX_EXERCISES} Übungen`);
+    const byId = new Map(ctx.templates.map((t) => [t.id, t]));
+    const parsed = raw.exercises.map((e, i) => parseExercise(e, i, byId));
+    const exercises = parsed.map((p) => p.ex);
+    const all = exercises.flatMap((e) => e.sets);
+    if (all.length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
+    if (all.filter((s) => s.type === 'failure').length > MAX_FAILURE_SETS) return no(`mehr als ${MAX_FAILURE_SETS} Sätze bis zum Versagen`);
+    if (exercises.filter((e) => isWidowmaker(e.notes)).length > MAX_WIDOWMAKERS) return no(`mehr als ${MAX_WIDOWMAKERS} Widowmaker`);
+    const ids = exercises.map((e) => e.supersetId).filter((v): v is number => v !== null);
+    for (const id of new Set(ids)) if (ids.filter((v) => v === id).length < 2) return no('Superset mit nur einer Übung');
+    const avail = availableExercises(ctx.workouts, ctx.nowMs);
+    const known = new Set(avail.map((a) => a.templateId));
+    const recentEquipment = new Set(avail.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
+    parsed.forEach((p) => checkExercise(p.ex, p.template, ctx, recentEquipment, known));
+    return { ok: true, workout: { name: raw.name.trim(), exercises } };
+  } catch (e) {
+    if (e instanceof Refuse) return { ok: false, reason: e.message };
+    throw e;
+  }
+}

@@ -1,0 +1,50 @@
+import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
+import { RECENT_DAYS } from './limits';
+import { LEG_MUSCLES, availableExercises, recentLegWork, suggestNext } from './history';
+import type { GymContext } from './guardrails';
+
+const DAY_MS = 86_400_000;
+const CORE_SIZE = 6;
+const SETS = 3;
+const START_REPS = 10;
+const REST_S = 90;
+const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'shoulders', 'hamstrings', 'triceps', 'biceps'];
+
+function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
+  const s = suggestNext(t.id, ctx.workouts, ctx.nowMs);
+  const reps = s.why === 'none' ? START_REPS : s.reps;
+  return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
+}
+
+/** The workout used when the AI answer fails the check twice, or when there is no AI. Plain and safe. */
+export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: string } {
+  const byId = new Map(ctx.templates.map((t) => [t.id, t]));
+  const legsTired = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
+  const allowed = (t: ExerciseTemplate): boolean => !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
+  const since = ctx.nowMs - RECENT_DAYS * DAY_MS;
+  const count = new Map<string, number>();
+  for (const w of ctx.workouts) {
+    if (w.startMs > ctx.nowMs || w.startMs < since) continue;
+    for (const id of new Set(w.exercises.map((e) => e.templateId))) if (id) count.set(id, (count.get(id) ?? 0) + 1);
+  }
+  const lastMs = new Map(availableExercises(ctx.workouts, ctx.nowMs).map((a) => [a.templateId, a.lastMs]));
+  const core = [...count.keys()]
+    .map((id) => byId.get(id))
+    .filter((t): t is ExerciseTemplate => !!t && allowed(t))
+    .sort((a, b) => (count.get(b.id)! - count.get(a.id)!) || ((lastMs.get(b.id) ?? 0) - (lastMs.get(a.id) ?? 0)) || a.id.localeCompare(b.id))
+    .slice(0, CORE_SIZE);
+  if (core.length > 0) {
+    return {
+      workout: { name: 'Ganzkörper', exercises: core.map((t) => exerciseOf(t, ctx)) },
+      reason: legsTired
+        ? 'Deine häufigsten Übungen der letzten Monate, ohne schwere Beinarbeit, weil die Beine noch Pause brauchen.'
+        : 'Deine häufigsten Übungen der letzten Monate in ruhigem Aufbau, damit sich Fortschritt gut messen lässt.',
+    };
+  }
+  const machines = ctx.templates.filter((t) => t.equipment === 'machine' && allowed(t));
+  const picked = FALLBACK_MUSCLES.map((m) => machines.find((t) => t.primaryMuscle === m)).filter((t): t is ExerciseTemplate => !!t).slice(0, CORE_SIZE);
+  return {
+    workout: { name: 'Ganzkörper an Geräten', exercises: picked.map((t) => exerciseOf(t, ctx)) },
+    reason: 'Noch keine passenden Hevy-Einheiten: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',
+  };
+}

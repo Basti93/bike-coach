@@ -3,7 +3,7 @@ import type { ExerciseTemplate } from './types';
 import { COMPARABLE_DAYS, LONG_BREAK_DAYS, MAX_STEP_PCT, MIN_COMPARABLE, MIN_STEP_KG, RECENT_DAYS, REP_MAX, REP_MIN, STEP_BACK } from './limits';
 
 const DAY_MS = 86_400_000;
-const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
+export const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
 const LEG_WINDOW_MS = 48 * 3_600_000;
 
 export type Availability = { templateId: string; title: string; lastMs: number; recent: boolean };
