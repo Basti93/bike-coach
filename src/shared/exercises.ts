@@ -57,7 +57,7 @@ export const EXERCISES: Exercise[] = [
   x('pf-lateral-raise', 'Seitheben', 'weight_reps', 'shoulders', 'dumbbell', 'Lateral Raise (Dumbbell)'),
   x('pf-lateral-raise-cable', 'Seitheben am Kabel', 'weight_reps', 'shoulders', 'machine', 'Lateral Raise (Cable)'),
   x('pf-front-raise', 'Frontheben', 'weight_reps', 'shoulders', 'dumbbell', 'Front Raise (Dumbbell)'),
-  x('pf-rear-delt-fly', 'Reverse Flys an der Maschine', 'weight_reps', 'shoulders', 'dumbbell', 'Rear Delt Reverse Fly (Dumbbell)'),
+  x('pf-rear-delt-fly', 'Reverse Flys mit Kurzhanteln', 'weight_reps', 'shoulders', 'dumbbell', 'Rear Delt Reverse Fly (Dumbbell)'),
   x('pf-face-pull', 'Face Pull', 'weight_reps', 'shoulders', 'machine', 'Face Pull'),
   x('pf-upright-row', 'Aufrechtes Rudern', 'weight_reps', 'shoulders', 'barbell', 'Upright Row (Barbell)'),
   x('pf-shrug', 'Schulterheben', 'weight_reps', 'traps', 'dumbbell', 'Shrug (Dumbbell)'),
