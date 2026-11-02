@@ -86,3 +86,26 @@ test('warns before a sudden climb', () => {
   render(<RideView state={{ ...base, session: rideSession, engine: { ...base.engine!, secondsToNext: 10 } }} send={vi.fn()} />);
   expect(screen.getByRole('alert').textContent).toContain('plötzlich');
 });
+
+const filmSession: StateMessage['session'] = { id: 's', name: 'S', steps: [
+  { kind: 'erg', ftpFraction: 0.5, durationS: 300, label: 'Warmup' },
+  { kind: 'erg', ftpFraction: 0.9, durationS: 240, label: 'Block' },
+] };
+const filmProfile = { id: 'A', name: 'A', ftpW: 200 } as StateMessage['profiles'][number];
+const film = (s: Partial<StateMessage>) => render(<RideView state={{ ...base, ...s }} send={vi.fn()} compact />);
+
+test('film mode shows the watts and power zone of the next section', () => {
+  film({ session: filmSession, profiles: [filmProfile] });
+  const next = screen.getByTestId('film-next').textContent;
+  expect(next).toContain('180 W');
+  expect(next).toContain('Z3');
+  expect(next).toContain('Block');
+});
+test('film mode names the heart rate zone when the next section follows the pulse', () => {
+  film({ session: { ...filmSession!, steps: [filmSession!.steps[0], { kind: 'erg', ftpFraction: 0.6, hrHold: true, hrZone: 2, durationS: 240, label: 'Halten' }] }, profiles: [filmProfile] });
+  expect(screen.getByTestId('film-next').textContent).toContain('Puls Zone 2');
+});
+test('film mode shows nothing next in the last section', () => {
+  film({ session: filmSession, profiles: [filmProfile], engine: { ...base.engine!, stepIndex: 1 } });
+  expect(screen.queryByTestId('film-next')).toBeNull();
+});

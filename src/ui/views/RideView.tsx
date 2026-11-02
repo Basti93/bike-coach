@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { ClientMessage, StateMessage } from '../../shared/protocol';
 import { stepTargetZone, zoneBounds, zoneOf } from '../../shared/hr-zones';
+import { clampTargetW } from '../../shared/guardrails';
+import { stepFtpFraction, type Step } from '../../shared/session';
 import { beep, beepsAt, saveSoundEnabled, soundEnabled } from '../countdown';
-import { WorkoutBar } from './WorkoutBar';
+import { powerZone, WorkoutBar } from './WorkoutBar';
 
 const WARN_BEFORE_S = 15;
 const ON_TARGET = 0.05;
@@ -15,6 +17,21 @@ const powerClass = (power: number | null | undefined, target: number | null): st
   if (off < -ON_TARGET) return 'low';
   if (off > ON_TARGET) return 'high';
   return 'good';
+};
+
+/** What the next section asks for. Pulse-hold sections have no fixed watts, so they name the heart rate zone. */
+const FilmNext = ({ step, ftpW }: { step: Step; ftpW: number | undefined }) => {
+  const fraction = stepFtpFraction(step);
+  const hold = step.kind === 'erg' && step.hrHold;
+  return (
+    <div className="film-next" data-testid="film-next" style={hold ? undefined : { borderLeftColor: `var(--z${powerZone(fraction)})` }}>
+      <span className="label">Danach</span>
+      {hold
+        ? <b>Puls{step.hrZone ? ` Zone ${step.hrZone}` : ''}</b>
+        : <b>{ftpW ? `${Math.round(clampTargetW(fraction * ftpW, ftpW))} W · ` : ''}Z{powerZone(fraction)}</b>}
+      <span className="film-next-label">{step.label}</span>
+    </div>
+  );
 };
 
 export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm, mountain }: { state: StateMessage; send: (m: ClientMessage) => void; compact?: boolean; extra?: ReactNode; tools?: ReactNode; hrMaxBpm?: number; mountain?: ReactNode }) => {
@@ -63,6 +80,7 @@ export const RideView = ({ state, send, compact = false, extra, tools, hrMaxBpm,
           <span>↻ <b>{value(latest.cadenceRpm)}</b></span>
           <span>⏱ <b data-testid="remaining">{mmss(engine.stepRemainingS)}</b></span>
         </div>
+        {nextStep && <FilmNext step={nextStep} ftpW={state.profiles.find((p) => p.id === state.ride?.profileId)?.ftpW} />}
       </main>
     );
   }

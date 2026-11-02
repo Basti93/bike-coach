@@ -1,13 +1,14 @@
 import { stepFtpFraction, type Session } from '../../shared/session';
 import { hasRoute, RouteProfile } from './RouteProfile';
 
-const zone = (i: number): string => {
-  if (i < 0.56) return 'var(--z1)';
-  if (i < 0.76) return 'var(--z2)';
-  if (i < 0.91) return 'var(--z3)';
-  if (i < 1.06) return 'var(--z4)';
-  return 'var(--z5)';
+export const powerZone = (i: number): number => {
+  if (i < 0.56) return 1;
+  if (i < 0.76) return 2;
+  if (i < 0.91) return 3;
+  if (i < 1.06) return 4;
+  return 5;
 };
+const zone = (i: number): string => `var(--z${powerZone(i)})`;
 
 /** Width is duration, height and color are the load. On climbs the elevation profile sits subtly behind. */
 export const WorkoutBar = ({ session, elapsedS, currentW }: { session: Session; elapsedS?: number; currentW?: number | null }) => {
