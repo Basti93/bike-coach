@@ -327,3 +327,7 @@ main.with-pass .workout { height: 2rem; }
 .debrief-actions { display: flex; gap: .5rem; }
 .garmin-upload { display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; }
 .garmin-upload-choice { border: 0; padding: 0; margin: .5rem 0; display: flex; flex-direction: column; gap: .3rem; }
+.garmin-preview dl { margin: 0 0 .6rem; }
+.garmin-preview dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .15rem 0; }
+.garmin-preview dt { color: var(--muted); }
+.garmin-preview dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; text-align: right; }

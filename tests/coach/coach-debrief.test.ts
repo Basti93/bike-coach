@@ -229,7 +229,14 @@ test('rating while the coach still writes brings the AI version up once', async 
 test('disconnecting from Garmin switches uploading off', () => {
   ride();
   const { coach } = setup(async () => good);
-  coach.setUploadSettings('pa', 'auto', 20);
+  coach.setUploadMode('pa', 'ask');
   coach.garminDisconnected('pa');
-  expect(coach.state('pa').garminUpload).toMatchObject({ mode: 'off', enabledAtMs: null, minMinutes: 20 });
+  expect(coach.state('pa').garminUpload).toMatchObject({ mode: 'off' });
+});
+test('without Garmin the debrief works and its prompt has no empty section', async () => {
+  const id = ride();
+  const { coach, ask } = setup(async () => good);
+  await coach.ensureDebrief('pa');
+  expect(coach.state('pa').debriefs?.[id]?.source).toBe('claude');
+  expect(String(ask.mock.calls[0][0].prompt)).not.toContain('"garmin"');
 });

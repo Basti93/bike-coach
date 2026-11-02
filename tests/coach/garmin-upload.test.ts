@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { canUpload, dueAutoUploads, RATE_LIMIT_WAIT_MS, RETRY_UPLOAD_MS, uploadSettings, withUploadSettings } from '../../src/coach/garmin-upload';
+import { canUpload, uploadSettings, withUploadMode } from '../../src/coach/garmin-upload';
 import { GarminUploader, type UploadResult } from '../../src/coach/garmin-uploader';
 import { externalLoad } from '../../src/coach/readiness';
 import type { RideSummary } from '../../src/coach/metrics';
@@ -10,49 +10,17 @@ import { loadState, saveState, type CoachState } from '../../src/coach/state';
 
 const summary = (rideId: string, startedAtMs: number, durationS = 1800) => ({ rideId, startedAtMs, durationS }) as RideSummary;
 const state = (over: Partial<CoachState> = {}) => ({ summaries: [summary('old', 100), summary('new', 2000)], ...over }) as CoachState;
-const auto = (rides = {}, minMinutes = 10) => ({ mode: 'auto' as const, minMinutes, enabledAtMs: 1000, rides });
+const auto = (rides = {}) => ({ mode: 'ask' as const, rides });
 
 test('uploading is off until it is switched on', () => {
-  expect(uploadSettings(state())).toMatchObject({ mode: 'off', enabledAtMs: null, rides: {} });
-  expect(dueAutoUploads(state(), 5000)).toEqual([]);
-  expect(dueAutoUploads(state({ garminUpload: { ...auto(), mode: 'off' } }), 5000)).toEqual([]);
+  expect(uploadSettings(state())).toMatchObject({ mode: 'off', rides: {} });
 });
-test('asking mode has nothing due', () => {
-  expect(dueAutoUploads(state({ garminUpload: { ...auto(), mode: 'ask' } }), 5000)).toEqual([]);
+test('an older automatic setting counts as asking, nothing goes up by itself', () => {
+  expect(uploadSettings(state({ garminUpload: { mode: 'auto', rides: {} } as never })).mode).toBe('ask');
 });
-test('automatic only takes rides started after switching it on', () => {
-  expect(dueAutoUploads(state({ garminUpload: auto() }), 5000)).toEqual(['new']);
-});
-test('automatic skips rides under the minimum', () => {
-  expect(dueAutoUploads(state({ garminUpload: auto({}, 60) }), 5000)).toEqual([]);
-});
-test('uploaded and running rides are not due', () => {
-  for (const status of ['uploaded', 'uploading'] as const) expect(dueAutoUploads(state({ garminUpload: auto({ new: { status, atMs: 1 } }) }), RETRY_UPLOAD_MS * 9)).toEqual([]);
-});
-test('a failed ride is due again after an hour', () => {
-  const s = state({ garminUpload: auto({ new: { status: 'failed', atMs: 1000, reason: 'failed' } }) });
-  expect(dueAutoUploads(s, 1000 + RETRY_UPLOAD_MS - 1)).toEqual([]);
-  expect(dueAutoUploads(s, 1000 + RETRY_UPLOAD_MS)).toEqual(['new']);
-});
-test('a Garmin block pauses every upload for 6 hours', () => {
-  const s = state({ summaries: [summary('a', 2000), summary('b', 3000)], garminUpload: auto({ a: { status: 'failed', atMs: 1000, reason: 'rate-limit' } }) });
-  expect(dueAutoUploads(s, 1000 + RATE_LIMIT_WAIT_MS - 1)).toEqual([]);
-  expect(dueAutoUploads(s, 1000 + RATE_LIMIT_WAIT_MS)).toEqual(['a', 'b']);
-});
-test('expired login or a missing file waits for the button', () => {
-  for (const reason of ['reauth', 'missing-file']) expect(dueAutoUploads(state({ garminUpload: auto({ new: { status: 'failed', atMs: 1, reason } }) }), RETRY_UPLOAD_MS * 9)).toEqual([]);
-});
-test('switching to automatic starts the clock, changing the minimum does not', () => {
-  const a = withUploadSettings(state(), 'auto', 10, 7000);
-  expect(a.enabledAtMs).toBe(7000);
-  const b = withUploadSettings(state({ garminUpload: a }), 'auto', 20, 9000);
-  expect(b).toMatchObject({ enabledAtMs: 7000, minMinutes: 20 });
-  expect(withUploadSettings(state({ garminUpload: b }), 'off', 20, 9500).enabledAtMs).toBeNull();
-});
-test('the minimum stays within sensible bounds', () => {
-  expect(withUploadSettings(state(), 'auto', -5, 1).minMinutes).toBe(0);
-  expect(withUploadSettings(state(), 'auto', 99999, 1).minMinutes).toBe(240);
-  expect(withUploadSettings(state(), 'auto', Number.NaN, 1).minMinutes).toBe(10);
+test('changing the mode keeps what is already uploaded', () => {
+  const rides = { new: { status: 'uploaded' as const, atMs: 1 } };
+  expect(withUploadMode(state({ garminUpload: { mode: 'ask', rides } }), 'off')).toEqual({ mode: 'off', rides });
 });
 test('the button works in any mode, for known rides that are not up yet', () => {
   expect(canUpload(state(), 'new')).toBe(true);

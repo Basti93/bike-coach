@@ -22,24 +22,18 @@ const syncText = (sync: GarminSyncInfo): string => {
   return parts.join(' · ');
 };
 
-const MODES: [UploadMode, string][] = [['off', 'Aus'], ['ask', 'Jedes Mal fragen'], ['auto', 'Automatisch']];
+const MODES: [UploadMode, string][] = [['off', 'Aus'], ['ask', 'Jedes Mal fragen']];
 
-/** What goes to Garmin is the rider's choice. Off until switched on. */
+/** What goes to Garmin is the rider's choice. Off until switched on, and never without a confirmation. */
 const UploadChoice = ({ profileId, upload, send }: { profileId: string; upload?: GarminUploadSettings; send: (m: CoachClientMessage) => void }) => {
   const u = uploadSettings({ garminUpload: upload });
-  const [minutes, setMinutes] = useState(String(u.minMinutes));
-  const save = (mode: UploadMode, minMinutes: number) => send({ type: 'garmin-upload-settings', profileId, mode, minMinutes });
   return (
     <fieldset className="garmin-upload-choice">
       <legend>Fahrten zu Garmin hochladen</legend>
       {MODES.map(([mode, label]) => (
-        <label key={mode}><input type="radio" name={`garmin-upload-${profileId}`} checked={u.mode === mode} onChange={() => save(mode, u.minMinutes)} /> {label}</label>
+        <label key={mode}><input type="radio" name={`garmin-upload-${profileId}`} checked={u.mode === mode} onChange={() => send({ type: 'garmin-upload-settings', profileId, mode })} /> {label}</label>
       ))}
-      {u.mode === 'auto' && (
-        <label>Mindestdauer in Minuten<input inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} onBlur={() => { if (minutes.trim() && Number.isFinite(Number(minutes))) save(u.mode, Number(minutes)); else setMinutes(String(u.minMinutes)); }} /></label>
-      )}
-      {u.mode === 'auto' && <p className="muted">Es gehen nur Fahrten ab jetzt hoch, dein bisheriger Verlauf bleibt hier.</p>}
-      {u.mode !== 'off' && <p className="muted">Zeichnet deine Uhr dieselbe Fahrt auf, steht sie danach doppelt in Garmin Connect.</p>}
+      {u.mode === 'ask' && <p className="muted">Nach jeder Fahrt siehst du eine Vorschau, hochgeladen wird nur nach deiner Bestätigung.</p>}
     </fieldset>
   );
 };

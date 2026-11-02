@@ -98,7 +98,7 @@ export const HistoryView = ({ state, detail, send, onBack, garminConnected = fal
                     {r.suspectData ? 'Viele Messfehler, zählt nicht für Bestwerte. ' : ''}
                     Die FIT-Datei für Garmin liegt unter rides/exports.
                   </p>
-                  <GarminUploadButton status={uploadSettings(state).rides[r.rideId]} connected={garminConnected} onUpload={() => send({ type: 'garmin-upload', profileId: state.profileId, rideId: r.rideId })} />
+                  <GarminUploadButton ride={r} status={uploadSettings(state).rides[r.rideId]} connected={garminConnected} onUpload={() => send({ type: 'garmin-upload', profileId: state.profileId, rideId: r.rideId })} />
                   {state.debriefs?.[r.rideId] && <DebriefCard debrief={state.debriefs[r.rideId]} thinking={false} />}
                   {detail?.rideId === r.rideId ? (
                     <RideCharts detail={detail} />

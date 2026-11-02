@@ -234,7 +234,7 @@ Check every `rides/ride-*/meta.json`. Expected: no `"status":"open"`. Otherwise 
 
 - [ ] **Step 2: Find the ride of 2026-11-02**
 
-The newest ride folder with `status` other than `discarded`, started around 20:19 CET. Note its id. Copy `coach/*.json` to the scratchpad as a backup.
+The newest ride folder with `status` other than `discarded`. Note its id. Copy `coach/*.json` to the scratchpad as a backup.
 
 - [ ] **Step 3: Restart**
 

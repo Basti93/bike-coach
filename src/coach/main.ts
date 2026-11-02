@@ -14,7 +14,7 @@ import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
-import { canUpload, dueAutoUploads } from './garmin-upload';
+import { canUpload } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
@@ -163,7 +163,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'answer-question') { coach.answerQuestion(m.profileId, m.questionId, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-question') coach.skipQuestion(m.profileId);
       if (m.type === 'debrief-seen') coach.debriefSeen(m.profileId);
-      if (m.type === 'garmin-upload-settings') coach.setUploadSettings(m.profileId, m.mode, m.minMinutes);
+      if (m.type === 'garmin-upload-settings') coach.setUploadMode(m.profileId, m.mode === 'off' ? 'off' : 'ask');
       if (m.type === 'garmin-upload') startUpload(m.profileId, m.rideId);
       if (m.type === 'debrief-answer') { coach.answerDebrief(m.profileId, m.rideId, m.question, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'debrief-skip-question') coach.skipDebriefQuestion(m.profileId, m.rideId, m.question);
@@ -205,8 +205,6 @@ const scan = (): void => {
     }
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
-    // Also separate: an upload must never disturb the coach run or the ride.
-    for (const p of list) { try { for (const rideId of dueAutoUploads(coach.state(p.id), now).slice(0, 1)) startUpload(p.id, rideId); } catch { /* try again on the next run */ } }
     publish();
   } catch (e) {
     console.error('Coach-Lauf fehlgeschlagen', e);

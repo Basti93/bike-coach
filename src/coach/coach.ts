@@ -10,7 +10,7 @@ import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
 import { cleanDebrief, debriefAnswerSchema, debriefJsonSchema, DEBRIEF_SYSTEM_PROMPT, ruleDebrief } from './debrief';
-import { uploadSettings, withUploadSettings, type RideUpload, type UploadMode } from './garmin-upload';
+import { uploadSettings, withUploadMode, type RideUpload, type UploadMode } from './garmin-upload';
 import { garminPromptData, readinessFrom, type GarminCoachData } from './readiness';
 import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide, type RideSummary } from './metrics';
 import { complaintFromNote, type ComplaintStatus } from './motivation';
@@ -143,8 +143,8 @@ export class Coach {
     }
   }
 
-  setUploadSettings(profileId: string, mode: UploadMode, minMinutes: number): void {
-    this.update(profileId, (s) => { s.garminUpload = withUploadSettings(s, mode, minMinutes, this.deps.nowMs()); });
+  setUploadMode(profileId: string, mode: UploadMode): void {
+    this.update(profileId, (s) => { s.garminUpload = withUploadMode(s, mode); });
   }
   markUpload(profileId: string, rideId: string, upload: Omit<RideUpload, 'atMs'>): void {
     this.update(profileId, (s) => {
@@ -153,10 +153,7 @@ export class Coach {
     });
   }
 
-  garminDisconnected(profileId: string): void {
-    const u = uploadSettings(this.state(profileId));
-    this.setUploadSettings(profileId, 'off', u.minMinutes);
-  }
+  garminDisconnected(profileId: string): void { this.setUploadMode(profileId, 'off'); }
 
   debriefSeen(profileId: string): void { this.update(profileId, (s) => { s.debriefToShow = null; }); }
   private dropDebriefQuestion(s: CoachState, rideId: string, question: string): void {
