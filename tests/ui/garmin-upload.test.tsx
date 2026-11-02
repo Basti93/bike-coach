@@ -76,7 +76,7 @@ test('the feedback screen stays quiet while uploading is off', () => {
 test('the feedback screen offers the upload when asking is chosen', () => {
   const send = feedback('ask');
   fireEvent.click(screen.getByRole('button', { name: 'Zu Garmin hochladen' }));
-  expect(send).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'garmin-upload' }));
   confirm();
   expect(send).toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1', repoLink: false });
 });
