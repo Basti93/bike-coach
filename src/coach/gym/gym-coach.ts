@@ -95,6 +95,8 @@ export class GymCoach {
   enabled(id: string): boolean {
     return this.isHevy(id) || this.state(id).localStart || this.logged(id).some((w) => w.endMs !== null);
   }
+  /** A workout of the rider's own was finished: plan again. Only a flag, the run itself waits for `tick` and so for a free bike. */
+  workoutFinished(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
   /** Begins strength training without Hevy. */
   start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
 

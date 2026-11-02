@@ -24,6 +24,7 @@ import { strengthHealth, type StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
+import { handleRecords } from './tracking/records-api';
 import { MobilityCoach } from './mobility/mobility';
 
 const dir = process.env.BIKE_DATA_DIR;
@@ -245,6 +246,16 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
+      if (m.type === 'records-put' || m.type === 'records-list') {
+        const out = handleRecords({ store: records, gym }, m);
+        socket.send(JSON.stringify(out.reply));
+        if (out.changed) {
+          const note = JSON.stringify({ type: 'records-changed', profileId: out.changed } satisfies CoachServerMessage);
+          for (const [other, id] of subs) if (id === out.changed) { try { other.send(note); } catch { /* connection gone */ } }
+          publish();
+        }
+        return;
+      }
       if (m.type.startsWith('gym-')) { handleGym(socket, m); return; }
       // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
       if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }

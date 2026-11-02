@@ -17,6 +17,8 @@ type Props = {
   onBack: () => void;
   onHealth?: () => void;
   mobility?: MobilityView | null;
+  /** Opens one of the shared tracking screens. Without it the page shows no tracking buttons. */
+  onTrack?: (screen: 'workout' | 'routines' | 'history') => void;
 };
 
 const SET_TYPE: Record<GymSet['type'], string> = { warmup: 'Aufwärmen', normal: '', failure: 'bis nichts mehr geht', dropset: 'Dropset' };
@@ -56,7 +58,7 @@ const Question = ({ q, profileId, send }: { q: string; profileId: string; send: 
   );
 };
 
-export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth, mobility }: Props) => {
+export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth, mobility, onTrack }: Props) => {
   const { state, ready, thinking } = gym;
   const next = state.next;
   const [note, setNote] = useState('');
@@ -92,6 +94,13 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
         <h1>Kraft</h1>
         <div className="row">{onHealth && <button className="ghost" onClick={onHealth}>Gesundheit</button>}<button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
+      {onTrack && (
+        <div className="row">
+          <button className="go" onClick={() => onTrack('workout')}>Training starten</button>
+          <button className="secondary" onClick={() => onTrack('routines')}>Routinen</button>
+          <button className="secondary" onClick={() => onTrack('history')}>Verlauf</button>
+        </div>
+      )}
       <MobilityCard profileId={profileId} mobility={mobility} send={send} />
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}

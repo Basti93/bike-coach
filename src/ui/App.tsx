@@ -16,6 +16,8 @@ import { CoachView } from './views/CoachView';
 import { coachScreen, DebriefView } from './views/DebriefCard';
 import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
+import { HistoryScreen, RoutinesScreen, WorkoutScreen } from '../tracking/ui';
+import type { GymWorkout } from '../coach/gym/types';
 import { HevyCard } from './views/HevyCard';
 import { homeScreen, OverviewView } from './views/OverviewView';
 import { HistoryView } from './views/HistoryView';
@@ -53,10 +55,13 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const [overview, setOverview] = useState(false);
   const [strengthFor, setStrengthFor] = useState<string | null>(null);
   const [bikeFor, setBikeFor] = useState<string | null>(null);
+  // The tracking screens belong to one profile, like the strength page they are opened from.
+  const [trackFor, setTrackFor] = useState<{ profileId: string; screen: 'workout' | 'routines' | 'history'; routine: GymWorkout | null } | null>(null);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs a Hevy connection.
   useEffect(() => { if (!coach.gym || strengthFor !== profile?.id) setStrengthFor(null); }, [coach.gym, strengthFor, profile?.id]);
+  useEffect(() => { if (trackFor && (!coach.gym || trackFor.profileId !== profile?.id)) setTrackFor(null); }, [coach.gym, trackFor, profile?.id]);
   // The bike page chosen from the overview belongs to one profile and needs the overview to exist.
   // Test mocks without the field count as arrived.
   const arrived = coach.statusArrived ?? true;
@@ -105,7 +110,23 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
   if (reviewing && profile && coach.garminSuggestion) return <>{notice}<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => setReviewing(false)} /></>;
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
-  if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} mobility={coach.mobility} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;
+  if (profile && trackFor && trackFor.profileId === profile.id && coach.gym && coach.tracking) {
+    const port = coach.tracking;
+    const back = () => setTrackFor(null);
+    const to = (screen: 'workout' | 'routines' | 'history') => setTrackFor({ ...trackFor, screen, routine: null });
+    return <>{notice}<main className="home">
+      <div className="top"><div className="row">
+        <button className="ghost" onClick={() => to('workout')} aria-pressed={trackFor.screen === 'workout'}>Training</button>
+        <button className="ghost" onClick={() => to('routines')} aria-pressed={trackFor.screen === 'routines'}>Routinen</button>
+        <button className="ghost" onClick={() => to('history')} aria-pressed={trackFor.screen === 'history'}>Verlauf</button>
+        <button className="ghost" onClick={back}>Zurück</button>
+      </div></div>
+      {trackFor.screen === 'workout' && <WorkoutScreen key={trackFor.routine ? 'routine' : 'plan'} port={port} plan={trackFor.routine ? null : coach.gym.state.next?.workout ?? null} routine={trackFor.routine} />}
+      {trackFor.screen === 'routines' && <RoutinesScreen port={port} onStart={(routine) => setTrackFor({ ...trackFor, screen: 'workout', routine })} />}
+      {trackFor.screen === 'history' && <HistoryScreen port={port} />}
+    </main></>;
+  }
+  if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} mobility={coach.mobility} onTrack={coach.tracking ? (screen) => setTrackFor({ profileId: profile.id, screen, routine: null }) : undefined} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;
   if (profile && !arrived && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach') return <>{notice}<main aria-busy="true" /></>;
   const overviewOpen = profile !== null && homeScreen(hevy, coach.gym != null) === 'overview' && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
   if (profile && overviewOpen) return <>{notice}<OverviewView name={profile.name} avatar={profile.avatar} onBike={() => setBikeFor(profile.id)} onStrength={() => setStrengthFor(profile.id)} onHealth={() => showHealth(28)} onBack={() => setProfile(null)} /></>;

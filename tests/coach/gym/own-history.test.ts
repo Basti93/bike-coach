@@ -66,6 +66,13 @@ describe('own history', () => {
     expect(gymPublic(h.coach.enabled(ID), h.coach.state(ID), false, true, { hevy: false, complaints: [], hasHistory: false })).toBeNull();
   });
 
+  it('a finished own workout marks the coach dirty so the next tick plans again', () => {
+    const h = harness();
+    expect(h.coach.state(ID).dirty).toBe(false);
+    h.coach.workoutFinished(ID);
+    expect(h.coach.state(ID).dirty).toBe(true);
+  });
+
   it('after enabling it plans from own exercises with no Hevy call', async () => {
     const h = harness();
     h.coach.start(ID);
