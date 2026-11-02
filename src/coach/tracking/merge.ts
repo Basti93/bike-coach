@@ -1,5 +1,6 @@
 import type { StrengthWorkout } from '../hevy';
 import type { LoggedWorkout } from '../../shared/records';
+import { overlapsHalf } from '../../shared/history';
 
 /** Hevy template id to own exercise id (see linkHevyTemplates). Pass an empty map when nothing is linked. */
 type Links = ReadonlyMap<string, string>;
@@ -30,17 +31,7 @@ export const historyFromLogged = (logged: LoggedWorkout[], links: Links): Streng
 
 const seconds = (n: unknown): number => typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0;
 
-const overlapsHalf = (a: StrengthWorkout, b: StrengthWorkout): boolean => {
-  const da = seconds(a.durationS) * 1000, db = seconds(b.durationS) * 1000;
-  const aEnd = a.startMs + da, bEnd = b.startMs + db;
-  // A workout without length is a point: it overlaps when it falls inside the other.
-  if (da === 0 || db === 0) {
-    const [pt, other, otherEnd] = da === 0 ? [a.startMs, b.startMs, bEnd] : [b.startMs, a.startMs, aEnd];
-    return pt >= other && (pt < otherEnd || pt === other);
-  }
-  const overlap = Math.min(aEnd, bEnd) - Math.max(a.startMs, b.startMs);
-  return overlap > 0 && overlap >= Math.min(da, db) / 2;
-};
+const asSpan = (w: StrengthWorkout) => ({ startMs: w.startMs, durationMs: seconds(w.durationS) * 1000 });
 
 /**
  * Own and Hevy history as one list, oldest first. A Hevy workout that overlaps an own one by at least half of the
@@ -50,6 +41,6 @@ const overlapsHalf = (a: StrengthWorkout, b: StrengthWorkout): boolean => {
 export function mergeHistory(own: StrengthWorkout[], hevy: StrengthWorkout[], links: Links): StrengthWorkout[] {
   const norm = (w: StrengthWorkout): StrengthWorkout => ({ ...w, exercises: w.exercises.map((e) => ({ ...e, templateId: links.get(e.templateId) ?? e.templateId })) });
   const mapped = own.map(norm);
-  const kept = hevy.filter((h) => !mapped.some((o) => overlapsHalf(o, h))).map(norm);
+  const kept = hevy.filter((h) => !mapped.some((o) => overlapsHalf(asSpan(o), asSpan(h)))).map(norm);
   return [...mapped, ...kept].sort((a, b) => a.startMs - b.startMs);
 }

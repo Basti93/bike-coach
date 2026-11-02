@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { LoggedWorkout } from '../../shared/records';
+import { dedupeSessions } from '../../shared/history';
+import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
-import { editSet, formatDecimal, removeSet, type TrackedSet, type TrackedWorkout } from '../session';
+import { editSet, formatDecimal, lastValues, removeSet, type TrackedSet, type TrackedWorkout } from '../session';
 import { createWorkoutStore } from '../store';
-import { finishedWorkouts, usePortRecords, useStoreView, type WorkoutStore } from './hooks';
+import { usePortRecords, useStoreView, type WorkoutStore } from './hooks';
 import { dateLabel } from './labels';
 import { SetRow } from './SetRow';
 import { SyncNote } from './SyncNote';
@@ -44,16 +45,16 @@ function Detail({ store, history, onBack, onDeleted }: { store: WorkoutStore; hi
       <div className="tk-row"><button type="button" className="ghost" onClick={onBack}>Zurück</button><h1 className="tk-title">{w.title}</h1></div>
       <p className="muted">{dateLabel(w.startMs)}</p>
       {save === 'unsaved' && <p role="status" className="tk-note">Gerade nicht gespeichert. Die Änderung bleibt hier und wird beim nächsten Schritt erneut gespeichert.</p>}
-      {w.exercises.map((e, ei) => (
-        <section key={ei} className="card tk-ex" aria-label={e.title}>
+      {w.exercises.map((e) => (
+        <section key={e.rid} className="card tk-ex" aria-label={e.title}>
           <div className="tk-row">
             <h2>{e.title}</h2><span className="spacer" />
             <button type="button" className="ghost" aria-label={`Verlauf ${e.title}`} onClick={() => setProgress(progress === e.exerciseId ? null : e.exerciseId)}>Verlauf</button>
           </div>
           {progress === e.exerciseId && <Progress exerciseId={e.exerciseId} history={history} />}
           {e.sets.map((s, si) => (
-            <SetRow key={si} index={si} set={s} timed={!!e.timed}
-              onEdit={(patch) => act((x) => editSet(x, ei, si, patch))} onRemove={() => act((x) => removeSet(x, ei, si))} />
+            <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
+              onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))} onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
           ))}
         </section>
       ))}
@@ -70,24 +71,69 @@ function Detail({ store, history, onBack, onDeleted }: { store: WorkoutStore; hi
   );
 }
 
+function ExerciseHistory({ exerciseId, title, history, onBack }: { exerciseId: string; title: string; history: LoggedWorkout[]; onBack: () => void }) {
+  const last = lastValues(exerciseId, history);
+  const sessions = history.filter((w) => w.exercises.some((e) => e.exerciseId === exerciseId && e.sets.some((s) => s.doneMs !== null)));
+  const timed = history.some((w) => w.exercises.some((e) => e.exerciseId === exerciseId && (e as { timed?: boolean }).timed));
+  return (
+    <div className="tk-screen">
+      <div className="tk-row"><button type="button" className="ghost" onClick={onBack}>Zurück</button><h1 className="tk-title">{title}</h1></div>
+      <section className="card">
+        <h2>Zuletzt</h2>
+        <p>{last.length ? last.map((s) => describe(s as TrackedSet, timed)).join(', ') : 'Noch keine erledigten Sätze.'}</p>
+      </section>
+      <section className="card"><h2>Verlauf</h2><Progress exerciseId={exerciseId} history={history} /></section>
+      <section className="card">
+        <h2>Trainings</h2>
+        {sessions.map((w) => (
+          <p key={w.id}>{dateLabel(w.endMs ?? w.startMs)}: {w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((s) => s.doneMs !== null)).map((s) => describe(s as TrackedSet, timed)).join(', ')}</p>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; now?: () => number; newId?: () => string }) {
-  const records = usePortRecords(port, 'workout');
-  const history = finishedWorkouts(records);
+  const q = usePortRecords(port, 'workout');
+  const records = q.records;
+  // One performed session counts once: an overlapping Hevy copy of an own workout is left out.
+  const history = dedupeSessions((records ?? []).map((r) => r.body as LoggedWorkout));
+  const recOf = new Map((records ?? []).map((r) => [r.id, r] as [string, TrackedRecord]));
   const [store, setStore] = useState<WorkoutStore | null>(null);
+  const [tab, setTab] = useState<'workouts' | 'exercises'>('workouts');
+  const [exercise, setExercise] = useState<string | null>(null);
+
   if (store) return <Detail store={store} history={history} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
+  const exercises = new Map<string, string>();
+  for (const w of history) for (const e of w.exercises) if (e.sets.some((s) => s.doneMs !== null) && !exercises.has(e.exerciseId)) exercises.set(e.exerciseId, e.title);
+  if (exercise !== null) return <ExerciseHistory exerciseId={exercise} title={exercises.get(exercise) ?? ''} history={history} onBack={() => setExercise(null)} />;
+
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Verlauf</h1>
       <SyncNote port={port} />
-      {records !== null && history.length === 0 && <p className="muted">Hier erscheinen deine abgeschlossenen Trainings.</p>}
-      <div className="tk-list">
-        {history.map((w) => (
-          <button type="button" key={w.id} className="tk-pick" onClick={() => setStore(createWorkoutStore(port, w as TrackedWorkout, now))}>
-            {w.title} · {dateLabel(w.endMs ?? w.startMs)}
-            <small> · {w.exercises.reduce((n, e) => n + e.sets.filter((s) => s.doneMs !== null).length, 0)} Sätze</small>
-          </button>
-        ))}
+      {q.failed && <p role="status" className="tk-note">Der Verlauf konnte gerade nicht gelesen werden. <button type="button" onClick={q.retry}>Nochmal versuchen</button></p>}
+      <div className="tk-tabs">
+        <button type="button" className={tab === 'workouts' ? '' : 'secondary'} aria-pressed={tab === 'workouts'} onClick={() => setTab('workouts')}>Trainings</button>
+        <button type="button" className={tab === 'exercises' ? '' : 'secondary'} aria-pressed={tab === 'exercises'} onClick={() => setTab('exercises')}>Übungen</button>
       </div>
+      {records !== null && history.length === 0 && <p className="muted">Hier erscheinen deine abgeschlossenen Trainings.</p>}
+      {tab === 'workouts' ? (
+        <div className="tk-list">
+          {history.map((w) => (
+            <button type="button" key={w.id} className="tk-pick" onClick={() => setStore(createWorkoutStore(port, recOf.get(w.id) ?? (w as TrackedWorkout), now))}>
+              {w.title} · {dateLabel(w.endMs ?? w.startMs)}
+              <small> · {w.exercises.reduce((n, e) => n + e.sets.filter((s) => s.doneMs !== null).length, 0)} Sätze</small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="tk-list">
+          {[...exercises.entries()].sort((a, b) => a[1].localeCompare(b[1], 'de')).map(([id, title]) => (
+            <button type="button" key={id} className="tk-pick" onClick={() => setExercise(id)}>{title}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { RecordKind, TrackedRecord } from '../shared/records';
 export type TrackingPort = {
   list(kind: RecordKind): Promise<TrackedRecord[]>;
   put(r: TrackedRecord): Promise<void>;
+  /** Fires after every local `put` and after every remote change that arrives. Listeners must tell the two apart by comparing `updatedMs`. */
   subscribe(fn: () => void): () => void;
   syncState(): { pending: number; lastOkMs: number | null };
 };

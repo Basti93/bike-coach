@@ -5,13 +5,16 @@ import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
 import { usePortRecords } from './hooks';
 
-type Draft = { id: string | null; name: string; exercises: GymExercise[] };
+type Draft = { id: string | null; name: string; exercises: GymExercise[]; updatedMs: number };
+/** Always newer than the stored copy, whatever the clock says, so the last edit wins. */
+const after = (now: () => number, prev: number): number => Math.max(now(), prev + 1);
 const emptySet = () => ({ type: 'normal' as const, weightKg: null, reps: null });
 
 export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => crypto.randomUUID() }: {
   port: TrackingPort; onStart: (r: GymWorkout) => void; now?: () => number; newId?: () => string;
 }) {
-  const records = usePortRecords(port, 'routine');
+  const q = usePortRecords(port, 'routine');
+  const records = q.records;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [picking, setPicking] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -40,7 +43,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
         <div className="tk-row">
           <button type="button" disabled={draft.name.trim() === ''} onClick={async () => {
             const body: GymWorkout = { name: draft.name.trim(), exercises: draft.exercises };
-            if (await write({ kind: 'routine', id: draft.id ?? newId(), updatedMs: now(), deleted: false, body })) setDraft(null);
+            if (await write({ kind: 'routine', id: draft.id ?? newId(), updatedMs: after(now, draft.updatedMs), deleted: false, body })) setDraft(null);
           }}>Routine speichern</button>
           <button type="button" className="ghost" onClick={() => { setDraft(null); setFailed(false); }}>Abbrechen</button>
         </div>
@@ -55,6 +58,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Routinen</h1>
+      {q.failed && <p role="status" className="tk-note">Deine Routinen konnten gerade nicht gelesen werden. <button type="button" onClick={q.retry}>Nochmal versuchen</button></p>}
       {records !== null && records.length === 0 && <p className="muted">Noch keine Routine. Leg eine an, dann startest du sie mit einem Tipp.</p>}
       {(records ?? []).map((r) => {
         const body = r.body as GymWorkout;
@@ -63,12 +67,12 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
             <div className="tk-row">
               <h2>{body.name}</h2><span className="muted">{body.exercises.length} Übungen</span><span className="spacer" />
               <button type="button" aria-label={`${body.name} starten`} onClick={() => onStart(body)}>Starten</button>
-              <button type="button" className="secondary" aria-label={`${body.name} bearbeiten`} onClick={() => setDraft({ id: r.id, name: body.name, exercises: body.exercises })}>Bearbeiten</button>
+              <button type="button" className="secondary" aria-label={`${body.name} bearbeiten`} onClick={() => setDraft({ id: r.id, name: body.name, exercises: body.exercises, updatedMs: r.updatedMs })}>Bearbeiten</button>
               <button type="button" className="ghost" aria-label={`${body.name} löschen`} onClick={() => setDeleting(r.id)}>Löschen</button>
             </div>
             {deleting === r.id && (
               <p className="tk-note">Routine löschen?{' '}
-                <button type="button" onClick={async () => { await write({ ...r, updatedMs: now(), deleted: true }); setDeleting(null); }}>Ja, löschen</button>{' '}
+                <button type="button" onClick={async () => { await write({ ...r, updatedMs: after(now, r.updatedMs), deleted: true }); setDeleting(null); }}>Ja, löschen</button>{' '}
                 <button type="button" className="ghost" onClick={() => setDeleting(null)}>Behalten</button>
               </p>
             )}
@@ -76,7 +80,7 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
         );
       })}
       {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>}
-      <button type="button" onClick={() => setDraft({ id: null, name: '', exercises: [] })}>Neue Routine</button>
+      <button type="button" onClick={() => setDraft({ id: null, name: '', exercises: [], updatedMs: 0 })}>Neue Routine</button>
     </div>
   );
 }

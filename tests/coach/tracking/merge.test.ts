@@ -88,3 +88,15 @@ describe('mergeHistory', () => {
     expect(mergeHistory([pointOwn], [hevy('big', 4 * H, 2 * 3600)], NO).map((w) => w.id)).toEqual(['po']);
   });
 });
+
+describe('hevyRecord links', () => {
+  it('writes the own exercise id where a link exists and keeps the Hevy id otherwise', async () => {
+    const { hevyRecord } = await import('../../../src/coach/tracking/hevy-import');
+    const w = { id: 'h', title: 'T', startMs: 0, durationS: 60, exercises: [
+      { title: 'Squat', templateId: 'HX', workSets: [{ type: 'normal' as const, weightKg: 1, reps: 1 }], sets: 1, reps: 1, volumeKg: 1 },
+      { title: 'Other', templateId: 'HY', workSets: [], sets: 0, reps: 0, volumeKg: 0 }] };
+    const r = hevyRecord(w, new Map([['HX', 'pf-squat']]));
+    expect((r.body as { exercises: { exerciseId: string }[] }).exercises.map((e) => e.exerciseId)).toEqual(['pf-squat', 'HY']);
+    expect(hevyRecord(w).body).not.toEqual(r.body);
+  });
+});

@@ -1,46 +1,67 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
-import type { LoggedWorkout } from '../../shared/records';
+import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, finish, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
+  addExercise, addSet, confirmSet, editNotes, editSet, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
   swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { createWorkoutStore } from '../store';
 import { ExercisePicker } from './ExercisePicker';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
-import { clock } from './labels';
+import { clock, dateLabel } from './labels';
+import { NotesField } from './NotesField';
 import { SetRow } from './SetRow';
 import { SyncNote } from './SyncNote';
 
-type Picker = { mode: 'add' } | { mode: 'swap'; ex: number } | null;
+type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
 type Ask = { question: 'nothing-confirmed' } | { question: 'open-sets'; open: number } | null;
 
-function ActiveWorkout({ port, store, history, now, newId, onLeave }: {
-  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; onLeave: (message: string) => void;
+function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
+  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; onLeave: (message: string) => void;
 }) {
   const { workout: w, save } = useStoreView(store);
   const [picker, setPicker] = useState<Picker>(null);
   const [ask, setAsk] = useState<Ask>(null);
-  const [removing, setRemoving] = useState<number | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const ending = useRef(false);
+  const leaving = useRef(false);
+  const remote = usePortRecords(port, 'workout').records;
   useWakeLock(true);
   useTick(w.rest != null);
+  useEffect(() => () => store.dispose(), [store]);
   const remaining = restRemainingS(w, now());
+
+  // A newer copy from another device: finished or deleted there means we step aside and say so, otherwise we continue from it.
+  useEffect(() => {
+    if (!remote || leaving.current) return;
+    const rec = remote.find((r) => r.id === w.id);
+    if (!rec) { onLeave('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.'); return; }
+    if (rec.updatedMs <= store.updatedMs()) return;
+    if ((rec.body as LoggedWorkout).endMs !== null) { onLeave('Dieses Training wurde auf einem anderen Gerät beendet. Die Ansicht wurde neu geladen.'); return; }
+    store.reload(rec);
+  }, [remote]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
 
   async function end(choice?: FinishChoice) {
-    const r = finish(store.view().workout, now(), choice);
-    if (r.status === 'ask') { setAsk(r); return; }
-    setAsk(null);
-    if (r.status === 'discard') { if (await store.remove()) onLeave('Das Training wurde verworfen.'); return; }
-    if (await store.apply(() => r.workout)) onLeave('Training gespeichert. Gut gemacht.');
+    if (ending.current) return;
+    ending.current = true; leaving.current = true;
+    try {
+      const r = await store.finish(choice);
+      if (r.status === 'ask') { leaving.current = false; setAsk(r); return; }
+      setAsk(null);
+      if (!r.saved) { leaving.current = false; return; }
+      onLeave(r.status === 'discard' ? 'Das Training wurde verworfen.' : 'Training gespeichert. Gut gemacht.');
+    } finally { ending.current = false; }
   }
+  useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="tk-screen">
       <h1 className="tk-title">{w.title}</h1>
+      <p className="muted">Gestartet {dateLabel(w.startMs)}</p>
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
           Gerade nicht gespeichert. Dein Training bleibt hier offen und wird mit dem nächsten Schritt erneut gespeichert.
@@ -53,32 +74,32 @@ function ActiveWorkout({ port, store, history, now, newId, onLeave }: {
           <button type="button" className="ghost" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
-      {w.exercises.map((e, ei) => (
-        <section key={ei} className="tk-ex card" aria-label={e.title}>
+      {w.exercises.map((e) => (
+        <section key={e.rid} className="tk-ex card" aria-label={e.title}>
           <div className="tk-row">
             <h2>{e.title}</h2>
             {e.supersetId !== null && <span className="muted">Superset</span>}
             <span className="spacer" />
-            <button type="button" className="ghost" aria-label={`${e.title} tauschen`} onClick={() => setPicker({ mode: 'swap', ex: ei })}>Tauschen</button>
+            <button type="button" className="ghost" aria-label={`${e.title} tauschen`} onClick={() => setPicker({ mode: 'swap', ex: e.rid })}>Tauschen</button>
             <button type="button" className="ghost" aria-label={`${e.title} entfernen`}
-              onClick={() => (e.sets.some((s) => s.doneMs !== null) ? setRemoving(ei) : act((x) => removeExercise(x, ei)))}>Entfernen</button>
+              onClick={() => (e.sets.some((s) => s.doneMs !== null) ? setRemoving(e.rid) : act((x) => removeExercise(x, e.rid)))}>Entfernen</button>
           </div>
-          {removing === ei && (
+          {removing === e.rid && (
             <p className="tk-note">
               Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?{' '}
-              <button type="button" onClick={() => { setRemoving(null); act((x) => removeExercise(x, ei)); }}>Ja, entfernen</button>{' '}
+              <button type="button" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
               <button type="button" className="ghost" onClick={() => setRemoving(null)}>Behalten</button>
             </p>
           )}
           {e.sets.map((s, si) => (
-            <SetRow key={si} index={si} set={s} timed={!!e.timed}
-              onEdit={(patch) => act((x) => editSet(x, ei, si, patch))}
-              onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, ei, si, now()) : unconfirmSet(x, ei, si)))}
-              onRemove={() => act((x) => removeSet(x, ei, si))} />
+            <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
+              onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
+              onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
+              onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
           ))}
           <div className="tk-row">
-            <button type="button" className="secondary" onClick={() => act((x) => addSet(x, ei))}>Satz hinzufügen</button>
-            <input className="tk-notes" aria-label={`Notiz zu ${e.title}`} placeholder="Notiz" value={e.notes} onChange={(ev) => act((x) => editNotes(x, ei, ev.target.value))} />
+            <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
+            <NotesField label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
           </div>
         </section>
       ))}
@@ -98,7 +119,8 @@ function ActiveWorkout({ port, store, history, now, newId, onLeave }: {
             </>
           ) : (
             <>
-              <p>Noch kein Satz ist als erledigt markiert. Soll das Training verworfen werden?</p>
+              <p>Noch kein Satz ist als erledigt markiert. Was soll mit dem Training passieren?</p>
+              <button type="button" onClick={() => void end('complete')}>Alle Sätze als erledigt markieren</button>
               <button type="button" className="secondary" onClick={() => void end('discard')}>Training verwerfen</button>
               <button type="button" onClick={() => setAsk(null)}>Weiter trainieren</button>
             </>
@@ -116,36 +138,83 @@ function ActiveWorkout({ port, store, history, now, newId, onLeave }: {
   );
 }
 
-export function WorkoutScreen({ port, plan = null, now = Date.now, newId = () => crypto.randomUUID() }: {
-  port: TrackingPort; plan?: GymWorkout | null; now?: () => number; newId?: () => string;
+function OpenCard({ rec, primary, onResume, onEnd, onDiscard }: { rec: TrackedRecord; primary: boolean; onResume: () => void; onEnd: () => void; onDiscard: () => Promise<void> }) {
+  const w = rec.body as LoggedWorkout;
+  const [asking, setAsking] = useState(false);
+  const sfx = primary ? '' : ` ${w.title} ${dateLabel(w.startMs)}`;
+  return (
+    <div className="card tk-open">
+      <h2>{primary ? 'Dein Training ist noch offen' : `${w.title}, offen`}</h2>
+      <p className="muted">{w.title}, gestartet {dateLabel(w.startMs)}. Alles ist gespeichert, du kannst genau dort weitermachen.</p>
+      <div className="tk-row">
+        <button type="button" onClick={onResume}>{`Training fortsetzen${sfx}`}</button>
+        <button type="button" className="secondary" onClick={onEnd}>{`Training beenden${sfx}`}</button>
+        <button type="button" className="ghost" onClick={() => setAsking(true)}>{`Training verwerfen${sfx}`}</button>
+      </div>
+      {asking && (
+        <p className="tk-note">Verwerfen löscht dieses Training samt erledigter Sätze. Wirklich verwerfen?{' '}
+          <button type="button" onClick={() => void onDiscard().then(() => setAsking(false))}>Ja, verwerfen</button>{' '}
+          <button type="button" className="ghost" onClick={() => setAsking(false)}>Behalten</button>
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function WorkoutScreen({ port, plan = null, routine = null, now = Date.now, newId = () => crypto.randomUUID() }: {
+  port: TrackingPort; plan?: GymWorkout | null; routine?: GymWorkout | null; now?: () => number; newId?: () => string;
 }) {
-  const workouts = usePortRecords(port, 'workout');
-  const routines = usePortRecords(port, 'routine');
+  const workoutsQ = usePortRecords(port, 'workout');
+  const routinesQ = usePortRecords(port, 'routine');
+  const workouts = workoutsQ.records;
   const catalog = useCatalog(port);
-  const [store, setStore] = useState<WorkoutStore | null>(null);
+  const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const starting = useRef(false);
+  const started = useRef<GymWorkout | null>(null);
   const history = finishedWorkouts(workouts);
-  const openRec = (workouts ?? []).find((r) => (r.body as LoggedWorkout).endMs === null);
+  const openRecs = (workouts ?? []).filter((r) => (r.body as LoggedWorkout).endMs === null).sort((a, b) => (b.body as LoggedWorkout).startMs - (a.body as LoggedWorkout).startMs);
 
   async function begin(w: TrackedWorkout) {
-    const s = createWorkoutStore(port, w, now);
-    await s.apply((x) => x); // saved (or flagged) before the screen shows it
-    setMessage(null);
-    setStore(s);
+    if (starting.current) return; // a double tap makes one workout
+    starting.current = true;
+    try {
+      const s = createWorkoutStore(port, w, now);
+      await s.apply((x) => x); // saved (or flagged) before the screen shows it
+      setMessage(null);
+      setStore({ s, autoEnd: false });
+    } finally { starting.current = false; }
   }
+  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog));
 
-  if (store) return <ActiveWorkout port={port} store={store} history={history} now={now} newId={newId} onLeave={(m) => { setStore(null); setMessage(m); }} />;
-  if (workouts === null) return <div className="tk-screen"><p className="muted">Einen Moment …</p></div>;
+  useEffect(() => {
+    if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
+  }, [routine, workouts]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (openRec) {
-    const w = openRec.body as TrackedWorkout;
+  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} onLeave={(m) => { setStore(null); setMessage(m); }} />;
+  if (workoutsQ.failed) {
     return (
       <div className="tk-screen">
-        <div className="card">
-          <h2>Dein Training ist noch offen</h2>
-          <p className="muted">{w.title} ist gespeichert. Du kannst genau dort weitermachen.</p>
-          <button type="button" onClick={() => setStore(createWorkoutStore(port, w, now))}>Training fortsetzen</button>
-        </div>
+        <p role="status" className="tk-note">Deine Trainings konnten gerade nicht gelesen werden. Es ist nichts verloren, versuch es gleich nochmal.</p>
+        <button type="button" onClick={workoutsQ.retry}>Nochmal versuchen</button>
+      </div>
+    );
+  }
+  if (workouts === null) return <div className="tk-screen"><p className="muted">Einen Moment …</p></div>;
+
+  if (openRecs.length > 0) {
+    return (
+      <div className="tk-screen">
+        {message && <p role="status" className="tk-note">{message}</p>}
+        {openRecs.map((rec, i) => (
+          <OpenCard key={rec.id} rec={rec} primary={i === 0}
+            onResume={() => setStore({ s: createWorkoutStore(port, rec, now), autoEnd: false })}
+            onEnd={() => setStore({ s: createWorkoutStore(port, rec, now), autoEnd: true })}
+            onDiscard={async () => {
+              const ok = await createWorkoutStore(port, rec, now).remove();
+              if (!ok) setMessage('Gerade nicht gespeichert. Das Training bleibt offen, versuch es gleich nochmal.');
+            }} />
+        ))}
       </div>
     );
   }
@@ -155,10 +224,10 @@ export function WorkoutScreen({ port, plan = null, now = Date.now, newId = () =>
       {message && <p role="status" className="tk-note">{message}</p>}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      {plan && <button type="button" onClick={() => void begin(startFromPlan(plan, history, now(), newId(), catalog))}>{plan.name} starten</button>}
-      {(routines ?? []).map((r) => {
+      {plan && <button type="button" onClick={() => void startPlan(plan)}>{plan.name} starten</button>}
+      {(routinesQ.records ?? []).map((r) => {
         const body = r.body as GymWorkout;
-        return <button type="button" key={r.id} className="secondary" onClick={() => void begin(startFromPlan(body, history, now(), newId(), catalog))}>{body.name} starten</button>;
+        return <button type="button" key={r.id} className="secondary" onClick={() => void startPlan(body)}>{body.name} starten</button>;
       })}
       <button type="button" className="ghost" onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
     </div>

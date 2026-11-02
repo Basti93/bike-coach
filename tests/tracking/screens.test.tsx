@@ -197,3 +197,187 @@ test('shows calmly that a finished workout is not on the server yet', async () =
   within(note); // calm text, no alarm role
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+// ---- fix round ----
+const twoEx = (): LoggedWorkout => open({ exercises: [
+  { exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(60, 8, null), set(60, 8, null)] },
+  { exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [set(80, 5, null)] },
+] });
+const resume = async () => fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+
+test('a double tap on remove never removes the next row', async () => {
+  const { port, map } = fakePort([rec(twoEx())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  const btn = (await screen.findAllByRole('button', { name: 'Satz 1 entfernen' }))[0];
+  fireEvent.click(btn); fireEvent.click(btn);
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
+  const ex = await screen.findByRole('button', { name: 'Bankdrücken entfernen' });
+  fireEvent.click(ex); fireEvent.click(ex);
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.title)).toEqual(['Kniebeuge']));
+});
+
+test('removing a confirmed set asks first, an unconfirmed one does not', async () => {
+  const w = open({ exercises: [{ exerciseId: 'a', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(60, 8, 500), set(60, 8, null)] }] });
+  const { port, map } = fakePort([rec(w)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  fireEvent.click(await screen.findByRole('button', { name: 'Satz 2 entfernen' }));
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
+  fireEvent.click(screen.getByRole('button', { name: 'Satz 1 entfernen' }));
+  expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1);
+  fireEvent.click(await screen.findByRole('button', { name: 'Ja, entfernen' }));
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(0));
+});
+
+test('typing with slow saves keeps every digit, also while earlier saves land', async () => {
+  const { port, state } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  const f = (await screen.findByLabelText('Gewicht Satz 2')) as HTMLInputElement;
+  state.delayMs = 40;
+  fireEvent.focus(f);
+  for (const v of ['6', '62', '625']) fireEvent.change(f, { target: { value: v } });
+  await new Promise((r) => setTimeout(r, 60)); // the first save has landed, the others are still pending
+  expect(state.puts.length).toBeGreaterThan(0);
+  expect(f.value).toBe('625');
+  await new Promise((r) => setTimeout(r, 200));
+  expect(f.value).toBe('625');
+});
+
+test('unreadable text shows calmly as invalid and blocks confirming; reps are not rounded', async () => {
+  const { port, map } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  const w = await screen.findByLabelText('Gewicht Satz 2');
+  const ok = screen.getByRole('button', { name: 'Satz 2 erledigt' }) as HTMLButtonElement;
+  fireEvent.change(w, { target: { value: 'abc' } });
+  expect(w.getAttribute('aria-invalid')).toBe('true');
+  expect(screen.getByText('Bitte eine Zahl')).toBeTruthy();
+  expect(ok.disabled).toBe(true);
+  fireEvent.change(w, { target: { value: '20' } });
+  expect(ok.disabled).toBe(false);
+  const reps = screen.getByLabelText('Wiederholungen Satz 2');
+  fireEvent.change(reps, { target: { value: '8,5' } });
+  expect(screen.getByText('Bitte eine ganze Zahl')).toBeTruthy();
+  await new Promise((r) => setTimeout(r, 20));
+  expect(bodyOf(map, 'workout:open1').exercises[0].sets[1].reps).not.toBe(9);
+  expect(bodyOf(map, 'workout:open1').exercises[0].sets[1].reps).not.toBe(8.5);
+});
+
+test('notes keep what is typed and save after a short pause and on blur', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const { port, map } = fakePort([rec(open())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    await resume();
+    const n = (await screen.findByLabelText('Notiz zu Bankdrücken')) as HTMLInputElement;
+    fireEvent.focus(n);
+    for (const v of ['S', 'Sc', 'Sch']) fireEvent.change(n, { target: { value: v } });
+    expect(n.value).toBe('Sch');
+    await vi.advanceTimersByTimeAsync(500);
+    await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].notes).toBe('Sch'));
+    expect(n.value).toBe('Sch');
+    fireEvent.change(n, { target: { value: 'Schulter' } });
+    fireEvent.blur(n);
+    await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].notes).toBe('Schulter'));
+  } finally { vi.useRealTimers(); }
+});
+
+test('nothing confirmed also offers to mark all sets done', async () => {
+  const { port, map } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Alle Sätze als erledigt markieren' }));
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets.every((s) => s.doneMs !== null)).toBe(true));
+});
+
+test('an old open workout shows its date and can be continued, ended or discarded; others are listed too', async () => {
+  const older = { ...open({ id: 'old', title: 'Gestern', startMs: 5000 }) };
+  const { port, map } = fakePort([rec(open({ startMs: 90_000 })), rec(older)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  expect(await screen.findByRole('button', { name: 'Training fortsetzen' })).toBeTruthy();
+  expect(screen.getAllByRole('button', { name: /Training verwerfen/ })).toHaveLength(2);
+  expect(screen.getAllByText(/gestartet/).length).toBe(2); // both visible
+  fireEvent.click(screen.getByRole('button', { name: /Training verwerfen Gestern/ }));
+  expect(map.get('workout:old')!.deleted).toBe(false);
+  fireEvent.click(await screen.findByRole('button', { name: 'Ja, verwerfen' }));
+  await waitFor(() => expect(map.get('workout:old')!.deleted).toBe(true));
+});
+
+test('ending an old open workout from the list asks the finish question', async () => {
+  const { port } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
+  expect(await screen.findByRole('button', { name: 'Training verwerfen' })).toBeTruthy(); // nothing confirmed question
+});
+
+test('a double tap on start creates only one workout', async () => {
+  const { port, state } = fakePort();
+  let n = 0;
+  render(<WorkoutScreen port={port} now={() => 100_000} newId={() => `id${++n}`} />);
+  const b = await screen.findByRole('button', { name: 'Leeres Training starten' });
+  fireEvent.click(b); fireEvent.click(b);
+  await screen.findByText('Training');
+  expect(state.puts.filter((p) => p.kind === 'workout').map((p) => p.id)).toEqual(['id1']);
+});
+
+test('a copy finished on another device is announced, not reopened', async () => {
+  const { port, map, notify } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  await screen.findByLabelText('Gewicht Satz 1');
+  map.set('workout:open1', { ...rec(open({ endMs: 99_999 })), updatedMs: 5_000_000 });
+  notify();
+  expect((await screen.findByRole('status')).textContent).toMatch(/anderen Gerät beendet/);
+  expect(screen.queryByRole('button', { name: 'Training fortsetzen' })).toBeNull();
+});
+
+test('a newer remote copy of an open workout is continued from', async () => {
+  const { port, map, notify } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  await screen.findByLabelText('Gewicht Satz 1');
+  const remote = open({ exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(99, 8, null)] }] });
+  map.set('workout:open1', { ...rec(remote), updatedMs: 5_000_000 });
+  notify();
+  await waitFor(() => expect((screen.getByLabelText('Gewicht Satz 1') as HTMLInputElement).value).toBe('99'));
+});
+
+test('a failed first read shows a calm message with a retry, not the start screen', async () => {
+  const { port, state } = fakePort([rec(open())]);
+  state.failList = true;
+  render(<WorkoutScreen port={port} {...ids} />);
+  expect((await screen.findByRole('status')).textContent).toMatch(/nicht gelesen/);
+  expect(screen.queryByRole('button', { name: 'Leeres Training starten' })).toBeNull();
+  state.failList = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Nochmal versuchen' }));
+  expect(await screen.findByRole('button', { name: 'Training fortsetzen' })).toBeTruthy();
+});
+
+test('WorkoutScreen starts a given routine', async () => {
+  const routine: GymWorkout = { name: 'Push', exercises: [{ templateId: 'pf-bench-press', title: 'Bankdrücken', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null }] }] };
+  const { port } = fakePort();
+  render(<WorkoutScreen port={port} routine={routine} {...ids} />);
+  expect(await screen.findByText('Bankdrücken')).toBeTruthy();
+  expect(screen.getByText('Push')).toBeTruthy();
+});
+
+test('history has a per-exercise view with last values and progress', async () => {
+  const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
+  render(<HistoryScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übungen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Kniebeuge' }));
+  expect(await screen.findByText('Zuletzt')).toBeTruthy();
+  expect(screen.getAllByText(/85 kg × 5/).length).toBeGreaterThan(0);
+});
+
+test('a Hevy copy of an own session is listed once in the history', async () => {
+  const own = finished('own', 9000);
+  const hv = { ...finished('hv', 9500), source: 'hevy' as const, title: 'Hevy-Beine' };
+  const { port } = fakePort([rec(own), rec(hv)]);
+  render(<HistoryScreen port={port} {...ids} />);
+  await screen.findByRole('button', { name: /Beine/ });
+  expect(screen.queryByRole('button', { name: /Hevy-Beine/ })).toBeNull();
+});

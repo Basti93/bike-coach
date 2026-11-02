@@ -116,15 +116,18 @@ export class GymCoach {
     if (!this.deps.store || !this.isHevy(id)) return;
     const hevy = this.deps.workouts(id);
     const now = this.deps.nowMs();
+    const links = this.links(id);
     const stored = new Map(this.deps.store.all(id, 'workout').map((r) => [r.id, r]));
     const records: TrackedRecord[] = [];
     for (const w of hevy) {
-      const r = hevyRecord(w);
+      const r = hevyRecord(w, links);
       const have = stored.get(r.id);
       // Present in Hevy again after a tombstone: written live and newer, so a rebuild cannot let the tombstone win.
       if (have?.deleted) records.push({ ...r, updatedMs: Math.max(now, have.updatedMs + 1) });
       // Already live with the same content under a newer time (a revived one): nothing to write.
       else if (have && have.updatedMs > r.updatedMs && JSON.stringify(have.body) === JSON.stringify(r.body)) continue;
+      // Stored before a link existed (still the plain Hevy ids): written again with the own ids, newer so it wins.
+      else if (have && !have.deleted && JSON.stringify(have.body) === JSON.stringify(hevyRecord(w).body) && JSON.stringify(have.body) !== JSON.stringify(r.body)) records.push({ ...r, updatedMs: Math.max(r.updatedMs, have.updatedMs + 1) });
       else records.push(r);
     }
     // Only a complete list can say a workout is gone. While Hevy still loads, nothing is removed.
