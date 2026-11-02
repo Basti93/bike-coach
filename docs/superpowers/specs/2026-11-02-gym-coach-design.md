@@ -85,6 +85,14 @@ Decided per exercise from recent sessions:
 
 The AI proposes and code checks, as with the bike coach. Hard limits it cannot exceed, including the maximum weight step, the maximum sets per workout and no weights without history. An answer outside the limits is corrected once, then replaced by the rule-based workout. Written figures must match the data, otherwise the text is dropped.
 
+## Structure of the app
+
+Per person there is one shared level, and the two coaches branch off from it. This came from the rider. The details below are the author's calls.
+
+- **Overview per profile:** after picking a profile, a person with Hevy lands on a short overview with Rad, Kraft and Gesundheit. A person without Hevy goes straight to the bike page as today and never sees the extra level.
+- **Gesundheit is shared:** it belongs to the person and not to a coach, and both areas link to it. It shows Hevy workouts next to the Garmin values: recent workouts with date, duration, sets and volume, plus workouts and volume per week. Each source appears only if connected, and it opens if at least one of them is.
+- **Connections move up:** the Garmin and Hevy cards and complaints are about the person, so they stay reachable from the overview too. Their state does not move.
+
 ## Relationship between the coaches
 
 - Separate state, prompts and text. The gym coach has its own memory and its own place in the data folder.
