@@ -4,6 +4,7 @@ import type { WordProgress } from '../shared/language';
 import type { PassState } from '../shared/passes';
 import type { Session } from '../shared/session';
 import type { ClaudeErrorKind } from './claude-client';
+import type { RideDebrief } from './debrief';
 import type { RideSummary } from './metrics';
 import { RAMP_ID } from './guardrails';
 import type { Complaint, Motive } from './motivation';
@@ -29,6 +30,9 @@ export type CoachState = {
   motives?: Motive[];
   lastQuestionMs?: number;
   encouragement?: string;
+  debriefs?: Record<string, RideDebrief>;
+  /** Ride whose debrief still has to be shown once. */
+  debriefToShow?: string | null;
   feedback: Record<string, Rating>;
   summaries: RideSummary[];
   processedRides: string[];

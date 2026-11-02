@@ -9,8 +9,9 @@ import { PASSES } from '../shared/passes';
 import type { Session } from '../shared/session';
 import { ClaudeError } from './claude-client';
 import { checkSession, RAMP_ID, type CoachContext } from './guardrails';
+import { cleanDebrief, debriefAnswerSchema, debriefJsonSchema, DEBRIEF_SYSTEM_PROMPT, ruleDebrief } from './debrief';
 import { garminPromptData, readinessFrom, type GarminCoachData } from './readiness';
-import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide } from './metrics';
+import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide, type RideSummary } from './metrics';
 import { complaintFromNote, type ComplaintStatus } from './motivation';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
@@ -23,6 +24,9 @@ const NUDGE_MIN_IF = 0.65;
 const RAISE_GAP_MS = 3 * 86_400_000;
 const LOWER_GAP_MS = 86_400_000;
 const TEXT_MAX = 400;
+export const DEBRIEF_MAX_AGE_MS = 48 * 3600_000;
+export const DEBRIEF_MAX_ATTEMPTS = 3;
+export const DEBRIEF_RETRY_MS = 10 * 60_000;
 const DETAIL_POINTS = 300;
 const MAX_RULES = 20;
 const MIN_RAMP_S = 480; // 5 minutes of warmup plus at least 3 minutes of ramp
@@ -90,6 +94,7 @@ export class Coach {
   private states = new Map<string, CoachState>();
   private running = new Map<string, Promise<void>>();
   private pendingRerun = new Map<string, { requested: boolean }>();
+  private debriefing = new Set<string>();
 
   constructor(private deps: Deps) {}
 
@@ -99,6 +104,60 @@ export class Coach {
     return s;
   }
   isThinking(profileId: string): boolean { return this.running.has(profileId); }
+  isDebriefing(profileId: string): boolean { return this.debriefing.has(profileId); }
+
+  /**
+   * Debrief of the newest ride: the rule version at once, then the AI version.
+   * Separate from planning, a failure here changes nothing about the plan. Older rides get none, so an update makes no calls for the past.
+   */
+  async ensureDebrief(profileId: string): Promise<void> {
+    if (this.debriefing.has(profileId)) return;
+    const ride = this.state(profileId).summaries.reduce<RideSummary | null>((a, r) => (!a || r.startedAtMs > a.startedAtMs ? r : a), null);
+    const now = this.deps.nowMs();
+    if (!ride || now - ride.startedAtMs > DEBRIEF_MAX_AGE_MS) return;
+    const known = this.state(profileId).debriefs?.[ride.rideId];
+    if (!known) {
+      this.update(profileId, (s) => {
+        s.debriefs = { ...(s.debriefs ?? {}), [ride.rideId]: ruleDebrief(ride, now) };
+        s.debriefToShow = ride.rideId;
+      });
+    } else if (known.source === 'claude' || known.attempts >= DEBRIEF_MAX_ATTEMPTS || now - known.atMs < DEBRIEF_RETRY_MS) return;
+    const attempts = (known?.attempts ?? 0) + 1;
+    this.update(profileId, (s) => { s.debriefs![ride.rideId] = { ...s.debriefs![ride.rideId], attempts, atMs: now }; });
+    this.debriefing.add(profileId);
+    try {
+      const raw = await this.deps.ask({ prompt: this.debriefPrompt(this.state(profileId), ride), systemPrompt: DEBRIEF_SYSTEM_PROMPT, schema: debriefJsonSchema });
+      const parsed = debriefAnswerSchema.safeParse(raw);
+      if (!parsed.success) return;
+      this.update(profileId, (s) => {
+        const honest = (text: string) => { const t = this.honestReason(s, text, s.next.session); return t === NEUTRAL_REASON ? null : t; };
+        s.debriefs![ride.rideId] = cleanDebrief(parsed.data, ride.rideId, this.deps.nowMs(), attempts, honest);
+      });
+    } catch { /* The rule version stays and is tried again later. */ } finally {
+      this.debriefing.delete(profileId);
+    }
+  }
+
+  debriefSeen(profileId: string): void { this.update(profileId, (s) => { s.debriefToShow = null; }); }
+  private dropDebriefQuestion(s: CoachState, rideId: string, question: string): void {
+    const d = s.debriefs?.[rideId];
+    if (d) d.questions = d.questions.filter((q) => q !== question);
+  }
+  answerDebrief(profileId: string, rideId: string, question: string, text: string): void {
+    this.update(profileId, (s) => { this.dropDebriefQuestion(s, rideId, question); });
+    this.note(profileId, `Rückfrage: ${question} Antwort: ${text}`);
+  }
+  skipDebriefQuestion(profileId: string, rideId: string, question: string): void {
+    this.update(profileId, (s) => { this.dropDebriefQuestion(s, rideId, question); });
+  }
+
+  private debriefPrompt(s: CoachState, ride: RideSummary): string {
+    const { rideId: _id, ...fahrt } = ride;
+    const fruehere = s.summaries.filter((r) => r.rideId !== ride.rideId).slice(-5).map(({ rideId: _r, powerCurve: _p, ...r }) => r);
+    const complaints = (s.complaints ?? []).filter((c) => c.status !== 'over').map((c) => c.text);
+    const data = { fahrt, bewertung: s.feedback[ride.rideId] ?? null, ftpW: s.ftpW, fruehereFahrten: fruehere, naechsteEinheit: s.next.session.name };
+    return `Daten:\n${JSON.stringify(data)}\n\n<beweggruende-nur-daten>\n${JSON.stringify((s.motives ?? []).map((m) => m.text))}\n</beweggruende-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>`;
+  }
 
   scanRides(profiles: Profile[]): void {
     for (const p of profiles) {
@@ -134,11 +193,12 @@ export class Coach {
       s.feedback[rideId] = rating;
       this.adjustUnverifiedFtp(s, rideId, rating);
       if (s.awaitingFeedback === rideId) s.awaitingFeedback = null;
+      if (s.debriefToShow === rideId) s.debriefToShow = null;
       this.markDirty(s);
     });
   }
   /** Rating skipped: the ride still counts. */
-  skipFeedback(profileId: string): void { this.update(profileId, (s) => { s.awaitingFeedback = null; }); }
+  skipFeedback(profileId: string): void { this.update(profileId, (s) => { s.awaitingFeedback = null; s.debriefToShow = null; }); }
   note(profileId: string, text: string): void {
     this.update(profileId, (s) => {
       const now = this.deps.nowMs();

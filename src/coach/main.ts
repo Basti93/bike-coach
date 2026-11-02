@@ -177,6 +177,7 @@ const scan = (): void => {
     for (const p of list) {
       const s = coach.state(p.id);
       pushToServer(s);
+      if (free && !coach.isThinking(p.id)) void coach.ensureDebrief(p.id).catch(() => {}).finally(publish);
       if (!free || !s.dirty || coach.isThinking(p.id)) continue;
       const waited = now - (s.dirtySinceMs ?? now) >= WAIT_MS;
       if (s.awaitingFeedback && !waited) continue;
