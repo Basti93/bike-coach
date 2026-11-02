@@ -6,7 +6,6 @@ import { availableExercises, suggestNext } from './history';
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
-export const WIDOWMAKER_PREFIX = 'Widowmaker:';
 export const WIDOWMAKER_REPS = 20;
 const MAX_REST_S = 600;
 const MAX_NOTES = 500;
@@ -20,7 +19,7 @@ const no = (reason: string): never => { throw new Refuse(reason); };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
-const isWidowmaker = (notes: string): boolean => notes.startsWith(WIDOWMAKER_PREFIX);
+const isWidowmaker = (notes: string): boolean => /^\s*widowmaker\b/i.test(notes);
 const toHalf = (kg: number): number => Math.round(kg * 2) / 2;
 
 /** Highest weight accepted for an exercise: the suggestion plus one step, or the suggestion alone. */
@@ -71,19 +70,20 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
   if (widow && barbell) no(`${where}: Widowmaker nicht an der Langhantel`);
   if (widow && sug.why === 'none') no(`${where}: Widowmaker nur mit Verlauf`);
   const bodyweight = BODYWEIGHT_TYPES.includes(t.type) || (sug.why !== 'none' && sug.weightKg === null);
-  const widowSets = ex.sets.filter((s) => s.reps === WIDOWMAKER_REPS);
+  const isWidowSet = (s: GymSet): boolean => widow && s.reps === WIDOWMAKER_REPS && !s.repRange;
+  const widowSets = ex.sets.filter(isWidowSet);
   if (widow && (widowSets.length !== 1 || widowSets[0].type !== 'normal')) no(`${where}: Widowmaker braucht genau einen Satz mit ${WIDOWMAKER_REPS}`);
   for (const s of ex.sets) {
     if (s.type === 'failure' && barbell) no(`${where}: Muskelversagen nicht an der Langhantel`);
     if (s.weightKg !== null) {
       if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
-      const isWidowSet = widow && s.reps === WIDOWMAKER_REPS;
-      if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet)) no(`${where}: Gewicht zu hoch`);
+      if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s))) no(`${where}: Gewicht zu hoch`);
     }
     if (s.type === 'warmup') continue;
-    const lows = s.repRange ? [s.repRange.start, s.repRange.end] : [s.reps as number];
-    for (const r of lows) {
-      if (widow && s.reps === WIDOWMAKER_REPS && !s.repRange) continue;
+    if (isWidowSet(s)) continue;
+    // reps and both range ends are all checked, so neither can hide a value from the other
+    const values = [...(s.reps !== null ? [s.reps] : []), ...(s.repRange ? [s.repRange.start, s.repRange.end] : [])];
+    for (const r of values) {
       if (bodyweight) { if (r < 1 || r > MAX_BODYWEIGHT_REPS) no(`${where}: Wiederholungen außerhalb des Rahmens`); }
       else if (r < REP_MIN || r > REP_MAX) no(`${where}: Wiederholungen außerhalb von ${REP_MIN} bis ${REP_MAX}`);
     }

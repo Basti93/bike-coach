@@ -16,7 +16,11 @@ function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
 }
 
-/** The workout used when the AI answer fails the check twice, or when there is no AI. Plain and safe. */
+/**
+ * The workout used when the AI answer fails the check twice, or when there is no AI. Plain and safe by construction,
+ * so it is not put through `checkWorkout` (the empty-history fallback would not pass it anyway).
+ * Caller contract: an empty exercise list must never be offered to the rider or written to Hevy.
+ */
 export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: string } {
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
   const legsTired = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
@@ -43,6 +47,9 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   }
   const machines = ctx.templates.filter((t) => t.equipment === 'machine' && allowed(t));
   const picked = FALLBACK_MUSCLES.map((m) => machines.find((t) => t.primaryMuscle === m)).filter((t): t is ExerciseTemplate => !!t).slice(0, CORE_SIZE);
+  if (picked.length === 0) {
+    return { workout: { name: 'Ganzkörper', exercises: [] }, reason: 'Ich habe keine passenden Übungen gefunden, deshalb gibt es gerade kein Training. Sobald Hevy mehr Übungen liefert, geht es weiter.' };
+  }
   return {
     workout: { name: 'Ganzkörper an Geräten', exercises: picked.map((t) => exerciseOf(t, ctx)) },
     reason: 'Noch keine passenden Hevy-Einheiten: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',

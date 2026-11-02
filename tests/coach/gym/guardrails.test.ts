@@ -120,6 +120,21 @@ describe('checkWorkout', () => {
     refused(wo([ex('cp', [{ ...set(40, null), repRange: { start: 10, end: 8 } }])]));
     passes(wo([ex('cp', [{ ...set(40, null), repRange: { start: 8, end: 12 } }])]));
   });
+  it('reps are checked together with a rep range', () => {
+    refused(wo([ex('cp', [{ ...set(40, 100), repRange: { start: 8, end: 10 } }])]));
+    refused(wo([ex('cp', [{ ...set(40, 20), repRange: { start: 8, end: 10 } }])]));
+    refused(wo([ex('cp', [{ ...set(40, 20), repRange: { start: 8, end: 10 } }], { notes: 'Widowmaker: x' })]));
+    refused(wo([ex('cp', [{ ...set(40, null), repRange: { start: 4, end: 10 } }])]));
+    refused(wo([ex('cp', [{ ...set(40, null), repRange: { start: 8, end: 15 } }])]));
+    passes(wo([ex('cp', [{ ...set(40, 9), repRange: { start: 8, end: 10 } }])]));
+  });
+  it('a widowmaker note is recognised with a leading space or other case', () => {
+    expect(refused(wo([ex('bp', [set(60, 8)], { notes: '  widowmaker: 20' })]))).toMatch(/Widowmaker/);
+    expect(refused(wo([ex('bp', [set(60, 8)], { notes: 'WIDOWMAKER' })]))).toMatch(/Widowmaker/);
+    const a = ex('cp', [set(40, 20)], { notes: ' widowmaker: x' });
+    const b = ex('lp', [set(null, 20)], { notes: 'WIDOWMAKER: x' });
+    expect(refused(wo([a, b]))).toMatch(/mehr als 1 Widowmaker/);
+  });
   it('the result carries only known fields, with the title from the template', () => {
     const w = passes({ name: 'Test', extra: 1, exercises: [{ ...ex('cp', [set(40, 8)]), evil: 'x' }] });
     expect(w).toEqual({ name: 'Test', exercises: [{ templateId: 'cp', title: 'Title cp', restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: 40, reps: 8 }] }] });
@@ -154,6 +169,14 @@ describe('ruleWorkout', () => {
     expect(list.every((e) => TEMPLATES.find((t) => t.id === e.templateId)?.equipment === 'machine')).toBe(true);
     expect(list.flatMap((e) => e.sets).every((s) => s.weightKg === null && s.type === 'normal' && s.reps! >= 6 && s.reps! <= 12)).toBe(true);
     expect(r.reason).toMatch(/Hevy/);
+  });
+  it('says honestly when no suitable exercises were found', () => {
+    for (const templates of [[], TEMPLATES.filter((t) => t.equipment !== 'machine')]) {
+      const r = ruleWorkout({ workouts: [], templates, nowMs: NOW });
+      expect(r.workout.exercises).toEqual([]);
+      expect(r.reason).toMatch(/keine passenden Übungen/);
+      expect(r.reason).not.toMatch(/Ganzkörpertraining/);
+    }
   });
   it('recent leg work leaves out heavy leg exercises', () => {
     const legs = [wk(1, 'lp', [[100, 8]]), ...many().filter((w) => !w.id.endsWith('lp'))];
