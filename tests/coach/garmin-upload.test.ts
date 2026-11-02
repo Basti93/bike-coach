@@ -24,7 +24,7 @@ test('changing the mode keeps what is already uploaded', () => {
   expect(withUploadMode(state({ garminUpload: { mode: 'ask', rides } }), 'off')).toEqual({ mode: 'off', rides });
 });
 test('the description links the public project', () => {
-  expect(REPO_DESCRIPTION).toContain('https://github.com/Basti93/bike-coach');
+  expect(REPO_DESCRIPTION).toBe('Gefahren mit Bike Coach 🚴 https://github.com/Basti93/bike-coach #vibeIt');
 });
 const named = (over: Partial<RideSummary>) => activityName({ sessionId: 's', intensityFactor: 0.6, ...over } as RideSummary);
 test('the name at Garmin is simple and always says indoor cycling', () => {
