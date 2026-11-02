@@ -197,6 +197,9 @@ export class HevyLinks {
     return rejected ? { state: 'failed', reason: 'expired' } : { state: 'connected', workouts, loading, lastSyncMs };
   }
 
+  /** True once the history is complete. False without a connection. */
+  strengthReady(profileId: string): boolean { return this.sync(profileId)?.ready() ?? false; }
+
   workouts(profileId: string): StrengthWorkout[] { return this.sync(profileId)?.workouts() ?? []; }
 
   async connect(profileId: string, rawKey: string): Promise<void> {

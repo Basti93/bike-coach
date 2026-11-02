@@ -3,7 +3,9 @@ import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
 import type { GarminHealth, GarminReadiness } from '../shared/garmin';
 import type { GarminSuggestion } from '../shared/garmin-profile';
-import { COACH_PORT, type CoachClientMessage, type GarminStatus, type GarminSyncInfo, type HevyStatus, type RideDetail } from '../shared/coach-protocol';
+import type { GymPublic } from '../coach/gym/public';
+import type { GymWorkout } from '../coach/gym/types';
+import { COACH_PORT, type CoachClientMessage, type GymConfirmResult, type GarminStatus, type GarminSyncInfo, type HevyStatus, type RideDetail } from '../shared/coach-protocol';
 
 export const useCoach = (profileId: string | null) => {
   const [state, setState] = useState<CoachState | null>(null);
@@ -17,12 +19,18 @@ export const useCoach = (profileId: string | null) => {
   const [garminReadiness, setGarminReadiness] = useState<GarminReadiness | null>(null);
   const [garminSuggestion, setGarminSuggestion] = useState<GarminSuggestion | null>(null);
   const [garminHealth, setGarminHealth] = useState<GarminHealth | null>(null);
+  const [gym, setGym] = useState<GymPublic | null>(null);
+  const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean } | null>(null);
+  const [gymConfirmResult, setGymConfirmResult] = useState<GymConfirmResult | null>(null);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     setState(null);
     setGarminHealth(null);
+    setGym(null);
+    setGymPreview(null);
+    setGymConfirmResult(null);
     if (!profileId) return undefined;
     let closed = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -37,7 +45,9 @@ export const useCoach = (profileId: string | null) => {
         const m = JSON.parse(String(e.data));
         if (m.type === 'ride-detail') setDetail(m.detail);
         if (m.type === 'garmin-health') setGarminHealth(m.data);
-        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); }
+        if (m.type === 'gym-preview') setGymPreview(m.preview);
+        if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
+        if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -51,5 +61,5 @@ export const useCoach = (profileId: string | null) => {
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { gym, gymPreview, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

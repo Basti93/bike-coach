@@ -5,7 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { originAllowed } from '../service/ws-server';
 import { findOpenRides } from '../service/recovery';
 import type { Profile } from '../shared/profiles';
-import { COACH_PORT, type CoachClientMessage } from '../shared/coach-protocol';
+import { COACH_PORT, type CoachClientMessage, type CoachServerMessage } from '../shared/coach-protocol';
 import { askClaude, findClaude } from './claude-client';
 import { Coach } from './coach';
 import { suggestProfile } from '../shared/garmin-profile';
@@ -19,6 +19,9 @@ import { activityName, canUpload, REPO_DESCRIPTION } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
+import { GymCoach } from './gym/gym-coach';
+import { HevyRoutines } from './gym/hevy-routines';
+import { gymPublic } from './gym/public';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -54,6 +57,27 @@ const coach = new Coach({
   strength: (profileId) => hevy.workouts(profileId),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
+
+const hevyDir = path.join(dir, '..', 'hevy');
+const gymConnected = (profileId: string): boolean => hevy.status(profileId).state === 'connected';
+// Built fresh per use, never kept: a disconnected profile has no key and so no writer.
+const gymWriter = (profileId: string): HevyRoutines | null => {
+  const key = hevy.apiKey(profileId);
+  return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs: () => Date.now() }) : null;
+};
+const gym = new GymCoach({
+  dir: path.join(coachDir, 'gym'), nowMs: () => Date.now(),
+  ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
+  workouts: (id) => hevy.workouts(id),
+  templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
+  ready: (id) => gymConnected(id) && hevy.strengthReady(id),
+  bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
+  complaint: (id, text) => coach.addComplaintFromText(id, text),
+  writer: gymWriter,
+});
+const gymOf = (profileId: string) => {
+  try { return gymPublic(hevy.status(profileId), gym.state(profileId), gym.isThinking(profileId), gymConnected(profileId) && hevy.strengthReady(profileId)); } catch { return null; }
+};
 
 const profiles = (): Profile[] => {
   try { return JSON.parse(fs.readFileSync(path.join(dir, 'profiles.json'), 'utf8')) as Profile[]; } catch { return []; }
@@ -127,7 +151,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -152,6 +176,33 @@ const startUpload = (profileId: string, rideId: string, repoLink: boolean): void
   if (ride && canUpload(s, rideId) && uploader.upload(profileId, rideId, activityName(ride), ride.startedAtMs, repoLink ? REPO_DESCRIPTION : undefined)) coach.markUpload(profileId, rideId, { status: 'uploading' });
 };
 
+const handleGym = (socket: WebSocket, m: CoachClientMessage): void => {
+  const send = (msg: CoachServerMessage) => { try { socket.send(JSON.stringify(msg)); } catch { /* connection gone */ } };
+  if (m.type === 'gym-forget') { gym.forget(m.profileId); publish(); return; }
+  if (!('profileId' in m) || !gymConnected(m.profileId)) {
+    if (m.type === 'gym-preview') send({ type: 'gym-preview', preview: null });
+    if (m.type === 'gym-confirm') send({ type: 'gym-confirm-result', result: 'failed' });
+    return;
+  }
+  // Hevy is only read or written with no ride open.
+  if (m.type === 'gym-preview') {
+    if (!noOpenRide()) { send({ type: 'gym-preview', preview: null }); return; }
+    void gym.preview(m.profileId).catch(() => null).then((preview) => send({ type: 'gym-preview', preview }));
+    return;
+  }
+  if (m.type === 'gym-confirm') {
+    if (!noOpenRide()) { send({ type: 'gym-confirm-result', result: 'failed' }); return; }
+    void gym.confirm(m.profileId, m.name).catch((): 'failed' => 'failed').then((result) => { send({ type: 'gym-confirm-result', result }); publish(); });
+    return;
+  }
+  if (m.type === 'gym-adjust') gym.adjust(m.profileId, m.how);
+  if (m.type === 'gym-note') gym.note(m.profileId, m.text);
+  if (m.type === 'gym-answer') gym.answer(m.profileId, m.question, m.text);
+  if (m.type === 'gym-skip-question') gym.skipQuestion(m.profileId, m.question);
+  if (m.type === 'gym-remove-rule') gym.removeRule(m.profileId, m.atMs);
+  publish();
+};
+
 wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
@@ -164,6 +215,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
+      if (m.type.startsWith('gym-')) { handleGym(socket, m); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
@@ -215,6 +267,8 @@ const scan = (): void => {
     }
     // Separate safeguard: Hevy must never disturb the coach run or a ride.
     if (free) void hevy.tick(list.map((p) => p.id)).catch(() => {}).finally(publish);
+    // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
+    if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();
