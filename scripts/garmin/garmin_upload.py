@@ -53,7 +53,7 @@ def find_by_start(client, start_ms):
     return None
 
 
-def name_activity(client, response, title, start_ms, wait):
+def name_activity(client, response, title, start_ms, wait, description=None):
     """The upload already counts, a missing name must not turn it into a failure."""
     try:
         activity_id = imported_id(response)
@@ -63,12 +63,14 @@ def name_activity(client, response, title, start_ms, wait):
         if activity_id is None:
             return False
         client.set_activity_name(activity_id, title)
+        if description:
+            client.set_activity_description(activity_id, description)
         return True
     except Exception:  # noqa: BLE001 - see above
         return False
 
 
-def attempt(make_client, tokens, path, title, start_ms, wait):
+def attempt(make_client, tokens, path, title, start_ms, wait, description=None):
     if not os.path.isfile(path):
         return {"status": "failed", "reason": "missing-file"}
     try:
@@ -77,13 +79,13 @@ def attempt(make_client, tokens, path, title, start_ms, wait):
         response = client.upload_activity(path)
     except Exception as error:  # noqa: BLE001 - every error ends as a short result
         return result_for(error)
-    if name_activity(client, response, title, start_ms, wait):
+    if name_activity(client, response, title, start_ms, wait, description):
         return {"status": "uploaded"}
     return {"status": "uploaded", "named": False}
 
 
-def upload(make_client, tokens, path, out, title, start_ms, wait=time.sleep):
-    out.write(json.dumps(attempt(make_client, tokens, path, title, start_ms, wait)) + "\n")
+def upload(make_client, tokens, path, out, title, start_ms, wait=time.sleep, description=None):
+    out.write(json.dumps(attempt(make_client, tokens, path, title, start_ms, wait, description)) + "\n")
     out.flush()
 
 
@@ -93,6 +95,7 @@ def main():
     parser.add_argument("--file", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--start-ms", required=True, type=int)
+    parser.add_argument("--description")
     args = parser.parse_args()
     out = sys.stdout
     sys.stdout = sys.stderr  # Output from the library must not interfere with the result line.
@@ -102,7 +105,7 @@ def main():
 
         return Garmin()
 
-    upload(make_client, args.tokens, args.file, out, args.name, args.start_ms)
+    upload(make_client, args.tokens, args.file, out, args.name, args.start_ms, description=args.description)
 
 
 if __name__ == "__main__":

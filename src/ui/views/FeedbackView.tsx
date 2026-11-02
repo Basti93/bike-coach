@@ -47,7 +47,7 @@ export const FeedbackView = ({ profileId, rideId, send, together, summary, summa
       {detail?.rideId === rideId && <section className="card"><RideCharts detail={detail} /></section>}
       {summary?.hrZoneMinutes && <p className="muted" data-testid="ride-zones">Minuten je Pulszone: {summary.hrZoneMinutes.map((m, i) => <span key={i}>{i > 0 && ' · '}<ZoneChip zone={i + 1}>{i + 1}</ZoneChip>: {m}</span>)}{summary.hrTargetPct === undefined ? '' : `. ${summary.hrTargetPct} % der Zeit im Ziel oder darunter.`}</p>}
       {debrief && <DebriefCard debrief={debrief} next={next} thinking={debriefing} {...debriefHandlers(profileId, rideId, send)} />}
-      {summary && upload && upload.mode !== 'off' && <GarminUploadButton ride={summary} status={upload.rides[rideId]} connected={garminConnected} onUpload={() => send({ type: 'garmin-upload', profileId, rideId })} />}
+      {summary && upload && upload.mode !== 'off' && <GarminUploadButton ride={summary} status={upload.rides[rideId]} connected={garminConnected} onUpload={(repoLink) => send({ type: 'garmin-upload', profileId, rideId, repoLink })} />}
       <h2>Wie war’s heute?</h2>
       <div className="choices">
         <button className="choice" onClick={() => rate('easy')}><span aria-hidden="true">🌱 </span>Zu leicht</button>

@@ -24,7 +24,7 @@ export type CoachClientMessage =
   | { type: 'skip-question'; profileId: string }
   | { type: 'debrief-seen'; profileId: string }
   | { type: 'garmin-upload-settings'; profileId: string; mode: 'off' | 'ask' }
-  | { type: 'garmin-upload'; profileId: string; rideId: string }
+  | { type: 'garmin-upload'; profileId: string; rideId: string; repoLink?: boolean }
   | { type: 'debrief-answer'; profileId: string; rideId: string; question: string; text: string }
   | { type: 'debrief-skip-question'; profileId: string; rideId: string; question: string }
   | { type: 'remove-motive'; profileId: string; atMs: number }

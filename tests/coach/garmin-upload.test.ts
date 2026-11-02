@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { RAMP_ID } from '../../src/coach/guardrails';
-import { activityName, canUpload, uploadSettings, withUploadMode } from '../../src/coach/garmin-upload';
+import { activityName, canUpload, REPO_DESCRIPTION, uploadSettings, withUploadMode } from '../../src/coach/garmin-upload';
 import { GarminUploader, type UploadResult } from '../../src/coach/garmin-uploader';
 import { externalLoad } from '../../src/coach/readiness';
 import type { RideSummary } from '../../src/coach/metrics';
@@ -22,6 +22,9 @@ test('an older automatic setting counts as asking, nothing goes up by itself', (
 test('changing the mode keeps what is already uploaded', () => {
   const rides = { new: { status: 'uploaded' as const, atMs: 1 } };
   expect(withUploadMode(state({ garminUpload: { mode: 'ask', rides } }), 'off')).toEqual({ mode: 'off', rides });
+});
+test('the description links the public project', () => {
+  expect(REPO_DESCRIPTION).toContain('https://github.com/Basti93/bike-coach');
 });
 const named = (over: Partial<RideSummary>) => activityName({ sessionId: 's', intensityFactor: 0.6, ...over } as RideSummary);
 test('the name at Garmin is simple and always says indoor cycling', () => {
@@ -77,6 +80,11 @@ describe('uploader', () => {
     const { up, spawnFn } = make();
     expect(up.upload('pa', 'ride-1-a', 'Indoor Cycling Locker', 5000)).toBe(true);
     expect(spawnFn).toHaveBeenCalledWith('py', ['s.py', '--tokens', path.join('/g', 'tokens', 'pa'), '--file', path.join('/x', 'ride-1-a.fit'), '--name', 'Indoor Cycling Locker', '--start-ms', '5000'], expect.anything());
+  });
+  test('passes a description only when there is one', () => {
+    const { up, spawnFn } = make();
+    up.upload('pa', 'ride-1', 'n', 1, 'Text');
+    expect((spawnFn.mock.calls[0] as unknown[])[1]).toEqual(expect.arrayContaining(['--description', 'Text']));
   });
   test('rejects ids that could leave the folder', () => {
     const { up, spawnFn } = make();

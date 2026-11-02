@@ -15,7 +15,7 @@ import { healthData } from './garmin-health';
 import { readinessFrom, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
 import { HevySync, readHevyConfig } from './hevy';
-import { activityName, canUpload } from './garmin-upload';
+import { activityName, canUpload, REPO_DESCRIPTION } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
@@ -147,10 +147,10 @@ const uploader = new GarminUploader({
   hasTokens: (profileId) => fs.existsSync(path.join(garminDir, 'tokens', profileId, 'garmin_tokens.json')),
   onResult: (profileId, rideId, result) => { coach.markUpload(profileId, rideId, result); publish(); },
 });
-const startUpload = (profileId: string, rideId: string): void => {
+const startUpload = (profileId: string, rideId: string, repoLink: boolean): void => {
   const s = coach.state(profileId);
   const ride = s.summaries.find((r) => r.rideId === rideId);
-  if (ride && canUpload(s, rideId) && uploader.upload(profileId, rideId, activityName(ride), ride.startedAtMs)) coach.markUpload(profileId, rideId, { status: 'uploading' });
+  if (ride && canUpload(s, rideId) && uploader.upload(profileId, rideId, activityName(ride), ride.startedAtMs, repoLink ? REPO_DESCRIPTION : undefined)) coach.markUpload(profileId, rideId, { status: 'uploading' });
 };
 
 wss.on('connection', (socket) => {
@@ -172,7 +172,7 @@ wss.on('connection', (socket) => {
       if (m.type === 'skip-question') coach.skipQuestion(m.profileId);
       if (m.type === 'debrief-seen') coach.debriefSeen(m.profileId);
       if (m.type === 'garmin-upload-settings') coach.setUploadMode(m.profileId, m.mode === 'off' ? 'off' : 'ask');
-      if (m.type === 'garmin-upload') startUpload(m.profileId, m.rideId);
+      if (m.type === 'garmin-upload') startUpload(m.profileId, m.rideId, m.repoLink === true);
       if (m.type === 'debrief-answer') { coach.answerDebrief(m.profileId, m.rideId, m.question, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'debrief-skip-question') coach.skipDebriefQuestion(m.profileId, m.rideId, m.question);
       if (m.type === 'remove-motive') { coach.removeMotive(m.profileId, m.atMs); if (noOpenRide()) refresh(m.profileId); }

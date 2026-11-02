@@ -76,9 +76,9 @@ test('the feedback screen stays quiet while uploading is off', () => {
 test('the feedback screen offers the upload when asking is chosen', () => {
   const send = feedback('ask');
   fireEvent.click(screen.getByRole('button', { name: 'Zu Garmin hochladen' }));
-  expect(send).not.toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1' });
+  expect(send).not.toHaveBeenCalled();
   confirm();
-  expect(send).toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1' });
+  expect(send).toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1', repoLink: false });
 });
 
 test('the history offers the upload even while automatic uploading is off', () => {
@@ -88,7 +88,7 @@ test('the history offers the upload even while automatic uploading is off', () =
   fireEvent.click(screen.getByRole('button', { expanded: false, name: /Min\./ }));
   fireEvent.click(screen.getByRole('button', { name: 'Zu Garmin hochladen' }));
   confirm();
-  expect(send).toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1' });
+  expect(send).toHaveBeenCalledWith({ type: 'garmin-upload', profileId: 'p', rideId: 'r1', repoLink: false });
 });
 
 const card = (upload?: Parameters<typeof GarminCard>[0]['upload']) => {
@@ -127,4 +127,28 @@ test('without a Garmin connection the feedback screen and history show no upload
   render(<HistoryView state={state} detail={null} send={vi.fn()} onBack={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { expanded: false, name: /Min\./ }));
   expect(screen.queryByRole('button', { name: 'Zu Garmin hochladen' })).toBeNull();
+});
+describe('repo link', () => {
+  beforeEach(() => localStorage.clear());
+  const open = (onUpload = vi.fn()) => {
+    render(<GarminUploadButton ride={ride} connected onUpload={onUpload} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Zu Garmin hochladen' }));
+    return onUpload;
+  };
+  test('stays out unless the rider ticks it', () => {
+    const onUpload = open();
+    expect((screen.getByLabelText(/Link zum Projekt/) as HTMLInputElement).checked).toBe(false);
+    confirm();
+    expect(onUpload).toHaveBeenCalledWith(false);
+  });
+  test('goes along when ticked, and the choice is remembered', () => {
+    const onUpload = open();
+    fireEvent.click(screen.getByLabelText(/Link zum Projekt/));
+    expect(screen.getByRole('dialog').textContent).toContain('github.com');
+    confirm();
+    expect(onUpload).toHaveBeenCalledWith(true);
+    cleanup();
+    open();
+    expect((screen.getByLabelText(/Link zum Projekt/) as HTMLInputElement).checked).toBe(true);
+  });
 });

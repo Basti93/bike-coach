@@ -331,3 +331,4 @@ main.with-pass .workout { height: 2rem; }
 .garmin-preview dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .15rem 0; }
 .garmin-preview dt { color: var(--muted); }
 .garmin-preview dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; text-align: right; }
+.garmin-repo { display: block; margin: .4rem 0; }

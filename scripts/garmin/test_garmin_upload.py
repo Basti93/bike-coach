@@ -16,7 +16,7 @@ class HttpError(Exception):
 class Client:
     def __init__(self, error=None, login_error=None):
         self.error, self.login_error = error, login_error
-        self.logins, self.uploads, self.names = [], [], []
+        self.logins, self.uploads, self.names, self.descriptions = [], [], [], []
         self.searches, self.recent, self.name_error = 0, [], None
         self.response = {"detailedImportResult": {"successes": [{"internalId": 77}]}}
 
@@ -35,6 +35,9 @@ class Client:
         self.searches += 1
         return self.recent
 
+    def set_activity_description(self, activity_id, text):
+        self.descriptions.append((activity_id, text))
+
     def set_activity_name(self, activity_id, title):
         if self.name_error:
             raise self.name_error
@@ -47,9 +50,9 @@ class UploadTest(unittest.TestCase):
         os.close(handle)
         self.addCleanup(os.remove, self.fit)
 
-    def run_upload(self, client, path=None):
+    def run_upload(self, client, path=None, description=None):
         out = io.StringIO()
-        garmin_upload.upload(lambda: client, "geheim-token-ordner", path or self.fit, out, "Indoor Cycling Locker", 1_000_000_000_000, lambda _: None)
+        garmin_upload.upload(lambda: client, "geheim-token-ordner", path or self.fit, out, "Indoor Cycling Locker", 1_000_000_000_000, lambda _: None, description)
         lines = out.getvalue().strip().split("\n")
         self.assertEqual(len(lines), 1)
         self.assertNotIn("geheim-token-ordner", lines[0])
@@ -84,6 +87,16 @@ class UploadTest(unittest.TestCase):
         client = Client()
         client.response = None
         self.assertEqual(self.run_upload(client), {"status": "uploaded", "named": False})
+
+    def test_no_description_by_default(self):
+        client = Client()
+        self.run_upload(client)
+        self.assertEqual(client.descriptions, [])
+
+    def test_sets_the_description_when_asked(self):
+        client = Client()
+        self.run_upload(client, description="Text")
+        self.assertEqual(client.descriptions, [(77, "Text")])
 
     def test_garmin_already_has_it(self):
         self.assertEqual(self.run_upload(Client(HttpError(409))), {"status": "duplicate"})

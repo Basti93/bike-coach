@@ -25,11 +25,12 @@ export class GarminUploader {
 
   constructor(private opts: Options) {}
 
-  upload(profileId: string, rideId: string, name: string, startMs: number): boolean {
+  upload(profileId: string, rideId: string, name: string, startMs: number, description?: string): boolean {
     if (!SAFE_ID.test(profileId) || !SAFE_ID.test(rideId) || this.opts.rideOpen() || !this.opts.hasTokens(profileId) || this.running.has(profileId)) return false;
     this.running.add(profileId);
     const child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
       this.opts.script, '--tokens', path.join(this.opts.baseDir, 'tokens', profileId), '--file', path.join(this.opts.exportsDir, `${rideId}.fit`), '--name', name, '--start-ms', String(startMs),
+      ...(description ? ['--description', description] : []),
     ], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     let ended = false;
