@@ -38,7 +38,7 @@ const HEALTH_WEEKS = 12;
 type Totals = { sets: number; volumeKg: number };
 /** Warmup sets are not training volume. Falls back to the stored totals, which already leave them out. */
 const workTotals = (w: StrengthWorkout): Totals => w.exercises.reduce<Totals>((acc, e) => {
-  if (e.workSets.length === 0) return { sets: acc.sets + e.sets, volumeKg: acc.volumeKg + e.volumeKg };
+  if (!e.workSets?.length) return { sets: acc.sets + e.sets, volumeKg: acc.volumeKg + e.volumeKg };
   const work = e.workSets.filter((s) => s.type !== 'warmup');
   return { sets: acc.sets + work.length, volumeKg: acc.volumeKg + Math.round(work.reduce((a, s) => a + (s.weightKg ?? 0) * (s.reps ?? 0), 0)) };
 }, { sets: 0, volumeKg: 0 });

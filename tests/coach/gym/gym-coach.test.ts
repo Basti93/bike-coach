@@ -931,4 +931,40 @@ describe('final review', () => {
       expect(h.coach.state(ID).lastNote?.questions[0]).toMatch(/Studio/);
     });
   });
+
+  describe('minor fixes', () => {
+    it('a plan with an old record without set details skips that record', async () => {
+      const h = harness();
+      const old = wk(20, 'old', [{ t: 'cp', kg: 61.25, reps: 8 }]);
+      for (const e of old.exercises) delete (e as { workSets?: unknown }).workSets;
+      const noExercises = { ...wk(21, 'bare', []), exercises: undefined } as unknown as StrengthWorkout;
+      h.workouts = [noExercises, old, ...history()];
+      await h.coach.tick(ID);
+      const s = h.coach.state(ID);
+      expect(s.lastError).toBeNull();
+      expect(s.next?.source).toBe('claude');
+      expect(s.seenWorkoutIds.sort()).toEqual(['w14', 'w7']);
+    });
+    const machines = [T('cp', 'machine', 'chest'), T('lr', 'machine', 'lats')];
+    const usedTimed = (daysAgo: number): StrengthWorkout => wk(daysAgo, `t${daysAgo}`, [{ t: 'unknown', kg: 30, reps: 8 }]);
+    it('the machine fallback keeps its plain text for a rider without history', () => {
+      const { reason, workout } = ruleWorkout({ workouts: [], templates: machines, nowMs: NOW });
+      expect(workout.exercises.every((e) => e.sets.every((x) => x.weightKg === null))).toBe(true);
+      expect(reason).toMatch(/Noch keine passenden Hevy-Einheiten/);
+      expect(reason).toMatch(/ohne Gewichte/);
+    });
+    it('a rider with history whose exercises were filtered gets an accurate reason', () => {
+      const { reason } = ruleWorkout({ workouts: [usedTimed(7)], templates: machines, nowMs: NOW });
+      expect(reason).not.toMatch(/Noch keine passenden Hevy-Einheiten/);
+      expect(reason).toMatch(/Verlauf/);
+      expect(reason).toMatch(/ohne Gewichte/);
+    });
+    it('the fallback does not say "ohne Gewichte" when a weight is applied', () => {
+      const long = wk(200, 'long', [{ t: 'cp', kg: 61.25, reps: 8 }]);
+      const { reason, workout } = ruleWorkout({ workouts: [long], templates: machines, nowMs: NOW });
+      expect(workout.exercises.some((e) => e.sets.some((x) => x.weightKg !== null))).toBe(true);
+      expect(reason).not.toMatch(/ohne Gewichte/);
+      expect(reason).not.toMatch(/Noch keine passenden Hevy-Einheiten/);
+    });
+  });
 });

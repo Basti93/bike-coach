@@ -53,8 +53,15 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   if (picked.length === 0) {
     return { workout: { name: 'Ganzkörper', exercises: [] }, reason: 'Ich habe keine passenden Übungen gefunden, deshalb gibt es gerade kein Training. Sobald Hevy mehr Übungen liefert, geht es weiter.' };
   }
+  const exercises = picked.map((t) => exerciseOf(t, ctx));
+  const hasHistory = ctx.workouts.some((w) => w.startMs <= ctx.nowMs);
+  const withWeights = exercises.some((e) => e.sets.some((s) => s.weightKg !== null));
   return {
-    workout: { name: 'Ganzkörper an Geräten', exercises: picked.map((t) => exerciseOf(t, ctx)) },
-    reason: 'Noch keine passenden Hevy-Einheiten: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',
+    workout: { name: 'Ganzkörper an Geräten', exercises },
+    reason: !hasHistory
+      ? 'Noch keine passenden Hevy-Einheiten: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.'
+      : withWeights
+        ? 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten. Wo du eine Übung schon kennst, steht ein Gewicht aus deinem Verlauf dabei, sonst taste dich in Ruhe heran.'
+        : 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',
   };
 }

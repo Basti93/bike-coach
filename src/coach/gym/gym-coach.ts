@@ -41,6 +41,8 @@ type Deps = {
 
 /** Hevy refuses what we sent, so the stored workout cannot be written. Auth, limits, its own trouble and the network are no such answer. */
 const refusedByHevy = (e: unknown): boolean => e instanceof HevyError && e.status >= 400 && e.status < 500 && ![401, 403, 429].includes(e.status);
+/** Older stored records lack the sets until the next sync has replaced them. The coach skips such a record until then. */
+const hasSetDetails = (w: StrengthWorkout): boolean => Array.isArray(w.exercises) && w.exercises.every((e) => Array.isArray(e.workSets));
 const complaintsFingerprint = (open: Complaint[]): string => open.map((c) => `${c.id}:${c.status}`).sort().join(',');
 const fingerprint = (w: GymWorkout): string => JSON.stringify(w);
 const isWidowmaker = (e: GymExercise): boolean => /^\s*widowmaker\b/i.test(e.notes);
@@ -92,7 +94,7 @@ export class GymCoach {
   private async plan(id: string): Promise<void> {
     if (!this.deps.ready(id)) return;
     const now = this.deps.nowMs();
-    const real = this.deps.workouts(id).filter((w) => w.startMs <= now);
+    const real = this.deps.workouts(id).filter((w) => w.startMs <= now && hasSetDetails(w));
     this.askAboutGym(id, real, now);
     const s = this.state(id);
     const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');

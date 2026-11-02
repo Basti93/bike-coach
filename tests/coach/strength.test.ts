@@ -115,3 +115,12 @@ test('strengthHealth lists the last ten workouts, newest first', () => {
   expect(h.recent).toHaveLength(10);
   expect(h.recent[0].id).toBe('w0');
 });
+
+test('strengthHealth does not throw on an old-format record with workSets absent', () => {
+  const now = Date.parse('2027-06-15T12:00:00Z');
+  const old = {
+    id: 'old', title: 'Beine', startMs: now - 86_400_000, durationS: 2700,
+    exercises: [{ title: 'Kniebeuge', templateId: 'T1', sets: 3, reps: 24, volumeKg: 1470 }],
+  } as unknown as StrengthWorkout;
+  expect(strengthHealth([old], now).recent[0]).toMatchObject({ id: 'old', sets: 3, volumeKg: 1470 });
+});
