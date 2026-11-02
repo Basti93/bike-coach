@@ -52,3 +52,15 @@ Foundations and own settings are in `docs/motivation.md`. Open: verify with the 
 ## Coach tips during the ride (live, 2026-11-02)
 
 Tips currently come from fixed rules in `src/ui/ride-tips.ts`. Tips from the AI, fitted to the person and their complaints, need the coach process and the protocol, so they are for after the ride.
+
+## Coach debrief after the ride (requested live, 2026-11-02)
+
+The feedback screen (`src/ui/views/FeedbackView.tsx`) already shows numbers, charts, progress and the rating, but no words from the coach. Wanted there, written by the AI from this ride and the person's history:
+
+- Summary of what happened in the ride, not just the figures.
+- Tips for next time, based on the actual ride.
+- Motivation, in the person's own words where motives are known (`encouragement` rules in `src/coach/coach.ts`).
+- Outlook: what comes next and why.
+- Follow-up questions the person can answer or skip (reuse `answer-question`, at most one or two, everything skippable).
+
+Needs a new field in the coach answer and state, so `src/coach/**` and the coach protocol change and the app has to restart. The coach must not invent anything: no claims without data in the summary. The screen must also work without the AI (offline, error): show a rule-based short version, and never block the rating or the saved ride.
