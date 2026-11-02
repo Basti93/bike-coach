@@ -24,11 +24,11 @@ const workout = (): GymWorkout => ({
   ],
 });
 const gymOf = (over: Partial<GymPublic['state']> = {}, ready = true, thinking = false): GymPublic => ({
-  ready, thinking, complaints: [], hasHistory: false,
+  ready, thinking, hevy: true, complaints: [], hasHistory: false,
   state: { ...initialGymState('p'), next: { workout: workout(), reason: 'Zuletzt zwei Mal Oberkörper, jetzt Beine.', source: 'rules' }, planned: true, ...over },
 });
 
-type Over = { gym?: GymPublic; preview?: { workout: GymWorkout; edited: boolean } | null; result?: GymConfirmResult | null; previewFailed?: boolean };
+type Over = { gym?: GymPublic; preview?: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null; result?: GymConfirmResult | null; previewFailed?: boolean };
 const show = (o: Over = {}) => {
   const send = vi.fn();
   const clear = vi.fn();
@@ -262,4 +262,20 @@ test('"Entfernen" on a rule stays a rule action', () => {
   const { send } = show({ gym: gymOf({ rules: [{ atMs: 5, text: 'Keine tiefen Kniebeugen' }] }) });
   fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
   expect(send).toHaveBeenCalledWith({ type: 'gym-remove-rule', profileId: 'p', atMs: 5 });
+});
+
+test('without Hevy there is no "Nach Hevy", and the bike page offers "Krafttraining starten"', () => {
+  show({ gym: { ...gymOf(), hevy: false } });
+  expect(screen.queryByRole('button', { name: 'Nach Hevy' })).toBeNull();
+  cleanup();
+  const props = { profile: { id: 'p', name: 'Mia', ftpW: 200 } as never, state: null, thinking: false, coachConnected: true, sendRide: () => {}, sendCoach: () => {}, onBack: () => {} };
+  const onStartGym = vi.fn();
+  render(<CoachView {...props} gym={null} onStartGym={onStartGym} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Krafttraining starten' }));
+  expect(onStartGym).toHaveBeenCalled();
+});
+
+test('the preview names exercises left out of the Hevy export', () => {
+  show({ preview: { workout: workout(), edited: false, leftOut: ['Bauchroller'] } });
+  expect(screen.getByText(/Nicht nach Hevy übertragen.*Bauchroller/)).toBeTruthy();
 });

@@ -23,6 +23,7 @@ import { GymCoach } from './gym/gym-coach';
 import { strengthHealth, type StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
+import { RecordStore } from './tracking/store';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -51,7 +52,11 @@ const garminData = (profileId: string): GarminCoachData | null => {
 };
 
 // Optional and per profile: without a key nothing happens.
-const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () => Date.now(), onChange: (profileId) => { try { coach.strengthChanged(profileId); } catch { /* unknown profile */ } } });
+const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () => Date.now(), onChange: (profileId) => {
+  try { coach.strengthChanged(profileId); } catch { /* unknown profile */ }
+  // Keeps the new Hevy workouts on this Mac too, so they stay when Hevy is removed.
+  try { gym.importHevy(profileId); } catch { /* try again on the next change */ }
+} });
 
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
@@ -68,17 +73,22 @@ const gymWriter = (profileId: string): HevyRoutines | null => {
 };
 const gym = new GymCoach({
   dir: path.join(coachDir, 'gym'), nowMs: () => Date.now(),
+  store: new RecordStore({ dir: path.join(coachDir, 'tracking') }), hevy: gymConnected,
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
   workouts: (id) => hevy.workouts(id),
   templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
   refreshTemplates: async (id) => { const w = gymWriter(id); return w ? w.refreshTemplates() : []; },
-  ready: (id) => gymConnected(id) && hevy.strengthReady(id),
+  // Without Hevy there is no history to wait for. The rider's own start is checked by the coach itself.
+  ready: (id) => (gymConnected(id) ? hevy.strengthReady(id) : noOpenRide()),
   bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
   complaint: (id, text) => coach.addComplaintFromText(id, text),
   writer: gymWriter,
 });
 const gymOf = (profileId: string) => {
-  try { return gymPublic(hevy.status(profileId), gym.state(profileId), gym.isThinking(profileId), gymConnected(profileId) && hevy.strengthReady(profileId), { complaints: coach.state(profileId).complaints ?? [], hasHistory: hevy.workouts(profileId).length > 0 }); } catch { return null; }
+  try {
+    const connected = gymConnected(profileId);
+    return gymPublic(gym.enabled(profileId), gym.state(profileId), gym.isThinking(profileId), connected ? hevy.strengthReady(profileId) : noOpenRide(), { hevy: connected, complaints: coach.state(profileId).complaints ?? [], hasHistory: gym.hasHistory(profileId) });
+  } catch { return null; }
 };
 
 // Local workouts only, no Hevy call.
@@ -186,7 +196,8 @@ const startUpload = (profileId: string, rideId: string, repoLink: boolean): void
 const handleGym = (socket: WebSocket, m: CoachClientMessage): void => {
   const send = (msg: CoachServerMessage) => { try { socket.send(JSON.stringify(msg)); } catch { /* connection gone */ } };
   if (m.type === 'gym-forget') { gym.forget(m.profileId); publish(); return; }
-  if (!('profileId' in m) || !gymConnected(m.profileId)) {
+  if (m.type === 'gym-start') { gym.start(m.profileId); publish(); return; }
+  if (!('profileId' in m) || !gym.enabled(m.profileId)) {
     if (m.type === 'gym-preview') send({ type: 'gym-preview', preview: null });
     if (m.type === 'gym-confirm') send({ type: 'gym-confirm-result', result: 'failed' });
     return;

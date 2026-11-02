@@ -7,6 +7,11 @@ import { HevyError, type HevyRoutines } from './hevy-routines';
 import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
+import { EXERCISES, linkHevyTemplates } from '../../shared/exercises';
+import type { LoggedWorkout } from '../../shared/records';
+import { hevyRecord } from '../tracking/hevy-import';
+import { historyFromLogged, mergeHistory } from '../tracking/merge';
+import type { RecordStore } from '../tracking/store';
 import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 
@@ -35,6 +40,10 @@ type Deps = {
   ready: (id: string) => boolean;
   bike: (id: string) => { summaries: RideSummary[]; complaints: Complaint[] };
   complaint: (id: string, text: string) => void;
+  /** Own records of this Mac. Without one only Hevy counts, as before. */
+  store?: RecordStore;
+  /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
+  hevy?: (id: string) => boolean;
   /** Null without a Hevy key. This is the only path to a Hevy write, and only `confirm` uses it. */
   writer: (id: string) => HevyRoutines | null;
 };
@@ -72,6 +81,82 @@ export class GymCoach {
   }
   isThinking(id: string): boolean { return this.running.has(id); }
 
+  isHevy(id: string): boolean { return this.deps.hevy ? this.deps.hevy(id) : true; }
+  private logged(id: string): LoggedWorkout[] {
+    if (!this.deps.store) return [];
+    return this.deps.store.all(id, 'workout')
+      .filter((r) => !r.deleted && typeof r.body === 'object' && r.body !== null && Array.isArray((r.body as LoggedWorkout).exercises))
+      .map((r) => r.body as LoggedWorkout);
+  }
+  private links(id: string): Map<string, string> { return new Map(Object.entries(this.state(id).links)); }
+  /** On with Hevy, after "Krafttraining starten", or once a finished workout is kept on this Mac (an imported Hevy one stays too). */
+  enabled(id: string): boolean {
+    return this.isHevy(id) || this.state(id).localStart || this.logged(id).some((w) => w.endMs !== null);
+  }
+  /** Begins strength training without Hevy. */
+  start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
+
+  /**
+   * Own and Hevy workouts as one list. With Hevy the live Hevy list is used; without it the Hevy workouts imported
+   * earlier take its place. Unconfirmed sets of an own workout never count.
+   */
+  history(id: string): StrengthWorkout[] {
+    const links = this.links(id);
+    const all = this.logged(id);
+    const own = historyFromLogged(all.filter((w) => w.source !== 'hevy'), links);
+    const hevy = this.isHevy(id) ? this.deps.workouts(id).filter((w) => Array.isArray(w.exercises)) : historyFromLogged(all.filter((w) => w.source === 'hevy'), links);
+    return mergeHistory(own, hevy, links);
+  }
+  hasHistory(id: string): boolean { return this.history(id).length > 0; }
+
+  /** Keeps Hevy workouts in the store, so they stay when Hevy is removed. Identical workouts change nothing. */
+  importHevy(id: string): void {
+    if (!this.deps.store || !this.isHevy(id)) return;
+    const hevy = this.deps.workouts(id);
+    if (hevy.length > 0) this.deps.store.putMany(id, hevy.map(hevyRecord));
+  }
+
+  /** Own exercises, the rider's own ones, and Hevy's that are not linked to an own one (under their Hevy id). */
+  async templateList(id: string, fresh = false): Promise<ExerciseTemplate[]> {
+    let hevy: ExerciseTemplate[] = [];
+    if (this.isHevy(id)) {
+      hevy = await (fresh ? this.deps.refreshTemplates(id) : this.deps.templates(id));
+      const links = Object.fromEntries(linkHevyTemplates(hevy));
+      if (JSON.stringify(links) !== JSON.stringify(this.state(id).links)) this.update(id, (s) => { s.links = links; });
+    }
+    const linked = new Set(Object.keys(this.state(id).links));
+    // With Hevy the plan stays with Hevy's list; an own exercise joins it once it is linked or has been done in the app.
+    const used = new Set(this.logged(id).filter((w) => w.source !== 'hevy').flatMap((w) => w.exercises.map((e) => e.exerciseId)));
+    const own: ExerciseTemplate[] = EXERCISES.filter((e) => !this.isHevy(id) || used.has(e.id) || Object.values(this.state(id).links).includes(e.id)).map((e) => ({ id: e.id, title: e.title, type: e.type, primaryMuscle: e.primaryMuscle, equipment: e.equipment }));
+    return [...own, ...this.ownExercises(id), ...hevy.filter((t) => !linked.has(t.id))];
+  }
+  private ownExercises(id: string): ExerciseTemplate[] {
+    if (!this.deps.store) return [];
+    return this.deps.store.all(id, 'exercise').flatMap((r) => {
+      const b = r.body as Partial<ExerciseTemplate> | null;
+      if (r.deleted || !b || typeof b.title !== 'string' || typeof b.type !== 'string') return [];
+      return [{ id: r.id, title: b.title, type: b.type, primaryMuscle: String(b.primaryMuscle ?? ''), equipment: String(b.equipment ?? '') }];
+    });
+  }
+
+  /** Own ids become Hevy ids for the export. An own exercise with no Hevy id is left out, by title. */
+  private toHevy(id: string, w: GymWorkout): { workout: GymWorkout; leftOut: string[] } {
+    const reverse = new Map<string, string>();
+    for (const [hevyId, ownId] of Object.entries(this.state(id).links)) if (!reverse.has(ownId)) reverse.set(ownId, hevyId);
+    const ownIds = new Set([...EXERCISES.map((e) => e.id), ...this.ownExercises(id).map((t) => t.id)]);
+    const leftOut: string[] = [];
+    const exercises: GymExercise[] = [];
+    for (const e of w.exercises) {
+      const hevyId = reverse.get(e.templateId);
+      if (hevyId) exercises.push({ ...structuredClone(e), templateId: hevyId });
+      else if (ownIds.has(e.templateId)) leftOut.push(e.title);
+      else exercises.push(structuredClone(e));
+    }
+    // A superset needs two members.
+    for (const e of exercises) if (e.supersetId !== null && exercises.filter((x) => x.supersetId === e.supersetId).length < 2) e.supersetId = null;
+    return { workout: { ...w, exercises }, leftOut };
+  }
+
   private update(id: string, fn: (s: GymState) => void): void {
     const s = this.state(id);
     fn(s);
@@ -92,9 +177,9 @@ export class GymCoach {
   }
 
   private async plan(id: string): Promise<void> {
-    if (!this.deps.ready(id)) return;
+    if (!this.enabled(id) || !this.deps.ready(id)) return;
     const now = this.deps.nowMs();
-    const real = this.deps.workouts(id).filter((w) => w.startMs <= now && hasSetDetails(w));
+    let real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
     this.askAboutGym(id, real, now);
     const s = this.state(id);
     const open = this.deps.bike(id).complaints.filter((c) => c.status !== 'over');
@@ -118,7 +203,7 @@ export class GymCoach {
     const gen = this.gen(id);
     let templates: ExerciseTemplate[];
     try {
-      templates = await this.deps.templates(id);
+      templates = await this.templateList(id);
     } catch {
       this.updateIf(gen, id, (x) => { x.lastError = 'failed'; x.templatesFailedMs = now; });
       return;
@@ -126,10 +211,12 @@ export class GymCoach {
     this.updateIf(gen, id, (x) => { x.templatesFailedMs = null; x.attempts += 1; x.lastAttemptMs = now; });
     try {
       const ids = new Set(templates.map((t) => t.id));
-      if (real.some((w) => w.exercises.some((e) => e.templateId && !ids.has(e.templateId)))) {
+      if (this.isHevy(id) && real.some((w) => w.exercises.some((e) => e.templateId && !ids.has(e.templateId)))) {
         // Once per plan. A failure keeps what is known; such exercises are left out.
-        try { templates = await this.deps.refreshTemplates(id); } catch { /* keep the known list */ }
+        try { templates = await this.templateList(id, true); } catch { /* keep the known list */ }
       }
+      // The templates may have brought new links, which merge exercises in the history.
+      real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
       const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
@@ -270,16 +357,16 @@ export class GymCoach {
   }
 
   /** Shows what would be written. Asks Hevy whether the routine was edited since the last write, and writes nothing. */
-  async preview(id: string): Promise<{ workout: GymWorkout; edited: boolean } | null> {
-    const writer = this.deps.writer(id);
+  async preview(id: string): Promise<{ workout: GymWorkout; edited: boolean; leftOut: string[] } | null> {
+    const writer = this.isHevy(id) ? this.deps.writer(id) : null;
     const s = this.state(id);
     if (!this.deps.ready(id) || !writer || !s.next || s.next.workout.exercises.length === 0) return null;
-    const workout = structuredClone(s.next.workout);
-    const fp = fingerprint(workout);
+    const fp = fingerprint(s.next.workout);
+    const { workout, leftOut } = this.toHevy(id, s.next.workout);
     try {
-      const edited = s.routine ? await writer.editedSince(s.routine.routineId, s.routine.updatedAt) : false;
+      const edited = s.routine && workout.exercises.length > 0 ? await writer.editedSince(s.routine.routineId, s.routine.updatedAt) : false;
       this.previews.set(id, { fp, edited });
-      return { workout, edited };
+      return { workout, edited, leftOut };
     } catch {
       return null;
     }
@@ -287,9 +374,11 @@ export class GymCoach {
 
   /** Writes the previewed workout. Stale when the workout changed since the preview or the routine was edited in Hevy after it. */
   async confirm(id: string, name: string): Promise<'written' | 'stale' | 'failed'> {
-    const writer = this.deps.writer(id);
+    const writer = this.isHevy(id) ? this.deps.writer(id) : null;
     const start = this.state(id).next;
     if (!this.deps.ready(id) || !writer || !start || start.workout.exercises.length === 0 || this.writing.has(id)) return 'failed';
+    // Nothing of it exists in Hevy: there is nothing to write.
+    if (this.toHevy(id, start.workout).workout.exercises.length === 0) return 'failed';
     const shown = this.previews.get(id);
     if (!shown || shown.fp !== fingerprint(start.workout)) return 'stale';
     this.writing.add(id);
@@ -301,7 +390,7 @@ export class GymCoach {
       const current = this.state(id).next;
       if (!this.deps.ready(id) || this.gen(id) !== gen) return 'failed';
       if (!current || fingerprint(current.workout) !== shown.fp) return 'stale';
-      const workout = { ...structuredClone(current.workout), name: name.trim().slice(0, NAME_MAX) || current.workout.name };
+      const workout = { ...this.toHevy(id, current.workout).workout, name: name.trim().slice(0, NAME_MAX) || current.workout.name };
       const written = await writer.writeRoutine(workout, { routineId: known?.routineId ?? null, updatedAt: known?.updatedAt ?? null });
       this.previews.delete(id);
       this.updateIf(gen, id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
@@ -309,7 +398,7 @@ export class GymCoach {
     } catch (e) {
       if (!refusedByHevy(e)) return 'failed';
       // Probably a template that vanished: retrying the same workout would never work, so the rider gets a rebuilt plan.
-      if (this.deps.ready(id)) { try { await this.deps.refreshTemplates(id); } catch { /* the plan uses what is known */ } }
+      if (this.deps.ready(id)) { try { await this.templateList(id, true); } catch { /* the plan uses what is known */ } }
       this.previews.delete(id);
       this.updateIf(gen, id, (s) => { s.dirty = true; s.attempts = 0; });
       return 'stale';

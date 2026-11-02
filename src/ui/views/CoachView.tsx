@@ -44,10 +44,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onOverview, healthLink }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -78,6 +78,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
           {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
           {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}
           {gym && onGym && <button className="ghost" onClick={onGym}>Kraft</button>}
+          {!gym && onStartGym && <button className="ghost" onClick={onStartGym}>Krafttraining starten</button>}
           {onOverview && <button className="ghost" onClick={onOverview}>Übersicht</button>}
           {onHealth && (garmin?.state === 'connected' || healthLink) && <button className="ghost" onClick={onHealth}>Gesundheit</button>}
           {onEdit && <button className="ghost" onClick={onEdit}>Profil bearbeiten</button>}

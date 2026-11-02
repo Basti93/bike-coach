@@ -23,7 +23,7 @@ export const useCoach = (profileId: string | null) => {
   const [gym, setGym] = useState<GymPublic | null>(null);
   const [statusArrived, setStatusArrived] = useState(false);
   const [strengthHealth, setStrengthHealth] = useState<StrengthHealth | null>(null);
-  const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean } | null>(null);
+  const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean; leftOut?: string[] } | null>(null);
   const [gymConfirmResult, setGymConfirmResult] = useState<GymConfirmResult | null>(null);
   const [gymPreviewFailed, setGymPreviewFailed] = useState(false);
   const [connected, setConnected] = useState(false);

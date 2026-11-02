@@ -50,10 +50,11 @@ export type CoachClientMessage =
   | { type: 'gym-answer'; profileId: string; question: string; text: string }
   | { type: 'gym-skip-question'; profileId: string; question: string }
   | { type: 'gym-remove-rule'; profileId: string; atMs: number }
+  | { type: 'gym-start'; profileId: string }
   | { type: 'gym-forget'; profileId: string }
   | { type: 'gym-preview'; profileId: string }
   | { type: 'gym-confirm'; profileId: string; name: string };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
-export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null };
+export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null };
 export const COACH_PORT = 7411;

@@ -6,7 +6,7 @@ import type { CoachClientMessage, GymConfirmResult } from '../../shared/coach-pr
 type Props = {
   profileId: string;
   gym: GymPublic;
-  preview: { workout: GymWorkout; edited: boolean } | null;
+  preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null;
   previewFailed: boolean;
   result: GymConfirmResult | null;
   send: (m: CoachClientMessage) => void;
@@ -65,7 +65,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
   useEffect(() => () => clearRef.current('all'), []);
 
   const name = next?.workout.name ?? '';
-  const canHevy = ready && next !== null && next.workout.exercises.length > 0;
+  const canHevy = gym.hevy && ready && next !== null && next.workout.exercises.length > 0;
   const open = preview && canHevy && result !== 'stale' && result !== 'written';
   const confirm = () => {
     if (confirming.current) return;
@@ -91,7 +91,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
       </div>
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}
-      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
+      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : gym.hevy ? 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.' : 'Sobald du trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
       <div className="coach">
         <div className="stack">
           {next && (
@@ -115,12 +115,13 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
               <h3>Vorschau: so landet es in Hevy</h3>
               <h2>{preview.workout.name}</h2>
               {preview.edited && <p className="notice" role="status">Die Routine wurde in Hevy verändert. Wenn du sie jetzt anlegst, wird sie überschrieben.</p>}
+              {preview.leftOut && preview.leftOut.length > 0 && <p className="notice" role="status">Nicht nach Hevy übertragen, weil es dort keine passende Übung gibt: {preview.leftOut.join(', ')}.</p>}
               <WorkoutList workout={preview.workout} />
               {result === 'failed' && <p className="notice" role="alert">Das hat gerade nicht geklappt. Vielleicht ist Hevy kurz nicht erreichbar. Du kannst es noch einmal versuchen.</p>}
               <div className="row">
                 {result === 'failed'
                   ? <button className="go" onClick={() => { clear('result'); confirming.current = true; send({ type: 'gym-confirm', profileId, name }); }}>Nochmal versuchen</button>
-                  : <button className="go" onClick={confirm}>Jetzt anlegen</button>}
+                  : preview.workout.exercises.length > 0 && <button className="go" onClick={confirm}>Jetzt anlegen</button>}
                 <button className="ghost" onClick={() => clear('all')}>Abbrechen</button>
               </div>
             </section>
