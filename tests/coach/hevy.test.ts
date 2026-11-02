@@ -14,13 +14,16 @@ const raw = (id: string, day = 1, over: object = {}) => ({
 });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 let dir: string; let now: number;
-beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hevy-')); now = NOW; });
-const make = (fetchFn: typeof fetch) => new HevySync({ key: 'test-key', dir, nowMs: () => now, fetchFn });
+beforeEach(() => { pauses.length = 0; dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hevy-')); now = NOW; });
+const pauses: number[] = [];
+const sleep = async (ms: number) => { pauses.push(ms); };
+const make = (fetchFn: typeof fetch) => new HevySync({ key: 'test-key', dir, nowMs: () => now, fetchFn, sleep });
 const pages = (count: number) => vi.fn(async (url: string | URL | Request) => {
   const page = Number(new URL(String(url)).searchParams.get('page'));
   return json({ page, page_count: count, workouts: [raw(`w${page}`)] });
 }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
 
+const onePage = () => { let n = 0; return () => n++ === 0; };
 test('a workout is reduced to what the coach needs, warmup sets left out of the volume', async () => {
   const sync = make(pages(1));
   await sync.tick();
@@ -47,7 +50,7 @@ test('a store without a format version refetches from page 1 and keeps the old w
   const sync = make(f);
   expect(sync.workouts().map((w) => w.id)).toEqual(['old']);
   expect(sync.status().loading).toBe(true);
-  await sync.tick();
+  await sync.tick(onePage());
   expect(new URL(String(f.mock.calls[0][0])).searchParams.get('page')).toBe('1');
   expect(sync.workouts().map((w) => w.id).sort()).toEqual(['old', 'w1']);
 });
@@ -55,18 +58,18 @@ test('ready is false during the refetch and true after', async () => {
   oldStore();
   const sync = make(pages(2));
   expect(sync.ready()).toBe(false);
-  await sync.tick();
+  await sync.tick(onePage());
   expect(sync.ready()).toBe(false);
-  await sync.tick();
+  await sync.tick(onePage());
   expect(sync.ready()).toBe(true);
   expect(make(pages(2)).ready()).toBe(true);
 });
 test('the refetch does not tell the bike coach anything changed until it ends', async () => {
   oldStore();
   const sync = make(pages(3));
-  expect(await sync.tick()).toBe(false);
-  expect(await sync.tick()).toBe(false);
-  expect(await sync.tick()).toBe(true);
+  expect(await sync.tick(onePage())).toBe(false);
+  expect(await sync.tick(onePage())).toBe(false);
+  expect(await sync.tick(onePage())).toBe(true);
 });
 test('sends the key as a header and only ever reads', async () => {
   const f = pages(1);
@@ -76,18 +79,80 @@ test('sends the key as a header and only ever reads', async () => {
   expect((init.headers as Record<string, string>)['api-key']).toBe('test-key');
   expect(init.method ?? 'GET').toBe('GET');
 });
-test('the first run fetches one page per tick and resumes after a restart', async () => {
+test('the first run fetches page by page and resumes after a restart', async () => {
   const f = pages(3);
   const first = make(f);
-  expect(await first.tick()).toBe(false);
+  expect(await first.tick(onePage())).toBe(false);
   expect(f).toHaveBeenCalledTimes(1);
   const second = make(f);
   expect(second.workouts().map((w) => w.id)).toEqual(['w1']);
-  expect(await second.tick()).toBe(false);
-  expect(await second.tick()).toBe(true);
+  expect(await second.tick(onePage())).toBe(false);
+  expect(await second.tick(onePage())).toBe(true);
   expect(f).toHaveBeenCalledTimes(3);
   expect(new URL(String(f.mock.calls[1][0])).searchParams.get('page')).toBe('2');
   expect(second.workouts()).toHaveLength(3);
+});
+const pageOf = (f: { mock: { calls: unknown[][] } }, i: number) => new URL(String(f.mock.calls[i][0])).searchParams.get('page');
+test('one tick fetches several pages one after another with a pause between', async () => {
+  let open = 0; let overlap = false;
+  const f = vi.fn(async (url: string | URL | Request) => {
+    open++; overlap ||= open > 1; await Promise.resolve(); open--;
+    const page = Number(new URL(String(url)).searchParams.get('page'));
+    return json({ page, page_count: 3, workouts: [raw(`w${page}`)] });
+  });
+  const sync = make(f as never);
+  expect(await sync.tick()).toBe(true);
+  expect(f.mock.calls.map((_, i) => pageOf(f, i))).toEqual(['1', '2', '3']);
+  expect(pauses).toEqual([1000, 1000]);
+  expect(overlap).toBe(false);
+  expect(sync.ready()).toBe(true);
+});
+test('a tick fetches at most 8 pages, the next tick carries on', async () => {
+  const f = pages(20);
+  const sync = make(f);
+  expect(await sync.tick()).toBe(false);
+  expect(f).toHaveBeenCalledTimes(8);
+  expect(await sync.tick()).toBe(false);
+  expect(f).toHaveBeenCalledTimes(16);
+  expect(pageOf(f, 8)).toBe('9');
+});
+test('every page is saved, so a restart resumes at the next one', async () => {
+  let saved = -1;
+  const f = vi.fn(async (url: string | URL | Request) => {
+    const page = Number(new URL(String(url)).searchParams.get('page'));
+    if (page === 3) saved = make(pages(5)).workouts().length;
+    return json({ page, page_count: 5, workouts: [raw(`w${page}`)] });
+  });
+  await make(f as never).tick();
+  expect(saved).toBe(2);
+});
+test('the loop stops before the next page when the check turns false', async () => {
+  const check = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValue(false);
+  const f = pages(20);
+  const sync = make(f);
+  await sync.tick(check);
+  expect(f).toHaveBeenCalledTimes(2);
+  expect(sync.status().workouts).toBe(2);
+});
+test('a second tick during a run asks for nothing', async () => {
+  const f = pages(20);
+  const sync = make(f);
+  const first = sync.tick();
+  expect(await sync.tick()).toBe(false);
+  await first;
+  expect(f).toHaveBeenCalledTimes(8);
+});
+test('a 429 on page 2 stops the run, page 1 stays saved, and the retry waits', async () => {
+  const f = vi.fn(async (url: string | URL | Request) => {
+    const page = Number(new URL(String(url)).searchParams.get('page'));
+    return page === 2 ? json({}, 429) : json({ page, page_count: 5, workouts: [raw(`w${page}`)] });
+  });
+  const sync = make(f as never);
+  expect(await sync.tick()).toBe(false);
+  expect(f).toHaveBeenCalledTimes(2);
+  expect(make(f as never).workouts().map((w) => w.id)).toEqual(['w1']);
+  await sync.tick();
+  expect(f).toHaveBeenCalledTimes(2);
 });
 test('after the first run only changes are fetched, and rarely', async () => {
   const f = pages(1);
@@ -154,9 +219,9 @@ test('the key is never stored', async () => {
 
 test('reports its state without the key', async () => {
   const sync = make(pages(2));
-  await sync.tick();
+  await sync.tick(onePage());
   expect(sync.status()).toEqual({ workouts: 1, loading: true, lastSyncMs: NOW, rejected: false });
-  await sync.tick();
+  await sync.tick(onePage());
   expect(sync.status()).toMatchObject({ workouts: 2, loading: false });
 });
 test('a closed sync writes nothing any more', async () => {
@@ -176,7 +241,7 @@ describe('connection per profile', () => {
     if (String(url).includes('/v1/user/info')) return json({ data: { name: 'Test' } });
     return json({ page: 1, page_count: 1, workouts: [raw('w1')] });
   });
-  const links = (fetchFn: unknown, onChange = vi.fn()) => new HevyLinks({ baseDir: dir, nowMs: () => now, fetchFn: fetchFn as typeof fetch, onChange });
+  const links = (fetchFn: unknown, onChange = vi.fn()) => new HevyLinks({ baseDir: dir, nowMs: () => now, fetchFn: fetchFn as typeof fetch, sleep, onChange });
   const keyFile = (id: string) => path.join(dir, id, 'api-key');
 
   test('without a key nothing happens and nothing is asked', async () => {

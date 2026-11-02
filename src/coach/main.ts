@@ -273,7 +273,7 @@ const scan = (): void => {
       refresh(p.id);
     }
     // Separate safeguard: Hevy must never disturb the coach run or a ride.
-    if (free) void hevy.tick(list.map((p) => p.id)).catch(() => {}).finally(publish);
+    if (free) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
     // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
     if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.

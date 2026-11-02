@@ -4,6 +4,9 @@ import type { HevyStatus } from '../shared/coach-protocol';
 
 const API = 'https://api.hevyapp.com';
 const PAGE_SIZE = 10;
+/** During the first import one tick fetches up to this many pages, one after another. */
+const MAX_PAGES_PER_TICK = 8;
+const PAGE_PAUSE_MS = 1000;
 const EVENT_INTERVAL_MS = 30 * 60_000;
 const RETRY_MS = 30 * 60_000;
 const TIMEOUT_MS = 20_000;
@@ -27,7 +30,7 @@ type RawWorkout = {
   exercises: { title: string; exercise_template_id?: string; sets: { type: string; weight_kg: number | null; reps: number | null }[] }[];
 };
 type Store = { version?: number; workouts: Record<string, StrengthWorkout>; nextPage: number | null; syncFromMs: number | null; lastTryMs: number | null; lastOkMs?: number | null };
-type Options = { key: string; dir: string; nowMs: () => number; fetchFn?: typeof fetch };
+type Options = { key: string; dir: string; nowMs: () => number; fetchFn?: typeof fetch; sleep?: (ms: number) => Promise<void> };
 
 const toWorkout = (w: RawWorkout): StrengthWorkout => {
   const startMs = Date.parse(w.start_time);
@@ -130,21 +133,32 @@ export class HevySync {
     return changed;
   }
 
-  /** One small step. True when the coach has something new. Hevy being away changes nothing else. */
-  async tick(): Promise<boolean> {
+  /**
+   * One step: either the change check, or up to MAX_PAGES_PER_TICK pages of the first import, one request at a time with a pause between.
+   * Stops before the next page when mayContinue says no (a ride opened), and at once on any failure. Every page is saved.
+   * True when the coach has something new. Hevy being away changes nothing else.
+   */
+  async tick(mayContinue?: () => boolean): Promise<boolean> {
     const now = this.opts.nowMs();
     const { nextPage, lastTryMs } = this.store;
     if (this.rejected || this.running) return false;
+    if (mayContinue && !mayContinue()) return false;
     if (nextPage === null && lastTryMs !== null && now - lastTryMs < EVENT_INTERVAL_MS) return false;
     if (nextPage !== null && this.failedAtMs !== null && now - this.failedAtMs < RETRY_MS) return false;
     this.running = true;
     try {
-      const changed = nextPage === null ? await this.changes() : await this.firstRunPage(nextPage);
-      this.store.lastTryMs = now;
-      this.store.lastOkMs = now;
-      this.failedAtMs = null;
-      this.save();
-      return changed;
+      if (nextPage === null) return await this.finishStep(await this.changes(), now);
+      const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+      let page: number = nextPage;
+      for (let n = 0; ; n++) {
+        const done = await this.firstRunPage(page);
+        this.finishStep(done, this.opts.nowMs());
+        if (done) return true;
+        if (n + 1 >= MAX_PAGES_PER_TICK) return false;
+        await sleep(PAGE_PAUSE_MS);
+        if (this.closed || (mayContinue && !mayContinue())) return false;
+        page = this.store.nextPage as number;
+      }
     } catch (e) {
       if (e instanceof Rejected) this.rejected = true;
       this.failedAtMs = now;
@@ -156,10 +170,18 @@ export class HevySync {
     }
   }
 
+  private finishStep(result: boolean, at: number): boolean {
+    this.store.lastTryMs = at;
+    this.store.lastOkMs = at;
+    this.failedAtMs = null;
+    this.save();
+    return result;
+  }
+
   private failedAtMs: number | null = null;
 }
 
-type LinkOptions = { baseDir: string; nowMs: () => number; fetchFn?: typeof fetch; onChange: (profileId: string) => void };
+type LinkOptions = { baseDir: string; nowMs: () => number; fetchFn?: typeof fetch; sleep?: (ms: number) => Promise<void>; onChange: (profileId: string) => void };
 
 /** Every profile brings its own key, or none: without one nothing here ever runs. The key stays in a private file on this Mac. */
 export class HevyLinks {
@@ -177,7 +199,7 @@ export class HevyLinks {
     let key: string;
     try { key = fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim(); } catch { return null; }
     if (!key) return null;
-    const sync = new HevySync({ key, dir: this.dir(profileId), nowMs: this.opts.nowMs, ...(this.opts.fetchFn ? { fetchFn: this.opts.fetchFn } : {}) });
+    const sync = new HevySync({ key, dir: this.dir(profileId), nowMs: this.opts.nowMs, ...(this.opts.fetchFn ? { fetchFn: this.opts.fetchFn } : {}), ...(this.opts.sleep ? { sleep: this.opts.sleep } : {}) });
     this.syncs.set(profileId, sync);
     return sync;
   }
@@ -229,11 +251,12 @@ export class HevyLinks {
     this.opts.onChange(profileId);
   }
 
-  /** One small step per connected profile. One profile failing changes nothing for the others. */
-  async tick(profileIds: string[]): Promise<void> {
-    await Promise.all(profileIds.map(async (id) => {
+  /** One step per connected profile, one profile after the other so requests never overlap. Bounded: at most 8 pages per profile and tick. One profile failing changes nothing for the others. */
+  async tick(profileIds: string[], mayContinue?: () => boolean): Promise<void> {
+    for (const id of profileIds) {
+      if (mayContinue && !mayContinue()) return;
       const sync = this.sync(id);
-      if (sync && await sync.tick().catch(() => false)) this.opts.onChange(id);
-    }));
+      if (sync && await sync.tick(mayContinue).catch(() => false)) this.opts.onChange(id);
+    }
   }
 }
