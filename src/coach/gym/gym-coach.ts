@@ -113,15 +113,26 @@ export class GymCoach {
   importHevy(id: string): void {
     if (!this.deps.store || !this.isHevy(id)) return;
     const hevy = this.deps.workouts(id);
-    if (hevy.length > 0) this.deps.store.putMany(id, hevy.map(hevyRecord));
+    const records = hevy.map(hevyRecord);
+    // Only a complete list can say a workout is gone. While Hevy still loads, nothing is removed.
+    if (this.deps.ready(id)) {
+      const present = new Set(hevy.map((w) => w.id));
+      const now = this.deps.nowMs();
+      for (const r of this.deps.store.all(id, 'workout')) {
+        if (!r.deleted && (r.body as LoggedWorkout | null)?.source === 'hevy' && !present.has(r.id)) records.push({ ...r, deleted: true, updatedMs: now });
+      }
+    }
+    if (records.length > 0) this.deps.store.putMany(id, records);
   }
+  private imported = new Set<string>();
 
   /** Own exercises, the rider's own ones, and Hevy's that are not linked to an own one (under their Hevy id). */
   async templateList(id: string, fresh = false): Promise<ExerciseTemplate[]> {
     let hevy: ExerciseTemplate[] = [];
     if (this.isHevy(id)) {
       hevy = await (fresh ? this.deps.refreshTemplates(id) : this.deps.templates(id));
-      const links = Object.fromEntries(linkHevyTemplates(hevy));
+      // Merged, never shrunk: a failed or emptied fetch or a removed Hevy template must not split the history.
+      const links = { ...this.state(id).links, ...Object.fromEntries(linkHevyTemplates(hevy)) };
       if (JSON.stringify(links) !== JSON.stringify(this.state(id).links)) this.update(id, (s) => { s.links = links; });
     }
     const linked = new Set(Object.keys(this.state(id).links));
@@ -178,6 +189,8 @@ export class GymCoach {
 
   private async plan(id: string): Promise<void> {
     if (!this.enabled(id) || !this.deps.ready(id)) return;
+    // Workouts loaded before the store existed reach it once, without waiting for a change.
+    if (this.isHevy(id) && !this.imported.has(id)) { this.imported.add(id); try { this.importHevy(id); } catch { this.imported.delete(id); } }
     const now = this.deps.nowMs();
     let real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
     this.askAboutGym(id, real, now);
@@ -221,6 +234,15 @@ export class GymCoach {
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
+      if (real.length === 0) {
+        // Nothing to learn from yet: the plain rule workout is the plan, and the AI is not asked.
+        this.updateIf(gen, id, (x) => {
+          x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;
+          x.emptyReason = hasRule ? null : rule.reason;
+          x.lastError = null; x.dirty = false; x.planned = true; x.attempts = 0; x.seenWorkoutIds = [];
+        });
+        return;
+      }
       // An empty rule workout is never stored as an offer; only its reason is kept.
       this.updateIf(gen, id, (x) => {
         x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;

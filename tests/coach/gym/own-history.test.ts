@@ -42,7 +42,7 @@ const HEVY_OTHER: ExerciseTemplate = { id: 'hevy-other-1', title: 'Some Odd Mach
 function harness(opts: { hevy?: boolean; workouts?: StrengthWorkout[]; templates?: ExerciseTemplate[]; writer?: HevyRoutines | null; ride?: boolean } = {}) {
   const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
   const h = {
-    store, hevy: opts.hevy ?? false, workouts: opts.workouts ?? [], templates: opts.templates ?? [], hevyCalls: 0, asked: [] as string[], ride: opts.ride ?? false,
+    store, ready: true, hevy: opts.hevy ?? false, workouts: opts.workouts ?? [], templates: opts.templates ?? [], hevyCalls: 0, asked: [] as string[], ride: opts.ride ?? false,
     coach: null as unknown as GymCoach,
   };
   h.coach = new GymCoach({
@@ -51,7 +51,7 @@ function harness(opts: { hevy?: boolean; workouts?: StrengthWorkout[]; templates
     workouts: () => { h.hevyCalls += 1; return h.workouts; },
     templates: async () => { h.hevyCalls += 1; return h.templates; },
     refreshTemplates: async () => { h.hevyCalls += 1; return h.templates; },
-    ready: () => (h.hevy ? true : !h.ride),
+    ready: () => (h.hevy ? h.ready : !h.ride),
     bike: () => ({ summaries: [], complaints: [] }),
     complaint: () => {},
     writer: () => opts.writer ?? null,
@@ -186,6 +186,58 @@ describe('own history', () => {
     expect(homeScreen({ state: 'idle' })).toBe('bike');
     expect(homeScreen({ state: 'idle' }, true)).toBe('overview');
     expect(homeScreen({ state: 'idle' }, false)).toBe('bike');
+  });
+
+  it('a workout deleted in Hevy is gone from history after Hevy is removed', () => {
+    const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8), hevyWorkout('h2', 7, 'x', 50, 8)] });
+    h.coach.importHevy(ID);
+    h.workouts = [hevyWorkout('h2', 7, 'x', 50, 8)];
+    h.coach.importHevy(ID);
+    const cursor = h.store.changedSince(ID, 0).cursor;
+    h.coach.importHevy(ID);
+    expect(h.store.changedSince(ID, 0).cursor).toBe(cursor);
+    h.hevy = false;
+    expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h2']);
+  });
+
+  it('never tombstones while Hevy is loading', () => {
+    const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8)] });
+    h.coach.importHevy(ID);
+    h.ready = false;
+    h.workouts = [];
+    h.coach.importHevy(ID);
+    h.hevy = false;
+    expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h1']);
+  });
+
+  it('links are merged, never shrunk by an empty template list', async () => {
+    const h = harness({ hevy: true, templates: [HEVY_BENCH], workouts: [hevyWorkout('h1', 14, 'hevy-bench-1', 50, 8)] });
+    await h.coach.templateList(ID);
+    h.templates = [];
+    await h.coach.templateList(ID);
+    expect(h.coach.state(ID).links).toEqual({ 'hevy-bench-1': BENCH });
+  });
+
+  it('with no history at all the AI is not asked', async () => {
+    const h = harness();
+    h.coach.start(ID);
+    await h.coach.tick(ID);
+    expect(h.asked).toHaveLength(0);
+    expect(h.coach.state(ID).lastError).toBeNull();
+    expect(h.coach.state(ID).next?.source).toBe('rules');
+    h.store.putMany(ID, [logged('a', 3, BENCH, 40, 8)]);
+    h.coach.state(ID).dirty = true;
+    await h.coach.tick(ID);
+    expect(h.asked).toHaveLength(1);
+  });
+
+  it('a profile that becomes ready imports its Hevy workouts once', async () => {
+    const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8)] });
+    await h.coach.tick(ID);
+    expect(h.store.all(ID, 'workout').map((r) => r.id)).toEqual(['h1']);
+    const cursor = h.store.changedSince(ID, 0).cursor;
+    await h.coach.tick(ID);
+    expect(h.store.changedSince(ID, 0).cursor).toBe(cursor);
   });
 
   it('isRepBased accepts the real Hevy rep types and no timed ones', () => {
