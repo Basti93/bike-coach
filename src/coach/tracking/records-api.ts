@@ -27,7 +27,7 @@ type Deps = {
 };
 type Result = { reply: CoachServerMessage; changed?: string };
 
-const finishedOwnWorkout = (r: TrackedRecord | undefined): boolean | null => {
+export const finishedOwnWorkout = (r: TrackedRecord | undefined): boolean | null => {
   if (!r || r.kind !== 'workout' || r.deleted || typeof r.body !== 'object' || r.body === null) return null;
   const b = r.body as { endMs?: unknown; source?: unknown };
   if (b.source === 'hevy') return null;

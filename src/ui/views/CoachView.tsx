@@ -46,10 +46,10 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean; mobility?: MobilityView | null;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; accountCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean; mobility?: MobilityView | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink, mobility }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, accountCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink, mobility }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -166,6 +166,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </details>
             )}
             {coachConnected && hevyCard}
+            {coachConnected && accountCard}
           </div>
         )}
       </div>

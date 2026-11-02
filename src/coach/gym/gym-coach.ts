@@ -46,6 +46,8 @@ type Deps = {
   store?: RecordStore;
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
   hevy?: (id: string) => boolean;
+  /** Whether the profile is linked to an account: strength tracking is on then, as with Hevy. */
+  account?: (id: string) => boolean;
   /** Null without a Hevy key. This is the only path to a Hevy write, and only `confirm` uses it. */
   writer: (id: string) => HevyRoutines | null;
 };
@@ -93,7 +95,7 @@ export class GymCoach {
   private links(id: string): Map<string, string> { return new Map(Object.entries(this.state(id).links)); }
   /** On with Hevy, after "Krafttraining starten", or once a finished workout is kept on this Mac (an imported Hevy one stays too). */
   enabled(id: string): boolean {
-    return this.isHevy(id) || this.state(id).localStart || this.logged(id).some((w) => w.endMs !== null);
+    return this.isHevy(id) || (this.deps.account?.(id) ?? false) || this.state(id).localStart || this.logged(id).some((w) => w.endMs !== null);
   }
   /** A workout of the rider's own was finished: plan again. Only a flag, the run itself waits for `tick` and so for a free bike. */
   workoutFinished(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }

@@ -26,6 +26,8 @@ import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
 import { handleRecords } from './tracking/records-api';
 import { MobilityCoach } from './mobility/mobility';
+import { AccountLinks } from './tracking/link';
+import { AccountSync } from './tracking/mac-sync';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -88,6 +90,7 @@ const gym = new GymCoach({
   bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
   complaint: (id, text) => coach.addComplaintFromText(id, text),
   writer: gymWriter,
+  account: (id) => accounts.status(id).state === 'linked',
 });
 // Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
 const mobility = new MobilityCoach({
@@ -96,6 +99,17 @@ const mobility = new MobilityCoach({
   strength: (id) => gym.history(id),
   complaints: (id) => coach.state(id).complaints ?? [],
 });
+// Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
+const accounts = new AccountLinks({ dir: path.join(dir, '..', 'accounts') });
+const accountSync = new AccountSync({
+  links: accounts, store: records, nowMs: () => Date.now(), coach, gym, mobility, noOpenRide: () => noOpenRide(),
+  onChange: (profileId) => notifyRecords(profileId),
+});
+const notifyRecords = (profileId: string): void => {
+  const note = JSON.stringify({ type: 'records-changed', profileId } satisfies CoachServerMessage);
+  for (const [other, id] of subs) if (id === profileId) { try { other.send(note); } catch { /* connection gone */ } }
+};
+const READ_ONLY = new Set<string>(['subscribe', 'records-list', 'ride-detail', 'garmin-health', 'gym-preview']);
 const mobilityOf = (profileId: string) => { try { return mobility.view(profileId); } catch { return null; } };
 const gymOf = (profileId: string) => {
   try {
@@ -181,7 +195,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId), account: accountSync.status(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -238,6 +252,10 @@ wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
       const m = JSON.parse(String(raw)) as CoachClientMessage;
+      // The password is only passed on to the server once, never stored, logged or sent back.
+      if (m.type === 'account-link') { void accountSync.link(m.profileId, m.url, m.name, m.password).catch(() => {}).finally(publish); publish(); return; }
+      if (m.type === 'account-unlink') { accountSync.unlink(m.profileId); publish(); return; }
+      if ('profileId' in m && typeof m.profileId === 'string' && !READ_ONLY.has(m.type)) accountSync.touch(m.profileId);
       // Login credentials are only passed on, never stored or sent back.
       // The key is only passed on and stored privately, never sent back.
       if (m.type === 'hevy-connect') { void hevy.connect(m.profileId, m.key).catch(() => {}).finally(publish); publish(); return; }
@@ -250,8 +268,7 @@ wss.on('connection', (socket) => {
         const out = handleRecords({ store: records, gym, profiles: () => profiles().map((p) => p.id) }, m);
         socket.send(JSON.stringify(out.reply));
         if (out.changed) {
-          const note = JSON.stringify({ type: 'records-changed', profileId: out.changed } satisfies CoachServerMessage);
-          for (const [other, id] of subs) if (id === out.changed) { try { other.send(note); } catch { /* connection gone */ } }
+          notifyRecords(out.changed);
           publish();
         }
         return;
@@ -313,6 +330,8 @@ const scan = (): void => {
     if (free) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
     // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
     if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+    // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
+    for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();

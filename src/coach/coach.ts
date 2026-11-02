@@ -237,10 +237,17 @@ export class Coach {
       this.markDirty(s);
     });
   }
-  /** A complaint from the gym coach's area: same detection and the same safe session, but no note and no new AI plan. */
-  addComplaintFromText(profileId: string, text: string): void {
+  /**
+   * A complaint from the gym coach's area: same detection and the same safe session, but no note and no new AI plan.
+   * `remote` is a complaint that came from the phone: it keeps its own id and times, and its status is taken as given.
+   */
+  addComplaintFromText(profileId: string, text: string, remote?: { id: string; status: ComplaintStatus; startedMs: number; updatedMs: number }): void {
     this.update(profileId, (s) => {
-      if (!this.addComplaint(s, text, this.deps.nowMs())) return;
+      if (remote) {
+        if ((s.complaints ?? []).some((c) => c.id === remote.id)) return;
+        s.complaints = [...(s.complaints ?? []), { id: remote.id, text: text.slice(0, 200), status: remote.status, startedMs: remote.startedMs, updatedMs: remote.updatedMs }];
+        if (remote.status === 'over') return;
+      } else if (!this.addComplaint(s, text, this.deps.nowMs())) return;
       s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       // A plan already running knows nothing of this and would overwrite the safe session.
       const rerun = this.pendingRerun.get(profileId);
@@ -255,12 +262,12 @@ export class Coach {
     return true;
   }
   /** You decide when a complaint is over. */
-  updateComplaint(profileId: string, id: string, status: ComplaintStatus): void {
+  updateComplaint(profileId: string, id: string, status: ComplaintStatus, atMs?: number): void {
     this.update(profileId, (s) => {
       const c = s.complaints?.find((x) => x.id === id);
       if (!c) return;
       c.status = status;
-      c.updatedMs = this.deps.nowMs();
+      c.updatedMs = atMs ?? this.deps.nowMs();
       this.markDirty(s);
     });
   }
