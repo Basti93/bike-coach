@@ -228,15 +228,23 @@ export class Coach {
     this.update(profileId, (s) => {
       const now = this.deps.nowMs();
       s.notes.push({ atMs: now, text });
-      const status = complaintFromNote(complaintText);
-      if (status) {
-        const list = s.complaints ?? [];
-        s.complaints = [...list, { id: `c-${now}-${list.length}`, text: complaintText.slice(0, 200), status, startedMs: now, updatedMs: now }];
+      if (this.addComplaint(s, complaintText, now)) {
         // Safe immediately, even if the AI is not answering right now.
         s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       }
       this.markDirty(s);
     });
+  }
+  /** A complaint from the gym coach's area: same detection, but no note and no replanning. */
+  addComplaintFromText(profileId: string, text: string): void {
+    this.update(profileId, (s) => { this.addComplaint(s, text, this.deps.nowMs()); });
+  }
+  private addComplaint(s: CoachState, text: string, now: number): boolean {
+    const status = complaintFromNote(text);
+    if (!status) return false;
+    const list = s.complaints ?? [];
+    s.complaints = [...list, { id: `c-${now}-${list.length}`, text: text.slice(0, 200), status, startedMs: now, updatedMs: now }];
+    return true;
   }
   /** You decide when a complaint is over. */
   updateComplaint(profileId: string, id: string, status: ComplaintStatus): void {

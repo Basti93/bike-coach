@@ -1,0 +1,59 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { ClaudeErrorKind } from '../claude-client';
+import type { GymWorkout } from './types';
+
+export type GymState = {
+  profileId: string;
+  goal: 'muscle';
+  next: { workout: GymWorkout; reason: string; source: 'claude' | 'rules' } | null;
+  /** Why there is no workout right now: the rule workout found nothing to offer. Never stored as a workout. */
+  emptyReason: string | null;
+  lastNote: { workoutId: string; text: string; questions: string[]; atMs: number } | null;
+  rules: { atMs: number; text: string }[];
+  /** The rider's own notes, handed to the AI as data. */
+  notes: { atMs: number; text: string }[];
+  answers: { atMs: number; question: string; text: string }[];
+  seenWorkoutIds: string[];
+  routine: { routineId: string; updatedAt: string } | null;
+  /** True once a plan completed (by AI or by the rules after a refused answer). */
+  planned: boolean;
+  /** The gym question after a long break is asked once. */
+  gymAsked: boolean;
+  dirty: boolean;
+  attempts: number;
+  attemptKey: string | null;
+  lastError: ClaudeErrorKind | null;
+  lastAttemptMs: number | null;
+};
+
+const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
+
+export const initialGymState = (profileId: string): GymState => ({
+  profileId, goal: 'muscle', next: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
+  routine: null, planned: false, gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null,
+});
+
+export const loadGymState = (dir: string, profileId: string): GymState => {
+  const f = file(dir, profileId);
+  if (!fs.existsSync(f)) return initialGymState(profileId);
+  try {
+    const parsed = JSON.parse(fs.readFileSync(f, 'utf8')) as GymState;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not a state');
+    return { ...initialGymState(profileId), ...parsed, profileId };
+  } catch {
+    try { fs.copyFileSync(f, `${f}.broken`); } catch { /* starting fresh matters more */ }
+    return initialGymState(profileId);
+  }
+};
+
+export const saveGymState = (dir: string, state: GymState): void => {
+  fs.mkdirSync(dir, { recursive: true });
+  const f = file(dir, state.profileId);
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify(state));
+  fs.renameSync(`${f}.tmp`, f);
+};
+
+export const removeGymState = (dir: string, profileId: string): void => {
+  fs.rmSync(file(dir, profileId), { force: true });
+};

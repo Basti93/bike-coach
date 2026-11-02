@@ -1,0 +1,295 @@
+import { ClaudeError } from '../claude-client';
+import type { StrengthWorkout } from '../hevy';
+import type { RideSummary } from '../metrics';
+import { complaintFromNote, type Complaint } from '../motivation';
+import { checkWorkout, WIDOWMAKER_REPS, type GymContext } from './guardrails';
+import type { HevyRoutines } from './hevy-routines';
+import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
+import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
+import { ruleWorkout } from './rules';
+import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
+import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
+
+const DAY_MS = 86_400_000;
+const RETRY_MS = 10 * 60_000;
+const MAX_ATTEMPTS = 3;
+const MAX_RULES = 20;
+const MAX_NOTES = 20;
+const MAX_ANSWERS = 20;
+const MAX_QUESTIONS = 2;
+const TEXT_MAX = 400;
+const QUESTION_MAX = 200;
+const NAME_MAX = 80;
+const GYM_QUESTION = 'Trainierst du noch im selben Studio, mit denselben Geräten?';
+const BREAK_NOTE = 'Nach der Pause fange ich ruhig an und taste mich wieder heran.';
+
+type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
+type Deps = {
+  dir: string; ask: Ask; nowMs: () => number;
+  workouts: (id: string) => StrengthWorkout[];
+  templates: (id: string) => Promise<ExerciseTemplate[]>;
+  ready: (id: string) => boolean;
+  bike: (id: string) => { summaries: RideSummary[]; complaints: Complaint[] };
+  complaint: (id: string, text: string) => void;
+  /** Null without a Hevy key. This is the only path to a Hevy write, and only `confirm` uses it. */
+  writer: (id: string) => HevyRoutines | null;
+};
+
+const fingerprint = (w: GymWorkout): string => JSON.stringify(w);
+const isWidowmaker = (e: GymExercise): boolean => /^\s*widowmaker\b/i.test(e.notes);
+const isWidowSet = (e: GymExercise, i: number): boolean => isWidowmaker(e) && e.sets[i].reps === WIDOWMAKER_REPS && !e.sets[i].repRange;
+const clean = (text: string | undefined, max: number): string | null => {
+  const t = (text ?? '').trim();
+  return t ? t.slice(0, max) : null;
+};
+
+/**
+ * The strength coach. It plans from the rider's Hevy history and only writes to Hevy in `confirm`, after a `preview`.
+ * It reacts to real workouts and notes only: bike rides and the bike plan never trigger a replan.
+ */
+export class GymCoach {
+  private states = new Map<string, GymState>();
+  private running = new Map<string, Promise<void>>();
+  private previews = new Map<string, { fp: string; edited: boolean }>();
+  private writing = new Set<string>();
+
+  constructor(private deps: Deps) {}
+
+  state(id: string): GymState {
+    let s = this.states.get(id);
+    if (!s) { s = loadGymState(this.deps.dir, id); this.states.set(id, s); }
+    return s;
+  }
+  isThinking(id: string): boolean { return this.running.has(id); }
+
+  private update(id: string, fn: (s: GymState) => void): void {
+    const s = this.state(id);
+    fn(s);
+    saveGymState(this.deps.dir, s);
+  }
+
+  tick(id: string): Promise<void> {
+    const active = this.running.get(id);
+    if (active) return active;
+    const run = this.plan(id).finally(() => this.running.delete(id));
+    this.running.set(id, run);
+    return run;
+  }
+
+  private async plan(id: string): Promise<void> {
+    if (!this.deps.ready(id)) return;
+    const now = this.deps.nowMs();
+    const real = this.deps.workouts(id).filter((w) => w.startMs <= now);
+    this.askAboutGym(id, real, now);
+    const s = this.state(id);
+    const seen = new Set(s.seenWorkoutIds);
+    const unseen = real.filter((w) => !seen.has(w.id));
+    if (s.planned && !s.dirty && unseen.length === 0) return;
+    const newest = (list: StrengthWorkout[]) => list.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
+    const key = (newest(unseen) ?? newest(real))?.id ?? 'none';
+    if (s.attemptKey !== key) this.update(id, (x) => { x.attemptKey = key; x.attempts = 0; });
+    if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return;
+    this.update(id, (x) => { x.dirty = true; x.attempts += 1; x.lastAttemptMs = now; });
+    const wantNote = s.planned && unseen.length > 0;
+    const previous = s.next;
+    try {
+      const templates = await this.deps.templates(id);
+      const ctx: GymContext = { workouts: real, templates, nowMs: now };
+      const rule = ruleWorkout(ctx);
+      const hasRule = rule.workout.exercises.length > 0;
+      // An empty rule workout is never stored as an offer; only its reason is kept.
+      this.update(id, (x) => {
+        x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;
+        x.emptyReason = hasRule ? null : rule.reason;
+      });
+      const ask = (rejection?: string) => this.deps.ask({
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection }),
+        systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
+      });
+      let raw = await ask();
+      const rejected = this.rejection(raw, ctx);
+      if (rejected) {
+        // Exactly one second attempt with the reason, after that the rules take over.
+        try { raw = await ask(rejected); } catch { /* The first answer decides. */ }
+      }
+      const parsed = gymAnswerSchema.safeParse(raw);
+      const checked = parsed.success ? checkWorkout(parsed.data.workout, ctx) : null;
+      this.update(id, (x) => {
+        if (parsed.success && checked?.ok) this.applyAnswer(x, parsed.data, checked.workout, real, wantNote, now);
+        else x.lastError = 'invalid';
+        x.dirty = false; x.planned = true; x.attempts = 0;
+        x.seenWorkoutIds = real.map((w) => w.id);
+      });
+    } catch (e) {
+      this.update(id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
+    }
+  }
+
+  private rejection(raw: unknown, ctx: GymContext): string | null {
+    const parsed = gymAnswerSchema.safeParse(raw);
+    if (!parsed.success) return 'Die Antwort passte nicht zum Schema.';
+    const checked = checkWorkout(parsed.data.workout, ctx);
+    return checked.ok ? null : checked.reason;
+  }
+
+  private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number): void {
+    const honest = (text: string) => honestFigures(text, figures(real, workout));
+    const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
+    const reason = clean(a.reason, TEXT_MAX);
+    s.next = { workout, reason: (reason && honest(reason)) || fallback, source: 'claude' };
+    s.emptyReason = null;
+    s.lastError = null;
+    const rule = clean(a.newRule, 200);
+    if (rule && honest(rule) && !s.rules.some((r) => r.text === rule)) s.rules = [...s.rules, { atMs: now, text: rule }].slice(-MAX_RULES);
+    if (!wantNote) return;
+    const text = clean(a.note, TEXT_MAX);
+    const newest = real.reduce((m, w) => (w.startMs > m.startMs ? w : m), real[0]);
+    const checkedText = text && honest(text);
+    s.lastNote = checkedText ? {
+      workoutId: newest.id, text: checkedText, atMs: now,
+      questions: (a.questions ?? []).flatMap((q) => { const c = clean(q, QUESTION_MAX); return c && honest(c) ? [c] : []; }).slice(0, MAX_QUESTIONS),
+    } : null;
+  }
+
+  /** After a long break the coach asks once whether the gym is still the same. */
+  private askAboutGym(id: string, real: StrengthWorkout[], now: number): void {
+    const s = this.state(id);
+    if (s.gymAsked || real.length === 0) return;
+    const newest = real.reduce((m, w) => (w.startMs > m.startMs ? w : m), real[0]);
+    if (now - newest.startMs <= LONG_BREAK_DAYS * DAY_MS) return;
+    this.update(id, (x) => { x.gymAsked = true; x.lastNote = { workoutId: newest.id, text: BREAK_NOTE, questions: [GYM_QUESTION], atMs: now }; });
+  }
+
+  adjust(id: string, how: 'easier' | 'harder' | 'shorter'): void {
+    const next = this.state(id).next;
+    if (!next || next.workout.exercises.length === 0) return;
+    const w = structuredClone(next.workout);
+    if (how === 'easier') {
+      for (const e of w.exercises) {
+        const work = e.sets.map((_, i) => i).filter((i) => e.sets[i].type !== 'warmup' && !isWidowSet(e, i));
+        if (work.length > 1) e.sets.splice(work[work.length - 1], 1);
+      }
+    } else if (how === 'harder') {
+      for (const e of w.exercises) {
+        if (w.exercises.reduce((n, x) => n + x.sets.length, 0) >= MAX_SETS) break;
+        const last = e.sets.map((s, i) => ({ s, i })).filter(({ s, i }) => s.type === 'normal' && !isWidowSet(e, i)).pop();
+        if (last && !isWidowmaker(e)) e.sets.push({ ...last.s });
+      }
+    } else if (w.exercises.length > 1) {
+      w.exercises.splice(w.exercises.length - Math.ceil(w.exercises.length / 3));
+      const ids = w.exercises.map((e) => e.supersetId).filter((v): v is number => v !== null);
+      for (const e of w.exercises) if (e.supersetId !== null && ids.filter((v) => v === e.supersetId).length < 2) e.supersetId = null;
+    }
+    this.update(id, (s) => { s.next = { ...next, workout: w }; });
+  }
+
+  note(id: string, text: string): void {
+    this.update(id, (s) => {
+      const now = this.deps.nowMs();
+      s.notes = [...s.notes, { atMs: now, text: text.slice(0, 300) }].slice(-MAX_NOTES);
+      this.keepComplaint(id, s, text, now);
+      s.dirty = true; s.attempts = 0;
+    });
+  }
+
+  answer(id: string, question: string, text: string): void {
+    this.update(id, (s) => {
+      const now = this.deps.nowMs();
+      s.answers = [...s.answers, { atMs: now, question: question.slice(0, QUESTION_MAX), text: text.slice(0, 300) }].slice(-MAX_ANSWERS);
+      if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question);
+      // Only the rider's own words are checked, so a "fine" answer to a question about a knee is no complaint.
+      this.keepComplaint(id, s, text, now);
+      s.dirty = true; s.attempts = 0;
+    });
+  }
+
+  /** A body complaint goes to the bike coach and stays as a preference of its own. */
+  private keepComplaint(id: string, s: GymState, text: string, now: number): void {
+    if (!complaintFromNote(text)) return;
+    this.deps.complaint(id, text);
+    s.rules = [...s.rules, { atMs: now, text: text.slice(0, 200) }].slice(-MAX_RULES);
+  }
+
+  skipQuestion(id: string, question: string): void {
+    this.update(id, (s) => { if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question); });
+  }
+
+  removeRule(id: string, atMs: number): void {
+    this.update(id, (s) => { s.rules = s.rules.filter((r) => r.atMs !== atMs); });
+  }
+
+  forget(id: string): void {
+    this.states.delete(id);
+    this.previews.delete(id);
+    removeGymState(this.deps.dir, id);
+  }
+
+  /** Shows what would be written. Asks Hevy whether the routine was edited since the last write, and writes nothing. */
+  async preview(id: string): Promise<{ workout: GymWorkout; edited: boolean } | null> {
+    const writer = this.deps.writer(id);
+    const s = this.state(id);
+    if (!writer || !s.next || s.next.workout.exercises.length === 0) return null;
+    const workout = structuredClone(s.next.workout);
+    const fp = fingerprint(workout);
+    try {
+      const edited = s.routine ? await writer.editedSince(s.routine.routineId, s.routine.updatedAt) : false;
+      this.previews.set(id, { fp, edited });
+      return { workout, edited };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Writes the previewed workout. Stale when the workout changed since the preview or the routine was edited in Hevy after it. */
+  async confirm(id: string, name: string): Promise<'written' | 'stale' | 'failed'> {
+    const writer = this.deps.writer(id);
+    const start = this.state(id).next;
+    if (!writer || !start || start.workout.exercises.length === 0 || this.writing.has(id)) return 'failed';
+    const shown = this.previews.get(id);
+    if (!shown || shown.fp !== fingerprint(start.workout)) return 'stale';
+    this.writing.add(id);
+    try {
+      const known = this.state(id).routine;
+      // An edit the rider already saw in the preview was confirmed with it. Only a new one makes this stale.
+      if (known && !shown.edited && await writer.editedSince(known.routineId, known.updatedAt)) return 'stale';
+      const current = this.state(id).next;
+      if (!current || fingerprint(current.workout) !== shown.fp) return 'stale';
+      const workout = { ...structuredClone(current.workout), name: name.trim().slice(0, NAME_MAX) || current.workout.name };
+      const written = await writer.writeRoutine(workout, { routineId: known?.routineId ?? null, updatedAt: known?.updatedAt ?? null });
+      this.previews.delete(id);
+      this.update(id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
+      return 'written';
+    } catch {
+      return 'failed';
+    } finally {
+      this.writing.delete(id);
+    }
+  }
+}
+
+/** Every figure the coach may name: what was done and what is planned, plus the rep range. */
+function figures(real: StrengthWorkout[], planned: GymWorkout): { weights: number[]; reps: number[]; sets: number[] } {
+  const weights: number[] = [];
+  const reps: number[] = [REP_MIN, REP_MAX, WIDOWMAKER_REPS];
+  const sets: number[] = [1];
+  for (const w of real) {
+    let total = 0;
+    for (const e of w.exercises) {
+      sets.push(e.workSets.length, e.sets);
+      total += e.workSets.length;
+      for (const s of e.workSets) { if (s.weightKg !== null) weights.push(s.weightKg); if (s.reps !== null) reps.push(s.reps); }
+    }
+    sets.push(total);
+  }
+  let total = 0;
+  for (const e of planned.exercises) {
+    sets.push(e.sets.length);
+    total += e.sets.length;
+    for (const s of e.sets) {
+      if (s.weightKg !== null) weights.push(s.weightKg);
+      for (const r of [s.reps, s.repRange?.start, s.repRange?.end]) if (r !== null && r !== undefined) reps.push(r);
+    }
+  }
+  sets.push(total);
+  return { weights, reps, sets };
+}
