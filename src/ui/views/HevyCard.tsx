@@ -20,14 +20,16 @@ const syncText = (status: Extract<HevyStatus, { state: 'connected' }>): string =
 /** Optional, each profile with its own key. The key stays in the form only until it is submitted. */
 export const HevyCard = ({ profileId, status, send }: { profileId: string; status: HevyStatus; send: (m: CoachClientMessage) => void }) => {
   const [key, setKey] = useState('');
+  const [separated, setSeparated] = useState(false);
+  const [forgotten, setForgotten] = useState(false);
   if (status.state === 'connecting') return <section className="card garmin" role="status">Hevy wird verbunden…</section>;
   if (status.state === 'connected') {
     return (
       <details className="card garmin-later">
         <summary><span className="dot on">Hevy verbunden</span></summary>
         <p className="muted">{syncText(status)}</p>
-        <p className="muted">Dein Coach sieht dein Krafttraining und plant damit. Beim Trennen werden Schlüssel und Workouts von diesem Mac gelöscht, bei Hevy bleibt alles.</p>
-        <button className="ghost" onClick={() => send({ type: 'hevy-disconnect', profileId })}>Trennen</button>
+        <p className="muted">Dein Coach sieht dein Krafttraining und plant damit. Eine Routine legt er nur nach deiner Bestätigung an. Beim Trennen werden Schlüssel und Workouts von diesem Mac gelöscht, bei Hevy bleibt alles.</p>
+        <button className="ghost" onClick={() => { setSeparated(true); send({ type: 'hevy-disconnect', profileId }); }}>Trennen</button>
       </details>
     );
   }
@@ -44,7 +46,14 @@ export const HevyCard = ({ profileId, status, send }: { profileId: string; statu
         <p className="muted">Dein Coach sieht dann dein Krafttraining, zum Beispiel schwere Beine vom Vortag. Dafür brauchst du Hevy Pro. Den Schlüssel findest du unter <a href="https://hevy.com/settings?developer" target="_blank" rel="noreferrer">hevy.com, Einstellungen, Developer</a>.</p>
         <label>API-Schlüssel<input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} /></label>
         <button type="submit">Verbinden</button>
-        <p className="muted">Der Schlüssel bleibt nur auf diesem Mac. Bike Coach liest bei Hevy nur und ändert dort nichts.</p>
+        {separated && !forgotten && (
+          <div className="row">
+            <p className="muted">Der Kraft-Coach behält sein Gedächtnis, falls du Hevy wieder verbindest.</p>
+            <button type="button" className="ghost" onClick={() => { setForgotten(true); send({ type: 'gym-forget', profileId }); }}>Gedächtnis löschen</button>
+          </div>
+        )}
+        {forgotten && <p className="muted">Das Gedächtnis des Kraft-Coaches ist gelöscht.</p>}
+        <p className="muted">Der Schlüssel bleibt nur auf diesem Mac. Bike Coach liest dein Training. Eine Routine legt er in Hevy nur nach deiner Bestätigung an, bestehende Routinen bleiben unberührt.</p>
       </form>
     </details>
   );

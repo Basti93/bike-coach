@@ -332,3 +332,10 @@ main.with-pass .workout { height: 2rem; }
 .garmin-preview dt { color: var(--muted); }
 .garmin-preview dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; text-align: right; }
 .garmin-repo { display: block; margin: .4rem 0; }
+
+.gym-list { list-style: none; padding: 0; margin: .8rem 0; display: flex; flex-direction: column; gap: .8rem; }
+.gym-sets { list-style: none; padding: 0; margin: .3rem 0 0; display: flex; flex-direction: column; gap: .15rem; font-size: .95rem; }
+.gym-exercise p { margin: .2rem 0 0; }
+.gym-questions { list-style: none; padding: 0; margin: .6rem 0 0; display: flex; flex-direction: column; gap: .8rem; }
+.gym-question p { margin: 0 0 .3rem; }
+.gym-preview .notice { margin: .6rem 0; }

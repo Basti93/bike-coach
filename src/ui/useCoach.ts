@@ -22,6 +22,7 @@ export const useCoach = (profileId: string | null) => {
   const [gym, setGym] = useState<GymPublic | null>(null);
   const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean } | null>(null);
   const [gymConfirmResult, setGymConfirmResult] = useState<GymConfirmResult | null>(null);
+  const [gymPreviewFailed, setGymPreviewFailed] = useState(false);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
 
@@ -31,6 +32,7 @@ export const useCoach = (profileId: string | null) => {
     setGym(null);
     setGymPreview(null);
     setGymConfirmResult(null);
+    setGymPreviewFailed(false);
     if (!profileId) return undefined;
     let closed = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -45,7 +47,7 @@ export const useCoach = (profileId: string | null) => {
         const m = JSON.parse(String(e.data));
         if (m.type === 'ride-detail') setDetail(m.detail);
         if (m.type === 'garmin-health') setGarminHealth(m.data);
-        if (m.type === 'gym-preview') setGymPreview(m.preview);
+        if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
         if (m.type === 'coach-state') { setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); }
       };
@@ -61,5 +63,9 @@ export const useCoach = (profileId: string | null) => {
   const send = (m: CoachClientMessage) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
-  return { gym, gymPreview, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  const clearGym = (what: 'preview' | 'result' | 'all') => {
+    if (what !== 'result') { setGymPreview(null); setGymPreviewFailed(false); }
+    if (what !== 'preview') setGymConfirmResult(null);
+  };
+  return { gym, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };
