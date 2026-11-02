@@ -3,7 +3,7 @@ import { existsSync, realpathSync, statSync, readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
-import { clientIp, hashToken, isLimited, newToken, recordFailure, safeEqual, verifyPassword } from './auth';
+import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
 import { openDb } from './db';
 
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan'];
@@ -11,6 +11,7 @@ const BODY_LIMIT = 5 * 1024 * 1024;
 const RECORD_BODY_LIMIT = 1024 * 1024;
 const MAX_RECORDS_PER_POST = 1000;
 const MAX_PAGE = 500;
+const LOGIN_BODY_LIMIT = 8192;
 const MAX_AHEAD_MS = 7 * 24 * 3600 * 1000;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
 const KEEP_OVERWRITTEN = 500;
@@ -30,12 +31,13 @@ const str = (v: unknown, max: number): v is string => typeof v === 'string' && v
 export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string }): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
-  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT });
+  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
   const staticRoot = opts.staticDir && existsSync(opts.staticDir) ? realpathSync(opts.staticDir) : null;
   const accounts = new WeakMap<FastifyRequest, number>();
 
-  app.setErrorHandler((err: { statusCode?: number }, _req, reply) => {
+  app.setErrorHandler((err: { statusCode?: number; name?: string }, req, reply) => {
     const code = typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
+    if (code === 500) console.error('server error', req.method, req.url.split('?')[0], err.name ?? 'Error');
     return reply.code(code).send({ error: code === 413 ? 'too large' : code === 500 ? 'error' : 'bad request' });
   });
   app.addHook('onSend', async (_req, reply) => {
@@ -75,7 +77,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
       if (row && safeEqual(Buffer.from(row.token_hash), Buffer.from(h)) && row.expires_ms > t) {
         if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return reply.code(403).send({ error: 'forbidden' });
         db.prepare('UPDATE sessions SET expires_ms = ? WHERE token_hash = ?').run(t + SESSION_MS, h);
-        setCookie(reply, token);
+        if (req.routeOptions.url !== '/logout') setCookie(reply, token);
         accounts.set(req, row.account_id);
         return;
       }
@@ -87,17 +89,20 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
   /** Shared by /login and /device-token: limit, password check, identical failure answer. */
   const checkCredentials = async (req: FastifyRequest, reply: FastifyReply, body: unknown): Promise<number | null> => {
     const b = isObj(body) ? body : {};
-    if (!str(b.name, 100) || typeof b.password !== 'string' || b.password.length === 0 || b.password.length > 1024) { reply.code(400).send({ error: 'bad request' }); return null; }
+    if (!str(b.name, 100) || typeof b.password !== 'string' || b.password.length === 0 || b.password.length > MAX_PASSWORD) { reply.code(400).send({ error: 'bad request' }); return null; }
     const t = now(), ip = ipOf(req), key = b.name.toLowerCase();
     if (isLimited(db, t, ip, key)) { reply.code(429).send({ error: 'too many attempts' }); return null; }
+    const attempt = recordAttempt(db, t, ip, key);
     const id = await verifyPassword(db, b.name, b.password);
-    if (id === null) { recordFailure(db, t, ip, key); reply.code(401).send({ error: 'login failed' }); return null; }
+    if (id === 'busy') { dropAttempt(db, attempt); reply.code(429).send({ error: 'too many attempts' }); return null; }
+    if (id === null) { reply.code(401).send({ error: 'login failed' }); return null; }
+    dropAttempt(db, attempt);
     return id;
   };
 
   app.get('/healthz', async () => ({ ok: true }));
 
-  app.post('/login', async (req, reply) => {
+  app.post('/login', { bodyLimit: LOGIN_BODY_LIMIT }, async (req, reply) => {
     const id = await checkCredentials(req, reply, req.body);
     if (id === null) return reply;
     const t = now(), token = newToken();
@@ -107,14 +112,14 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     return { ok: true };
   });
 
-  app.post('/logout', { preHandler: requireAuth }, async (req, reply) => {
+  app.post('/logout', { onRequest: requireAuth }, async (req, reply) => {
     const token = cookieOf(req);
     if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
     setCookie(reply, '', 0);
     return { ok: true };
   });
 
-  app.post('/device-token', async (req, reply) => {
+  app.post('/device-token', { bodyLimit: LOGIN_BODY_LIMIT }, async (req, reply) => {
     const id = await checkCredentials(req, reply, req.body);
     if (id === null) return reply;
     const dn = (req.body as { deviceName?: unknown }).deviceName;
@@ -124,12 +129,12 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     return { token, deviceId: Number(r.lastInsertRowid) };
   });
 
-  app.get('/me', { preHandler: requireAuth }, async (req) => {
+  app.get('/me', { onRequest: requireAuth }, async (req) => {
     const r = db.prepare('SELECT name FROM accounts WHERE id = ?').get(acct(req)) as { name: string };
     return { name: r.name };
   });
 
-  app.post('/records', { preHandler: requireAuth }, async (req, reply) => {
+  app.post('/records', { onRequest: requireAuth }, async (req, reply) => {
     const list = isObj(req.body) ? req.body.records : undefined;
     if (!Array.isArray(list) || list.length > MAX_RECORDS_PER_POST) return reply.code(400).send({ error: 'bad request' });
     const account = acct(req), t = now();
@@ -172,14 +177,18 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     return { accepted, refused };
   });
 
-  app.get<{ Querystring: { since?: string; limit?: string } }>('/records', { preHandler: requireAuth }, async (req, reply) => {
-    const since = req.query.since === undefined ? 0 : Number(req.query.since);
+  app.get<{ Querystring: { since?: string; limit?: string } }>('/records', { onRequest: requireAuth }, async (req, reply) => {
+    let since = req.query.since === undefined ? 0 : Number(req.query.since);
     const limit = req.query.limit === undefined ? MAX_PAGE : Number(req.query.limit);
     if (!Number.isInteger(since) || since < 0 || !Number.isInteger(limit) || limit < 1) return reply.code(400).send({ error: 'bad request' });
     const n = Math.min(limit, MAX_PAGE);
+    // A cursor from the future means the server lost data (restore): start over so nothing is missed.
+    const top = (db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM records WHERE account_id = ?').get(acct(req)) as { m: number }).m;
+    const reset = since > top;
+    if (reset) since = 0;
     const rows = db.prepare('SELECT * FROM records WHERE account_id = ? AND seq > ? ORDER BY seq LIMIT ?').all(acct(req), since, n + 1) as Row[];
     const page = rows.slice(0, n);
-    return { records: page.map(toRecord), cursor: page.length ? page[page.length - 1]!.seq : since, more: rows.length > n };
+    return { records: page.map(toRecord), cursor: page.length ? page[page.length - 1]!.seq : since, more: rows.length > n, reset };
   });
 
   // Static files: GET only, only from staticDir, no traversal, no symlink escape.
@@ -188,6 +197,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     try {
       let rel = decodeURIComponent(req.url.split('?')[0]!);
       if (rel.includes('\0') || rel.includes('\\')) throw new Error('bad path');
+      if (rel.split('/').some((seg) => seg.startsWith('.') && seg !== '.well-known')) throw new Error('hidden');
       let file = resolve(staticRoot, '.' + rel);
       if (existsSync(file) && statSync(file).isDirectory()) file = resolve(file, 'index.html');
       file = realpathSync(file);
@@ -205,6 +215,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
 };
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  if (!process.env.PANDAFIT_TRUST_PROXY_CIDR) console.warn('warning: PANDAFIT_TRUST_PROXY_CIDR is not set; all clients are seen at the proxy address and share one login limit');
   const app = buildServer({
     dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db',
     staticDir: process.env.PANDAFIT_STATIC,

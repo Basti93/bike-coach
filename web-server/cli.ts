@@ -18,7 +18,7 @@ export const run = async (args: string[], dbPath: string, io: Io): Promise<numbe
       if (!name) throw new Error(`${cmd} needs --name <name>`);
       const pw = await io.readPassword();
       if (cmd === 'create-account') { await createAccount(db, name, pw, { force: args.includes('--force') }); io.out('account created'); }
-      else { await setPassword(db, name, pw); io.out('password changed, sessions ended'); }
+      else { await setPassword(db, name, pw); io.out('password changed; sessions ended, device tokens revoked, login attempts cleared'); }
     } else if (cmd === 'list-devices') {
       for (const d of listDevices(db)) io.out(`${d.id}\t${d.account}\t${d.name}\t${d.revoked ? 'revoked' : 'active'}`);
     } else if (cmd === 'revoke-device') {

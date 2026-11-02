@@ -1,7 +1,14 @@
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 export const openDb = (path: string): DatabaseSync => {
-  const db = new DatabaseSync(path);
+  if (path !== ':memory:') {
+    // Private data directory and files (umask is not available in worker threads, so it is best effort).
+    try { process.umask(0o077); } catch { /* not supported here */ }
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  }
+  const db = new DatabaseSync(path, { timeout: 5000 });
   db.exec(`PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE COLLATE NOCASE, salt TEXT NOT NULL, hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id INTEGER NOT NULL, expires_ms INTEGER NOT NULL);

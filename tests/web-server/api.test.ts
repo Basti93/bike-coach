@@ -45,7 +45,7 @@ describe('api', () => {
     expect((await get(app, '/me', b)).json()).toEqual({ name: 'ben' });
   });
 
-  it('the same id from two accounts stays separate; a repeated send creates no duplicate and no new seq', async () => {
+  it('a repeated send creates no duplicate and no new seq', async () => {
     const { app } = await setup();
     const a = (await login(app, 'anna', PW_A)).cookie!;
     const r1 = await post(app, { cookie: a }, [rec('w1'), rec('w2')]);
@@ -55,7 +55,7 @@ describe('api', () => {
     const second = (await get(app, '/records', a)).json();
     expect(second.records).toHaveLength(2);
     expect(second.cursor).toBe(first.cursor);
-    expect((await get(app, `/records?since=${first.cursor}`, a)).json()).toEqual({ records: [], cursor: first.cursor, more: false });
+    expect((await get(app, `/records?since=${first.cursor}`, a)).json()).toEqual({ records: [], cursor: first.cursor, more: false, reset: false });
   });
 
   it('an older send does not win and the overwritten copy is kept', async () => {

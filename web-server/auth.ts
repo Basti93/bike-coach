@@ -2,11 +2,21 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 export const MIN_PASSWORD = 10;
+export const MAX_PASSWORD = 1024;
 export const MAX_ACCOUNTS = 2;
+export const MAX_SCRYPT_INFLIGHT = 4;
+export const stats = { scryptCalls: 0, inflight: 0, maxInflight: 0 };
 const KEYLEN = 64;
 
-const scryptAsync = (password: string, salt: Buffer): Promise<Buffer> =>
-  new Promise((resolve, reject) => scrypt(password, salt, KEYLEN, (e, key) => (e ? reject(e) : resolve(key))));
+const scryptAsync = (password: string, salt: Buffer): Promise<Buffer> => {
+  stats.scryptCalls++;
+  stats.maxInflight = Math.max(stats.maxInflight, ++stats.inflight);
+  return new Promise((resolve, reject) => scrypt(password, salt, KEYLEN, (e, key) => { stats.inflight--; e ? reject(e) : resolve(key); }));
+};
+const checkLength = (password: string) => {
+  if (password.length < MIN_PASSWORD) throw new Error(`password needs at least ${MIN_PASSWORD} characters`);
+  if (password.length > MAX_PASSWORD) throw new Error(`password may have at most ${MAX_PASSWORD} characters`);
+};
 
 export const newToken = (): string => randomBytes(32).toString('hex');
 export const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -21,7 +31,8 @@ const DUMMY_SALT = randomBytes(16);
 const DUMMY_HASH = randomBytes(KEYLEN);
 
 /** Unknown names do the same scrypt work, so timing does not reveal who has an account. */
-export const verifyPassword = async (db: DatabaseSync, name: string, password: string): Promise<number | null> => {
+export const verifyPassword = async (db: DatabaseSync, name: string, password: string): Promise<number | null | 'busy'> => {
+  if (stats.inflight >= MAX_SCRYPT_INFLIGHT) return 'busy';
   const row = db.prepare('SELECT id, salt, hash FROM accounts WHERE name = ?').get(name) as { id: number; salt: string; hash: string } | undefined;
   const key = await scryptAsync(password, row ? Buffer.from(row.salt, 'hex') : DUMMY_SALT);
   const ok = safeEqual(key, row ? Buffer.from(row.hash, 'hex') : DUMMY_HASH);
@@ -32,7 +43,7 @@ export const countAccounts = (db: DatabaseSync): number => (db.prepare('SELECT C
 
 export const createAccount = async (db: DatabaseSync, name: string, password: string, opts: { force?: boolean } = {}): Promise<number> => {
   if (!name.trim() || name.length > 100) throw new Error('name must be 1 to 100 characters');
-  if (password.length < MIN_PASSWORD) throw new Error(`password needs at least ${MIN_PASSWORD} characters`);
+  checkLength(password);
   if (countAccounts(db) >= MAX_ACCOUNTS && !opts.force) throw new Error('two accounts exist already; use --force to add another');
   const { salt, hash } = await hashPassword(password);
   try {
@@ -43,11 +54,13 @@ export const createAccount = async (db: DatabaseSync, name: string, password: st
 };
 
 export const setPassword = async (db: DatabaseSync, name: string, password: string): Promise<void> => {
-  if (password.length < MIN_PASSWORD) throw new Error(`password needs at least ${MIN_PASSWORD} characters`);
+  checkLength(password);
   const { salt, hash } = await hashPassword(password);
   const r = db.prepare('UPDATE accounts SET salt = ?, hash = ? WHERE name = ?').run(salt, hash, name);
   if (!r.changes) throw new Error('no such account');
   db.prepare('DELETE FROM sessions WHERE account_id = (SELECT id FROM accounts WHERE name = ?)').run(name);
+  db.prepare('UPDATE devices SET revoked = 1 WHERE account_id = (SELECT id FROM accounts WHERE name = ?)').run(name);
+  db.prepare('DELETE FROM login_attempts WHERE account_key = ?').run(name.toLowerCase());
 };
 
 export const listDevices = (db: DatabaseSync) =>
@@ -66,9 +79,10 @@ export const isLimited = (db: DatabaseSync, now: number, ip: string, key: string
     (db.prepare(`SELECT COUNT(*) AS c FROM login_attempts WHERE ${col} = ?`).get(v) as { c: number }).c;
   return c('ip', ip) >= LIMIT || c('account_key', key) >= LIMIT;
 };
-export const recordFailure = (db: DatabaseSync, now: number, ip: string, key: string): void => {
-  db.prepare('INSERT INTO login_attempts (at_ms, ip, account_key) VALUES (?, ?, ?)').run(now, ip, key);
-};
+/** Counted before the password check, so parallel guesses cannot slip past the limit. Returns the row to drop again on success. */
+export const recordAttempt = (db: DatabaseSync, now: number, ip: string, key: string): number =>
+  Number(db.prepare('INSERT INTO login_attempts (at_ms, ip, account_key) VALUES (?, ?, ?)').run(now, ip, key).lastInsertRowid);
+export const dropAttempt = (db: DatabaseSync, rowid: number): void => { db.prepare('DELETE FROM login_attempts WHERE rowid = ?').run(rowid); };
 
 // --- client address ---
 const v4 = (s: string): number | null => {
