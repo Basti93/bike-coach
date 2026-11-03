@@ -12,4 +12,6 @@ export type TrackingPort = {
   subscribe(fn: () => void): () => void;
   /** `refused` counts records the other side did not accept; they stay safe on this device. */
   syncState(): { pending: number; lastOkMs: number | null; refused?: number };
+  /** Arms (or with null cancels) a notification for the end of the rest, for when the screen is locked. Fire and forget: never throws, never awaited. */
+  restAlarm?(atMs: number | null): void;
 };
