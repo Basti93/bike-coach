@@ -22,6 +22,8 @@ export type CoachServerOptions = {
 
 const MAX_PAYLOAD = 256 * 1024;
 const ACCOUNT = /^[1-9][0-9]{0,15}$/;
+/** A client's id for a queued entry: a uuid, with room to spare. */
+const MAX_QID = 100;
 
 type Conn = { ws: WebSocket; subscribed: boolean; lastSent: string | null };
 
@@ -259,11 +261,17 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     const now = nowMs();
     try {
       if (m.type === 'queued') {
-        const inner = m.message;
-        if (typeof m.atMs !== 'number' || !Number.isFinite(m.atMs) || !isObj(inner)) return;
-        if (typeof inner.type !== 'string' || !QUEUEABLE.has(inner.type as CoachClientMessage['type'])) return;
-        // A clock running ahead on the client never makes a change newer than now.
-        apply(c, a, inner, Math.min(m.atMs, now), true);
+        const qid = typeof m.qid === 'string' && m.qid !== '' && m.qid.length <= MAX_QID ? m.qid : null;
+        try {
+          const inner = m.message;
+          if (typeof m.atMs !== 'number' || !Number.isFinite(m.atMs) || !isObj(inner)) return;
+          if (typeof inner.type !== 'string' || !QUEUEABLE.has(inner.type as CoachClientMessage['type'])) return;
+          // A clock running ahead on the client never makes a change newer than now.
+          apply(c, a, inner, Math.min(m.atMs, now), true);
+        } finally {
+          // Applied, stale or invalid: the entry is done either way, so the client may drop it. A re-send is skipped by the clock.
+          if (qid !== null) send(c, { type: 'queued-ack', qid });
+        }
         return;
       }
       apply(c, a, m, now, false);

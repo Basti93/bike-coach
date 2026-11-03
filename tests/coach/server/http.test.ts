@@ -242,6 +242,43 @@ test('queued messages outside QUEUEABLE are ignored', async () => {
   expect(notes.map((n) => n.text)).toEqual([]);
 });
 
+test('every queued message with a qid gets its queued-ack: applied, stale or invalid', async () => {
+  const t = await start({ now: { ms: 1000 } });
+  const c = await t.as(1);
+  t.send(c, { type: 'note', profileId: 'pa', text: 'Mein Knie schmerzt seit gestern' });
+  const coach = () => t.household.account(1)!.runtime.coachState('pa')!;
+  await vi.waitFor(() => expect(coach().complaints?.length).toBe(1));
+  const id = coach().complaints![0]!.id;
+  t.clock.ms = 2000;
+  t.send(c, { type: 'complaint-update', profileId: 'pa', id, status: 'over' });
+  await vi.waitFor(() => expect(coach().complaints![0]!.status).toBe('over'));
+  t.clock.ms = 3000;
+  t.send(c, { type: 'queued', qid: 'q-applied', atMs: 2900, message: { type: 'note', profileId: 'pa', text: 'unterwegs' } });
+  t.send(c, { type: 'queued', qid: 'q-stale', atMs: 1000, message: { type: 'complaint-update', profileId: 'pa', id, status: 'healing' } });
+  t.send(c, { type: 'queued', qid: 'q-outside', atMs: 2900, message: { type: 'hevy-connect', profileId: 'pa', key: HEVY_KEY } });
+  t.send(c, { type: 'queued', qid: 'q-other', atMs: 2900, message: { type: 'note', profileId: 'pb', text: 'fremd' } });
+  t.send(c, { type: 'queued', qid: 'q-no-time', atMs: 'gestern', message: { type: 'note', profileId: 'pa', text: 'ohne Zeit' } });
+  t.send(c, { type: 'queued', qid: 'q-broken', atMs: 2900, message: 'kaputt' });
+  await vi.waitFor(() => expect(c.frames.filter((f) => f.type === 'queued-ack')).toHaveLength(6));
+  expect(c.frames.flatMap((f) => (f.type === 'queued-ack' ? [f.qid] : []))).toEqual(['q-applied', 'q-stale', 'q-outside', 'q-other', 'q-no-time', 'q-broken']);
+  expect(coach().notes.map((n) => n.text)).toEqual(['Mein Knie schmerzt seit gestern', 'unterwegs']);
+  expect(coach().complaints![0]!.status).toBe('over');
+  // Sent again after a reconnect, the same change is skipped by the clock and still acknowledged.
+  t.send(c, { type: 'queued', qid: 'q-stale', atMs: 1000, message: { type: 'complaint-update', profileId: 'pa', id, status: 'healing' } });
+  await vi.waitFor(() => expect(c.frames.filter((f) => f.type === 'queued-ack')).toHaveLength(7));
+  expect(coach().complaints![0]!.status).toBe('over');
+});
+
+test('a queued message without a usable qid gets no ack', async () => {
+  const t = await start();
+  const c = await t.as(1);
+  t.send(c, { type: 'queued', atMs: NOON, message: { type: 'note', profileId: 'pa', text: 'ohne Kennung' } });
+  t.send(c, { type: 'queued', qid: 42, atMs: NOON, message: { type: 'note', profileId: 'pa', text: 'Zahl' } });
+  t.send(c, { type: 'queued', qid: 'x'.repeat(200), atMs: NOON, message: { type: 'note', profileId: 'pa', text: 'zu lang' } });
+  await settle();
+  expect(c.frames.filter((f) => f.type === 'queued-ack')).toEqual([]);
+});
+
 test('a binary or broken frame is ignored and the socket stays open', async () => {
   const t = await start();
   const c = await t.as(1);
