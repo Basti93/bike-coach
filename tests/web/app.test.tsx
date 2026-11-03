@@ -152,7 +152,7 @@ describe('web app', () => {
     await boot({ seed: [plan(NOW - 1000)] });
     await screen.findByText('Beine A');
     const nav = screen.getByRole('navigation', { name: 'Seiten' });
-    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Training', 'Verlauf', 'Profil']);
+    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Coach', 'Training', 'Verlauf', 'Profil']);
     expect(screen.queryByRole('button', { name: 'Abmelden' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
     expect(await screen.findByRole('heading', { name: 'anna' })).toBeTruthy();

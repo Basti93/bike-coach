@@ -65,7 +65,7 @@ describe('Gemeinsam on the phone', () => {
     expect(card.textContent).not.toMatch(NO_RANKING);
     // The card sits before the plan on Heute.
     expect(card.compareDocumentPosition(screen.getAllByRole('button', { name: 'Zum Training' })[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('navigation').querySelectorAll('button')).toHaveLength(4); // Essen only with a meal plan; never a tab for this
+    expect(screen.getByRole('navigation').querySelectorAll('button')).toHaveLength(5); // Heute, Coach, Training, Verlauf, Profil: Essen only with a meal plan; never a tab for this
   });
 
   it('tapping opens the full page with the Mac page sections, and Zurück returns to Heute', async () => {

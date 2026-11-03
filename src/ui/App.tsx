@@ -19,6 +19,7 @@ import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
+import { CoachScreen } from '../tracking/ui/CoachScreen';
 import type { TrackingPort } from '../tracking/ports';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { runView } from '../tracking/ui/run-view';
@@ -144,7 +145,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const waiting = !arrived && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach';
   const menu = showMenu({ profile: true, riding: false, film: false, waiting }) && (
     <MenuBar
-      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn, run: runOn, stats: statsOn })}
+      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn, run: runOn, stats: statsOn, coach: !!coach.tracking })}
       active={activeItem(v, profile.id, home)} name={profile.name} avatar={profile.avatar}
       onGo={go} onSwitch={() => setProfile(null)} />
   );
@@ -166,6 +167,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (v.review && coach.garminSuggestion) return page(<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => patch({ review: false })} />);
   if (v.together && coach.together) return page(<TogetherView together={coach.together} />);
   if (v.run && runOn && coach.tracking) return page(<main className="home"><RunScreen port={coach.tracking} now={runNow} newId={runNewId} /></main>);
+  if (v.coach && coach.tracking) return page(<main className="home"><CoachScreen port={coach.tracking} now={runNow} newId={runNewId} /></main>);
   if (v.stats && statsOn && coach.tracking) return page(<main className="home"><StatsScreen port={coach.tracking} now={runNow} /></main>);
   if (v.meals && mealsOn && coach.meals) return page(<MealsView key={profile.id} profileId={profile.id} meals={coach.meals} send={coach.send} />);
   if (v.trackFor && v.trackFor.profileId === profile.id && coach.gym && coach.tracking) {

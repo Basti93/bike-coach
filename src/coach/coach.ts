@@ -96,6 +96,8 @@ type Deps = {
   strength?: (profileId: string) => StrengthWorkout[];
   /** Recent mobility, as data only. The bike coach does not plan it. */
   mobility?: (profileId: string) => unknown;
+  /** The accepted week plan as prompt text, or ''. */
+  planHint?: (profileId: string) => string;
 };
 
 export class Coach {
@@ -400,7 +402,7 @@ export class Coach {
     this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
-      const input = { prompt: `${this.buildPrompt(s)}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
+      const input = { prompt: `${this.buildPrompt(s)}${this.deps.planHint?.(s.profileId) ?? ''}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
       let raw = await this.deps.ask(input);
       const rejected = this.rejection(s, raw);
       if (rejected) {

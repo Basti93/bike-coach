@@ -1,0 +1,47 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { CoachScreen } from '../../src/tracking/ui/CoachScreen';
+import type { TrackedRecord } from '../../src/shared/records';
+import { weekDates } from '../../src/shared/week-plan';
+import { fakePort } from './fake-port';
+
+afterEach(cleanup);
+const NOW = new Date(2026, 10, 4, 18).getTime();
+let n = 0;
+const env = { now: () => NOW, newId: () => `id${++n}` };
+const proposal = { weekStart: '2026-11-02', days: weekDates('2026-11-02').map((date, i) => ({ date, sport: i === 4 ? 'gym' : 'rest', hardness: 'moderate', fixed: i === 4 })) };
+const coachMsg: TrackedRecord = { kind: 'chat', id: 'c1', updatedMs: 2, deleted: false, body: { role: 'coach', text: 'Wie wäre das?', atMs: NOW - 500, replyTo: 'r1', proposal } };
+const riderMsg: TrackedRecord = { kind: 'chat', id: 'r1', updatedMs: 1, deleted: false, body: { role: 'rider', text: 'Freitag Studio', atMs: NOW - 1000 } };
+const records = (m: Map<string, TrackedRecord>, kind: string) => [...m.values()].filter((r) => r.kind === kind);
+
+test('sends a message and shows that the coach is thinking', async () => {
+  const { port, map } = fakePort();
+  render(<CoachScreen port={port} {...env} />);
+  expect(await screen.findByText(/Noch kein Wochenplan/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Nachricht an den Coach'), { target: { value: '  3× Rad bitte ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Senden' }));
+  await waitFor(() => expect(records(map, 'chat').map((r) => r.body)).toEqual([{ role: 'rider', text: '3× Rad bitte', atMs: NOW }]));
+  expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Der Coach denkt nach …');
+});
+
+test('taking a proposal writes the week plan and shows it; then it cannot be taken twice', async () => {
+  const { port, map } = fakePort([riderMsg, coachMsg]);
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  await waitFor(() => expect(records(map, 'weekplan')).toHaveLength(1));
+  expect(records(map, 'weekplan')[0]).toMatchObject({ id: '2026-11-02', body: { fromMessage: 'c1', weekStart: '2026-11-02' } });
+  expect(records(map, 'chat').some((r) => (r.body as { takes?: string }).takes === 'c1')).toBe(true);
+  expect(await screen.findByText('Übernommen.')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Übernehmen' })).toBeNull();
+  expect(screen.getByRole('list', { name: 'Wochenplan diese Woche' }).textContent).toContain('Kraft, mittel');
+  expect(screen.queryByRole('status')).toBeNull();
+});
+
+test('declining writes a decline and changes no plan', async () => {
+  const { port, map } = fakePort([riderMsg, coachMsg]);
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Nein danke' }));
+  await waitFor(() => expect(records(map, 'chat').some((r) => (r.body as { declines?: string }).declines === 'c1')).toBe(true));
+  expect(records(map, 'weekplan')).toHaveLength(0);
+  expect(await screen.findByText('Abgelehnt.')).toBeTruthy();
+});

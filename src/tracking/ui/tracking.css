@@ -159,3 +159,13 @@
 .tk-sets-table th, .tk-sets-table td { padding: .2rem .35rem; border-bottom: 1px solid var(--tk-line); text-align: right; white-space: nowrap; }
 .tk-sets-table th[scope="row"], .tk-sets-table thead th:first-child { text-align: left; font-weight: 400; color: var(--tk-muted); }
 .tk-pairs { margin: 0; padding-left: 1.2rem; }
+.tk-week { list-style: none; margin: .4rem 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
+.tk-week li { padding: .3rem .5rem; border-radius: .5rem; }
+.tk-week li.tk-today { background: #243a30; }
+.tk-chat { display: flex; flex-direction: column; gap: .6rem; }
+.tk-msg { padding: .5rem .8rem; border-radius: .8rem; max-width: 92%; }
+.tk-msg p { margin: .1rem 0; white-space: pre-wrap; }
+.tk-msg-rider { align-self: flex-end; background: #2c4a3b; }
+.tk-msg-coach { align-self: flex-start; background: #1f3329; }
+.tk-proposal { margin-top: .4rem; }
+.tk-chat-input textarea { flex: 1; min-height: 2.6rem; font: inherit; border-radius: .6rem; padding: .5rem; }

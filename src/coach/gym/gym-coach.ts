@@ -43,6 +43,8 @@ type Deps = {
   complaint: (id: string, text: string) => void;
   /** Recent mobility for the prompt, as data. */
   mobility?: (id: string) => unknown;
+  /** The accepted week plan as prompt text, or ''. */
+  planHint?: (id: string) => string;
   /** Own records of this Mac. Without one only Hevy counts, as before. */
   store?: RecordStore;
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
@@ -293,7 +295,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id) }),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();

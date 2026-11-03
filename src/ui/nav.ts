@@ -18,17 +18,20 @@ export type Views = {
   run: boolean;
   /** The statistics page, once there is a stats record or a finished workout. */
   stats: boolean;
+  /** The coach chat with the week plan, for a profile with tracking. */
+  coach?: boolean;
 };
-export type MenuItem = 'start' | 'rad' | 'kraft' | 'laufen' | 'essen' | 'verlauf' | 'statistik' | 'gesundheit' | 'gemeinsam' | 'profil';
+export type MenuItem = 'start' | 'coach' | 'rad' | 'kraft' | 'laufen' | 'essen' | 'verlauf' | 'statistik' | 'gesundheit' | 'gemeinsam' | 'profil';
 
-export const HOME: Views = { profile: false, review: false, health: undefined, history: false, together: false, strengthFor: null, bikeFor: null, trackFor: null, meals: false, run: false, stats: false };
-export const MENU_LABEL: Record<MenuItem, string> = { start: 'Start', rad: 'Rad', kraft: 'Kraft', laufen: 'Laufen', essen: 'Essen', verlauf: 'Verlauf', statistik: 'Statistik', gesundheit: 'Gesundheit', gemeinsam: 'Gemeinsam', profil: 'Profil' };
+export const HOME: Views = { profile: false, review: false, health: undefined, history: false, together: false, strengthFor: null, bikeFor: null, trackFor: null, meals: false, run: false, stats: false, coach: false };
+export const MENU_LABEL: Record<MenuItem, string> = { start: 'Start', coach: 'Coach', rad: 'Rad', kraft: 'Kraft', laufen: 'Laufen', essen: 'Essen', verlauf: 'Verlauf', statistik: 'Statistik', gesundheit: 'Gesundheit', gemeinsam: 'Gemeinsam', profil: 'Profil' };
 const DEFAULT_HEALTH_DAYS = 28;
 
 /** The screen a menu item opens, with every other view closed. An open workout is not lost by this: it lives in its store and is offered again on the strength page. */
 export function open(item: MenuItem, profileId: string): Views {
   switch (item) {
     case 'start': return HOME;
+    case 'coach': return { ...HOME, coach: true };
     case 'rad': return { ...HOME, bikeFor: profileId };
     case 'kraft': return { ...HOME, strengthFor: profileId };
     case 'laufen': return { ...HOME, run: true };
@@ -49,15 +52,17 @@ export function activeItem(v: Views, profileId: string, home: 'overview' | 'bike
   if (v.meals) return 'essen';
   if (v.run) return 'laufen';
   if (v.stats) return 'statistik';
+  if (v.coach) return 'coach';
   if (v.trackFor?.profileId === profileId || v.strengthFor === profileId) return 'kraft';
   if (v.history) return 'verlauf';
   if (v.bikeFor === profileId || home === 'bike') return 'rad';
   return 'start';
 }
 
-export function menuItems(has: { overview: boolean; gym: boolean; history: boolean; health: boolean; together: boolean; meals?: boolean; run?: boolean; stats?: boolean }): MenuItem[] {
+export function menuItems(has: { overview: boolean; gym: boolean; history: boolean; health: boolean; together: boolean; meals?: boolean; run?: boolean; stats?: boolean; coach?: boolean }): MenuItem[] {
   return [
     ...(has.overview ? ['start' as const] : []),
+    ...(has.coach ? ['coach' as const] : []),
     'rad' as const,
     ...(has.gym ? ['kraft' as const] : []),
     ...(has.run ? ['laufen' as const] : []),

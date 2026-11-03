@@ -3,6 +3,8 @@ import { readMealPlan } from '../shared/meals';
 import { readRunBody } from '../shared/run';
 import { readStats } from '../shared/stats';
 import { readTogether } from '../shared/together';
+import { readChat } from '../shared/chat';
+import { parseProposal } from '../shared/week-plan';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): boolean => typeof x === 'number' && Number.isFinite(x);
@@ -28,6 +30,8 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     case 'together': return readTogether(body) !== null;
     case 'run': return readRunBody(body) !== null;
     case 'stats': return readStats(body) !== null;
+    case 'chat': return readChat(body) !== null;
+    case 'weekplan': return parseProposal(body) !== null;
   }
 }
 

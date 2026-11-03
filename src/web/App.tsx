@@ -4,6 +4,7 @@ import type { GymWorkout } from '../coach/gym/types';
 import { openStoreCount } from '../tracking/registry';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
+import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { runView } from '../tracking/ui/run-view';
 import { MobilityOffer } from '../tracking/ui/MobilityOffer';
 import { usePortRecords } from '../tracking/ui/hooks';
@@ -292,8 +293,8 @@ function PushSettings({ push }: { push: PushState }) {
   );
 }
 
-type Tab = 'heute' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'statistik' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
+type Tab = 'heute' | 'coach' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'statistik' | 'profil';
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Coach'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
@@ -405,6 +406,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
           {tab === 'verlauf' && <><HistoryScreen port={port} now={env.now} /><RunLookBack port={port} now={env.now} /></>}
+          {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} />}
           {tab === 'statistik' && hasStats && <StatsScreen port={port} now={env.now} />}
           {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} push={push.state} />}
         </ErrorBoundary>

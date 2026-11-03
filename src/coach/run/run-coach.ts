@@ -48,6 +48,8 @@ const NO_GARMIN_SENT: RunGarmin = { status: 'none', reason: null, confirmedMs: n
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 export type RunDeps = {
   dir: string; store: RecordStore; nowMs: () => number; ask: Ask; noOpenRide: () => boolean;
+  /** The accepted week plan as prompt text, or ''. */
+  planHint?: (id: string) => string;
   profile: (id: string) => Profile | null;
   garminDb: (id: string) => Pick<GarminDb, 'runs' | 'activityFile' | 'body'> | null;
   days: (id: string, dates: string[]) => Record<string, DayRating>;
@@ -303,7 +305,7 @@ export class RunCoach {
 
     const numbers = runNumbers(ctx.runs, [...ctx.weeks.values()], now);
     const ask = (rejection?: string) => this.deps.ask({
-      prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }),
+      prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? ''),
       systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
     });
     // A ride that opened while Claude was thinking: the answer is held and written after the ride, without asking again.

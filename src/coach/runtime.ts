@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,6 +30,8 @@ import { dateKey, dayRatings, type DayInput, type DayRating } from './day-load';
 import { allTraining } from './all-training';
 import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
+import { ChatCoach } from './chat/chat-coach';
+import { planHint } from './chat/plan-hint';
 import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -159,6 +162,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     ridesDir: dir, coachDir, nowMs, garmin: garminData,
     strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
     mobility: (profileId) => mobility.promptData(profileId),
+    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike'),
     ask,
   });
 
@@ -173,6 +177,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     dir: path.join(coachDir, 'gym'), nowMs,
     store: records, hevy: gymConnected,
     mobility: (id) => mobility.promptData(id),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym'),
     ask,
     workouts: (id) => hevy.workouts(id),
     templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
@@ -220,6 +225,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
     });
   };
+  // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
+  const chat = new ChatCoach({ store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null });
   /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */
   const statsMade = new Map<string, { atMs: number; date: string }>();
   const statsDue = (id: string): Omit<StatsBody, 'atMs'> | null => {
@@ -232,6 +239,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run'),
     profile: (id) => profiles().find((p) => p.id === id) ?? null,
     garminDb: (id) => {
       if (!/^[A-Za-z0-9-]+$/.test(id)) return null;
@@ -503,6 +511,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
+      // Chat answers: a message gets its answer even while scheduled runs pause. Never with a ride open.
+      if (free) for (const p of list) { try { void chat.tick(p.id).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish); } catch { /* next scan */ } }
       // The stats record for every profile coached here, linked or not: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportStats({ store: records, profileIds: list.map((p) => p.id), coachHere, noOpenRide, nowMs: now, content: statsDue }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
