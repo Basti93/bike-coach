@@ -35,7 +35,7 @@ const WeekBars = ({ weeks }: { weeks: { startMs: number; minutes: number }[] }) 
   );
 };
 
-type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack: () => void; garminConnected?: boolean };
+type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack?: () => void; garminConnected?: boolean };
 
 export const HistoryView = ({ state, detail, send, onBack, garminConnected = false }: Props) => {
   const [open, setOpen] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export const HistoryView = ({ state, detail, send, onBack, garminConnected = fal
     <main>
       <div className="top">
         <h1>Verlauf</h1>
-        <button className="ghost" onClick={onBack}>Zurück</button>
+        {onBack && <button className="ghost" onClick={onBack}>Zurück</button>}
       </div>
       <div className="stat-row">
         <div className="tile"><span className="label">Fahrten</span><b>{stats.rides}</b></div>

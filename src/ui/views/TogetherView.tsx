@@ -4,13 +4,13 @@ import { TogetherCard } from './TogetherCard';
 const date = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** The shared overview: only time and regularity, no watts. */
-export const TogetherView = ({ together, onBack }: { together: Together; onBack: () => void }) => {
+export const TogetherView = ({ together, onBack }: { together: Together; onBack?: () => void }) => {
   const max = Math.max(30, ...together.people.flatMap((p) => p.weeks));
   return (
     <main>
       <div className="top">
-        <h1>Zusammen</h1>
-        <button className="ghost" onClick={onBack}>Zurück</button>
+        <h1>Gemeinsam</h1>
+        {onBack && <button className="ghost" onClick={onBack}>Zurück</button>}
       </div>
       <TogetherCard together={together} />
       {(together.climbing?.length ?? 0) > 0 && (

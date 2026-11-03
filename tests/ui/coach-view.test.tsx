@@ -9,7 +9,7 @@ const profile = { id: 'pa', name: 'Anna', ftpW: 150, maxHrBpm: 175 };
 const state = { profileId: 'pa', ftpW: 180, ftpHistory: [], phase: { name: 'Aufbau', weeksLeft: 3, goal: 'x' }, ftpForecast: [], next: { session, reason: 'y', source: 'claude' }, changes: [], notes: [], feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null } as CoachState;
 const view = (s: CoachState | null) => {
   const ride = vi.fn();
-  render(<CoachView profile={profile} state={s} thinking={false} coachConnected={!!s} sendRide={ride} sendCoach={vi.fn()} onBack={() => {}} />);
+  render(<CoachView profile={profile} state={s} thinking={false} coachConnected={!!s} sendRide={ride} sendCoach={vi.fn()} />);
   return ride;
 };
 test('start uses coach session, coach FTP and the pulse limit', () => {
@@ -25,34 +25,17 @@ test('without the coach you can still ride a starter session', () => {
   expect(ride.mock.calls[0][0]).toMatchObject({ type: 'start', ftpW: 150 });
 });
 
-test('the health page is offered only with a connected Garmin', () => {
-  const onHealth = vi.fn();
-  const props = { profile: { id: 'p', name: 'S', ftpW: 100 }, state: null, thinking: false, coachConnected: true, sendRide: vi.fn(), sendCoach: vi.fn(), onBack: vi.fn(), onHealth };
-  const first = render(<CoachView {...props} garmin={{ state: 'idle' }} />);
-  expect(screen.queryByRole('button', { name: 'Gesundheit' })).toBeNull();
-  first.unmount();
-  render(<CoachView {...props} garmin={{ state: 'connected' }} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Gesundheit' }));
-  expect(onHealth).toHaveBeenCalled();
+test('the bike page has no menu buttons and no connection cards of its own', () => {
+  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} garmin={{ state: 'idle' }} />);
+  for (const name of ['Verlauf', 'Profil bearbeiten', 'Profil wechseln', 'Krafttraining starten', 'Gesundheit', 'Übersicht', 'Sprachen lernen: an']) expect(screen.queryByRole('button', { name })).toBeNull();
+  expect(screen.queryByText(/Garmin verbinden|Hevy verbinden|Pandafit-Konto|Garmin verbunden/)).toBeNull();
 });
-
-test('the next ride comes before everything else, the Garmin login does not push it down', () => {
-  const garmin = { state: 'idle' } as const;
-  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={garmin} />);
-  const go = screen.getByText('Los');
-  const connect = screen.getByText('Garmin verbinden', { selector: 'summary' });
-  expect(go.compareDocumentPosition(connect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(connect.closest('details')?.open).toBe(false);
-});
-test('a connected Garmin is one small line after the plan, details on request', () => {
-  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={{ state: 'connected' }} />);
-  const line = screen.getByText('Garmin verbunden');
-  expect(line.closest('details')?.open).toBe(false);
-  expect(screen.getByText('Los').compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-});
-test('a Garmin that needs a new login stays in view', () => {
-  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} onBack={() => {}} garmin={{ state: 'connected' }} garminSync={{ running: false, complete: true, lastRunMs: null, problem: 'reauth' } as never} />);
-  expect(screen.getByText('Los').compareDocumentPosition(screen.getByRole('button', { name: /verbinden/i })) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+test('a Garmin login that ran out is mentioned calmly, with the way to the profile', () => {
+  const onProfile = vi.fn();
+  render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} garmin={{ state: 'connected' }} garminSync={{ running: false, complete: true, lastRunMs: null, problem: 'reauth' } as never} onProfile={onProfile} />);
+  expect(screen.getByText(/Garmin-Anmeldung ist abgelaufen/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Zum Profil' }));
+  expect(onProfile).toHaveBeenCalled();
 });
 test('the note to the coach sits with the coach words, before the next ride', () => {
   view(state);
