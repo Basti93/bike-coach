@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -43,7 +44,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: number }; meals?: boolean } = {}) => {
+const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: number }; meals?: boolean; pingMs?: number; idleMs?: number } = {}) => {
   const root = temp();
   for (const [id, p, moved] of o.accounts ?? [[1, P1], [2, P2]]) seedAccount(root, id, p, moved !== false);
   if (o.meals) {
@@ -60,11 +61,11 @@ const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: 
     apiUrl: 'http://api.test:8081', internalToken: TOKEN, ask, nowMs: () => clock.ms,
     spawnFn: vi.fn(() => { throw new Error('no python in tests'); }) as never, fetchFn: hevyFetch as never, waitMs: 0,
   });
-  app = buildCoachServer({ household, internalToken: TOKEN, nowMs: () => clock.ms });
+  app = buildCoachServer({ household, internalToken: TOKEN, nowMs: () => clock.ms, pingMs: o.pingMs, idleMs: o.idleMs });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const port = (app.server.address() as { port: number }).port;
-  const connect = (headers: Record<string, string>): Conn => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers });
+  const connect = (headers: Record<string, string>, opts: { autoPong?: boolean } = {}): Conn => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers, ...opts });
     const frames: CoachServerMessage[] = [];
     const raw: string[] = [];
     ws.on('message', (d) => { raw.push(String(d)); frames.push(JSON.parse(String(d)) as CoachServerMessage); });
@@ -81,7 +82,7 @@ const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: 
     return c;
   };
   const send = (c: Conn, m: unknown) => c.ws.send(JSON.stringify(m));
-  return { root, household, clock, ask, hevyFetch, connect, as, send };
+  return { root, household, clock, ask, hevyFetch, connect, as, send, port };
 };
 
 const states = (c: Conn) => c.frames.filter((f): f is Extract<CoachServerMessage, { type: 'coach-state' }> => f.type === 'coach-state');
@@ -316,4 +317,46 @@ test('the clock moves only for a change that was applied', async () => {
   // An older queued profile-update still applies.
   t.send(c, { type: 'queued', atMs: NOON + 1000, message: { type: 'profile-update', profileId: 'pa', profile: { ...P1, name: 'Alt' } } });
   await vi.waitFor(() => expect(t.household.account(1)!.profile().name).toBe('Alt'));
+});
+
+test('a socket that misses a pong is closed; one that answers stays', async () => {
+  const t = await start({ pingMs: 40 });
+  const headers = { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '1' };
+  const silent = t.connect(headers, { autoPong: false });
+  await silent.opened;
+  const live = await t.as(1);
+  expect(await silent.closed).toBe(1006);
+  await settle(200);
+  expect(live.ws.readyState).toBe(WebSocket.OPEN);
+});
+
+test('no total time limit on a request: a slow steady upload is answered, a stalled one is cut', async () => {
+  // The idle limit shortened to 300 ms: the steady body takes about 2 s, every gap is shorter.
+  const t = await start({ idleMs: 300 });
+  expect(app!.server.requestTimeout).toBe(0);
+  const trickle = (o: { chunks: number; everyMs: number; stallAfter?: number }) => new Promise<{ status: number } | { cut: string }>((resolve) => {
+    const body = Buffer.from(JSON.stringify({ rideId: 'x', pad: 'p'.repeat(o.chunks * 100) }));
+    const size = Math.ceil(body.length / o.chunks);
+    const req = http.request({ host: '127.0.0.1', port: t.port, method: 'PUT', path: '/rides/x', headers: { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '1', 'content-type': 'application/json', 'content-length': String(body.length) } }, (res) => {
+      res.resume();
+      res.on('end', () => resolve({ status: res.statusCode! }));
+    });
+    req.on('error', (e) => resolve({ cut: e.message }));
+    let i = 0;
+    const next = () => {
+      if (o.stallAfter !== undefined && i === o.stallAfter) return;
+      req.write(body.subarray(i * size, (i + 1) * size));
+      if (++i < o.chunks) setTimeout(next, o.everyMs); else req.end();
+    };
+    next();
+  });
+  // Answered at all (the ride id is no valid one), not cut.
+  expect(await trickle({ chunks: 20, everyMs: 100 })).toEqual({ status: 409 });
+  expect(await trickle({ chunks: 20, everyMs: 50, stallAfter: 3 })).toHaveProperty('cut');
+});
+
+test('the default idle limit is 60 s, with no total time limit', async () => {
+  await start();
+  expect(app!.server.requestTimeout).toBe(0);
+  expect(app!.server.timeout).toBe(60_000);
 });

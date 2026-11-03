@@ -6,7 +6,8 @@ import type { FastifyInstance } from 'fastify';
 import { createAccount } from '../../web-server/auth';
 import { openDb } from '../../web-server/db';
 import { buildServer } from '../../web-server';
-import { buildInternal } from '../../web-server/internal';
+import { buildInternal, startInternal } from '../../web-server/internal';
+import { createServer } from 'node:net';
 import { b64u, newVapidKeys, type PushType, type Sender } from '../../web-server/push';
 import { login, NOW, PW_A, PW_B, post, rec } from './helpers';
 
@@ -95,5 +96,25 @@ describe('internal records routes', () => {
     await post(app, H(a), [week(NEXT, { updatedMs: NOW + 2 })]);
     await new Promise((r) => setTimeout(r, 20));
     expect(sent).toHaveLength(1);
+  });
+
+  it('a port that cannot be had is logged, without the token, and the api carries on without the internal app', async () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'pf-int-')), 'test.db');
+    const busy = createServer();
+    await new Promise<void>((r) => busy.listen(0, '127.0.0.1', () => r()));
+    const port = (busy.address() as { port: number }).port;
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await startInternal({ dbPath, token: TOKEN, host: '127.0.0.1', port })).toBeNull();
+      expect(err).toHaveBeenCalledTimes(1);
+      expect(String(err.mock.calls[0])).not.toContain(TOKEN);
+      // A free port works.
+      const ok = await startInternal({ dbPath, token: TOKEN, host: '127.0.0.1', port: 0 });
+      expect(ok).not.toBeNull();
+      open.push(ok!);
+    } finally {
+      err.mockRestore();
+      busy.close();
+    }
   });
 });

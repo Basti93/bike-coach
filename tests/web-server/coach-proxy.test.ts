@@ -1,12 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { request, type IncomingHttpHeaders, type IncomingMessage } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect as tcp, type AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocket, WebSocketServer } from 'ws';
 import { setup, login, PW_A, PW_B } from './helpers';
 import { buildServer } from '../../web-server';
+import { registerCoachProxy } from '../../web-server/coach-proxy';
 
 const TOKEN = 'c'.repeat(64);
 const MiB = 1024 * 1024;
@@ -21,37 +22,39 @@ afterEach(async () => { for (const f of cleanup.splice(0).reverse()) await f().c
 /** A real coach stand-in on 127.0.0.1: records what reaches it, answers with what it got, echoes socket messages. */
 async function fakeCoach() {
   const seen: Seen[] = [], started: string[] = [], sockets: SeenSocket[] = [];
-  let closeWith: number | null = null;
+  let closeWith: number | null = null, upgradeDelayMs = 0;
   const coach = Fastify({ logger: false });
   coach.removeAllContentTypeParsers();
   coach.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: 512 * MiB }, (_req, body, done) => { done(null, body); });
   coach.addHook('onRequest', async (req) => { started.push(req.url); });
   coach.all('/*', async (req, reply) => {
     const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    // The coach refusing the internal token.
+    if (req.url.startsWith('/refuse-token')) return reply.code(401).send({ error: 'unauthorized' });
     seen.push({ method: req.method, url: req.url, headers: req.headers, body });
     return reply.code(201).header('content-type', 'application/json').send({ url: req.url, account: req.headers['x-pandafit-account'], bytes: body.length, sha: sha(body) });
   });
   const wss = new WebSocketServer({ noServer: true });
   coach.server.on('upgrade', (req: IncomingMessage, socket, head) => {
-    wss.handleUpgrade(req, socket, head, (ws) => {
+    setTimeout(() => wss.handleUpgrade(req, socket, head, (ws) => {
       const closed = new Promise<number>((r) => ws.on('close', (code) => r(code)));
       sockets.push({ url: req.url ?? '', headers: req.headers, ws, closed });
       if (closeWith !== null) { ws.close(closeWith, 'x'); return; }
       ws.on('message', (data, isBinary) => ws.send(isBinary ? data : `echo:${String(data)}`, { binary: isBinary }));
-    });
+    }), upgradeDelayMs);
   });
   await coach.listen({ port: 0, host: '127.0.0.1' });
   cleanup.push(async () => { for (const c of wss.clients) c.terminate(); wss.close(); await coach.close(); });
   const url = `http://127.0.0.1:${(coach.server.address() as AddressInfo).port}`;
-  return { url, seen, started, sockets, closeWith: (c: number | null) => { closeWith = c; } };
+  return { url, seen, started, sockets, closeWith: (c: number | null) => { closeWith = c; }, delayUpgrades: (ms: number) => { upgradeDelayMs = ms; } };
 }
 
-async function world(o: { coachUrl?: string | null } = {}) {
+async function world(o: { coachUrl?: string | null; pingMs?: number; idleMs?: number } = {}) {
   const coach = await fakeCoach();
   const base = await setup();
   await base.app.close();
   const coachUrl = o.coachUrl === undefined ? coach.url : o.coachUrl;
-  const app = buildServer({ dbPath: base.dbPath, ...(coachUrl === null ? {} : { coach: { url: coachUrl, token: TOKEN } }) });
+  const app = buildServer({ dbPath: base.dbPath, idleMs: o.idleMs, ...(coachUrl === null ? {} : { coach: { url: coachUrl, token: TOKEN, pingMs: o.pingMs } }) });
   await app.listen({ port: 0, host: '127.0.0.1' });
   cleanup.push(() => app.close());
   const host = `127.0.0.1:${(app.server.address() as AddressInfo).port}`;
@@ -80,9 +83,9 @@ const call = (host: string, method: string, path: string, headers: Record<string
   });
 
 /** Opens a socket and reports either the open socket or the HTTP status that refused it. */
-const connect = (host: string, headers: Record<string, string>, path = '/coach'): Promise<{ ws: WebSocket } | { refused: number }> =>
+const connect = (host: string, headers: Record<string, string>, path = '/coach', o: { autoPong?: boolean } = {}): Promise<{ ws: WebSocket } | { refused: number }> =>
   new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://${host}${path}`, { headers });
+    const ws = new WebSocket(`ws://${host}${path}`, { headers, ...o });
     ws.on('open', () => resolve({ ws }));
     ws.on('unexpected-response', (_req, res) => { resolve({ refused: res.statusCode! }); ws.terminate(); });
     ws.on('error', (e) => reject(e));
@@ -96,6 +99,26 @@ const opened = async (p: ReturnType<typeof connect>) => {
 const closeCode = (ws: WebSocket) => new Promise<number>((r) => { if (ws.readyState === WebSocket.CLOSED) r(-1); ws.on('close', (code) => r(code)); });
 const nextMessage = (ws: WebSocket) => new Promise<string>((r) => ws.once('message', (d) => r(String(d))));
 const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); expect(f()).toBe(true); };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** A body sent slowly: `chunks` pieces of `size` bytes, one every `everyMs`, then (unless `stallAfter`) the end. Reports the answer or the cut. */
+const trickle = (host: string, path: string, headers: Record<string, string>, o: { chunks: number; size: number; everyMs: number; stallAfter?: number }) =>
+  new Promise<{ status: number; body: string } | { cut: string }>((resolve) => {
+    const [hostname, port] = host.split(':');
+    const req = request({ hostname, port: Number(port), method: 'PUT', path, headers: { ...headers, 'content-length': String(o.chunks * o.size) } }, (res) => {
+      const parts: Buffer[] = [];
+      res.on('data', (c: Buffer) => parts.push(c));
+      res.on('end', () => resolve({ status: res.statusCode!, body: Buffer.concat(parts).toString() }));
+      res.on('error', (e) => resolve({ cut: e.message }));
+    });
+    req.on('error', (e) => resolve({ cut: e.message }));
+    let sent = 0;
+    const next = () => {
+      if (o.stallAfter !== undefined && sent === o.stallAfter) return; // never another byte
+      req.write(Buffer.alloc(o.size, 7));
+      if (++sent < o.chunks) setTimeout(next, o.everyMs); else req.end();
+    };
+    next();
+  });
 
 describe('coach proxy', () => {
   it('without login every /coach route answers 401 and the socket upgrade is refused', async () => {
@@ -199,22 +222,25 @@ describe('coach proxy', () => {
     const before = coach.started.length;
 
     // By the declared length: answered before anything is forwarded or read.
-    for (const [path, cap] of [['/coach/rides/r3', 32 * MiB], ['/coach/migrate/item/big', 128 * MiB], ['/coach/migrate/begin', MiB], ['/coach/status', MiB]] as const) {
+    for (const [path, cap] of [['/coach/rides/r3', 32 * MiB], ['/coach/migrate/item/big', 128 * MiB], ['/coach/migrate/begin', 4 * MiB], ['/coach/migrate/finish', 4 * MiB], ['/coach/migrate/meals', 4 * MiB], ['/coach/status', MiB]] as const) {
       const res = await call(host, 'PUT', path, { ...own(a), 'content-type': 'application/octet-stream', 'content-length': cap + 1 });
       expect(res.status, path).toBe(413);
     }
     // While streaming: a body without a length that grows past the cap is cut off.
     const chunks = function* (n: number, size: number) { for (let i = 0; i < n; i++) yield Buffer.alloc(size, 1); };
-    const over = await call(host, 'POST', '/coach/migrate/begin', { ...own(a), 'content-type': 'application/json', 'transfer-encoding': 'chunked' }, Readable.from(chunks(5, 256 * 1024 + 1)));
+    const over = await call(host, 'POST', '/coach/status', { ...own(a), 'content-type': 'application/json', 'transfer-encoding': 'chunked' }, Readable.from(chunks(5, 256 * 1024 + 1)));
     expect(over.status).toBe(413);
     // The coach may have seen the start of it, but never a whole oversized body.
     await new Promise((r) => setTimeout(r, 50));
     expect(coach.started.length - before).toBeLessThanOrEqual(1);
-    expect(coach.seen.filter((s) => s.body.length > MiB && s.url.startsWith('/migrate/begin'))).toEqual([]);
+    expect(coach.seen.filter((s) => s.body.length > MiB && s.url.startsWith('/status'))).toEqual([]);
 
-    // Exactly at the cap passes.
-    const atCap = Buffer.alloc(MiB, 2);
-    expect((await call(host, 'POST', '/coach/migrate/finish', { ...own(a), 'content-type': 'application/json' }, atCap)).status).toBe(201);
+    // Exactly at the cap passes: 1 MiB in general, 4 MiB for the move's manifest and meal file, as the coach takes them.
+    expect((await call(host, 'POST', '/coach/status', { ...own(a), 'content-type': 'application/json' }, Buffer.alloc(MiB, 2))).status).toBe(201);
+    for (const path of ['/coach/migrate/begin', '/coach/migrate/finish', '/coach/migrate/meals']) {
+      expect((await call(host, 'POST', path, { ...own(a), 'content-type': 'application/json' }, Buffer.alloc(4 * MiB, 2))).status, path).toBe(201);
+      expect(coach.seen.at(-1)!.body.length).toBe(4 * MiB);
+    }
     const ride = Buffer.alloc(32 * MiB, 3);
     expect((await call(host, 'PUT', '/coach/rides/r4', { ...own(a), 'content-type': 'application/json' }, ride)).status).toBe(201);
     expect(coach.seen.at(-1)!.body.length).toBe(32 * MiB);
@@ -237,19 +263,21 @@ describe('coach proxy', () => {
     coach.closeWith(4404);
     const ws1 = await opened(connect(host, own(a)));
     expect(await closeCode(ws1)).toBe(4404);
+    coach.closeWith(4000);
+    expect(await closeCode(await opened(connect(host, own(a))))).toBe(4000);
     coach.closeWith(null);
 
     // The client leaves: the coach's side closes too.
     const ws2 = await opened(connect(host, own(a)));
-    await until(() => coach.sockets.length === 2);
+    await until(() => coach.sockets.length === 3);
     ws2.close(1000);
-    await coach.sockets[1]!.closed;
+    await coach.sockets[2]!.closed;
     // The coach ends it: the client's side closes too.
     const ws3 = await opened(connect(host, own(a)));
-    await until(() => coach.sockets.length === 3);
+    await until(() => coach.sockets.length === 4);
     const c3 = closeCode(ws3);
-    coach.sockets[2]!.ws.close(4401, 'x');
-    expect(await c3).toBe(4401);
+    coach.sockets[3]!.ws.close(4404, 'x');
+    expect(await c3).toBe(4404);
   });
 
   it('at most 8 coach sockets per account', async () => {
@@ -264,6 +292,83 @@ describe('coach proxy', () => {
     await until(() => coach.sockets.filter((s) => s.ws.readyState === WebSocket.CLOSED).length === 1);
     await new Promise((r) => setTimeout(r, 20));
     await opened(connect(host, own(a)));
+  });
+
+  it("the coach refusing the internal token is a server fault, never a login failure: 503, and the socket closes with 1013", async () => {
+    const { coach, host, a, own } = await world();
+    const r = await call(host, 'GET', '/coach/refuse-token', own(a));
+    expect(r.status).toBe(503);
+    expect(JSON.parse(r.body)).toEqual({ error: 'coach unavailable' });
+    coach.closeWith(4401);
+    expect(await closeCode(await opened(connect(host, own(a))))).toBe(1013);
+  });
+
+  it('a socket that misses a pong is closed and frees its slot; one that answers stays', async () => {
+    const { coach, host, a, own } = await world({ pingMs: 40 });
+    const silent: WebSocket[] = [];
+    for (let i = 0; i < 8; i++) silent.push(await opened(connect(host, own(a), '/coach', { autoPong: false })));
+    expect(await connect(host, own(a))).toEqual({ refused: 429 });
+    await Promise.all(silent.map(closeCode));
+    // Their coach sockets close with them.
+    await until(() => coach.sockets.length === 8 && coach.sockets.every((s) => s.ws.readyState === WebSocket.CLOSED));
+    const live = await opened(connect(host, own(a)));
+    await sleep(250);
+    expect(live.readyState).toBe(WebSocket.OPEN);
+    live.send('still here');
+    expect(await nextMessage(live)).toBe('echo:still here');
+  });
+
+  it('messages beyond the queue before the coach answers close the socket with 1013 rather than vanish', async () => {
+    const { coach, host, a, own } = await world();
+    coach.delayUpgrades(300);
+    const ws = await opened(connect(host, own(a)));
+    const code = closeCode(ws);
+    for (let i = 0; i < 65; i++) ws.send(`m${i}`);
+    expect(await code).toBe(1013);
+    // Up to the limit is kept and delivered once the coach is there.
+    const ws2 = await opened(connect(host, own(a)));
+    const got: string[] = [];
+    ws2.on('message', (d) => got.push(String(d)));
+    for (let i = 0; i < 64; i++) ws2.send(`n${i}`);
+    await until(() => got.length === 64);
+    expect(got[63]).toBe('echo:n63');
+  });
+
+  it('a socket gone while its login is checked takes no slot', async () => {
+    const coach = await fakeCoach();
+    const app = Fastify({ logger: false });
+    registerCoachProxy(app, { coachUrl: coach.url, token: TOKEN, resolve: async () => { await sleep(50); return 1; } });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    cleanup.push(() => app.close());
+    const port = (app.server.address() as AddressInfo).port;
+    for (let i = 0; i < 8; i++) {
+      const s = tcp(port, '127.0.0.1');
+      s.on('error', () => {});
+      await new Promise((r) => s.on('connect', r));
+      s.write('GET /coach HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n');
+      await sleep(5);
+      s.resetAndDestroy(); // a reset: the server's side is gone at once
+    }
+    await sleep(120);
+    await opened(connect(`127.0.0.1:${port}`, {}));
+  });
+
+  it('no total time limit on a request: a slow steady upload completes, a stalled one is cut', async () => {
+    // The idle limit shortened to 300 ms: the steady upload takes about 2 s, many times that, and every gap is shorter.
+    const { coach, app, host, a, own } = await world({ idleMs: 300 });
+    expect(app.server.requestTimeout).toBe(0);
+    const steady = await trickle(host, '/coach/migrate/item/slow', { ...own(a), 'content-type': 'application/octet-stream' }, { chunks: 20, size: 1000, everyMs: 100 });
+    expect(steady).toMatchObject({ status: 201 });
+    expect(coach.seen.at(-1)!.body.length).toBe(20_000);
+    const stalled = await trickle(host, '/coach/migrate/item/stuck', { ...own(a), 'content-type': 'application/octet-stream' }, { chunks: 20, size: 1000, everyMs: 50, stallAfter: 3 });
+    expect(stalled).toHaveProperty('cut');
+    expect(coach.seen.filter((s) => s.url === '/migrate/item/stuck')).toEqual([]);
+  });
+
+  it('the default idle limit is 60 s', async () => {
+    const { app } = await world();
+    expect(app.server.requestTimeout).toBe(0);
+    expect(app.server.timeout).toBe(60_000);
   });
 
   it('without PANDAFIT_COACH_URL the /coach routes do not exist', async () => {

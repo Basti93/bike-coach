@@ -5,8 +5,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 
 const MiB = 1024 * 1024;
-/** What a body to the coach may weigh: a ride's upload, one item of the move from the Mac, anything else. */
-export const COACH_CAPS = { ride: 32 * MiB, item: 128 * MiB, other: MiB };
+/** What a body to the coach may weigh: a ride's upload, one item of the move from the Mac, its manifest or meal file, anything else. */
+export const COACH_CAPS = { ride: 32 * MiB, item: 128 * MiB, move: 4 * MiB, other: MiB };
+/** How often client sockets are pinged; one that has not answered the previous ping by then is cut. */
+export const PING_MS = 30_000;
 export const MAX_SOCKETS_PER_ACCOUNT = 8;
 /** The coach's own limit for one socket message. */
 const MAX_MESSAGE = 256 * 1024;
@@ -24,9 +26,13 @@ export type CoachProxyOptions = {
   token: string;
   /** The account of a request's login, or null. Cookie requests that change state or open a socket must be same-origin. */
   resolve: (req: IncomingMessage) => Promise<number | null>;
+  /** The ping interval, shorter in tests. */
+  pingMs?: number;
 };
 
-const capOf = (path: string): number => (path.startsWith('/rides/') ? COACH_CAPS.ride : path.startsWith('/migrate/item/') ? COACH_CAPS.item : COACH_CAPS.other);
+const MOVE_FILES = new Set(['/migrate/begin', '/migrate/finish', '/migrate/meals']);
+const capOf = (path: string): number =>
+  path.startsWith('/rides/') ? COACH_CAPS.ride : path.startsWith('/migrate/item/') ? COACH_CAPS.item : MOVE_FILES.has(path) ? COACH_CAPS.move : COACH_CAPS.other;
 
 /** The path as the coach's router would read it, for the checks only: decoded, lower case, without repeated slashes. Null if it cannot be decoded. */
 const readable = (path: string): string | null => {
@@ -37,6 +43,11 @@ const blocked = (path: string): boolean => /^\/healthz(\/|$)/.test(path);
 
 /** A close code that may be sent on: the coach's own codes pass, a broken connection becomes "try again later". */
 const sendable = (code: number): boolean => (code >= 1000 && code <= 1014 && ![1004, 1005, 1006].includes(code)) || (code >= 3000 && code <= 4999);
+/**
+ * The login was checked here, so a coach refusing the request's credentials (401 or 4401) can only mean it refused the internal
+ * token: a fault of the server, which the client must never take for a failed login of its own.
+ */
+const COACH_REFUSED_TOKEN = 4401;
 
 /**
  * The public door to the coach container. The api checks the login, names the account to the coach in a header with the internal
@@ -87,6 +98,7 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
     up.on('response', (res) => {
       if (answered) { res.resume(); return; }
       answered = true;
+      if (res.statusCode === 401) { res.resume(); up.destroy(); resolve(reply.code(503).send({ error: 'coach unavailable' })); return; }
       const type = res.headers['content-type'];
       if (typeof type === 'string') reply.header('Content-Type', type);
       resolve(reply.code(res.statusCode ?? 502).send(res));
@@ -126,12 +138,25 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
   const upstreams = new Set<WebSocket>();
   const perAccount = new Map<number, number>();
 
+  // A phone or Mac that changed networks can leave a half-open socket that never closes on its own and holds a slot.
+  const alive = new WeakMap<WebSocket, boolean>();
+  const heartbeat = setInterval(() => {
+    for (const c of wss.clients) {
+      if (alive.get(c) === false) { c.terminate(); continue; }
+      alive.set(c, false);
+      try { c.ping(); } catch { /* closing */ }
+    }
+  }, opts.pingMs ?? PING_MS);
+  heartbeat.unref();
+
   const refuse = (socket: Duplex, status: number, text: string) => {
     socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   };
 
   const join = (client: WebSocket, account: number, query: string) => {
     client.on('error', () => {});
+    alive.set(client, true);
+    client.on('pong', () => alive.set(client, true));
     const up = new WebSocket(`${wsBase}/ws${query}`, { headers: internal(account), handshakeTimeout: 10_000 });
     upstreams.add(up);
     up.on('error', () => {});
@@ -140,6 +165,8 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
     client.on('message', (data, isBinary) => {
       if (up.readyState === WebSocket.OPEN) up.send(data, { binary: isBinary });
       else if (queue && queue.length < MAX_QUEUED) queue.push([data, isBinary]);
+      // Never dropped silently: the client sends again once it is back.
+      else if (queue) client.close(1013, 'coach not ready');
     });
     up.on('open', () => {
       wasOpen = true;
@@ -151,7 +178,7 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
       upstreams.delete(up);
       queue = null;
       // A coach that cannot be reached, or a connection that broke: the client tries again later.
-      const pass = wasOpen && sendable(code);
+      const pass = wasOpen && sendable(code) && code !== COACH_REFUSED_TOKEN;
       if (client.readyState === WebSocket.OPEN || client.readyState === WebSocket.CONNECTING) client.close(pass ? code : 1013, pass ? reason.toString() : 'coach unavailable');
     });
     client.on('close', (code) => {
@@ -171,6 +198,8 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
       let account: number | null = null;
       try { account = await opts.resolve(req); } catch { /* no login */ }
       if (account === null) { refuse(socket, 401, 'Unauthorized'); return; }
+      // Gone while the login was checked: its close has passed, so it must not be counted.
+      if (socket.destroyed) return;
       const n = perAccount.get(account) ?? 0;
       if (n >= MAX_SOCKETS_PER_ACCOUNT) { refuse(socket, 429, 'Too Many Requests'); return; }
       // Counted from here until the connection is gone, whether or not the upgrade succeeds.
@@ -184,6 +213,7 @@ export function registerCoachProxy(app: FastifyInstance, opts: CoachProxyOptions
   });
 
   app.addHook('onClose', async () => {
+    clearInterval(heartbeat);
     for (const c of wss.clients) c.terminate();
     for (const u of upstreams) u.terminate();
     wss.close();

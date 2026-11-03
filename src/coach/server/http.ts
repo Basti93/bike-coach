@@ -12,7 +12,13 @@ import { RecordStore } from '../tracking/store';
 import type { AccountCoach, Household } from './household';
 import { MAX_ITEM_BYTES, MigrationError, parseManifest } from './migration';
 
-export type CoachServerOptions = { household: Household; internalToken: string; nowMs?: () => number };
+export type CoachServerOptions = {
+  household: Household; internalToken: string; nowMs?: () => number;
+  /** How often sockets are pinged; one that has not answered the previous ping by then is cut. Shorter in tests. */
+  pingMs?: number;
+  /** How long a connection may stay silent, request body included, before it is cut. Shorter in tests. */
+  idleMs?: number;
+};
 
 const MAX_PAYLOAD = 256 * 1024;
 const ACCOUNT = /^[1-9][0-9]{0,15}$/;
@@ -45,7 +51,9 @@ const accountCounts = (a: { profileId: string; dir: string }) => {
 export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   const { household } = opts;
   const nowMs = opts.nowMs ?? (() => Date.now());
-  const app = Fastify({ logger: false, bodyLimit: 64 * 1024, requestTimeout: 30_000 });
+  // No limit on a request's total time: an upload streamed through the api at the client's pace (up to 128 MiB) must complete.
+  // A connection that goes silent is cut instead; Node's headersTimeout still bounds the headers.
+  const app = Fastify({ logger: false, bodyLimit: 64 * 1024, requestTimeout: 0, connectionTimeout: opts.idleMs ?? 60_000 });
   const tokenDigest = digest(opts.internalToken);
 
   const tokenOk = (h: unknown): boolean => typeof h === 'string' && h.length > 0 && timingSafeEqual(digest(h), tokenDigest);
@@ -263,10 +271,22 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   };
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
+  // A socket whose other end vanished without a close (the api restarted, the network broke) is found and cut.
+  const alive = new WeakMap<WebSocket, boolean>();
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (alive.get(ws) === false) { ws.terminate(); continue; }
+      alive.set(ws, false);
+      try { ws.ping(); } catch { /* closing */ }
+    }
+  }, opts.pingMs ?? 30_000);
+  heartbeat.unref();
   app.server.on('upgrade', (req: IncomingMessage, socket, head) => {
     if ((req.url ?? '').split('?')[0] !== '/ws') { socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.on('error', () => {});
+      alive.set(ws, true);
+      ws.on('pong', () => alive.set(ws, true));
       const accountId = authorised(req);
       if (accountId === null) { ws.close(4401, 'unauthorized'); return; }
       const a = household.account(accountId);
@@ -282,6 +302,7 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   });
 
   app.addHook('onClose', async () => {
+    clearInterval(heartbeat);
     for (const ws of wss.clients) ws.terminate();
     wss.close();
     for (const off of unlisten.values()) off();

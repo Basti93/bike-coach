@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
 import { registerCoachProxy } from './coach-proxy';
 import { openDb } from './db';
-import { buildInternal, INTERNAL_PORT, validInternalToken } from './internal';
+import { INTERNAL_PORT, startInternal, validInternalToken } from './internal';
 import { announceVersion, buildVersion, MAX_SUBSCRIPTIONS, pushFor, rememberOrigin, validEndpoint, validKeys, type PushOptions } from './push';
 import { listRecords, pageOfQuery, putRecords, recordsOfBody } from './records';
 
@@ -15,6 +15,7 @@ export type { PushOptions } from './push';
 const BODY_LIMIT = 5 * 1024 * 1024;
 const LOGIN_BODY_LIMIT = 8192;
 const PUSH_BODY_LIMIT = 4096;
+const IDLE_MS = 60_000;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
 const COOKIE = 'pf_session';
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
@@ -30,11 +31,15 @@ const str = (v: unknown, max: number): v is string => typeof v === 'string' && v
 export const buildServer = (opts: {
   dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string; push?: PushOptions;
   /** The coach container on the internal network. Without it the /coach routes do not exist. */
-  coach?: { url: string; token: string };
+  coach?: { url: string; token: string; pingMs?: number };
+  /** How long a connection may stay silent, request body included, before it is cut. Shorter in tests. */
+  idleMs?: number;
 }): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
-  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
+  // No limit on a request's total time, so a slow but steady upload to the coach (up to 128 MiB) completes. A connection that
+  // goes silent is cut instead; Node's headersTimeout still bounds the headers against slow senders.
+  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 0, connectionTimeout: opts.idleMs ?? IDLE_MS });
   const staticRoot = opts.staticDir && existsSync(opts.staticDir) ? realpathSync(opts.staticDir) : null;
   const accounts = new WeakMap<FastifyRequest, number>();
   /** How the request logged in: a push subscription is bound to it and ends with it. */
@@ -202,7 +207,7 @@ export const buildServer = (opts: {
     return listRecords(db, acct(req), page.since, page.limit);
   });
 
-  if (opts.coach) registerCoachProxy(app, { coachUrl: opts.coach.url, token: opts.coach.token, resolve: resolveAccount });
+  if (opts.coach) registerCoachProxy(app, { coachUrl: opts.coach.url, token: opts.coach.token, resolve: resolveAccount, pingMs: opts.coach.pingMs });
 
   // Static files: GET only, only from staticDir, no traversal, no symlink escape.
   app.setNotFoundHandler(async (req, reply) => {
@@ -254,7 +259,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   app.listen({ port: Number(process.env.PORT ?? 8080), host: process.env.HOST ?? '127.0.0.1' });
   // The internal records routes listen on the internal network only when the token is set; the public port never has them.
   if (token) {
-    const internal = buildInternal({ dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db', token, push: pushOpts });
-    internal.listen({ port: INTERNAL_PORT, host: '0.0.0.0' });
+    void startInternal({ dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db', token, push: pushOpts, host: '0.0.0.0', port: INTERNAL_PORT });
   }
 }

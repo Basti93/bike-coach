@@ -65,3 +65,19 @@ export const buildInternal = (opts: { dbPath: string; token: string; push?: Push
   app.addHook('onClose', async () => { db.close(); });
   return app;
 };
+
+/**
+ * Builds and starts the internal app. A port that cannot be had is logged (never the token) and the api carries on without it:
+ * the coach's records sync then waits and tries again.
+ */
+export async function startInternal(opts: Parameters<typeof buildInternal>[0] & { host: string; port: number }): Promise<FastifyInstance | null> {
+  const app = buildInternal(opts);
+  try {
+    await app.listen({ host: opts.host, port: opts.port });
+    return app;
+  } catch (e) {
+    console.error('internal listener failed to start', opts.host, opts.port, (e as { code?: string }).code ?? (e as { name?: string }).name ?? 'Error');
+    await app.close().catch(() => {});
+    return null;
+  }
+}
