@@ -103,3 +103,28 @@ test('a complaint told in the chat is started, one said to be over is ended, and
   // The new complaint makes it careful: the broken proposal stays out even though the rider asked for more.
   expect(replies(s)[0]!.proposal).toBeUndefined();
 });
+
+describe('in a workout', () => {
+  const workout = (endMs: number | null = null): TrackedRecord => ({ kind: 'workout', id: 'w1', updatedMs: 1, deleted: false, body: {
+    id: 'w1', title: 'Oberkörper', startMs: NOW - 20 * 60_000, endMs, source: 'pandafit', rest: null,
+    exercises: [{ rid: 'e1', exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [
+      { rid: 's1', type: 'normal', weightKg: 60, reps: 8, durationS: null, doneMs: NOW - 60_000 }, { rid: 's2', type: 'normal', weightKg: 60, reps: 8, durationS: null, doneMs: null }] }],
+  } });
+  it('sees the open workout and keeps only ops that fit it', async () => {
+    const s = store([workout(), rider('r1', 'Bank ist belegt', NOW - 1000, { inWorkout: 'w1' })]);
+    let prompt = '';
+    const c = coach(s, async (p) => { prompt = p.prompt; return { text: 'Nimm die Brustpresse.', newComplaint: null, complaintsOver: [], change: { ops: [{ op: 'swap', ex: 'e1', to: 'pf-chest-press-machine' }, { op: 'drop', ex: 'gone' }] } }; });
+    await c.tick('p');
+    expect(prompt).toContain('"ex":"e1"');
+    expect(prompt).toContain('Bank ist belegt');
+    const [m] = replies(s);
+    expect(m).toMatchObject({ inWorkout: 'w1', replyTo: 'r1', workoutChange: { workoutId: 'w1', ops: [{ op: 'swap', ex: 'e1', to: 'pf-chest-press-machine' }] } });
+  });
+  it('a finished workout gets a kind note and no Claude call', async () => {
+    const s = store([workout(NOW - 500), rider('r1', 'Noch was?', NOW - 1000, { inWorkout: 'w1' })]);
+    let called = false;
+    await coach(s, async () => { called = true; return {}; }).tick('p');
+    expect(called).toBe(false);
+    expect(replies(s)[0]!.text).toContain('schon beendet');
+  });
+});

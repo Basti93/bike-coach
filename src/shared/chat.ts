@@ -6,6 +6,14 @@ import { parseProposal, type WeekProposal } from './week-plan';
  * the coach's only by the side that coaches the profile. `replyTo` ties a coach answer to the rider message it answers;
  * `takes`/`declines` mark the rider's answer to a proposal (no coach reply follows those).
  */
+/**
+ * A change to the rest of an open workout, proposed by the coach during the workout. Only open sets change; done sets never.
+ * drop: the exercise's open sets go (an exercise without done sets goes entirely). swap: its open sets move to another own
+ * exercise. sets: keep this many open sets. lighter: open sets lose this many percent of their weight (5 to 30).
+ */
+export type WorkoutOp = { op: 'drop'; ex: string } | { op: 'swap'; ex: string; to: string } | { op: 'sets'; ex: string; open: number } | { op: 'lighter'; ex: string; pct: number };
+export type WorkoutChange = { workoutId: string; ops: WorkoutOp[] };
+
 export type ChatMessage = {
   role: 'rider' | 'coach';
   text: string;
@@ -18,6 +26,9 @@ export type ChatMessage = {
   declines?: string;
   /** The coach could not answer (no Claude, limit); the rider may write again. */
   failed?: boolean;
+  /** Written during this open workout: the coach answers about the rest of it. */
+  inWorkout?: string;
+  workoutChange?: WorkoutChange;
 };
 export type ChatEntry = ChatMessage & { id: string };
 
@@ -37,6 +48,8 @@ export function readChat(x: unknown): ChatMessage | null {
   if (typeof x.takes === 'string') m.takes = x.takes;
   if (typeof x.declines === 'string') m.declines = x.declines;
   if (x.failed === true) m.failed = true;
+  if (typeof x.inWorkout === 'string') m.inWorkout = x.inWorkout;
+  if (x.workoutChange !== undefined) { const c = readWorkoutChange(x.workoutChange); if (!c) return null; m.workoutChange = c; }
   if (x.proposal !== undefined) { const p = parseProposal(x.proposal); if (!p) return null; m.proposal = p; }
   if (x.warnings !== undefined) { if (!strings(x.warnings)) return null; m.warnings = x.warnings; }
   return m;
@@ -64,3 +77,18 @@ export const proposalAnswer = (thread: ChatEntry[], id: string): 'taken' | 'decl
   for (const m of thread) { if (m.takes === id) return 'taken'; if (m.declines === id) return 'declined'; }
   return null;
 };
+
+const OPS = ['drop', 'swap', 'sets', 'lighter'];
+/** The shape only; whether the rows exist is checked against the workout when the change is applied. */
+export function readWorkoutChange(x: unknown): WorkoutChange | null {
+  if (!isObj(x) || typeof x.workoutId !== 'string' || !Array.isArray(x.ops) || x.ops.length > 20) return null;
+  const ops: WorkoutOp[] = [];
+  for (const o of x.ops) {
+    if (!isObj(o) || !OPS.includes(o.op as string) || typeof o.ex !== 'string') return null;
+    if (o.op === 'drop') ops.push({ op: 'drop', ex: o.ex });
+    else if (o.op === 'swap') { if (typeof o.to !== 'string') return null; ops.push({ op: 'swap', ex: o.ex, to: o.to }); }
+    else if (o.op === 'sets') { if (!Number.isInteger(o.open) || (o.open as number) < 0 || (o.open as number) > 10) return null; ops.push({ op: 'sets', ex: o.ex, open: o.open as number }); }
+    else { if (typeof o.pct !== 'number' || o.pct < 5 || o.pct > 30) return null; ops.push({ op: 'lighter', ex: o.ex, pct: o.pct }); }
+  }
+  return { workoutId: x.workoutId, ops };
+}
