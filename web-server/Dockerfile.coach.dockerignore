@@ -1,0 +1,9 @@
+**/node_modules
+.git
+.worktrees
+.claude
+release
+out
+.superpowers
+**/.env
+docs
