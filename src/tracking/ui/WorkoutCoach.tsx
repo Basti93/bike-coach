@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { chatThread, proposalAnswer, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type WorkoutChange, type WorkoutOp } from '../../shared/chat';
+import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type WorkoutChange, type WorkoutOp } from '../../shared/chat';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
 import type { TrackedWorkout } from '../session';
@@ -27,8 +27,8 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onApply }: {
   const thread = chatThread(chat ?? []);
   const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines);
   const pending = mine.some((m) => m.workoutChange && proposalAnswer(thread, m.id) === null);
-  const last = mine[mine.length - 1];
-  const waiting = last?.role === 'rider';
+  const waiting = waitingMessage(thread)?.inWorkout === workout.id;
+  const [applied, setApplied] = useState<ReadonlySet<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,11 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onApply }: {
     const t = text.trim().slice(0, MAX_CHAT_TEXT);
     if (t && (await write({ role: 'rider', text: t, atMs: now(), inWorkout: workout.id }))) setText('');
   };
+  // Applied once per proposal, even on a double tap or a failed write of the answer.
   const take = async (m: ChatEntry & { workoutChange: WorkoutChange }) => {
+    if (applied.has(m.id)) return;
+    setApplied((s) => new Set(s).add(m.id));
+    setOpen(true);
     onApply(m.workoutChange);
     await write({ role: 'rider', text: 'Übernommen.', atMs: now(), takes: m.id, inWorkout: workout.id });
   };
@@ -57,12 +61,12 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onApply }: {
           {m.workoutChange && (
             <>
               <ul>{m.workoutChange.ops.map((o, i) => <li key={i}>{opText(o, workout, catalog)}</li>)}</ul>
-              {proposalAnswer(thread, m.id) === null ? (
+              {proposalAnswer(thread, m.id) === null && !applied.has(m.id) ? (
                 <div className="tk-row">
                   <button type="button" onClick={() => void take(m as ChatEntry & { workoutChange: WorkoutChange })}>Übernehmen</button>
-                  <button type="button" className="ghost" onClick={() => void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id, inWorkout: workout.id })}>Nein danke</button>
+                  <button type="button" className="ghost" onClick={() => { setOpen(true); void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id, inWorkout: workout.id }); }}>Nein danke</button>
                 </div>
-              ) : <p className="muted">{proposalAnswer(thread, m.id) === 'taken' ? 'Übernommen.' : 'Abgelehnt.'}</p>}
+              ) : <p className="muted">{proposalAnswer(thread, m.id) === 'declined' ? 'Abgelehnt.' : 'Übernommen.'}</p>}
             </>
           )}
         </div>

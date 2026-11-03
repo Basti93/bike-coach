@@ -52,10 +52,10 @@ export function notificationFor(text: string | null): Note {
 }
 
 /** On a click: focus an open window of the app and tell it the tab, or open the app at the notice's own path. */
-export function clickTarget(data: unknown, windows: readonly { url: string }[], origin: string): { focus: number; tab: 'essen' | 'laufen' | null } | { open: string } {
+export function clickTarget(data: unknown, windows: readonly { url: string }[], origin: string): { focus: number; tab: 'essen' | 'laufen' | 'coach' | null } | { open: string } {
   const raw = (data as { url?: unknown } | null | undefined)?.url;
   const url = typeof raw === 'string' && Object.values(NOTES).some((n) => n.url === raw) ? raw : '/';
   const i = windows.findIndex((w) => { try { return new URL(w.url).origin === origin; } catch { return false; } });
-  if (i >= 0) return { focus: i, tab: url === '/?tab=essen' ? 'essen' : url === '/?tab=laufen' ? 'laufen' : null };
+  if (i >= 0) return { focus: i, tab: url === '/?tab=essen' ? 'essen' : url === '/?tab=laufen' ? 'laufen' : url === '/?tab=coach' ? 'coach' : null };
   return { open: url };
 }

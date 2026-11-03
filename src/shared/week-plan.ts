@@ -35,7 +35,8 @@ export function checkWeekPlan(days: PlanDay[]): string[] {
   if (days.filter((d) => d.sport !== 'rest' && d.hardness === 'hard').length > MAX_HARD_DAYS) out.push('Mehr als zwei harte Tage in der Woche.');
   days.forEach((d, i) => {
     const before = days[i - 1];
-    if (!before || before.sport !== 'gym' || !before.legs) return;
+    // A gym day that does not say counts as a leg day: the safe side.
+    if (!before || before.sport !== 'gym' || before.legs === false) return;
     const name = WEEKDAY_LABEL[(toDate(d.date).getDay() + 6) % 7];
     if (before.hardness === 'hard' && (d.sport === 'bike' || d.sport === 'run') && d.hardness === 'hard') out.push(`Harter Rad- oder Lauftag am Tag nach einem harten Beintag (${name}).`);
     if (d.long && (d.sport === 'bike' || d.sport === 'run')) out.push(`Lange Einheit am Tag nach einem Beintag (${name}).`);

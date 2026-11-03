@@ -43,7 +43,8 @@ export function duePrompts(o: {
   const had = o.sent.get(o.id);
   let week = false;
   const monday = mondayOf(today);
-  if (prefs.week.on && weekday === prefs.week.day && d.getHours() >= prefs.week.hour && had.week !== monday) { o.sent.mark(o.id, 'week', monday); week = true; }
+  // Marked by the caller once the conversation was really written, so a busy or failing Claude tries again later that day.
+  if (prefs.week.on && weekday === prefs.week.day && d.getHours() >= prefs.week.hour && had.week !== monday) week = true;
   let evening: ChatMessage | null = null;
   if (prefs.evening.on && d.getHours() >= prefs.evening.hour && had.evening !== today) {
     const tomorrow = planFor(o.records.weekplan, addDays(today, 1));

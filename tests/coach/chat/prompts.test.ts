@@ -21,6 +21,9 @@ test('the week conversation comes once on its day from its hour on', () => {
   const r = { prefs: prefs({ on: true, day: 6, hour: 18 }, { on: false }), weekplan: [] };
   expect(duePrompts({ id: 'p', records: r, nowMs: at(8, 17), sent: s, detail }).week).toBe(false);
   expect(duePrompts({ id: 'p', records: r, nowMs: at(8, 18), sent: s, detail }).week).toBe(true);
+  // Still due until the caller marks it as written (a failing Claude tries again).
+  expect(duePrompts({ id: 'p', records: r, nowMs: at(8, 19), sent: s, detail }).week).toBe(true);
+  s.mark('p', 'week', '2026-11-02');
   expect(duePrompts({ id: 'p', records: r, nowMs: at(8, 21), sent: s, detail }).week).toBe(false);
   expect(duePrompts({ id: 'p', records: r, nowMs: at(7, 19), sent: s, detail }).week).toBe(false);
 });

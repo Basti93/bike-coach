@@ -118,12 +118,12 @@ export class ChatCoach {
         const limit = e instanceof ClaudeError && e.kind === 'limit';
         answer = { role: 'coach', text: limit ? 'Mein Claude-Kontingent ist gerade aufgebraucht. Schreib mir später nochmal.' : 'Ich komme gerade nicht durch. Schreib mir gleich nochmal.', atMs: this.deps.nowMs(), failed: true };
       }
-      this.put(id, { ...answer, replyTo: waiting.id });
+      this.put(id, { ...answer, replyTo: waiting.id, ...(waiting.inWorkout ? { inWorkout: waiting.inWorkout } : {}) });
       return true;
     } catch { return false; } finally { this.busy.delete(id); }
   }
 
-  private async answer(id: string, prompt: string, now: number): Promise<ChatMessage> {
+  private async answer(id: string, prompt: string, now: number, fromRider = true): Promise<ChatMessage> {
     const ask = async (p: string) => {
       const raw = await this.deps.ask({ prompt: p, systemPrompt: CHAT_SYSTEM_PROMPT, schema: answerSchema });
       if (!isObj(raw) || typeof raw.text !== 'string') throw new ClaudeError('invalid', 'Keine Antwort.');
@@ -134,7 +134,8 @@ export class ChatCoach {
       };
     };
     let a = await ask(prompt);
-    this.applyComplaints(id, a.complaint, a.over);
+    // Only the rider's own words start or end a complaint, never a message the coach opened by itself.
+    if (fromRider) this.applyComplaints(id, a.complaint, a.over);
     const careful = this.complaintList(id).length > 0;
     let broken = a.proposal ? checkWeekPlan(a.proposal.days) : [];
     if (broken.length && (!a.more || careful)) {
@@ -202,7 +203,7 @@ export class ChatCoach {
       const now = this.deps.nowMs();
       const thread = chatThread(this.deps.store.all(id, 'chat'));
       const prompt = this.prompt(id, thread.slice(-CHAT_CONTEXT), now, 'Das ist das Wochengespräch, die Person hat dir gerade nicht geschrieben. Blick in einem Halbsatz auf die letzte Woche zurück, ohne Schuld, und schlag die nächste Woche vor (wocheNaechste). Frag kurz, ob es so passt.');
-      const msg = await this.answer(id, prompt, now);
+      const msg = await this.answer(id, prompt, now, false);
       this.put(id, { ...msg, push: true });
       return true;
     } catch { return false; } finally { this.busy.delete(id); }

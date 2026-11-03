@@ -35,6 +35,7 @@ import { planHint } from './chat/plan-hint';
 import { longTermHint } from './chat/long-term';
 import { PlanSeen, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
+import { mondayOf } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
 import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
@@ -234,6 +235,9 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // The week conversation and the evening suggestion, only when the rider switched them on.
   const sentPrompts = new SentPrompts(path.join(coachDir, 'chat', 'prompts-sent.json'));
+  /** The week conversation is tried at most this often while it fails. */
+  const WEEK_RETRY_MS = 30 * 60_000;
+  const weekTried = new Map<string, number>();
   const detailOf = (id: string, sport: string): string | null => {
     if (sport === 'gym') return gym.state(id).next?.workout.name ?? null;
     if (sport === 'bike') return coach.state(id).next?.session.name ?? null;
@@ -260,7 +264,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
     planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()),
-    planKey: (id) => weekPlanKey(records.all(id, 'weekplan')),
+    planKey: (id, week) => weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week)),
     profile: (id) => profiles().find((p) => p.id === id) ?? null,
     garminDb: (id) => {
       if (!/^[A-Za-z0-9-]+$/.test(id)) return null;
@@ -537,7 +541,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
         try {
           const due = duePrompts({ id: p.id, records: { prefs: records.all(p.id, 'coachprefs'), weekplan: records.all(p.id, 'weekplan') }, nowMs: now, sent: sentPrompts, detail: (s) => detailOf(p.id, s) });
           if (due.evening) { chat.say(p.id, due.evening); mealsChanged([p.id]); }
-          if (due.week) void chat.openWeek(p.id).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish);
+          if (due.week && now - (weekTried.get(p.id) ?? 0) >= WEEK_RETRY_MS) {
+            weekTried.set(p.id, now);
+            const monday = mondayOf(dateKey(now));
+            void chat.openWeek(p.id).then((wrote) => { if (wrote) { sentPrompts.mark(p.id, 'week', monday); mealsChanged([p.id]); } }).catch(() => {}).finally(publish);
+          }
         } catch { /* next scan */ }
       }
       // Chat answers: a message gets its answer even while scheduled runs pause. Never with a ride open.

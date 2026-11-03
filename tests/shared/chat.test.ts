@@ -25,3 +25,13 @@ test('the waiting message is the last unanswered rider message; takes and declin
   const r2 = rec('r2', { role: 'rider', text: 'Und Freitag?', atMs: 4 });
   expect(waitingMessage(chatThread([r1, c1, take, r2]))?.id).toBe('r2');
 });
+
+test('a second rider message sent while the first is being answered still waits; unasked coach notes do not hide it', () => {
+  const a = rec('a', { role: 'rider', text: 'Gerät belegt', atMs: 1 });
+  const b = rec('b', { role: 'rider', text: 'und Schulter zwickt', atMs: 2 });
+  const ansA = rec('x', { role: 'coach', text: 'Nimm die Maschine.', atMs: 3, replyTo: 'a' });
+  expect(waitingMessage(chatThread([a, b, ansA]))?.id).toBe('b');
+  const note = rec('n', { role: 'coach', text: 'Morgen: Rad', atMs: 4, push: true });
+  expect(waitingMessage(chatThread([a, b, ansA, note]))?.id).toBe('b');
+  expect(waitingMessage(chatThread([a, ansA, note]))).toBeNull();
+});

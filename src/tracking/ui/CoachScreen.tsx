@@ -30,13 +30,13 @@ function Week({ days, label, today, runs = [] }: { days: PlanDay[]; label: strin
   );
 }
 
-function Proposal({ m, answer, onTake, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | null; onTake: () => void; onDecline: () => void }) {
+function Proposal({ m, answer, past, onTake, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | null; past: boolean; onTake: () => void; onDecline: () => void }) {
   const p = m.proposal;
   return (
     <div className="tk-proposal">
       <Week days={p.days} label={`Vorschlag für die Woche ab ${dayName(p.weekStart)}, ${p.weekStart.slice(8, 10)}.${p.weekStart.slice(5, 7)}.`} />
       {m.warnings && m.warnings.length > 0 && <p className="tk-note">Mehr als unsere Regeln für Erholung empfehlen: {m.warnings.join(' ')}</p>}
-      {answer === null ? (
+      {answer === null && past ? <p className="muted">Diese Woche ist vorbei.</p> : answer === null ? (
         <div className="tk-row">
           <button type="button" onClick={onTake}>Übernehmen</button>
           <button type="button" className="ghost" onClick={onDecline}>Nein danke</button>
@@ -141,7 +141,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
           <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
             <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
             <p>{m.text}</p>
-            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={proposalAnswer(thread, m.id)} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
+            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={proposalAnswer(thread, m.id)} past={m.proposal!.weekStart < monday} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
         )))}
         {waiting && <p role="status" className="muted">{now() - waiting.atMs > STALE_MS ? 'Darauf kam keine Antwort mehr. Schreib gern nochmal.' : now() - waiting.atMs > SLOW_MS ? 'Der Coach antwortet, sobald er wieder erreichbar ist.' : 'Der Coach denkt nach …'}</p>}

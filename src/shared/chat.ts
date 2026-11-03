@@ -63,13 +63,16 @@ export const chatThread = (records: TrackedRecord[]): ChatEntry[] =>
   records.flatMap((r) => { if (r.kind !== 'chat' || r.deleted) return []; const m = readChat(r.body); return m ? [{ ...m, id: r.id }] : []; })
     .sort((a, b) => a.atMs - b.atMs || (a.id < b.id ? -1 : 1));
 
-/** The rider message still waiting for the coach: the latest rider message that is not a take or decline and has no answer. */
+/**
+ * The rider message still waiting for the coach: the latest rider message (not a take or decline) without an answer. Coach
+ * messages are skipped, so an answer to an older message or a note the rider did not ask for never hides it; an answered
+ * latest message means nothing waits.
+ */
 export function waitingMessage(thread: ChatEntry[]): ChatEntry | null {
   const answered = new Set(thread.filter((m) => m.role === 'coach' && m.replyTo).map((m) => m.replyTo));
   for (let i = thread.length - 1; i >= 0; i--) {
     const m = thread[i]!;
-    if (m.role === 'coach') return null;
-    if (m.takes || m.declines) continue;
+    if (m.role === 'coach' || m.takes || m.declines) continue;
     return answered.has(m.id) ? null : m;
   }
   return null;

@@ -41,3 +41,7 @@ test('planFor gives the plan of a date from the accepted plan records, deleted o
   expect(planFor(recs, '2026-11-12')).toBeNull();
   expect(planFor([{ ...recs[0], deleted: true }], '2026-11-05')).toBeNull();
 });
+
+test('a hard gym day that does not say whether legs were trained counts as a leg day', () => {
+  expect(checkWeekPlan(week({ 0: day('', 'gym', 'hard'), 1: day('', 'bike', 'hard') }))).toEqual(['Harter Rad- oder Lauftag am Tag nach einem harten Beintag (Dienstag).']);
+});

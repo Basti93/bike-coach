@@ -51,7 +51,7 @@ export type RunDeps = {
   /** The accepted week plan as prompt text, or ''. */
   planHint?: (id: string) => string;
   /** Changes when the rider takes a new week plan; part of what makes a week plan again. */
-  planKey?: (id: string) => string;
+  planKey?: (id: string, week: string) => string;
   profile: (id: string) => Profile | null;
   garminDb: (id: string) => Pick<GarminDb, 'runs' | 'activityFile' | 'body'> | null;
   days: (id: string, dates: string[]) => Record<string, DayRating>;
@@ -261,7 +261,7 @@ export class RunCoach {
     const cache = this.cache(id);
     const existing = ctx.weeks.get(t.week) ?? null;
     const missed = (existing?.runs ?? []).filter((r) => r.date < ctx.today && this.doneOn(ctx.runs, r.date) === null).map((r) => r.date);
-    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, ...(this.deps.planKey ? [this.deps.planKey(id)] : [])]);
+    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, ...(this.deps.planKey ? [this.deps.planKey(id, t.week)] : [])]);
     const dates = Array.from({ length: 9 }, (_, i) => dateKey(dateOf(t.week, i - 1)));
     const days = this.deps.days(id, dates);
     const ratings = Object.fromEntries(dates.map((d) => [d, `${days[d]?.hardness ?? '-'}${days[d]?.legs ? ' legs' : ''}`]));

@@ -128,3 +128,24 @@ describe('in a workout', () => {
     expect(replies(s)[0]!.text).toContain('schon beendet');
   });
 });
+
+test('a failure in a workout carries the workout, so the panel shows it', async () => {
+  const s = store([rider('r1', 'Bank belegt', NOW - 1000, { inWorkout: 'w9' })]);
+  await coach(s, async () => { throw new ClaudeError('failed', 'x'); }).tick('p');
+  // No open workout w9 reached this side: the kind note still belongs to the workout panel.
+  expect(replies(s)[0]).toMatchObject({ inWorkout: 'w9', replyTo: 'r1' });
+});
+
+test('the week conversation never starts or ends complaints by itself', async () => {
+  const added: string[] = [], ended: string[] = [];
+  const s = store();
+  const c = new ChatCoach({
+    store: s as never, nowMs: () => NOW, newId: () => `c${++n}`,
+    complaints: () => [{ id: 'k1', text: 'Knie', status: 'active' }],
+    addComplaint: (_i, t) => added.push(t), endComplaint: (_i, id) => ended.push(id),
+    ask: (async () => ({ text: 'Nächste Woche?', proposal: null, riderAskedForMore: false, newComplaint: 'Rücken', complaintsOver: ['k1'] })) as never,
+  });
+  expect(await c.openWeek('p')).toBe(true);
+  expect(added).toEqual([]);
+  expect(ended).toEqual([]);
+});
