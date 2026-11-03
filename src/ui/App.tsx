@@ -16,7 +16,10 @@ import { CoachView } from './views/CoachView';
 import { coachScreen, DebriefView } from './views/DebriefCard';
 import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
+import { HistoryScreen, RoutinesScreen, WorkoutScreen } from '../tracking/ui';
+import type { GymWorkout } from '../coach/gym/types';
 import { HevyCard } from './views/HevyCard';
+import { AccountCard } from './views/AccountCard';
 import { homeScreen, OverviewView } from './views/OverviewView';
 import { HistoryView } from './views/HistoryView';
 import { TogetherView } from './views/TogetherView';
@@ -53,14 +56,17 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const [overview, setOverview] = useState(false);
   const [strengthFor, setStrengthFor] = useState<string | null>(null);
   const [bikeFor, setBikeFor] = useState<string | null>(null);
+  // The tracking screens belong to one profile, like the strength page they are opened from.
+  const [trackFor, setTrackFor] = useState<{ profileId: string; screen: 'workout' | 'routines' | 'history'; routine: GymWorkout | null } | null>(null);
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs a Hevy connection.
   useEffect(() => { if (!coach.gym || strengthFor !== profile?.id) setStrengthFor(null); }, [coach.gym, strengthFor, profile?.id]);
+  useEffect(() => { if (trackFor && (!coach.gym || trackFor.profileId !== profile?.id)) setTrackFor(null); }, [coach.gym, trackFor, profile?.id]);
   // The bike page chosen from the overview belongs to one profile and needs the overview to exist.
   // Test mocks without the field count as arrived.
   const arrived = coach.statusArrived ?? true;
-  useEffect(() => { if (bikeFor !== profile?.id || (arrived && hevy.state === 'idle')) setBikeFor(null); }, [hevy.state, arrived, bikeFor, profile?.id]);
+  useEffect(() => { if (bikeFor !== profile?.id || (arrived && hevy.state === 'idle' && !coach.gym)) setBikeFor(null); }, [hevy.state, coach.gym, arrived, bikeFor, profile?.id]);
   // Without a status the rider still gets the bike page after a short wait; a late status does not take it away again.
   useEffect(() => {
     if (!profile || arrived) return undefined;
@@ -97,7 +103,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   }
   if (editing && profile) return <>{notice}<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setEditing(false)} onDeleted={() => { setEditing(false); setProfile(null); }} /></>;
   // A rider with Hevy and no Garmin at all sees no Garmin sections; any other Garmin state shows what a Garmin-only rider sees.
-  const garminSections = homeScreen(hevy) === 'bike' || coach.garmin?.state !== 'idle';
+  const garminSections = homeScreen(hevy, coach.gym != null) === 'bike' || coach.garmin?.state !== 'idle';
   const showHealth = (range: HealthRange): void => {
     setHealth(range);
     if (profile && (garminSections)) coach.send({ type: 'garmin-health', profileId: profile.id, rangeDays: range });
@@ -105,9 +111,25 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (health !== undefined) return <>{notice}<HealthView data={coach.garminHealth} range={health} onRange={showHealth} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} onBack={() => setHealth(undefined)} /></>;
   if (reviewing && profile && coach.garminSuggestion) return <>{notice}<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => setReviewing(false)} /></>;
   if (overview && coach.together) return <>{notice}<TogetherView together={coach.together} onBack={() => setOverview(false)} /></>;
-  if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;
+  if (profile && trackFor && trackFor.profileId === profile.id && coach.gym && coach.tracking) {
+    const port = coach.tracking;
+    const back = () => setTrackFor(null);
+    const to = (screen: 'workout' | 'routines' | 'history') => setTrackFor({ ...trackFor, screen, routine: null });
+    return <>{notice}<main className="home">
+      <div className="top"><div className="row">
+        <button className="ghost" onClick={() => to('workout')} aria-pressed={trackFor.screen === 'workout'}>Training</button>
+        <button className="ghost" onClick={() => to('routines')} aria-pressed={trackFor.screen === 'routines'}>Routinen</button>
+        <button className="ghost" onClick={() => to('history')} aria-pressed={trackFor.screen === 'history'}>Verlauf</button>
+        <button className="ghost" onClick={back}>Zurück</button>
+      </div></div>
+      {trackFor.screen === 'workout' && <WorkoutScreen key={trackFor.routine ? 'routine' : 'plan'} port={port} plan={trackFor.routine ? null : coach.gym.state.next?.workout ?? null} routine={trackFor.routine} />}
+      {trackFor.screen === 'routines' && <RoutinesScreen port={port} onStart={(routine) => setTrackFor({ ...trackFor, screen: 'workout', routine })} />}
+      {trackFor.screen === 'history' && <HistoryScreen port={port} />}
+    </main></>;
+  }
+  if (profile && strengthFor === profile.id && coach.gym) return <>{notice}<GymView profileId={profile.id} gym={coach.gym} preview={coach.gymPreview} previewFailed={coach.gymPreviewFailed} result={coach.gymConfirmResult} send={coach.send} clear={coach.clearGym} mobility={coach.mobility} onTrack={coach.tracking ? (screen) => setTrackFor({ profileId: profile.id, screen, routine: null }) : undefined} onHealth={() => showHealth(28)} onBack={() => setStrengthFor(null)} /></>;
   if (profile && !arrived && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach') return <>{notice}<main aria-busy="true" /></>;
-  const overviewOpen = profile !== null && homeScreen(hevy) === 'overview' && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
+  const overviewOpen = profile !== null && homeScreen(hevy, coach.gym != null) === 'overview' && bikeFor !== profile.id && !history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
   if (profile && overviewOpen) return <>{notice}<OverviewView name={profile.name} avatar={profile.avatar} onBike={() => setBikeFor(profile.id)} onStrength={() => setStrengthFor(profile.id)} onHealth={() => showHealth(28)} onBack={() => setProfile(null)} /></>;
   return (
     <>
@@ -117,7 +139,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
           ? <DebriefView profileId={profile.id} debrief={coach.state.debriefs![coach.state.debriefToShow]} next={coach.state.next} thinking={coach.debriefing} title={coach.state.summaries.find((r) => r.rideId === coach.state?.debriefToShow)?.sessionName} send={coach.send} />
           : coach.state?.awaitingFeedback
           ? <FeedbackView garminConnected={coach.garmin.state === 'connected'} upload={coach.state.garminUpload} debrief={coach.state.debriefs?.[coach.state.awaitingFeedback]} debriefing={coach.debriefing} next={coach.state.next} together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
-          : <CoachView healthLink={homeScreen(hevy) === 'overview'} onOverview={homeScreen(hevy) === 'overview' ? () => setBikeFor(null) : undefined} gym={coach.gym} onGym={() => setStrengthFor(profile.id)} onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} hevyCard={<HevyCard profileId={profile.id} status={coach.hevy} send={coach.send} />} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
+          : <CoachView mobility={coach.mobility} healthLink={homeScreen(hevy, coach.gym != null) === 'overview'} onOverview={homeScreen(hevy, coach.gym != null) === 'overview' ? () => setBikeFor(null) : undefined} gym={coach.gym} onGym={() => setStrengthFor(profile.id)} onStartGym={() => coach.send({ type: 'gym-start', profileId: profile.id })} onHealth={() => showHealth(28)} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => setReviewing(true)} onEdit={() => setEditing(true)} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} tools={languageToggle} hevyCard={<HevyCard profileId={profile.id} status={coach.hevy} send={coach.send} />} accountCard={<AccountCard profileId={profile.id} status={coach.account} send={coach.send} />} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} onTogether={() => setOverview(true)} onHistory={() => setHistory(true)} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} onBack={() => setProfile(null)} />)
         : <ProfileView onTogether={coach.together ? () => setOverview(true) : undefined} profiles={state?.profiles ?? []} onPick={setProfile} onAdd={(p) => send({ type: 'save-profile', profile: p })} />}
     </>
   );

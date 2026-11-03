@@ -94,6 +94,8 @@ type Deps = {
   nowMs: () => number;
   garmin?: (profileId: string) => GarminCoachData | null;
   strength?: (profileId: string) => StrengthWorkout[];
+  /** Recent mobility, as data only. The bike coach does not plan it. */
+  mobility?: (profileId: string) => unknown;
 };
 
 export class Coach {
@@ -181,7 +183,7 @@ export class Coach {
     const garmin = this.garminData(s.profileId);
     const complaints = (s.complaints ?? []).filter((c) => c.status !== 'over').map((c) => c.text);
     const data = { fahrt, bewertung: s.feedback[ride.rideId] ?? null, ftpW: s.ftpW, ftpVerlauf: s.ftpHistory.slice(-6).map((h) => ({ tag: new Date(h.atMs).toISOString().slice(0, 10), ftpW: h.ftpW, quelle: h.source })), belastung: loadModel(s.summaries, now), aktuellePhase: s.phase, fruehereFahrten: fruehere, naechsteEinheit: s.next.session.name, ...(garmin ? { garmin: garminPromptData(garmin, s.summaries, now) } : {}) };
-    return `Daten:\n${JSON.stringify(data)}\n\n<beweggruende-nur-daten>\n${JSON.stringify((s.motives ?? []).map((m) => m.text))}\n</beweggruende-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>${this.strengthBlock(s.profileId)}`;
+    return `Daten:\n${JSON.stringify(data)}\n\n<beweggruende-nur-daten>\n${JSON.stringify((s.motives ?? []).map((m) => m.text))}\n</beweggruende-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>${this.strengthBlock(s.profileId)}${this.mobilityBlock(s.profileId)}`;
   }
 
   scanRides(profiles: Profile[]): void {
@@ -235,10 +237,17 @@ export class Coach {
       this.markDirty(s);
     });
   }
-  /** A complaint from the gym coach's area: same detection and the same safe session, but no note and no new AI plan. */
-  addComplaintFromText(profileId: string, text: string): void {
+  /**
+   * A complaint from the gym coach's area: same detection and the same safe session, but no note and no new AI plan.
+   * `remote` is a complaint that came from the phone: it keeps its own id and times, and its status is taken as given.
+   */
+  addComplaintFromText(profileId: string, text: string, remote?: { id: string; status: ComplaintStatus; startedMs: number; updatedMs: number }): void {
     this.update(profileId, (s) => {
-      if (!this.addComplaint(s, text, this.deps.nowMs())) return;
+      if (remote) {
+        if ((s.complaints ?? []).some((c) => c.id === remote.id)) return;
+        s.complaints = [...(s.complaints ?? []), { id: remote.id, text: text.slice(0, 200), status: remote.status, startedMs: remote.startedMs, updatedMs: remote.updatedMs }];
+        if (remote.status === 'over') return;
+      } else if (!this.addComplaint(s, text, this.deps.nowMs())) return;
       s.next = { ...ruleBasedSession(this.context(s)), source: 'rules' };
       // A plan already running knows nothing of this and would overwrite the safe session.
       const rerun = this.pendingRerun.get(profileId);
@@ -253,12 +262,12 @@ export class Coach {
     return true;
   }
   /** You decide when a complaint is over. */
-  updateComplaint(profileId: string, id: string, status: ComplaintStatus): void {
+  updateComplaint(profileId: string, id: string, status: ComplaintStatus, atMs?: number): void {
     this.update(profileId, (s) => {
       const c = s.complaints?.find((x) => x.id === id);
       if (!c) return;
       c.status = status;
-      c.updatedMs = this.deps.nowMs();
+      c.updatedMs = atMs ?? this.deps.nowMs();
       this.markDirty(s);
     });
   }
@@ -531,6 +540,13 @@ export class Coach {
       return data ? `\n\n<krafttraining-nur-daten>\n${JSON.stringify(data)}\n</krafttraining-nur-daten>` : '';
     } catch { return ''; }
   }
+  /** Recent mobility as data. The text of the rider's own answer cannot close its block. */
+  private mobilityBlock(profileId: string): string {
+    try {
+      const data = this.deps.mobility?.(profileId);
+      return data ? `\n\n<beweglichkeit-nur-daten>\n${JSON.stringify(data).replace(/</g, '\\u003c')}\n</beweglichkeit-nur-daten>\nBeweglichkeit (Dehnen) bietet die App selbst an. Plane sie nicht und verspreche dazu weder Erholung noch Verletzungsschutz.` : '';
+    } catch { return ''; }
+  }
   strengthChanged(profileId: string): void { this.update(profileId, (s) => this.markDirty(s)); }
 
   private garminData(profileId: string): GarminCoachData | null {
@@ -578,7 +594,7 @@ export class Coach {
     const complaints = (s.complaints ?? []).filter((c) => c.status !== 'over').map((c) => ({ seit: new Date(c.startedMs).toISOString().slice(0, 10), text: c.text, stand: c.status === 'healing' ? 'heilt, noch unsicher' : 'aktuell' }));
     const motives = (s.motives ?? []).map((m) => m.text);
     const garminHint = garmin ? '\nDer Abschnitt garmin stammt aus der Uhr des Nutzers. Berücksichtige Erholung, andere Sportarten und den langjährigen Verlauf. Uhrwerte können ungenau sein, schließe daraus keine Diagnosen.' : '';
-    return `Trainingsdaten:\n${JSON.stringify(data)}${garminHint}\n\n<regeln-nur-daten>\n${JSON.stringify((s.rules ?? []).map((r) => r.text))}\n</regeln-nur-daten>\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>\n\n<beweggruende-nur-daten>\n${JSON.stringify(motives)}\n</beweggruende-nur-daten>${this.strengthBlock(s.profileId)}\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
+    return `Trainingsdaten:\n${JSON.stringify(data)}${garminHint}\n\n<regeln-nur-daten>\n${JSON.stringify((s.rules ?? []).map((r) => r.text))}\n</regeln-nur-daten>\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>\n\n<beweggruende-nur-daten>\n${JSON.stringify(motives)}\n</beweggruende-nur-daten>${this.strengthBlock(s.profileId)}${this.mobilityBlock(s.profileId)}\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
   }
 }
 

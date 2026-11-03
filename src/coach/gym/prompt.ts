@@ -52,6 +52,8 @@ const dataBlock = (name: string, value: unknown): string => `<${name}-nur-daten>
 export type PromptInput = {
   state: GymState; workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number;
   summaries: RideSummary[]; complaints: Complaint[]; previous: GymState['next']; wantNote: boolean; rejection?: string;
+  /** Recent mobility, as data only. */
+  mobility?: unknown;
 };
 
 export function buildGymPrompt(i: PromptInput): string {
@@ -83,10 +85,12 @@ export function buildGymPrompt(i: PromptInput): string {
     dataBlock('regeln', i.state.rules.map((r) => r.text)),
     dataBlock('hinweise', i.state.notes.slice(-10).map((n) => n.text)),
     dataBlock('antworten', i.state.answers.slice(-10).map((a) => ({ frage: a.question, text: a.text }))),
+    ...(i.mobility ? [dataBlock('beweglichkeit', i.mobility)] : []),
     ...(i.rejection ? [dataBlock('ablehnung', i.rejection)] : []),
   ];
   const tail = [
     i.rejection ? 'Dein letzter Vorschlag wurde abgelehnt, der Grund steht im Block ablehnung-nur-daten. Korrigiere ihn.' : null,
+    i.mobility ? 'Beweglichkeit (Dehnen) bietet die App selbst an, der Block beweglichkeit-nur-daten zeigt sie. Plane sie nicht und verspreche dazu weder Erholung noch Verletzungsschutz.' : null,
     'Plane jetzt das nächste Training.',
     i.wantNote ? 'Es gab neue Trainings: Schreibe in note eine kurze Rückmeldung dazu und stelle höchstens zwei freiwillige Rückfragen.' : 'Lasse note und questions leer.',
   ].filter((x): x is string => x !== null).join(' ');

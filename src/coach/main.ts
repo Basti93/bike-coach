@@ -20,9 +20,15 @@ import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
 import { GymCoach } from './gym/gym-coach';
-import { strengthHealth, type StrengthHealth } from './strength';
+import type { StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
+import { RecordStore } from './tracking/store';
+import { handleRecords } from './tracking/records-api';
+import { MobilityCoach } from './mobility/mobility';
+import { AccountLinks } from './tracking/link';
+import { AccountSync } from './tracking/mac-sync';
+import { mergedHealth, mergedStrength } from './tracking/strength-source';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -51,11 +57,16 @@ const garminData = (profileId: string): GarminCoachData | null => {
 };
 
 // Optional and per profile: without a key nothing happens.
-const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () => Date.now(), onChange: (profileId) => { try { coach.strengthChanged(profileId); } catch { /* unknown profile */ } } });
+const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () => Date.now(), onChange: (profileId) => {
+  try { coach.strengthChanged(profileId); } catch { /* unknown profile */ }
+  // Keeps the new Hevy workouts on this Mac too, so they stay when Hevy is removed.
+  try { gym.importHevy(profileId); } catch { /* try again on the next change */ }
+} });
 
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
-  strength: (profileId) => hevy.workouts(profileId),
+  strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
+  mobility: (profileId) => mobility.promptData(profileId),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
 
@@ -66,24 +77,53 @@ const gymWriter = (profileId: string): HevyRoutines | null => {
   const key = hevy.apiKey(profileId);
   return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs: () => Date.now() }) : null;
 };
+const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
 const gym = new GymCoach({
   dir: path.join(coachDir, 'gym'), nowMs: () => Date.now(),
+  store: records, hevy: gymConnected,
+  mobility: (id) => mobility.promptData(id),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
   workouts: (id) => hevy.workouts(id),
   templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
   refreshTemplates: async (id) => { const w = gymWriter(id); return w ? w.refreshTemplates() : []; },
-  ready: (id) => gymConnected(id) && hevy.strengthReady(id),
+  // Without Hevy there is no history to wait for. The rider's own start is checked by the coach itself.
+  ready: (id) => (gymConnected(id) ? hevy.strengthReady(id) : noOpenRide()),
   bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
   complaint: (id, text) => coach.addComplaintFromText(id, text),
   writer: gymWriter,
+  account: (id) => accounts.status(id).state === 'linked',
+  onWorkoutFinished: (id) => coach.strengthChanged(id),
 });
+// Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
+const mobility = new MobilityCoach({
+  store: records, nowMs: () => Date.now(),
+  rides: (id) => coach.state(id).summaries,
+  strength: (id) => gym.history(id),
+  complaints: (id) => coach.state(id).complaints ?? [],
+});
+// Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
+const accounts = new AccountLinks({ dir: path.join(dir, '..', 'accounts') });
+const accountSync = new AccountSync({
+  links: accounts, store: records, nowMs: () => Date.now(), coach, gym, mobility, noOpenRide: () => noOpenRide(),
+  onChange: (profileId) => notifyRecords(profileId),
+});
+const notifyRecords = (profileId: string): void => {
+  const note = JSON.stringify({ type: 'records-changed', profileId } satisfies CoachServerMessage);
+  for (const [other, id] of subs) if (id === profileId) { try { other.send(note); } catch { /* connection gone */ } }
+};
+const READ_ONLY = new Set<string>(['subscribe', 'records-list', 'ride-detail', 'garmin-health', 'gym-preview']);
+const mobilityOf = (profileId: string) => { try { return mobility.view(profileId); } catch { return null; } };
 const gymOf = (profileId: string) => {
-  try { return gymPublic(hevy.status(profileId), gym.state(profileId), gym.isThinking(profileId), gymConnected(profileId) && hevy.strengthReady(profileId), { complaints: coach.state(profileId).complaints ?? [], hasHistory: hevy.workouts(profileId).length > 0 }); } catch { return null; }
+  try {
+    const connected = gymConnected(profileId);
+    return gymPublic(gym.enabled(profileId), gym.state(profileId), gym.isThinking(profileId), connected ? hevy.strengthReady(profileId) : noOpenRide(), { hevy: connected, complaints: coach.state(profileId).complaints ?? [], hasHistory: gym.hasHistory(profileId) });
+  } catch { return null; }
 };
 
 // Local workouts only, no Hevy call.
+const ownStrengthHealth = mergedHealth({ history: (id) => gym.history(id), connected: gymConnected, nowMs: () => Date.now() });
 const strengthHealthOf = (profileId: string): StrengthHealth | null => {
-  try { return hevy.status(profileId).state === 'connected' ? strengthHealth(hevy.workouts(profileId), Date.now()) : null; } catch { return null; }
+  try { return ownStrengthHealth(profileId); } catch { return null; }
 };
 
 const profiles = (): Profile[] => {
@@ -158,7 +198,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId), account: accountSync.status(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -186,7 +226,8 @@ const startUpload = (profileId: string, rideId: string, repoLink: boolean): void
 const handleGym = (socket: WebSocket, m: CoachClientMessage): void => {
   const send = (msg: CoachServerMessage) => { try { socket.send(JSON.stringify(msg)); } catch { /* connection gone */ } };
   if (m.type === 'gym-forget') { gym.forget(m.profileId); publish(); return; }
-  if (!('profileId' in m) || !gymConnected(m.profileId)) {
+  if (m.type === 'gym-start') { gym.start(m.profileId); publish(); return; }
+  if (!('profileId' in m) || !gym.enabled(m.profileId)) {
     if (m.type === 'gym-preview') send({ type: 'gym-preview', preview: null });
     if (m.type === 'gym-confirm') send({ type: 'gym-confirm-result', result: 'failed' });
     return;
@@ -214,6 +255,10 @@ wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
       const m = JSON.parse(String(raw)) as CoachClientMessage;
+      // The password is only passed on to the server once, never stored, logged or sent back.
+      if (m.type === 'account-link') { void accountSync.link(m.profileId, m.url, m.name, m.password).catch(() => {}).finally(publish); publish(); return; }
+      if (m.type === 'account-unlink') { accountSync.unlink(m.profileId); publish(); return; }
+      if ('profileId' in m && typeof m.profileId === 'string' && !READ_ONLY.has(m.type)) accountSync.touch(m.profileId);
       // Login credentials are only passed on, never stored or sent back.
       // The key is only passed on and stored privately, never sent back.
       if (m.type === 'hevy-connect') { void hevy.connect(m.profileId, m.key).catch(() => {}).finally(publish); publish(); return; }
@@ -222,7 +267,19 @@ wss.on('connection', (socket) => {
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { socket.send(JSON.stringify({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) })); return; }
+      if (m.type === 'records-put' || m.type === 'records-list') {
+        const out = handleRecords({ store: records, gym, profiles: () => profiles().map((p) => p.id) }, m);
+        socket.send(JSON.stringify(out.reply));
+        if (out.changed) {
+          notifyRecords(out.changed);
+          publish();
+        }
+        return;
+      }
       if (m.type.startsWith('gym-')) { handleGym(socket, m); return; }
+      // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
+      if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }
+      if (m.type === 'mobility-feel') { mobility.feel(m.profileId, m.text); publish(); return; }
       coach.scanRides(profiles());
       if (m.type === 'subscribe') subs.set(socket, m.profileId);
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
@@ -276,6 +333,8 @@ const scan = (): void => {
     if (free) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
     // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
     if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+    // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
+    for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.
     for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
     publish();

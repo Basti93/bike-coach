@@ -5,6 +5,8 @@ import type { GarminSuggestion } from './garmin-profile';
 import type { GymPublic } from '../coach/gym/public';
 import type { GymWorkout } from '../coach/gym/types';
 import type { StrengthHealth } from '../coach/strength';
+import type { MobilityView } from '../coach/mobility/mobility';
+import type { RecordKind, TrackedRecord } from './records';
 
 export type GarminStatus =
   | { state: 'idle' | 'connecting' | 'needs-mfa' | 'connected' }
@@ -17,7 +19,12 @@ export type HevyStatus =
   | { state: 'connected'; workouts: number; loading: boolean; lastSyncMs: number | null }
   | { state: 'failed'; reason: 'invalid' | 'expired' | 'failed' };
 
+/** The link to a Pandafit account. Never carries the token or the password. */
+export type AccountStatus = { state: 'idle' | 'linking' | 'linked' | 'rejected' | 'failed'; name: string | null; reason: 'invalid' | 'limited' | 'url' | 'failed' | null; refused: number; offline: boolean; lastSyncMs: number | null };
+
 export type CoachClientMessage =
+  | { type: 'account-link'; profileId: string; url: string; name: string; password: string }
+  | { type: 'account-unlink'; profileId: string }
   | { type: 'hevy-connect'; profileId: string; key: string }
   | { type: 'hevy-disconnect'; profileId: string }
   | { type: 'garmin-login'; profileId: string; email: string; password: string }
@@ -50,10 +57,15 @@ export type CoachClientMessage =
   | { type: 'gym-answer'; profileId: string; question: string; text: string }
   | { type: 'gym-skip-question'; profileId: string; question: string }
   | { type: 'gym-remove-rule'; profileId: string; atMs: number }
+  | { type: 'gym-start'; profileId: string }
   | { type: 'gym-forget'; profileId: string }
   | { type: 'gym-preview'; profileId: string }
-  | { type: 'gym-confirm'; profileId: string; name: string };
+  | { type: 'gym-confirm'; profileId: string; name: string }
+  | { type: 'mobility-done'; profileId: string; sessionId: string }
+  | { type: 'mobility-feel'; profileId: string; text: string }
+  | { type: 'records-put'; requestId: string; profileId: string; record: TrackedRecord; seenMs?: number }
+  | { type: 'records-list'; requestId: string; profileId: string; kind: RecordKind };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
-export type CoachServerMessage = { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null };
+export type CoachServerMessage = { type: 'records'; requestId: string; kind: RecordKind; records: TrackedRecord[] } | { type: 'records-put-result'; requestId: string; ok: boolean; refused?: boolean; kept?: boolean; updatedMs?: number } | { type: 'records-changed'; profileId: string } | { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null; mobility?: MobilityView | null; account?: AccountStatus };
 export const COACH_PORT = 7411;

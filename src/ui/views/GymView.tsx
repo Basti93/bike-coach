@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { GymPublic } from '../../coach/gym/public';
 import type { GymExercise, GymSet, GymWorkout } from '../../coach/gym/types';
 import type { CoachClientMessage, GymConfirmResult } from '../../shared/coach-protocol';
+import type { MobilityView } from '../../coach/mobility/mobility';
+import { MobilityCard } from './MobilityCard';
 
 type Props = {
   profileId: string;
   gym: GymPublic;
-  preview: { workout: GymWorkout; edited: boolean } | null;
+  preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null;
   previewFailed: boolean;
   result: GymConfirmResult | null;
   send: (m: CoachClientMessage) => void;
@@ -14,6 +16,9 @@ type Props = {
   clear: (what: 'preview' | 'result' | 'all') => void;
   onBack: () => void;
   onHealth?: () => void;
+  mobility?: MobilityView | null;
+  /** Opens one of the shared tracking screens. Without it the page shows no tracking buttons. */
+  onTrack?: (screen: 'workout' | 'routines' | 'history') => void;
 };
 
 const SET_TYPE: Record<GymSet['type'], string> = { warmup: 'Aufwärmen', normal: '', failure: 'bis nichts mehr geht', dropset: 'Dropset' };
@@ -53,7 +58,7 @@ const Question = ({ q, profileId, send }: { q: string; profileId: string; send: 
   );
 };
 
-export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth }: Props) => {
+export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth, mobility, onTrack }: Props) => {
   const { state, ready, thinking } = gym;
   const next = state.next;
   const [note, setNote] = useState('');
@@ -65,7 +70,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
   useEffect(() => () => clearRef.current('all'), []);
 
   const name = next?.workout.name ?? '';
-  const canHevy = ready && next !== null && next.workout.exercises.length > 0;
+  const canHevy = gym.hevy && ready && next !== null && next.workout.exercises.length > 0;
   const open = preview && canHevy && result !== 'stale' && result !== 'written';
   const confirm = () => {
     if (confirming.current) return;
@@ -89,9 +94,17 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
         <h1>Kraft</h1>
         <div className="row">{onHealth && <button className="ghost" onClick={onHealth}>Gesundheit</button>}<button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
+      {onTrack && (
+        <div className="row">
+          <button className="go" onClick={() => onTrack('workout')}>Training starten</button>
+          <button className="secondary" onClick={() => onTrack('routines')}>Routinen</button>
+          <button className="secondary" onClick={() => onTrack('history')}>Verlauf</button>
+        </div>
+      )}
+      <MobilityCard profileId={profileId} mobility={mobility} send={send} />
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}
-      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
+      {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : gym.hevy ? 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.' : 'Sobald du trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
       <div className="coach">
         <div className="stack">
           {next && (
@@ -115,12 +128,13 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
               <h3>Vorschau: so landet es in Hevy</h3>
               <h2>{preview.workout.name}</h2>
               {preview.edited && <p className="notice" role="status">Die Routine wurde in Hevy verändert. Wenn du sie jetzt anlegst, wird sie überschrieben.</p>}
+              {preview.leftOut && preview.leftOut.length > 0 && <p className="notice" role="status">Nicht nach Hevy übertragen, weil es dort keine passende Übung gibt: {preview.leftOut.join(', ')}.</p>}
               <WorkoutList workout={preview.workout} />
               {result === 'failed' && <p className="notice" role="alert">Das hat gerade nicht geklappt. Vielleicht ist Hevy kurz nicht erreichbar. Du kannst es noch einmal versuchen.</p>}
               <div className="row">
                 {result === 'failed'
                   ? <button className="go" onClick={() => { clear('result'); confirming.current = true; send({ type: 'gym-confirm', profileId, name }); }}>Nochmal versuchen</button>
-                  : <button className="go" onClick={confirm}>Jetzt anlegen</button>}
+                  : preview.workout.exercises.length > 0 && <button className="go" onClick={confirm}>Jetzt anlegen</button>}
                 <button className="ghost" onClick={() => clear('all')}>Abbrechen</button>
               </div>
             </section>

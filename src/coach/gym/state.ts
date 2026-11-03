@@ -29,13 +29,17 @@ export type GymState = {
   lastAttemptMs: number | null;
   /** When fetching the templates last failed. Such a failure is no attempt: it only waits and tries again. */
   templatesFailedMs: number | null;
+  /** "Krafttraining starten": the rider began without Hevy. Kept on the Mac only. */
+  localStart: boolean;
+  /** Hevy template id to own exercise id, as last seen. Kept so history stays linked after Hevy is removed. */
+  links: Record<string, string>;
 };
 
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialGymState = (profileId: string): GymState => ({
   profileId, goal: 'muscle', next: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
-  routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null,
+  routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null, localStart: false, links: {},
 });
 
 export const loadGymState = (dir: string, profileId: string): GymState => {
