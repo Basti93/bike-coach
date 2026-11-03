@@ -66,10 +66,12 @@ export const dayRatings = (input: DayInput, dates: string[]): Record<string, Day
     const legs = trainsLegs(w.exercises, input.muscleOf);
     add(dateKey(w.startMs), legs ? 'hard' : 'moderate', legs, w.durationS / 60);
   }
-  const nextUsual = (days: number[]): string | undefined => dates.find((d) => days.includes(weekday(d)));
-  const bikeDate = input.bikeNext ? nextUsual(input.bikeDays) : undefined;
+  // A planned session goes on the next usual day without a finished one of its own source. Without usual days, any date does.
+  const nextFree = (days: number[], done: Set<string>): string | undefined =>
+    dates.find((d) => (days.length === 0 || days.includes(weekday(d))) && !done.has(d));
+  const bikeDate = input.bikeNext ? nextFree(input.bikeDays, new Set(input.rides.map((r) => dateKey(r.startedAtMs)))) : undefined;
   if (input.bikeNext && bikeDate) add(bikeDate, rateSession(input.bikeNext), false, input.bikeNext.steps.reduce((a, s) => a + s.durationS, 0) / 60);
-  const gymDate = input.gymNext ? nextUsual(input.gymDays) : undefined;
+  const gymDate = input.gymNext ? nextFree(input.gymDays, new Set(input.gym.map((w) => dateKey(w.startMs)))) : undefined;
   if (input.gymNext && gymDate) {
     const legs = trainsLegs(input.gymNext.exercises, input.muscleOf);
     add(gymDate, legs ? 'hard' : 'moderate', legs, GYM_PLANNED_MINUTES);
