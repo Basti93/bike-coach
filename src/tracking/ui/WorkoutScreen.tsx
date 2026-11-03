@@ -43,6 +43,14 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   useEffect(() => () => releaseStore(port, store), [store, port]);
   const remaining = restRemainingS(w, now());
 
+  // Opening (or continuing) a workout scrolls once to the exercise with the next open set.
+  const currentRid = w.exercises.find((x) => x.sets.some((st) => st.doneMs === null))?.rid ?? null;
+  const screenRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = screenRef.current?.querySelector('[aria-current="step"]');
+    if (el && el !== screenRef.current?.querySelector('.tk-ex')) el.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The rest end is armed once per rest (not per tick); skipping or leaving cancels it.
   const restEnd = w.rest ? w.rest.startMs + w.rest.durationS * 1000 : null;
   useEffect(() => { port.restAlarm?.(restEnd !== null && restEnd > now() ? restEnd : null); }, [restEnd]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,7 +108,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="tk-screen">
+    <div className="tk-screen" ref={screenRef}>
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
       {save === 'unsaved' && (
@@ -122,10 +130,14 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const timed = !!e.timed;
         const description = exerciseDescription(e.exerciseId);
         const showInfo = info.has(e.rid);
+        const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
+        const current = e.rid === currentRid;
         return (
-          <section key={e.rid} className="tk-ex card" aria-label={e.title}>
+          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${current ? ' tk-ex-current' : ''}`} aria-label={e.title}
+            aria-current={current ? 'step' : undefined}>
             <div className="tk-ex-head">
-              <h2>{e.title}</h2>
+              <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
+              {allDone && <span className="tk-ex-badge">Erledigt</span>}
               {e.supersetId !== null && <span className="muted">Superset</span>}
               <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
             </div>

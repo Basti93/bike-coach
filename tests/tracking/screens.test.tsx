@@ -621,3 +621,39 @@ test('the workout shows how long it has been running', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
   expect((await screen.findByRole('timer', { name: 'Trainingsdauer' })).textContent).toBe('1:39');
 });
+
+const twoExercises = () => open({
+  exercises: [
+    { exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(62.5, 8, 50_000), set(62.5, 8, 60_000)] },
+    { exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [set(80, 5, 70_000), set(80, 5, null)] },
+  ],
+});
+
+test('continuing a workout scrolls to the exercise with the next open set', async () => {
+  const scrolled: string[] = [];
+  const orig = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.getAttribute('aria-label') ?? ''); };
+  try {
+    const { port } = fakePort([rec(twoExercises())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    await screen.findByRole('region', { name: 'Kniebeuge' });
+    await waitFor(() => expect(scrolled).toEqual(['Kniebeuge']));
+    // confirming more sets later does not scroll again
+    fireEvent.click(within(screen.getByRole('region', { name: 'Kniebeuge' })).getByRole('button', { name: 'Satz 2 erledigt' }));
+    expect(scrolled).toEqual(['Kniebeuge']);
+  } finally { Element.prototype.scrollIntoView = orig; }
+});
+
+test('finished exercises and the current one are marked', async () => {
+  const { port } = fakePort([rec(twoExercises())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  const bench = await screen.findByRole('region', { name: 'Bankdrücken' });
+  const squat = screen.getByRole('region', { name: 'Kniebeuge' });
+  expect(bench.className).toContain('tk-ex-done');
+  expect(within(bench).getByText('Erledigt')).toBeTruthy();
+  expect(bench.getAttribute('aria-current')).toBeNull();
+  expect(squat.getAttribute('aria-current')).toBe('step');
+  expect(squat.className).not.toContain('tk-ex-done');
+});

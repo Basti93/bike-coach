@@ -102,3 +102,11 @@
 .tk-garmin { margin-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
 
 .tk-elapsed { font-variant-numeric: tabular-nums; font-weight: 600; }
+/* Done sets: a green row. Done exercises: green edge, a badge, the rest calmer. The current exercise: accent edge. */
+.tk-set.tk-done { background: color-mix(in srgb, var(--tk-good) 16%, transparent); border-radius: .7rem; }
+.tk-done .tk-num { opacity: .6; text-decoration: none; }
+.tk-ex-done { border-left: 5px solid var(--tk-good); }
+.tk-ex-done .tk-ex-head h2 { color: var(--tk-good); }
+.tk-ex-done > :not(.tk-ex-head) { opacity: .7; }
+.tk-ex-badge { flex: none; align-self: center; padding: .15rem .6rem; border-radius: 999px; background: var(--tk-good); color: var(--tk-ink); font-size: .8rem; font-weight: 700; }
+.tk-ex-current { border-left: 5px solid var(--tk-accent); scroll-margin-top: 4.5rem; }
