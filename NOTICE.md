@@ -12,7 +12,7 @@ The project's own code is under the MIT licence. Different terms apply to the fo
 
 ## Exercise pictures: CC BY-SA and CC0
 
-The pictures in `src/web/public/exercises/` come from the exercise database of [wger Workout Manager](https://wger.de). Only images that wger lists under CC BY-SA (3.0 or 4.0) or CC0 1.0 were taken, AI-generated ones were left out; they were scaled down and saved as JPEG (`scripts/wger-images.mjs`). `src/shared/exercise-images.ts` records the author, licence and wger source page of each picture, and the app shows them under it. Each picture keeps its own licence; the CC BY-SA ones are shared under the same licence.
+The pictures in `src/web/public/exercises/` come from the exercise database of [wger Workout Manager](https://wger.de). Only images that wger lists under CC BY-SA (3.0 or 4.0) or CC0 1.0 were taken, and only the drawings by Everkinetic (single user uploads were left out); they were scaled down and saved as JPEG (`scripts/wger-images.mjs`). `src/shared/exercise-images.ts` records the author, licence and wger source page of each picture, and the app shows them under it. Each picture keeps its own licence; the CC BY-SA ones are shared under the same licence.
 
 ## Garmin FIT SDK
 
