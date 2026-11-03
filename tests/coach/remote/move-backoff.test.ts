@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { expect, test, vi } from 'vitest';
 import type { MigrateResult } from '../../../src/coach/remote/migrate';
 import { MoveBackoff } from '../../../src/coach/remote/move-backoff';
@@ -91,4 +94,25 @@ test('missing for the same items twice is a refusal that waits up to six hours; 
   const once = new MoveBackoff(() => clock.now);
   once.record('pa', missing);
   expect(once.problem('pa')).toBe('offline');
+});
+
+// ---- Fix round 2 ----
+
+test('a long wait survives a restart', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mbo-'));
+  const clock = { now: 0 };
+  const b = new MoveBackoff(() => clock.now, dir);
+  waits(b, clock, { state: 'refused', reason: 'other-profile' }, 10);
+  const wait = (x: MoveBackoff) => { let n = 0; while (!x.due('pa', () => true)) { clock.now += MIN; n++; } return n; };
+  const again = new MoveBackoff(() => clock.now, dir);
+  expect(again.problem('pa')).toBe('other-profile');
+  expect(again.due('pa', () => true)).toBe(false);
+  expect(wait(again)).toBeGreaterThan(5 * 60);
+  // The records gate too.
+  const r = new MoveBackoff(() => clock.now, dir);
+  r.record('pb', { state: 'paused', reason: 'records' });
+  expect(new MoveBackoff(() => clock.now, dir).due('pb', () => false)).toBe(false);
+  // Done clears it on disk.
+  again.record('pa', { state: 'done' });
+  expect(new MoveBackoff(() => clock.now, dir).due('pa', () => true)).toBe(true);
 });

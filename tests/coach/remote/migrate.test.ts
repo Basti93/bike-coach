@@ -90,7 +90,7 @@ type Fault = (r: { method: string; route: string }) => 'before' | 'after' | null
  * through a stand-in for the api proxy (the device token becomes account 1; a coach 401 becomes 503). Every request is recorded
  * with its body. A fault cuts a request before it reaches the server, or after the server answered.
  */
-const server = async (o: { root?: string } = {}) => {
+const server = async (o: { root?: string; mayContinue?: () => boolean } = {}) => {
   const sroot = o.root ?? temp();
   const household = new Household({
     root: sroot, secretKey: KEY, runDir: temp(), python: process.execPath, garminScripts: path.join(sroot, 'scripts'),
@@ -124,7 +124,7 @@ const server = async (o: { root?: string } = {}) => {
     if (fault === 'after') throw new TypeError('fetch failed');
     return new Response(text, { status: res.status === 401 ? 503 : res.status, headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
-  const http = coachHttp({ url: 'https://coach.test', token: DEVICE_TOKEN, fetchFn });
+  const http = coachHttp({ url: 'https://coach.test', token: DEVICE_TOKEN, fetchFn, ...(o.mayContinue ? { mayContinue: o.mayContinue } : {}) });
   return { sroot, household, w, http, acc: path.join(sroot, 'accounts', '1') };
 };
 
@@ -478,4 +478,52 @@ test('without a meal file here, the empty placeholder moves the meal plan on the
   s.w.reqs = [];
   expect(await moveMeals({ coachDir: mac.coach, profileIds: ['pa'], onServer, http: () => s.http, nowMs: () => NOON })).toBe(false);
   expect(s.w.reqs).toEqual([]);
+});
+
+// ---- Fix round 2 ----
+
+test('drift survives a run that fails after the cut finish: measured from what was sent to finish', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const mac = macData();
+  const s = await server();
+  // The server switches, but the answer to finish is lost.
+  s.w.fault = ({ route }) => (route === '/migrate/finish' ? 'after' : null);
+  expect(await run(mac, s.http).out).toEqual({ state: 'paused', reason: 'finish' });
+  // The coach here writes again.
+  fs.writeFileSync(path.join(mac.coach, 'pa.json'), JSON.stringify({ profileId: 'pa', ftpW: 222 }));
+  // The next run takes a fresh snapshot, and its begin is cut.
+  s.w.fault = ({ route }) => (route === '/migrate/begin' ? 'before' : null);
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'offline' });
+  // A clean run: the server says done; the change after the switch is still known.
+  s.w.fault = null;
+  expect(await run(mac, s.http).out).toEqual({ state: 'done', drift: ['coach-state'] });
+  expect(driftOf(mac.coach, 'pa')).toEqual(['coach-state']);
+  expect(warn).toHaveBeenCalledTimes(1);
+  // Gone with the move.
+  expect(fs.readdirSync(path.join(mac.coach, 'remote', 'pa')).filter((n) => n.includes('sent'))).toEqual([]);
+});
+
+test('no drift is reported when the switch came from this run\'s own finish', async () => {
+  const mac = macData();
+  const s = await server();
+  // An earlier finish was cut before the server, so it did not switch; the data changes; this run finishes itself.
+  s.w.fault = ({ route }) => (route === '/migrate/finish' ? 'before' : null);
+  expect(await run(mac, s.http).out).toEqual({ state: 'paused', reason: 'finish' });
+  fs.writeFileSync(path.join(mac.coach, 'pa.json'), JSON.stringify({ profileId: 'pa', ftpW: 222 }));
+  s.w.fault = null;
+  expect(await run(mac, s.http).out).toEqual({ state: 'done' });
+  expect(driftOf(mac.coach, 'pa')).toEqual([]);
+  expect(JSON.parse(fs.readFileSync(path.join(s.acc, 'coach', 'pa.json'), 'utf8')).ftpW).toBe(222);
+});
+
+test('a ride opening while an item streams pauses the move for the ride, not as a failure', async () => {
+  const mac = macData();
+  // A large workout file: several chunks.
+  fs.writeFileSync(path.join(mac.root, 'hevy', 'pa', 'workouts.json'), JSON.stringify({ workouts: 'x'.repeat(400 * 1024) }));
+  let open = false;
+  const s = await server({ mayContinue: () => !open });
+  // The ride starts as this item's request goes out, after the check before it.
+  s.w.fault = ({ route }) => { if (route === '/migrate/item/hevy-workouts') open = true; return null; };
+  expect(await run(mac, s.http, { open: () => open }).out).toEqual({ state: 'paused', reason: 'ride' });
+  expect(homeOf(mac.coach, 'pa', true)).toBe('local');
 });

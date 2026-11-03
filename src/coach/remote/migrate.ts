@@ -129,6 +129,17 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
   const coachDir = path.join(root, 'coach');
   const staging = path.join(remoteDir(coachDir, p), 'staging');
   const saved = path.join(staging, 'snapshot.json');
+  /**
+   * The live data of the snapshot last sent to finish. Outside staging, so a fresh snapshot never replaces it: should the server
+   * have switched on a finish whose answer was lost, a change here since is measured from it. Gone only with the move.
+   */
+  const sentFile = path.join(remoteDir(coachDir, p), 'finish-sent.json');
+  const loadSent = (): Record<string, string> | null => {
+    try {
+      const d = JSON.parse(fs.readFileSync(sentFile, 'utf8')) as { live?: unknown };
+      return d && typeof d.live === 'object' && d.live !== null ? d.live as Record<string, string> : null;
+    } catch { return null; }
+  };
   const may = (): boolean => { try { return opts.noOpenRide(); } catch { return false; } };
   const settled = (): boolean => { try { return opts.recordsSettled(); } catch { return false; } };
   const progress = (done: number, total: number): void => { try { opts.progress(done, total); } catch { /* only a display */ } };
@@ -202,19 +213,20 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
    * here, are listed for the coach view and logged once by item name. Records travel through the account sync anyway; rides closed
    * later through the ride uploads.
    */
-  const done = (counts: { rides: number; items: number }, switched: Snapshot | null, live: Record<string, string>): MigrateResult => {
-    const drift = switched ? differing(switched.live, live).filter((k) => k !== 'rides') : [];
+  const done = (counts: { rides: number; items: number }, switched: Record<string, string> | null, live: Record<string, string>): MigrateResult => {
+    const drift = switched ? differing(switched, live).filter((k) => k !== 'rides') : [];
     markMoved(coachDir, p, { atMs: nowMs(), counts });
     if (drift.length > 0) {
       recordDrift(coachDir, p, drift, nowMs());
       console.warn(`Coach-Umzug: nach dem Wechsel hier geändert und nicht übertragen: ${drift.join(', ')}`);
     }
     fs.rmSync(staging, { recursive: true, force: true });
+    fs.rmSync(sentFile, { force: true });
     return drift.length > 0 ? { state: 'done', drift } : { state: 'done' };
   };
 
   /** One pass with one snapshot: 'changed' when the live data moved on under it. */
-  const pass = async (snap: Snapshot, earlier: Snapshot | null): Promise<MigrateResult | 'changed'> => {
+  const pass = async (snap: Snapshot): Promise<MigrateResult | 'changed'> => {
     const m = snap.manifest;
     if (!may()) return { state: 'paused', reason: 'ride' };
     const b = await http.begin(m);
@@ -223,7 +235,7 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
       // Done for another profile is not ours: the account holds someone else.
       if (b.profileId !== p) return { state: 'refused', reason: 'other-profile' };
       // The server took the snapshot an earlier finish sent: the drift is measured from that one.
-      return done({ rides: m.rides.length, items: m.items.length }, earlier ?? snap, await liveNow());
+      return done({ rides: m.rides.length, items: m.items.length }, loadSent(), await liveNow());
     }
     const total = m.rides.length + m.items.length;
     let count = 0;
@@ -248,6 +260,8 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
     // Records made here before the switch must be on the server first.
     if (!settled()) return { state: 'paused', reason: 'records' };
     if (!may()) return { state: 'paused', reason: 'ride' };
+    // Written before the request: the server may switch even when its answer never arrives.
+    writeJson(sentFile, { atMs: nowMs(), live: snap.live });
     let f;
     try { f = await http.finish(m); } catch (e) {
       // A cut connection or a timeout: the finish is asked again next time with the same snapshot, never counted as failed.
@@ -260,7 +274,7 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
 
   try {
     if (!may()) return { state: 'paused', reason: 'ride' };
-    // The snapshot an earlier run sent, kept to measure a change after a switch on a cut-off finish.
+    // The snapshot an earlier run left: used again while the live data is unchanged.
     const earlier = load();
     let first: Snapshot | null = null;
     if (earlier && differing(earlier.live, await liveNow()).length === 0) first = await ready(earlier);
@@ -268,7 +282,7 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
       if (!may()) return { state: 'paused', reason: 'ride' };
       const snap = (round === 0 ? first : null) ?? await take();
       if (!snap) return { state: 'failed', reason: 'unreadable', items: ['profile'] };
-      const out = await pass(snap, round === 0 ? earlier : null);
+      const out = await pass(snap);
       if (out !== 'changed') return out;
     }
     return { state: 'failed', reason: 'changing' };

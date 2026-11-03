@@ -13,7 +13,8 @@ import { AccountLinks } from './tracking/link';
 import { createCoachRuntime } from './runtime';
 import { coachHttp, type CoachHttp } from './remote/coach-http';
 import { homeOf } from './remote/home';
-import { migrate, moveMeals } from './remote/migrate';
+import { afterRideJob } from './remote/after-ride';
+import { migrate, moveMeals, type MigrateResult } from './remote/migrate';
 import { MoveBackoff } from './remote/move-backoff';
 import { RemoteCoach, ruleFallback } from './remote/remote-coach';
 import { RideUploads } from './remote/ride-upload';
@@ -115,10 +116,12 @@ const uploads = new RideUploads({ ridesDir: dir, dir: coachRoot, http: httpOf, n
 /** How far a local profile's move got, for its view. */
 const moving = new Map<string, { done: number; total: number }>();
 /** When a profile's move may run again, and what stops it. */
-const backoff = new MoveBackoff();
+const backoff = new MoveBackoff(() => Date.now(), coachRoot);
 let job: Promise<void> | null = null;
 
-const moveOne = async (id: string, http: CoachHttp): Promise<void> => {
+const moveOne = async (id: string): Promise<MigrateResult> => {
+  const http = httpOf(id);
+  if (!http) return { state: 'failed', reason: 'offline' };
   moving.set(id, moving.get(id) ?? { done: 0, total: 0 });
   publish();
   const out = await migrate({
@@ -126,25 +129,25 @@ const moveOne = async (id: string, http: CoachHttp): Promise<void> => {
     recordsSettled: () => runtime.accountSync.settled(id),
     progress: (done, total) => { moving.set(id, { done, total }); publish(); },
   });
-  backoff.record(id, out);
   if (out.state === 'done') moving.delete(id);
   publish();
+  return out;
 };
 
 /** One job at a time, only with no ride open: a move, a profile's ride uploads or the meal plan. */
 const afterRide = (): void => {
   if (job || !noOpenRide()) return;
-  job = (async () => {
-    for (const p of profiles()) {
-      if (!noOpenRide()) return;
-      if (onServer(p.id)) { await uploads.tick(p.id); continue; }
-      // While records are unsettled only that is checked: no request, no hashing.
-      if (links.status(p.id).state !== 'linked' || !backoff.due(p.id, () => runtime.accountSync.settled(p.id))) continue;
-      const http = httpOf(p.id);
-      if (http) await moveOne(p.id, http);
-    }
-    if (noOpenRide() && await moveMeals({ coachDir: coachRoot, profileIds: profiles().map((p) => p.id), onServer, http: httpOf })) publish();
-  })().catch(() => { /* the next scan tries again */ }).finally(() => { job = null; });
+  job = afterRideJob({
+    profileIds: () => profiles().map((p) => p.id), noOpenRide, onServer,
+    linked: (id) => links.status(id).state === 'linked',
+    settled: (id) => runtime.accountSync.settled(id),
+    backoff, uploads, move: moveOne,
+    meals: async () => {
+      const moved = await moveMeals({ coachDir: coachRoot, profileIds: profiles().map((p) => p.id), onServer, http: httpOf });
+      if (moved) publish();
+      return moved;
+    },
+  }).catch(() => { /* the next scan tries again */ }).finally(() => { job = null; });
 };
 // A profile that is no longer linked shows no move.
 const movingOf = (id: string): CoachHome | null => {

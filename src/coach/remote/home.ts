@@ -31,7 +31,7 @@ export const clearMoved = (coachDir: string, profileId: string, nowMs: number = 
   if (!SAFE_ID.test(profileId)) return;
   fs.rmSync(marker(coachDir, profileId), { force: true });
   const dir = remoteDir(coachDir, profileId);
-  for (const name of ['state', 'queue', 'drift']) {
+  for (const name of ['state', 'queue', 'drift', 'finish-sent']) {
     try { fs.renameSync(path.join(dir, `${name}.json`), path.join(dir, `${name}.unlinked-${nowMs}.json`)); } catch { /* not there */ }
   }
 };
