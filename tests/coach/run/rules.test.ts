@@ -1,4 +1,4 @@
-import { countsText, phaseOf, ruleWeek, weekDates, type RuleInput } from '../../../src/coach/run/rules';
+import { countsText, phaseOf, reasonText, ruleWeek, TEST_NOTE, weekDates, type RuleInput } from '../../../src/coach/run/rules';
 import type { Run } from '../../../src/coach/run/garmin-runs';
 import type { DayRating } from '../../../src/coach/day-load';
 import type { RunKind } from '../../../src/shared/run';
@@ -19,8 +19,10 @@ const history = (perRun: number[]): Run[] =>
 const day = (date: string, hardness: DayRating['hardness'], legs = false): DayRating => ({ date, hardness, legs, minutes: hardness ? 60 : 0 });
 const input = (o: Partial<RuleInput> = {}): RuleInput => ({
   nowMs: NOW, week: WEEK, fromDate: WEEK, runs: history([50, 50]), weekdays: [0, 2, 4], answers: null, maxHr: 190,
-  complaint: null, days: {}, crossCut: () => 0, lastTestMs: null, phase: { phase: 1, since: WEEK }, ...o,
+  complaint: null, days: {}, crossCut: () => 0, lastTestMs: null, phase: { phase: 1, since: WEEK }, restartSince: null, ...o,
 });
+/** A phase that began five weeks ago: not a light week, and old enough for a test. */
+const OLD = { phase: 1 as const, since: '2027-05-10' };
 const sum = (runs: { minutes: number }[]): number => runs.reduce((a, r) => a + r.minutes, 0);
 
 test('the weekly time rises at most 10 % over the mean of the last 3 weeks', () => {
@@ -104,14 +106,14 @@ test('phaseOf moves to 2 after 3 runs a week in 4 of 5 weeks and back after a 21
 });
 
 test('a test run is due after 28 days, never in a light week, never with a complaint or pain answer', () => {
-  const base = { runs: history([50, 50, 50, 50]) }; // 200 minutes a week
+  const base = { runs: history([50, 50, 50, 50]), phase: OLD }; // 200 minutes a week
   const due = ruleWeek(input({ ...base, lastTestMs: NOW - 28 * DAY }));
   expect(due.testDate).toBe('2027-06-14');
   const test = due.runs.find((r) => r.kind === 'test')!;
   expect(test.minutes).toBe(45);
   expect(test.hrCap).toBeNull();
   expect(ruleWeek(input({ ...base, lastTestMs: NOW - 27 * DAY })).testDate).toBeNull();
-  expect(ruleWeek(input({ ...base, lastTestMs: NOW - 28 * DAY, phase: { phase: 1, since: '2027-05-24' } })).testDate).toBeNull();
+  expect(ruleWeek(input({ ...base, lastTestMs: NOW - 28 * DAY, phase: { phase: 1, since: '2027-04-26' } })).testDate).toBeNull();
   for (const complaint of ['half', 'restart'] as const) {
     expect(ruleWeek(input({ ...base, lastTestMs: NOW - 28 * DAY, complaint })).testDate).toBeNull();
   }
@@ -121,7 +123,7 @@ test('a test run is due after 28 days, never in a light week, never with a compl
 });
 
 test('the test run goes only on a fresh day', () => {
-  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY };
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY, phase: OLD };
   const days: Record<string, DayRating> = {
     '2027-06-14': day('2027-06-14', 'hard'), // a hard bike day
     '2027-06-15': day('2027-06-15', 'hard', true), // legs, so Wednesday is not fresh
@@ -141,13 +143,13 @@ test('easy runs may share a day with an easy ride; a hard day never gets a secon
   expect(easy.runs).toHaveLength(1);
   expect(easy.runs[0]!.kind).toBe('easy');
   expect(easy.runs[0]!.date).toBe(WEEK);
-  const hard = ruleWeek(input({ weekdays: [0], runs: history([100, 100]), lastTestMs: NOW - 60 * DAY, days: { [WEEK]: day(WEEK, 'hard') } }));
+  const hard = ruleWeek(input({ weekdays: [0], runs: history([100, 100]), lastTestMs: NOW - 60 * DAY, phase: OLD, days: { [WEEK]: day(WEEK, 'hard') } }));
   expect(hard.testDate).toBeNull();
   for (const r of hard.runs) expect(r.kind).toBe('easy');
 });
 
 test('pause leaves no runs; half and restart halve the minutes and drop the test', () => {
-  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY };
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY, phase: OLD };
   const pause = ruleWeek(input({ ...base, complaint: 'pause' }));
   expect(pause.runs).toEqual([]);
   expect(pause.totalMinutes).toBe(0);
@@ -162,7 +164,7 @@ test('pause leaves no runs; half and restart halve the minutes and drop the test
 });
 
 test('pain in the answers plans like a healing complaint', () => {
-  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY };
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY, phase: OLD };
   const pain = ruleWeek(input({ ...base, answers: { runsPerWeek: 3, usualMinutes: 30, pain: true } }));
   const half = ruleWeek(input({ ...base, answers: { runsPerWeek: 3, usualMinutes: 30, pain: false }, complaint: 'half' }));
   expect(pain.runs).toEqual(half.runs);
@@ -178,7 +180,7 @@ test('crossCut is applied after the ramp', () => {
 });
 
 test('test minutes count double in the weekly load', () => {
-  const w = ruleWeek(input({ runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY }));
+  const w = ruleWeek(input({ runs: history([50, 50, 50, 50]), lastTestMs: NOW - 28 * DAY, phase: OLD }));
   const test = w.runs.filter((r) => r.kind === 'test');
   expect(test).toHaveLength(1);
   expect(w.totalMinutes).toBe(2 * 45 + sum(w.runs.filter((r) => r.kind !== 'test')));
@@ -205,4 +207,127 @@ test('every counts text is free of Rekord, Serie, Streak, musst, Pflicht', () =>
     }
   }
   expect(countsText('easy', 30, 143, false)).toContain('143');
+  const banned = /Rekord|Serie|Streak|musst|Pflicht/i;
+  expect(TEST_NOTE).not.toMatch(banned);
+  const bools = [false, true];
+  for (const phase of [1, 2] as const) {
+    for (const mode of [null, 'pause', 'half', 'restart'] as const) {
+      for (const light of bools) for (const noDay of bools) for (const tooFew of bools) for (const rising of bools) for (const long of bools) for (const test of bools) {
+        const t = reasonText(phase, { mode, light, noDay, tooFew, rising, long, test });
+        expect(t).toContain(phase === 1 ? 'wieder fit' : 'Distanz');
+        expect(t).not.toMatch(banned);
+      }
+    }
+  }
+});
+
+// ---- Fix round 1 ----
+
+test('answers alone start at most 3 runs of 30 minutes and 90 minutes a week', () => {
+  const big = ruleWeek(input({ runs: [], answers: { runsPerWeek: 5, usualMinutes: 120, pain: false }, weekdays: [0, 1, 2, 3, 4, 5, 6] }));
+  expect(big.runs.map((r) => r.minutes)).toEqual([30, 30, 30]);
+  expect(big.totalMinutes).toBe(90);
+  const two = ruleWeek(input({ runs: [], answers: { runsPerWeek: 2, usualMinutes: 60, pain: false } }));
+  expect(two.runs.map((r) => r.minutes)).toEqual([30, 30]);
+});
+
+test('the base is the mean of the weeks since the first run, so the second week does not drop', () => {
+  const runs = [0, 2, 4].map((i) => run(at(2027, 6, 7 + i), 30)); // only last week: 3 × 30
+  const w = ruleWeek(input({ runs }));
+  expect(w.totalMinutes).toBeGreaterThanOrEqual(90);
+  expect(w.totalMinutes).toBeLessThanOrEqual(99);
+});
+
+test('no test in the first 28 days of a phase or after a restart, and none without a last test or switch-on time', () => {
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 60 * DAY };
+  expect(ruleWeek(input({ ...base, phase: { phase: 1, since: '2027-05-31' } })).testDate).toBeNull();
+  expect(ruleWeek(input({ ...base, phase: { phase: 1, since: '2027-05-17' } })).testDate).toBe(WEEK);
+  expect(ruleWeek(input({ ...base, phase: OLD, restartSince: '2027-06-01' })).testDate).toBeNull();
+  expect(ruleWeek(input({ ...base, phase: OLD, lastTestMs: null })).testDate).toBeNull();
+});
+
+test('after a restart the base counts only from the restart week', () => {
+  const runs = [
+    ...[21, 14].flatMap((back) => [0, 2, 4, 6].map((i) => run(at(2027, 6, 14 - back + i), 50))),
+    run(at(2027, 6, 7), 27), run(at(2027, 6, 9), 27), // the restart week
+  ];
+  const after = ruleWeek(input({ runs, restartSince: '2027-06-07' }));
+  expect(after.totalMinutes).toBeLessThanOrEqual(59);
+  expect(after.totalMinutes).toBeGreaterThan(50);
+  // the restart week itself still halves the old base
+  const during = ruleWeek(input({ runs: history([50, 50, 50, 50]), restartSince: WEEK, complaint: 'restart' }));
+  expect(during.totalMinutes).toBeGreaterThan(90);
+  expect(during.totalMinutes).toBeLessThanOrEqual(110);
+});
+
+test('the long run goes on the latest day that is not hard and not after legs; without one there is no long run', () => {
+  const p2 = { runs: history([45, 45, 45, 30]), weekdays: [0, 2, 4, 6], phase: { phase: 2 as const, since: WEEK } };
+  const longOf = (w: ReturnType<typeof ruleWeek>) => w.runs.filter((r) => r.kind === 'long').map((r) => r.date);
+  expect(longOf(ruleWeek(input({ ...p2, days: { '2027-06-20': day('2027-06-20', 'hard') } })))).toEqual(['2027-06-18']);
+  expect(longOf(ruleWeek(input({ ...p2, days: { '2027-06-19': day('2027-06-19', 'moderate', true) } })))).toEqual(['2027-06-18']);
+  const allHard = Object.fromEntries(['2027-06-14', '2027-06-16', '2027-06-18', '2027-06-20'].map((d) => [d, day(d, 'hard')]));
+  const none = ruleWeek(input({ ...p2, days: allHard }));
+  expect(longOf(none)).toEqual([]);
+  expect(none.runs.length).toBeGreaterThan(0);
+  expect(none.reason).not.toContain('lange Lauf wächst');
+});
+
+test('no test the day after a legs day, even when that day is not hard', () => {
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 60 * DAY, phase: OLD, weekdays: [0, 2] };
+  expect(ruleWeek(input(base)).testDate).toBe(WEEK);
+  const legs = { '2027-06-13': day('2027-06-13', 'moderate', true), '2027-06-15': day('2027-06-15', 'moderate', true) };
+  expect(ruleWeek(input({ ...base, days: legs })).testDate).toBeNull();
+});
+
+test('a plan from mid-week gets only the share of the open days', () => {
+  const w = ruleWeek(input({ weekdays: [0, 2, 4, 6], fromDate: '2027-06-16' }));
+  expect(w.totalMinutes).toBeLessThanOrEqual(82);
+  expect(w.totalMinutes).toBeGreaterThanOrEqual(75);
+});
+
+test('in phase 1 no run is more than 10 minutes over the longest recent run', () => {
+  const w = ruleWeek(input({ runs: history([30, 30]), weekdays: [0] }));
+  expect(w.runs.map((r) => r.minutes)).toEqual([40]);
+});
+
+test('hard days are filled last', () => {
+  const w = ruleWeek(input({ runs: [], days: { [WEEK]: day(WEEK, 'hard') } }));
+  expect(w.runs.map((r) => r.date)).toEqual(['2027-06-16', '2027-06-18']);
+});
+
+test('at most 5 runs a week', () => {
+  expect(ruleWeek(input({ runs: history([50, 50, 50, 50]), weekdays: [0, 1, 2, 3, 4, 5, 6] })).runs).toHaveLength(5);
+});
+
+test('a test needs room for itself and one more run', () => {
+  const base = { lastTestMs: NOW - 60 * DAY, phase: OLD };
+  expect(ruleWeek(input({ ...base, runs: history([45, 45]) })).testDate).toBeNull(); // 99 minutes
+  const w = ruleWeek(input({ ...base, runs: history([50, 50]) })); // 110 minutes
+  expect(w.testDate).toBe(WEEK);
+  expect(w.runs.filter((r) => r.kind !== 'test')).toHaveLength(1);
+});
+
+test('no test on the long-run day or the day before it', () => {
+  const p2 = { runs: history([45, 45, 45, 30]), lastTestMs: NOW - 60 * DAY, phase: { phase: 2 as const, since: '2027-05-10' } };
+  expect(ruleWeek(input({ ...p2, weekdays: [3, 6] })).testDate).toBe('2027-06-17');
+  expect(ruleWeek(input({ ...p2, weekdays: [3, 6], days: { '2027-06-17': day('2027-06-17', 'hard') } })).testDate).toBeNull();
+  expect(ruleWeek(input({ ...p2, weekdays: [5, 6] })).testDate).toBeNull();
+});
+
+test('a test week stays inside the ramp because the test counts double', () => {
+  const w = ruleWeek(input({ runs: history([100, 100]), lastTestMs: NOW - 60 * DAY, phase: OLD }));
+  expect(w.testDate).toBe(WEEK);
+  expect(w.totalMinutes).toBeLessThanOrEqual(220);
+  expect(w.totalMinutes).toBeGreaterThan(200);
+});
+
+test('the reason says "kein Lauftag" only without a free day and never "steigt" in a falling week', () => {
+  const noDay = ruleWeek(input({ weekdays: [0], fromDate: '2027-06-15' }));
+  expect(noDay.reason).toContain('kein Lauftag mehr frei');
+  const tooFew = ruleWeek(input({ runs: [], weekdays: [0, 2, 4, 6], fromDate: '2027-06-20' }));
+  expect(tooFew.runs).toEqual([]);
+  expect(tooFew.reason).not.toContain('kein Lauftag');
+  expect(ruleWeek(input()).reason).toContain('steigt');
+  expect(ruleWeek(input({ crossCut: () => 30 })).reason).not.toContain('steigt');
+  expect(ruleWeek(input({ runs: [] })).reason).not.toContain('steigt');
 });

@@ -7,13 +7,13 @@ The coach makes no medical claims. It does not promise a health effect, does not
 ## Phases
 
 - **Phase 1, "wieder fit".** Easy runs only, at a conversational effort. With a known max heart rate there is a cap at 75 % of it. Without one, runs are planned by feel ("so, dass du dich noch unterhalten kannst") and by time.
-- **Phase 2, "Distanz".** One long run a week, on the last running day of the week, grows step by step. The other runs stay easy. Speed work is not planned, apart from the occasional test run.
+- **Phase 2, "Distanz".** One long run a week grows step by step. It goes on the latest running day of the week that has no hard session and does not follow leg training; without such a day there is no long run that week. The other runs stay easy. Speed work is not planned, apart from the occasional test run.
 - **Into phase 2:** at least 3 runs a week in 4 of the last 5 complete weeks. A week with an active run complaint does not count.
 - **Back to phase 1:** 21 days without a run. The new phase starts on that day.
 
 ## The weekly plan, step by step
 
-1. **Base.** The mean run time of the last 3 complete weeks. Without runs in those weeks, the answers from the questionnaire (runs per week × usual minutes). Without answers, 2 runs of 20 minutes.
+1. **Base.** The mean run time of the last 3 complete weeks, counting only the weeks since the first run on record and, after a closed complaint, since the restart week. Without runs in those weeks, the answers from the questionnaire start the plan, at most 3 runs of at most 30 minutes and at most 90 minutes a week, because "usual" may describe running before a break. Without answers, 2 runs of 20 minutes.
 2. **Ramp.** With a base from runs, the week may rise at most 10 % over it. A few short runs never plan less than a gentle start of 2 × 20 minutes, or less if the answers say so.
 3. **Light week.** Every fourth week of a phase has 70 % of the time.
 4. **Complaint.** An active run complaint pauses running. A healing one, a complaint closed within the last 7 days, or "pain while running: yes" in the answers halves the time and removes the test run.
@@ -44,6 +44,9 @@ The coach makes no medical claims. It does not promise a health effect, does not
 | GAP_DAYS | 21 | Days without a run that start phase 1 again |
 | DEFAULT_RUNS | 2 | Runs a week without runs and without answers |
 | DEFAULT_MIN | 20 | Minutes per run without runs and without answers |
+| ANSWER_START_MAX_MIN | 90 | The most minutes of a first week planned from answers alone |
+| ANSWER_RUN_MAX_MIN | 30 | The longest run of a first week planned from answers alone |
+| ANSWER_MAX_RUNS | 3 | The most runs of a first week planned from answers alone |
 
 The easy band (60 % to 75 % of max heart rate), the cap, and the easy-pace smoothing are also in `limits.ts` and are our own choices too.
 
@@ -51,9 +54,9 @@ The easy band (60 % to 75 % of max heart rate), the cap, and the easy-pace smoot
 
 A test run is 10 minutes warm-up, 30 minutes at a steady hard effort, and 5 minutes cool-down. Its value is the distance in the best 30 minutes, which works at any fitness level. Best times appear only for these runs. A test run:
 
-- is due 28 days after the last one (or, before the first, 28 days after the first run on record),
+- is due 28 days after the later of the last test (or switching running on) and the start of the phase or of a restart, so never in the first 4 weeks after a break,
 - is never planned in a light week, with a complaint, or with pain in the answers,
-- replaces one easy run, never the long run, and needs at least its weighted 90 minutes in the week,
+- replaces one easy run, never the long run or the day before it, and is planned only when the week has room for its weighted 90 minutes plus at least one more run of 15 minutes,
 - goes only on a fresh day: nothing harder than an easy session that day, no leg training or hard session the day before, and no hard session the day after. Without such a day there is no test that week.
 
 It is an offer. The plan says so, and an easy run instead is always fine.

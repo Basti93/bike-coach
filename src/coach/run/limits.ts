@@ -61,3 +61,9 @@ export const GAP_DAYS = 21;
 // Our own choice: without runs and without answers, the start is 2 runs of 20 minutes.
 export const DEFAULT_RUNS = 2;
 export const DEFAULT_MIN = 20;
+// Our own choice: when only the questionnaire answers are known, the first week has at most 90 minutes ...
+export const ANSWER_START_MAX_MIN = 90;
+// ... with runs of at most 30 minutes ...
+export const ANSWER_RUN_MAX_MIN = 30;
+// ... and at most 3 runs. "Usual" may describe running before a break.
+export const ANSWER_MAX_RUNS = 3;

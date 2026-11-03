@@ -5,7 +5,7 @@ import type { ComplaintMode } from './complaints';
 import type { Run } from './garmin-runs';
 import { capFor, startPoint } from './numbers';
 import {
-  DEFAULT_MIN, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
+  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
   MIN_RUN_MIN, PHASE2_OF, PHASE2_RUNS, PHASE2_WEEKS, TEST_COOL_MIN, TEST_EVERY_DAYS, TEST_LOAD, TEST_MAIN_MIN, TEST_WARM_MIN,
 } from './limits';
 
@@ -17,7 +17,12 @@ const TEST_MIN = TEST_WARM_MIN + TEST_MAIN_MIN + TEST_COOL_MIN;
 export type Phase = { phase: 1 | 2; since: string };
 export type RuleInput = {
   nowMs: number; week: string; fromDate: string; runs: Run[]; weekdays: number[]; answers: RunAnswers | null; maxHr: number | null;
-  complaint: ComplaintMode; days: Record<string, DayRating>; crossCut: (minutes: number) => number; lastTestMs: number | null; phase: Phase;
+  complaint: ComplaintMode; days: Record<string, DayRating>; crossCut: (minutes: number) => number;
+  /** The last test run, or the switch-on time when there was none yet (Task 8); null plans no test. */
+  lastTestMs: number | null;
+  phase: Phase;
+  /** The date a closed run complaint restarted the plan; later weeks ramp from that week on. */
+  restartSince: string | null;
 };
 export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null };
 
@@ -26,8 +31,9 @@ export const weekDates = (week: string): string[] => Array.from({ length: 7 }, (
 
 const shift = (date: string, days: number): string => dateKey(dateOf(date, days));
 const weekdayOf = (date: string): number => dayIndex(dateOf(date, 0).getTime());
-const weekStartMs = (week: string): number => {
-  const d = dateOf(week, 0);
+/** Local midnight at the start of a date. */
+const startMsOf = (date: string): number => {
+  const d = dateOf(date, 0);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 };
@@ -60,7 +66,7 @@ export const phaseOf = (runs: Run[], activeComplaintWeeks: Set<string>, nowMs: n
     }
   };
   for (let w = addWeeks(weekOf(times[0]!), 1); w <= current; w = addWeeks(w, 1)) {
-    applyResets(weekStartMs(w));
+    applyResets(startMsOf(w));
     if (phase === 2) continue;
     let good = 0;
     for (let k = 1; k <= PHASE2_OF; k++) if (counts(addWeeks(w, -k))) good++;
@@ -91,9 +97,10 @@ export const countsText = (kind: RunKind, minutes: number, hrCap: number | null,
   return `${minutes} Minuten ruhig, ${calm}.${trend}`;
 };
 
-const TEST_NOTE = 'Der Testlauf ist ein Angebot. Wenn du dich heute nicht frisch fühlst, lauf einfach ruhig.';
+export const TEST_NOTE = 'Der Testlauf ist ein Angebot. Wenn du dich heute nicht frisch fühlst, lauf einfach ruhig.';
 
 type Slot = { date: string; kind: RunKind; minutes: number };
+const byDate = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
 
 /**
  * The week by rules alone, safe without Claude. In order: base, ramp, light week, complaint, cross-sport cut, then the
@@ -104,25 +111,31 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   const chosen = weekDates(input.week).filter((d) => input.weekdays.includes(weekdayOf(d)));
   const open = chosen.filter((d) => d >= input.fromDate);
 
-  // Base: the mean of the last complete weeks, else the answers, else 2 × 20 minutes.
-  const baseWeeks = new Set(Array.from({ length: BASE_WEEKS }, (_, i) => addWeeks(input.week, i - BASE_WEEKS)));
-  const recent = input.runs.filter((r) => r.startMs <= input.nowMs && baseWeeks.has(weekOf(r.startMs)));
+  // Base: the mean of the last complete weeks since the first run (and since a restart), else the answers, else 2 × 20.
+  const past = input.runs.filter((r) => r.startMs <= input.nowMs);
+  const firstRun = past.reduce<number | null>((m, r) => (m === null || r.startMs < m ? r.startMs : m), null);
+  const restartWeek = input.restartSince !== null ? weekOf(startMsOf(input.restartSince)) : null;
+  const fromWeek = [firstRun !== null ? weekOf(firstRun) : null, restartWeek !== null && restartWeek < input.week ? restartWeek : null]
+    .reduce<string | null>((m, w) => (w !== null && (m === null || w > m) ? w : m), null);
+  const baseWeeks = Array.from({ length: BASE_WEEKS }, (_, i) => addWeeks(input.week, i - BASE_WEEKS)).filter((w) => fromWeek === null || w >= fromWeek);
+  const recent = past.filter((r) => baseWeeks.includes(weekOf(r.startMs)));
   const a = input.answers;
   const answered = a !== null && a.runsPerWeek > 0 && a.usualMinutes > 0;
-  const startRuns = answered ? a.runsPerWeek : DEFAULT_RUNS;
-  const startMin = answered ? a.usualMinutes : DEFAULT_MIN;
+  const startRuns = answered ? Math.min(a.runsPerWeek, ANSWER_MAX_RUNS) : DEFAULT_RUNS;
+  const startMin = answered ? Math.min(a.usualMinutes, ANSWER_RUN_MAX_MIN) : DEFAULT_MIN;
+  const start = Math.min(startRuns * startMin, ANSWER_START_MAX_MIN);
+  let base: number | null = null;
   let total: number;
   let longest: number;
   let desired: number;
   if (recent.length > 0) {
-    const base = recent.reduce((s, r) => s + r.durationS / 60, 0) / BASE_WEEKS;
-    // Ramp; a few short runs never plan less than a gentle start.
-    // Whole minutes, rounded down (the epsilon keeps 100 × 1.1 at 110).
-    total = Math.max(Math.floor(base * (1 + MAX_RAMP) + 1e-9), Math.min(startRuns * startMin, DEFAULT_RUNS * DEFAULT_MIN));
+    base = recent.reduce((s, r) => s + r.durationS / 60, 0) / Math.max(1, baseWeeks.length);
+    // Ramp in whole minutes, rounded down (the epsilon keeps 100 × 1.1 at 110); a few short runs never plan less than a gentle start.
+    total = Math.max(Math.floor(base * (1 + MAX_RAMP) + 1e-9), Math.min(start, DEFAULT_RUNS * DEFAULT_MIN));
     longest = Math.max(...recent.map((r) => r.durationS / 60));
     desired = input.weekdays.length;
   } else {
-    total = startRuns * startMin;
+    total = start;
     longest = startMin;
     desired = startRuns;
   }
@@ -133,20 +146,26 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   if (mode === 'pause') total = 0;
   else if (mode !== null) total *= HALF;
   if (total > 0) total = Math.max(0, total - input.crossCut(total));
+  const rising = base !== null && total > base;
   // Switched on or replanned mid-week: only the share of the open days, so missed minutes never move to later days.
   if (chosen.length > 0) total *= open.length / chosen.length;
 
   // No run longer than 10 minutes over the longest recent one.
   const cap = Math.min(MAX_RUN_MIN, Math.max(MIN_RUN_MIN, Math.floor(longest + LONG_STEP_MIN)));
   const hard = (d: string): number => (input.days[d]?.hardness === 'hard' ? 1 : 0);
-  const prefer = (ds: string[]): string[] => [...ds].sort((x, y) => hard(x) - hard(y) || (x < y ? -1 : x > y ? 1 : 0));
+  const afterLegs = (d: string): boolean => input.days[shift(d, -1)]?.legs === true;
+  const prefer = (ds: string[]): string[] => [...ds].sort((x, y) => hard(x) - hard(y) || byDate(x, y));
   const n = Math.min(desired, open.length, MAX_RUNS, Math.floor(total / MIN_RUN_MIN));
-  const picked = prefer(open).slice(0, n).sort();
+  const picked = prefer(open).slice(0, n).sort(byDate);
 
-  // A test run: due, not in a light week, not with a complaint or pain, and only on a fresh day.
-  const firstRun = input.runs.reduce<number | null>((m, r) => (r.startMs <= input.nowMs && (m === null || r.startMs < m) ? r.startMs : m), null);
-  const lastTest = input.lastTestMs ?? firstRun;
-  const due = lastTest !== null && input.nowMs - lastTest >= TEST_EVERY_DAYS * DAY;
+  // Phase 2: the long run on the latest picked day that is not hard and not after legs; without one, no long run.
+  const longDate = phase === 2 && picked.length >= 2 ? [...picked].reverse().find((d) => hard(d) === 0 && !afterLegs(d)) ?? null : null;
+
+  // A test run: 28 days after the later of the last test and the start of the phase or restart; not in a light week, not
+  // with a complaint or pain; on a fresh day that is neither the long-run day nor the day before; with room for one more run.
+  const anchor = input.lastTestMs === null ? null
+    : Math.max(input.lastTestMs, startMsOf(input.phase.since), input.restartSince !== null ? startMsOf(input.restartSince) : 0);
+  const due = anchor !== null && input.nowMs - anchor >= TEST_EVERY_DAYS * DAY;
   const fresh = (d: string): boolean => {
     const own = input.days[d]?.hardness ?? null;
     const before = input.days[shift(d, -1)];
@@ -154,18 +173,19 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     return (own === null || own === 'easy') && !before?.legs && before?.hardness !== 'hard' && after?.hardness !== 'hard';
   };
   let testDate: string | null = null;
-  if (due && !light && mode === null && total >= TEST_LOAD * TEST_MIN) {
-    const candidates = phase === 2 && picked.length >= 2 ? picked.slice(0, -1) : picked;
-    testDate = candidates.find(fresh) ?? null;
+  if (due && !light && mode === null && picked.length >= 2 && total >= TEST_LOAD * TEST_MIN + MIN_RUN_MIN) {
+    const nearLong = longDate !== null ? [longDate, shift(longDate, -1)] : [];
+    testDate = picked.find((d) => !nearLong.includes(d) && fresh(d)) ?? null;
   }
 
   const place = (budget: number, ds: string[]): Slot[] => {
+    const order = longDate !== null && ds.includes(longDate) ? [longDate, ...prefer(ds.filter((d) => d !== longDate))] : prefer(ds);
     for (let k = Math.min(ds.length, Math.floor(budget / MIN_RUN_MIN)); k > 0; k--) {
-      const use = prefer(ds).slice(0, k).sort();
-      if (phase === 2 && k >= 2) {
+      const use = order.slice(0, k).sort(byDate);
+      if (longDate !== null && k >= 2 && use.includes(longDate)) {
         const long = Math.floor(Math.min(Math.max(budget * LONG_SHARE, budget / k), cap));
         const each = Math.floor(Math.min((budget - long) / (k - 1), long));
-        if (each >= MIN_RUN_MIN) return use.map((date, i) => ({ date, kind: i === k - 1 ? 'long' : 'easy', minutes: i === k - 1 ? long : each }));
+        if (each >= MIN_RUN_MIN) return use.map((date) => (date === longDate ? { date, kind: 'long', minutes: long } : { date, kind: 'easy', minutes: each }));
       } else {
         const each = Math.floor(Math.min(budget / k, cap));
         if (each >= MIN_RUN_MIN) return use.map((date) => ({ date, kind: 'easy', minutes: each }));
@@ -175,7 +195,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   };
   const slots = place(testDate ? total - TEST_LOAD * TEST_MIN : total, picked.filter((d) => d !== testDate));
   if (testDate) slots.push({ date: testDate, kind: 'test', minutes: TEST_MIN });
-  slots.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+  slots.sort((x, y) => byDate(x.date, y.date));
 
   const hrCap = capFor(input.maxHr);
   const hasTrend = startPoint(input.runs, input.nowMs).easyPace !== null;
@@ -186,7 +206,10 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
 
   return {
     runs,
-    reason: reasonText(phase, { mode, light, empty: runs.length === 0, test: testDate !== null }),
+    reason: reasonText(phase, {
+      mode, light, noDay: open.length === 0, tooFew: open.length > 0 && runs.length === 0, rising,
+      long: runs.some((r) => r.kind === 'long'), test: testDate !== null,
+    }),
     phase,
     totalMinutes: runs.reduce((s, r) => s + r.minutes * (r.kind === 'test' ? TEST_LOAD : 1), 0),
     maxRunMinutes: runs.reduce((m, r) => Math.max(m, r.minutes), 0),
@@ -194,15 +217,19 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   };
 };
 
+export type ReasonFacts = { mode: ComplaintMode; light: boolean; noDay: boolean; tooFew: boolean; rising: boolean; long: boolean; test: boolean };
+
 /** One calm sentence that names the phase. */
-const reasonText = (phase: 1 | 2, w: { mode: ComplaintMode; light: boolean; empty: boolean; test: boolean }): string => {
+export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
   const name = phase === 1 ? 'Phase „wieder fit“' : 'Phase „Distanz“';
   if (w.mode === 'pause') return `${name}: Diese Woche pausiert das Laufen.`;
   if (w.mode !== null) return `${name}: Diese Woche ist der Plan sanft, mit halber Zeit.`;
-  if (w.empty) return `${name}: Für diese Woche ist kein Lauftag mehr frei.`;
+  if (w.noDay) return `${name}: Für diese Woche ist kein Lauftag mehr frei.`;
+  if (w.tooFew) return `${name}: Für den Rest dieser Woche bleibt zu wenig Zeit für einen ganzen Lauf, weiter geht es nächste Woche.`;
   if (w.light) return `${name}: Eine leichtere Woche, damit Erholung Platz hat.`;
   const test = w.test ? ', dazu ein Testlauf als Messpunkt' : '';
-  return phase === 1
-    ? `${name}: Ruhige Läufe, die Wochenzeit steigt behutsam${test}.`
-    : `${name}: Der lange Lauf wächst behutsam, die anderen Läufe bleiben ruhig${test}.`;
+  if (phase === 1) return `${name}: Ruhige Läufe, die Wochenzeit ${w.rising ? 'steigt' : 'bleibt'} behutsam${test}.`;
+  return w.long
+    ? `${name}: Ein langer ruhiger Lauf, die anderen Läufe bleiben ruhig${test}.`
+    : `${name}: Diese Woche gibt es nur ruhige Läufe, für den langen Lauf passt kein Tag${test}.`;
 };
