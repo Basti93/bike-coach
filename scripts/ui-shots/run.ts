@@ -2,9 +2,11 @@
 // Usage: npm run build && npm run ui:shots -- <target folder>
 import fs from 'node:fs';
 import path from 'node:path';
-import { _electron as electron } from 'playwright-core';
+import { _electron as electron, type Page } from 'playwright-core';
 import { rampTest } from '../../src/coach/rules';
 import { STARTER_SESSIONS } from '../../src/shared/starter-sessions';
+import { MOBILITY_EXERCISES } from '../../src/coach/mobility/exercises';
+import { initialGymState } from '../../src/coach/gym/state';
 
 const out = process.argv[2] ?? 'ui-shots';
 fs.mkdirSync(out, { recursive: true });
@@ -43,7 +45,21 @@ const GARMIN = {
     garminSuggestion: { birthDate: '1990-01-15', sex: 'male', heightCm: 178, weightKg: 72, activity: 3, run5kMin: 23.3, ftp: { startW: 145, source: 'estimate', capW: 183 }, maxHrBpm: 190, missing: [] },
   },
 };
-const shots: { name: string; ride: object; coach?: object | null; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
+
+// Mobility: sessions made of the real exercise list, the way the service offers them (src/coach/mobility/mobility.ts).
+const mobExercises = (ids: string[]) => ids.map((id) => { const e = MOBILITY_EXERCISES.find((x) => x.id === id); if (!e) throw new Error(`unknown mobility exercise ${id}`); return { id: e.id, title: e.title, howTo: e.howTo, area: e.area }; });
+const BIKE_MOBILITY = { id: 'mobility-bike-1f3a9c', forSession: 'bike' as const, minutes: 8, reason: 'Nach der Fahrt tun Hüfte, Oberschenkel und Brust ein paar ruhige Minuten gut.', exercises: mobExercises(['mob-hip-flexor-standing', 'mob-hamstring-towel', 'mob-calf-wall', 'mob-chest-doorway']) };
+const STRENGTH_MOBILITY = { id: 'mobility-strength-1793000000000', forSession: 'strength' as const, minutes: 6, reason: 'Nach dem Beintraining darfst du Gesäß und Oberschenkel noch kurz lockern.', exercises: mobExercises(['mob-quad-standing', 'mob-glute-figure-four', 'mob-hamstring-seated']) };
+const none = { session: null, askFeel: false };
+const afterRide = [{ rideId: 'm1', startedAtMs: Date.now() - 1800000, durationS: 2400, sessionName: 'Lockere Grundlage', status: 'finished', avgHrBpm: 138, maxHrBpm: 152, bestMinutePowerW: 140 }];
+const GYM = {
+  state: { ...initialGymState('pa'), localStart: true, planned: true, next: { source: 'rules' as const, reason: 'Beine und Rumpf, ruhiger Aufbau nach der Woche mit viel Radfahren.', workout: { name: 'Beine A', exercises: [
+    { templateId: 'squat', title: 'Kniebeuge', restS: 120, supersetId: null, notes: '', sets: [{ type: 'warmup' as const, weightKg: 20, reps: 10 }, { type: 'normal' as const, weightKg: 40, reps: 8 }, { type: 'normal' as const, weightKg: 40, reps: 8 }] },
+    { templateId: 'rdl', title: 'Rumänisches Kreuzheben', restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 50, reps: 10 }, { type: 'normal' as const, weightKg: 50, reps: 10 }] },
+  ] } } },
+  thinking: false, ready: true, hevy: false, hasHistory: true, complaints: [],
+};
+const shots: { name: string; ride: object; coach?: object | null; steps?: (win: Page) => Promise<void>; crop?: string; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
   { name: 'profile-estimate', ride: idle({ profiles: [] }), fill: true },
@@ -87,6 +103,21 @@ const shots: { name: string; ride: object; coach?: object | null; pick?: boolean
   { name: 'garmin-review', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Werte aus Garmin prüfen' },
   { name: 'profile-edit', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Profil bearbeiten' },
   { name: 'health', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Gesundheit', height: 1300 },
+  { name: 'mobility-bike', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: false } }), pick: true, height: 1500, crop: '.mobility' },
+  { name: 'mobility-bike-done', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: false }, mobilityAfter: none }), pick: true, height: 1500, click: 'Gemacht' },
+  { name: 'mobility-bike-feel', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: null, askFeel: true } }), pick: true, height: 1100, crop: '.mobility-feel' },
+  { name: 'mobility-bike-both', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: true } }), pick: true, height: 1900 },
+  { name: 'mobility-strength', ride: idle(), coach: coach({ gym: GYM, mobility: { session: STRENGTH_MOBILITY, askFeel: false } }), pick: true, click: 'Kraft', height: 1500, crop: '.mobility' },
+  { name: 'mobility-strength-done', ride: idle(), coach: coach({ gym: GYM, mobility: { session: STRENGTH_MOBILITY, askFeel: false }, mobilityAfter: none }), pick: true, click: 'Kraft', click2: /^Gemacht$/, height: 1100 },
+  { name: 'mobility-strength-feel', ride: idle(), coach: coach({ gym: GYM, mobility: { session: null, askFeel: true } }), pick: true, click: 'Kraft', height: 1100, crop: '.mobility-feel' },
+  { name: 'tracking-workout', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1300, steps: async (win) => {
+    await win.getByRole('button', { name: 'Training starten' }).click();
+    await win.getByRole('button', { name: 'Beine A starten' }).click();
+    await win.waitForTimeout(200);
+    await win.getByRole('button', { name: 'Satz 1 erledigt' }).first().click();
+    await win.getByRole('button', { name: 'Satz 2 erledigt' }).first().click();
+    await win.waitForTimeout(300);
+  } },
   { name: 'status-off', ride: idle({ devices: { trainer: 'connected', hr: 'searching', clicker: 'off' }, deviceNames: { trainer: 'Zwift Hub' }, latest: {} }) },
 ];
 
@@ -100,18 +131,20 @@ const stub = () => {
       setTimeout(() => {
         if (this.coach && !w.__coach) { this.readyState = 3; this.onclose?.(); return; }
         this.onopen?.();
-        if (this.coach) this.onmessage?.({ data: JSON.stringify({ type: 'coach-state', state: w.__coach, thinking: false, together: (w.__coach as { together?: unknown }).together, ...(w.__coach as { garminMsg?: object }).garminMsg }) });
+        if (this.coach) this.onmessage?.({ data: this.stateMsg(w.__coach as { mobility?: unknown }) });
         else {
           this.onmessage?.({ data: JSON.stringify(w.__ride) });
           if (w.__offer) this.onmessage?.({ data: JSON.stringify({ type: 'recovery-offer', ...(w.__offer as object) }) });
         }
       }, 0);
     }
-    send(raw: string) { const h = (w.__coach as { health?: unknown } | null)?.health; if (this.coach && h && raw.includes('garmin-health')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'garmin-health', data: h }) }), 0); const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
+    stateMsg(c: { mobility?: unknown }) { const x = c as { together?: unknown; garminMsg?: object; gym?: unknown }; return JSON.stringify({ type: 'coach-state', state: c, thinking: false, together: x.together, gym: x.gym, mobility: c.mobility, ...x.garminMsg }); }
+    send(raw: string) { if (this.coach && raw.includes('records-')) { const m = JSON.parse(raw) as { type: string; requestId: string; kind?: string; record?: { kind: string; id: string; updatedMs: number } }; const db = ((w as unknown as { __db?: Map<string, { kind: string }> }).__db ??= new Map()); if (m.record) db.set(`${m.record.kind}:${m.record.id}`, m.record); setTimeout(() => this.onmessage?.({ data: JSON.stringify(m.type === 'records-list' ? { type: 'records', requestId: m.requestId, kind: m.kind, records: [...db.values()].filter((r) => r.kind === m.kind) } : { type: 'records-put-result', requestId: m.requestId, ok: true, kept: true, updatedMs: m.record?.updatedMs }) }), 0); return; }
+      if (this.coach && raw.includes('mobility-done')) { const c = w.__coach as { mobility?: unknown; mobilityAfter?: unknown }; c.mobility = c.mobilityAfter; setTimeout(() => this.onmessage?.({ data: this.stateMsg(c) }), 0); } const h = (w.__coach as { health?: unknown } | null)?.health; if (this.coach && h && raw.includes('garmin-health')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'garmin-health', data: h }) }), 0); const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
   };
 };
 
-const app = await electron.launch({ args: [path.join(import.meta.dirname, 'main.cjs')] });
+const app = await electron.launch({ args: [process.env.UI_SHOTS_MAIN ?? path.join(import.meta.dirname, 'main.cjs')] });
 const win = await app.firstWindow();
 await app.context().addInitScript(stub);
 const only = process.argv.slice(3);
@@ -126,6 +159,7 @@ for (const s of shots) {
   if (s.wait) await win.waitForTimeout(s.wait);
   if (s.click) { await win.getByRole('button', { name: s.click }).click(); await win.waitForTimeout(100); }
   if (s.click2) { await win.getByRole('button', { name: s.click2 }).click(); await win.waitForTimeout(150); }
+  if (s.steps) await s.steps(win);
   if (s.fill) {
     await win.getByLabel('Name').fill('Lena');
     await win.getByLabel('Alter').fill('35');
@@ -136,6 +170,7 @@ for (const s of shots) {
     await win.waitForTimeout(100);
   }
   await win.screenshot({ path: path.join(out, `${s.name}.png`) });
+  if (s.crop) await win.locator(s.crop).first().screenshot({ path: path.join(out, `${s.name}-card.png`) });
   console.log(s.name);
 }
 await app.close();
