@@ -1,11 +1,14 @@
 import { existsSync, mkdirSync, mkdtempSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { stats } from '../../web-server/auth';
 import { run } from '../../web-server/cli';
 import { openDb } from '../../web-server/db';
 import { login, NOW, PW_A, PW_B, post, rec, setup } from './helpers';
+
+// Logins hash passwords slowly on purpose; on a loaded machine the 5 s default is too short.
+vi.setConfig({ testTimeout: 30_000 });
 
 const bad = (app: any, name: string, ip = '10.0.0.1') =>
   app.inject({ method: 'POST', url: '/login', payload: { name, password: 'wrong password' }, remoteAddress: ip });
