@@ -6,7 +6,7 @@ import type { GymCoach } from '../gym/gym-coach';
 import type { MobilityCoach } from '../mobility/mobility';
 import type { ComplaintStatus } from '../motivation';
 import { finishedOwnWorkout, validRecord } from './records-api';
-import { LinkError, type AccountLinks, type LinkFailure } from './link';
+import { LinkError, type LinkFailure, type RecordLinks } from './link';
 import type { RecordStore } from './store';
 
 const MIN_GAP_MS = 60_000;
@@ -18,7 +18,7 @@ const STATUSES: readonly string[] = ['active', 'healing', 'over'];
 const UNKNOWN_KIND_RETRY_MS = 6 * 3_600_000;
 
 type Deps = {
-  links: AccountLinks; store: RecordStore; nowMs: () => number;
+  links: RecordLinks; store: RecordStore; nowMs: () => number;
   coach: Pick<Coach, 'state' | 'addComplaintFromText' | 'updateComplaint'>;
   gym: Pick<GymCoach, 'state' | 'enabled' | 'start' | 'workoutFinished'>;
   mobility: Pick<MobilityCoach, 'view'>;

@@ -105,3 +105,6 @@ export class AccountLinks {
     };
   }
 }
+
+/** What the account sync needs from the links: the Mac's AccountLinks, or the server's internal records link. */
+export type RecordLinks = Pick<AccountLinks, 'link' | 'unlink' | 'status' | 'token' | 'url' | 'reject' | 'cursors'>;
