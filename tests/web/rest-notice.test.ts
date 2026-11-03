@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { closeRestNotices } from '../../src/web/push';
-import { notificationFor, REST_TAG } from '../../src/web/swLogic';
+import { closeRestNotices, REST_TAG } from '../../src/web/push';
+import { notificationFor } from '../../src/web/swLogic';
 
 describe('closeRestNotices', () => {
   it('closes the rest notices the worker showed, and only those', async () => {

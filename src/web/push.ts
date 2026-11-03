@@ -1,5 +1,4 @@
 import { isIphoneBrowser } from './logic';
-import { REST_TAG } from './swLogic';
 
 export type SubJson = { endpoint?: string; keys?: Record<string, string> };
 
@@ -46,6 +45,12 @@ export function browserPush(o: { ua: string; standalone: boolean }): PushEnv {
     },
   };
 }
+
+/**
+ * The tag the service worker gives a rest notice (`pandafit-rest`, see swLogic). Kept as its own literal on purpose:
+ * importing swLogic here would make the build share a chunk with sw.js, and a service worker with an import never installs.
+ */
+export const REST_TAG = 'pandafit-rest';
 
 /** Opening the app makes a rest notice pointless: close the ones still shown. Never throws; returns how many were closed. */
 export async function closeRestNotices(reg: { getNotifications(o: { tag: string }): Promise<readonly { close(): void }[]> }): Promise<number> {

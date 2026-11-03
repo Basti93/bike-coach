@@ -26,6 +26,8 @@ function precache(): Plugin {
         .replace(/(["'`])__PRECACHE_LIST__\1/, () => JSON.stringify(list.filter((f) => f !== '/')))
         .replace(/(["'`])__BUILD_ID__\1/, () => JSON.stringify(hash.digest('hex').slice(0, 12)));
       if (code.includes('__PRECACHE_LIST__') || code.includes('__BUILD_ID__')) throw new Error('service worker placeholders were not replaced');
+      // A classic service worker cannot import: a shared chunk would make every update fail to install, silently.
+      if (/(^|[;\n])\s*import\s*[{*\w"'`]/.test(code)) throw new Error('sw.js imports another chunk: the app and the service worker must not share a module');
       writeFileSync(sw, code);
     },
   };

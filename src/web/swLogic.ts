@@ -29,9 +29,6 @@ export async function handleFetch(r: Req, origin: string, allow: ReadonlySet<str
 
 // ---- push notifications ----
 
-/** The tag of the rest notice; the app closes these when it is opened. */
-export const REST_TAG = 'pandafit-rest';
-
 /** The only texts the worker ever shows: what the server sends is used for its type only. */
 const NOTES: Record<string, { body: string; url: string; alert?: boolean }> = {
   version: { body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.', url: '/' },
