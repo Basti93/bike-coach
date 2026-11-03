@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
 import { STATS_ID, type Sport, type StatsBody, type StatsDay } from '../../src/shared/stats';
 import { StatsScreen, statsVisible } from '../../src/tracking/ui/StatsScreen';
@@ -49,14 +49,16 @@ test('with a stats record and workouts: both sections, the date, the band and th
   expect(within(week).getByText('Kraft')).toBeTruthy();
   expect(within(week).getByText('40 Minuten')).toBeTruthy();
   expect(within(week).queryByText('Laufen')).toBeNull();
-  expect(within(week).getByText('Harte Tage: 1')).toBeTruthy();
+  expect(within(week).getByText('Locker 0 · Mittel 0 · Hart 1 · Ruhetage 0')).toBeTruthy();
   expect(within(week).getByText('Brust')).toBeTruthy();
   expect(within(week).getByText('3 von 12–18 Sätzen')).toBeTruthy();
   const last = screen.getByRole('region', { name: 'Letzte 8 Wochen' });
-  expect(within(last).getByRole('img', { name: 'Woche vom 26.10.: 95 Minuten' })).toBeTruthy();
-  expect(within(last).getByRole('img', { name: 'Woche vom 19.10.: 60 Minuten' })).toBeTruthy();
+  expect(within(last).getByRole('img', { name: 'Woche vom 26.10.: 95 Minuten, Locker 0, Mittel 1, Hart 0, Ruhetage 0' })).toBeTruthy();
+  expect(within(last).getByRole('img', { name: 'Woche vom 19.10.: 60 Minuten, Locker 0, Mittel 0, Hart 1, Ruhetage 0' })).toBeTruthy();
   expect(within(last).getByRole('table')).toBeTruthy();
-  expect(within(last).getByText('Brust 0 : 0 Rücken')).toBeTruthy();
+  // Every pair is 0 : 0 over the four weeks: none is shown.
+  expect(within(last).queryByText(/0 : 0/)).toBeNull();
+  expect(within(last).queryByText('Verhältnis der letzten 4 Wochen')).toBeNull();
   expect(screen.getByText('Ohne bekannten Muskel: Seltsame Maschine')).toBeTruthy();
   expect(container.textContent).not.toMatch(BAD);
 });
@@ -68,7 +70,7 @@ test('without a stats record: the note, and still the muscle part', async () => 
   const week = screen.getByRole('region', { name: 'Diese Woche' });
   expect(within(week).getByText('Brust')).toBeTruthy();
   expect(within(week).getByText('3 von 6–8 Sätzen')).toBeTruthy();
-  expect(within(week).queryByText(/Harte Tage/)).toBeNull();
+  expect(within(week).queryByText(/Harte Tage|Ruhetage/)).toBeNull();
   expect(container.textContent).not.toMatch(BAD);
 });
 
@@ -89,4 +91,36 @@ test('statsVisible: a stats record or a finished workout', () => {
   expect(statsVisible([], [workouts[0]])).toBe(true);
   const open = { ...workouts[0], body: { ...(workouts[0].body as LoggedWorkout), endMs: null } };
   expect(statsVisible([], [open])).toBe(false);
+});
+
+test('a pair with sets is shown, a pair with none on both sides is not', async () => {
+  await show([workout('w3', new Date(2026, 9, 21, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 4)]);
+  const last = screen.getByRole('region', { name: 'Letzte 8 Wochen' });
+  expect(within(last).getByText('Brust 4 : 0 Rücken')).toBeTruthy();
+  expect(within(last).queryByText(/Oberschenkel vorn 0 : 0/)).toBeNull();
+});
+
+test('broken workout bodies next to a good one do not break the page', async () => {
+  const good = workouts[0];
+  const broken: TrackedRecord[] = [
+    { ...good, id: 'b1', body: null },
+    { ...good, id: 'b2', body: { ...(good.body as LoggedWorkout), exercises: 'x' } },
+    { ...good, id: 'b3', body: { ...(good.body as LoggedWorkout), startMs: null } },
+    { ...good, id: 'b4', body: { ...(good.body as LoggedWorkout), exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', sets: null }] } },
+  ];
+  await show([...broken, good]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  expect(within(week).getByText('3 von 6–8 Sätzen')).toBeTruthy();
+  expect(statsVisible([], broken.slice(0, 3))).toBe(false);
+  expect(statsVisible([], [...broken, good])).toBe(true);
+});
+
+test('a failed first read shows a calm message with a retry', async () => {
+  const { port, state } = fakePort([statsRec(statsBody(days)), ...workouts]);
+  state.failList = true;
+  render(<StatsScreen port={port} now={now} />);
+  expect((await screen.findByRole('status')).textContent).toMatch(/nicht gelesen/);
+  state.failList = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Nochmal versuchen' }));
+  expect(await screen.findByRole('heading', { name: 'Statistik' })).toBeTruthy();
 });

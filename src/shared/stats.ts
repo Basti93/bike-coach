@@ -35,5 +35,7 @@ export function readStats(body: unknown): StatsBody | null {
   const entries = Object.entries(body.muscles);
   if (entries.length > 500) return null;
   for (const [k, v] of entries) if (typeof v !== 'string' || v.length > 100 || k.length > 100) return null;
-  return { type: 'stats', atMs: body.atMs, goal: body.goal, days, muscles: body.muscles as Record<string, string> };
+  // Rebuilt from own keys only; fromEntries keeps a key like __proto__ as an own key.
+  const muscles = Object.fromEntries(entries) as Record<string, string>;
+  return { type: 'stats', atMs: body.atMs, goal: body.goal, days, muscles };
 }

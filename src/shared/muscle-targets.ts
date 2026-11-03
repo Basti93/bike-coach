@@ -44,7 +44,7 @@ const REAR_OR_SIDE_IDS = new Set(['pf-lateral-raise', 'pf-lateral-raise-cable', 
 /** The group an exercise counts for: its primary muscle, with shoulders split by the kind of exercise. */
 export function muscleGroupOf(e: { id?: string; title: string; primaryMuscle: string | null | undefined }): MuscleGroup {
   if (e.primaryMuscle === 'shoulders') return (e.id && REAR_OR_SIDE_IDS.has(e.id)) || REAR_OR_SIDE.test(e.title) ? 'side_rear_delts' : 'front_delts';
-  return (e.primaryMuscle && BY_MUSCLE[e.primaryMuscle]) || 'other';
+  return (e.primaryMuscle && Object.hasOwn(BY_MUSCLE, e.primaryMuscle) && BY_MUSCLE[e.primaryMuscle]) || 'other';
 }
 
 /** The weekly set range for a group: the building range for a muscle goal, the minimum effective range otherwise. */

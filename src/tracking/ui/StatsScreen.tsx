@@ -3,7 +3,7 @@ import { MUSCLE_TARGETS, PAIRS, type MuscleGroup } from '../../shared/muscle-tar
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
 import type { TrackingPort } from '../ports';
-import { statsView, type StatsView, type WeekStats } from '../stats';
+import { statsView, wellFormed, type StatsView, type WeekStats } from '../stats';
 import { finishedWorkouts, usePortRecords } from './hooks';
 import { dateLabel } from './labels';
 import { MuscleIcon } from './MuscleIcon';
@@ -13,6 +13,9 @@ const GROUPS = Object.keys(MUSCLE_TARGETS) as MuscleGroup[];
 const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
 const weekTotal = (w: WeekStats) => SPORTS.reduce((a, s) => a + w.minutes[s], 0);
 const minutesText = (n: number) => `${Math.round(n)} Minuten`;
+const daysText = (w: WeekStats, sep: string) => [`Locker ${w.days.easy}`, `Mittel ${w.days.moderate}`, `Hart ${w.days.hard}`, `Ruhetage ${w.days.rest}`].join(sep);
+/** Finished workouts the page can count; a broken body is skipped. */
+const countable = (records: TrackedRecord[] | null): LoggedWorkout[] => wellFormed(finishedWorkouts(records));
 
 const statsOf = (records: TrackedRecord[] | null): StatsBody | null => {
   const r = (records ?? []).find((x) => x.id === STATS_ID && !x.deleted);
@@ -21,7 +24,7 @@ const statsOf = (records: TrackedRecord[] | null): StatsBody | null => {
 
 /** The statistics page exists once there is a stats record or at least one finished workout. */
 export const statsVisible = (stats: TrackedRecord[] | null, workouts: TrackedRecord[] | null): boolean =>
-  statsOf(stats) !== null || finishedWorkouts((workouts ?? []).filter((r) => !r.deleted)).length > 0;
+  statsOf(stats) !== null || countable((workouts ?? []).filter((r) => !r.deleted)).length > 0;
 
 function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; muscles: boolean }) {
   const w = v.thisWeek;
@@ -34,7 +37,7 @@ function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; m
           {v.sports.map((s) => <div key={s}><dt>{SPORT_LABEL[s]}</dt><dd>{minutesText(w.minutes[s])}</dd></div>)}
         </dl>
       )}
-      {hasStats && <p>Harte Tage: {w.hardDays}</p>}
+      {hasStats && <p>{daysText(w, ' · ')}</p>}
       {muscles && (
         <ul className="tk-band-list">
           {groups.map((g) => {
@@ -71,7 +74,7 @@ function MinutesChart({ v, weeks, hasStats }: { v: StatsView; weeks: WeekStats[]
       <div className="tk-stack-chart">
         {weeks.map((w) => {
           const total = weekTotal(w);
-          const label = `Woche vom ${shortDate(w.weekStart)}: ${minutesText(total)}`;
+          const label = `Woche vom ${shortDate(w.weekStart)}: ${minutesText(total)}${hasStats ? `, ${daysText(w, ', ')}` : ''}`;
           const parts = v.sports.filter((s) => w.minutes[s] > 0).map((s) => `${SPORT_LABEL[s]} ${Math.round(w.minutes[s])}`).join(', ');
           return (
             <div key={w.weekStart} className="tk-stack-col">
@@ -112,18 +115,30 @@ function SetsTable({ weeks }: { weeks: WeekStats[] }) {
 
 /** Minutes, hard days and sets per muscle: what the week was and how the last eight looked. No score, no streak. */
 export function StatsScreen({ port, now }: { port: TrackingPort; now: () => number }) {
-  const statsRecords = usePortRecords(port, 'stats').records;
-  const workoutRecords = usePortRecords(port, 'workout').records;
+  const statsQ = usePortRecords(port, 'stats');
+  const workoutsQ = usePortRecords(port, 'workout');
+  const statsRecords = statsQ.records;
+  const workoutRecords = workoutsQ.records;
   const stats = useMemo(() => statsOf(statsRecords), [statsRecords]);
-  const workouts: LoggedWorkout[] = useMemo(() => finishedWorkouts(workoutRecords), [workoutRecords]);
+  const workouts: LoggedWorkout[] = useMemo(() => countable(workoutRecords), [workoutRecords]);
   const nowMs = now();
   const v = useMemo(() => statsView(stats, workouts, nowMs), [stats, workouts, nowMs]);
+  if (statsQ.failed || workoutsQ.failed) {
+    const retry = () => { if (statsQ.failed) statsQ.retry(); if (workoutsQ.failed) workoutsQ.retry(); };
+    return (
+      <div className="tk-screen">
+        <p role="status" className="tk-note">Die Statistik konnte gerade nicht gelesen werden. Es ist nichts verloren, versuch es gleich nochmal.</p>
+        <button type="button" onClick={retry}>Nochmal versuchen</button>
+      </div>
+    );
+  }
   if (statsRecords === null || workoutRecords === null) return <div className="tk-screen" aria-busy="true" />;
 
   const hasStats = stats !== null;
   const muscles = workouts.length > 0;
   const weeks = v.weeks.slice(0, v.weeks.length - 1);
   const minutes = v.sports.length > 0;
+  const pairs = v.pairs.map((p, i) => ({ p, i })).filter(({ p }) => p.a > 0 || p.b > 0);
   return (
     <div className="tk-screen">
       <div>
@@ -138,10 +153,14 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
           {muscles && (
             <>
               <SetsTable weeks={weeks} />
-              <h3>Verhältnis der letzten 4 Wochen</h3>
-              <ul className="tk-pairs">
-                {v.pairs.map((p, i) => <li key={p.label}>{`${MUSCLE_TARGETS[PAIRS[i].a].label} ${p.a} : ${p.b} ${MUSCLE_TARGETS[PAIRS[i].b].label}`}</li>)}
-              </ul>
+              {pairs.length > 0 && (
+                <>
+                  <h3>Verhältnis der letzten 4 Wochen</h3>
+                  <ul className="tk-pairs">
+                    {pairs.map(({ p, i }) => <li key={p.label}>{`${MUSCLE_TARGETS[PAIRS[i].a].label} ${p.a} : ${p.b} ${MUSCLE_TARGETS[PAIRS[i].b].label}`}</li>)}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </section>

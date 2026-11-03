@@ -33,6 +33,23 @@ describe('readStats', () => {
   it('rejects hardness brutal', () => { const b = valid() as any; b.days[0].hardness = 'brutal'; expect(readStats(b)).toBeNull(); });
 });
 
+describe('readStats rebuilds the body', () => {
+  it('drops unknown top-level fields and rebuilds the muscles as a plain object of own keys', () => {
+    const muscles = Object.assign(Object.create({ inherited: 'chest' }) as Record<string, string>, { t1: 'back' });
+    const r = readStats({ ...valid(), extra: 'x', muscles })!;
+    expect(r).not.toHaveProperty('extra');
+    expect(r.muscles).toEqual({ t1: 'back' });
+    expect(r.muscles).not.toBe(muscles);
+    expect(Object.getPrototypeOf(r.muscles)).toBe(Object.prototype);
+    expect('inherited' in r.muscles).toBe(false);
+  });
+  it('keeps a __proto__ key as an own key, not as the prototype', () => {
+    const r = readStats(JSON.parse(JSON.stringify({ ...valid(), muscles: {} }).replace('"muscles":{}', '"muscles":{"__proto__":"chest"}')))!;
+    expect(Object.getPrototypeOf(r.muscles)).toBe(Object.prototype);
+    expect(Object.hasOwn(r.muscles, '__proto__')).toBe(true);
+  });
+});
+
 describe('stats kind', () => {
   it('is listed', () => { expect(RECORD_KINDS).toContain('stats'); });
   it('validates bodies', () => {

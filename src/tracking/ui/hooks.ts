@@ -31,7 +31,7 @@ export function usePortRecords(port: TrackingPort, kind: RecordKind): PortRecord
 }
 
 export const finishedWorkouts = (records: TrackedRecord[] | null): LoggedWorkout[] =>
-  (records ?? []).map((r) => r.body as LoggedWorkout).filter((w) => w.endMs !== null).sort((a, b) => (b.endMs ?? 0) - (a.endMs ?? 0));
+  (records ?? []).map((r) => r.body as LoggedWorkout).filter((w) => typeof w === 'object' && w !== null && w.endMs !== null).sort((a, b) => (b.endMs ?? 0) - (a.endMs ?? 0));
 
 /** Own list plus the person's own exercises; an own record with the same id wins. */
 export function useCatalog(port: TrackingPort): Exercise[] {

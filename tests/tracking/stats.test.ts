@@ -118,7 +118,7 @@ describe('statsView verdicts', () => {
     const days = [...sevenWeeksOfBike().filter((d) => d.date < iso(new Date(2026, 9, 12))), dayIn(8, 0, { run: 40 }), ...[1, 2, 3, 4, 5, 6, 7].map((w) => dayIn(w, 2, { strength: 30 }))].sort((a, b) => a.date.localeCompare(b.date));
     const v = statsView(stats(days), [], NOW);
     expect(v.verdicts).toContain('Seit drei Wochen kein Rad.');
-    expect(v.verdicts).toContain('Seit drei Wochen kein Laufen.');
+    expect(v.verdicts).toContain('Seit drei Wochen kein Lauf.');
     expect(v.verdicts.some((s) => s.includes('Krafttraining'))).toBe(false);
     expect(v.verdicts.some((s) => s.includes('Mobility') || s.includes('other'))).toBe(false);
   });
@@ -137,5 +137,84 @@ describe('statsView verdicts', () => {
   it('says nothing about a steady load', () => {
     const v = statsView(stats([8, 7, 6, 5, 4, 3, 2, 1].map((w) => dayIn(w, 0, { bike: 60 }))), [], NOW);
     expect(v.verdicts.some((s) => s.includes('deutlich mehr'))).toBe(false);
+  });
+});
+
+describe('statsView final fixes', () => {
+  const gone = () => [...sevenWeeksOfBike().filter((d) => d.date < iso(new Date(2026, 9, 12)))];
+
+  it('says no sport is gone while the current week has minutes of it', () => {
+    const v = statsView(stats([...gone(), dayIn(0, 0, { bike: 30 })]), [], NOW);
+    expect(v.verdicts.some((s) => s.includes('kein Rad'))).toBe(false);
+  });
+
+  it('names each sport in the gone verdict', () => {
+    const days = [8, 7, 6, 5].map((w) => dayIn(w, 0, { bike: 30, strength: 30, run: 30, mobility: 10 }));
+    days.push(dayIn(0, 0, {}));
+    const v = statsView(stats(days), [], NOW);
+    expect(v.verdicts.filter((s) => s.startsWith('Seit drei Wochen'))).toEqual([
+      'Seit drei Wochen kein Rad.', 'Seit drei Wochen kein Krafttraining.', 'Seit drei Wochen kein Lauf.', 'Seit drei Wochen keine Mobility.',
+    ]);
+  });
+
+  it('a record ten days old gives no verdicts from the weeks it does not cover', () => {
+    const atMs = NOW - 10 * 86_400_000; // Sunday 25 Oct: the weeks of 26.10. and 02.11. have no data
+    const days = [...gone(), ...[8, 7, 6, 5, 4, 3, 2].map((w) => dayIn(w, 2, { strength: 30 }))].sort((a, b) => a.date.localeCompare(b.date));
+    const v = statsView(stats(days, { atMs }), [], NOW);
+    expect(v.verdicts).toEqual([]);
+    // With the same data a fresh record says Rad is gone (weeks 3, 2, 1 covered) and nothing about strength in the last week.
+    const fresh = [...days, dayIn(1, 2, { strength: 30 })].sort((a, b) => a.date.localeCompare(b.date));
+    expect(statsView(stats(fresh), [], NOW).verdicts).toContain('Seit drei Wochen kein Rad.');
+  });
+
+  it('an old record gives no hard-day or jump verdict for a week after its date', () => {
+    const atMs = new Date(2026, 9, 28, 12).getTime(); // Wednesday of the week of 26.10.
+    const days = [...[8, 7, 6, 5, 4, 3, 2].map((w) => dayIn(w, 0, { bike: 60 })), ...[0, 1, 2].map((o) => dayIn(1, o, { bike: 100 }, 'hard'))];
+    // The week of 26.10. started before the date: it counts.
+    const v = statsView(stats(days, { atMs }), [], NOW);
+    expect(v.verdicts).toContain('3 harte Tage in der Woche vom 26.10. Mehr als zwei sind viel.');
+    expect(v.verdicts.some((s) => s.includes('deutlich mehr'))).toBe(true);
+    const old = statsView(stats(days, { atMs: new Date(2026, 9, 25, 12).getTime() }), [], NOW);
+    expect(old.verdicts.some((s) => s.includes('harte Tage') || s.includes('deutlich mehr'))).toBe(false);
+  });
+
+  it('a jump is more than one and a half times the mean, not equal to it', () => {
+    const days = [8, 7, 6, 5, 4, 3, 2].map((w) => dayIn(w, 0, { bike: 60 }));
+    const at = (n: number) => statsView(stats([...days, dayIn(1, 0, { bike: n })]), [], NOW).verdicts.some((s) => s.includes('deutlich mehr'));
+    expect(at(90)).toBe(false);
+    expect(at(91)).toBe(true);
+  });
+
+  it('skips broken workout bodies next to a good one', () => {
+    const good = workout('good', at(2026, 10, 2), 'pf-bench-press', 'Bankdrücken', [set(), set()]);
+    const broken = [
+      { ...good, id: 'b1', exercises: null },
+      { ...good, id: 'b2', startMs: Number.NaN },
+      { ...good, id: 'b3', startMs: 'x' },
+      { ...good, id: 'b4', exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: null }, good.exercises[0]] },
+      { ...good, id: 'b5', exercises: [null] },
+      null,
+    ] as unknown as LoggedWorkout[];
+    const v = statsView(null, [...broken, good], NOW);
+    expect(v.thisWeek.sets.chest).toBeGreaterThanOrEqual(2);
+  });
+
+  it('uses only own keys of the muscle map', () => {
+    const w = [workout('h', at(2026, 10, 2), 'constructor', 'Odd Thing', [set()], { source: 'hevy' }),
+      workout('h2', at(2026, 10, 3), 'hevy-x', 'Odd Other', [set()], { source: 'hevy' })];
+    const v = statsView(stats([], { muscles: { 'hevy-x': 'toString' } }), w, NOW);
+    expect(v.thisWeek.sets.other).toBe(2);
+    expect(v.unknown.sort()).toEqual(['Odd Other', 'Odd Thing']);
+  });
+
+  it('counts easy, moderate, hard and rest days per week, rest only up to today', () => {
+    const days = [
+      dayIn(1, 0, { bike: 30 }, 'easy'), dayIn(1, 1, { bike: 30 }, 'moderate'), dayIn(1, 2, { bike: 30 }, 'hard'), dayIn(1, 3, {}), dayIn(1, 4, {}), dayIn(1, 5, {}), dayIn(1, 6, {}),
+      dayIn(0, 0, { run: 20 }, 'hard'), dayIn(0, 1, {}), dayIn(0, 2, {}),
+    ];
+    const v = statsView(stats(days), [], NOW);
+    expect(v.weeks[7].days).toEqual({ easy: 1, moderate: 1, hard: 1, rest: 4 });
+    expect(v.thisWeek.days).toEqual({ easy: 0, moderate: 0, hard: 1, rest: 2 });
+    expect(statsView(null, [], NOW).thisWeek.days).toEqual({ easy: 0, moderate: 0, hard: 0, rest: 0 });
   });
 });
