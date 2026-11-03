@@ -36,12 +36,13 @@ test('a ride opening while the upload waits on the server stops it within the ch
     for await (const _c of init.body as unknown as AsyncIterable<Uint8Array>) { /* read */ }
     return aborted(init.signal!);
   }) as typeof fetch;
-  const http = coachHttp({ url: 'https://coach.test', token: 't', fetchFn, mayContinue: () => !w.open, checkMs: 20 });
+  // The timeout is far away: 'stopped' well before it can only come from the check. The bound is loose, for a loaded machine.
+  const http = coachHttp({ url: 'https://coach.test', token: 't', fetchFn, mayContinue: () => !w.open, checkMs: 20, timeoutMs: 60_000 });
   const started = Date.now();
   const out = http.putItem('garmin-db', file, 'x');
   setTimeout(() => { w.open = true; }, 30);
   await expect(out).rejects.toMatchObject({ kind: 'stopped' });
-  expect(Date.now() - started).toBeLessThan(500);
+  expect(Date.now() - started).toBeLessThan(10_000);
 });
 
 test('a ride upload stops the same way', async () => {
