@@ -42,6 +42,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     if (!remote || leaving.current) return;
     const rec = remote.find((r) => r.id === w.id);
     if (rec && rec.updatedMs <= store.updatedMs()) return; // ours, or older
+    const copyNote = () => (remote.some((r) => !r.deleted && (r.body as LoggedWorkout).keptCopyOf === w.id) ? ' Die Fassung mit mehr Sätzen liegt als Kopie im Verlauf.' : '');
     const stepAside = (leave: string, stay: string) => {
       store.flushDrafts(); // a note still being typed counts as unsaved work
       if (store.dirty()) { if (rec) store.reload(rec); setNotice(stay); return; }
@@ -50,9 +51,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     };
     if (!rec) {
       if (!store.everSaved()) return; // never saved yet: the list cannot know it, keep it open and keep retrying
-      stepAside('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
+      stepAside(`Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.${copyNote()}`, 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
     } else if (rec.deleted) {
-      stepAside('Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
+      stepAside(`Dieses Training wurde auf einem anderen Gerät gelöscht. Die Ansicht wurde neu geladen.${copyNote()}`, 'Dieses Training wurde auf einem anderen Gerät gelöscht. Deine Änderungen hier bleiben offen und werden weitergeschrieben.');
     } else if ((rec.body as LoggedWorkout).endMs !== null) {
       stepAside('Dieses Training wurde auf einem anderen Gerät beendet. Die Ansicht wurde neu geladen.', 'Dieses Training wurde auf einem anderen Gerät beendet. Deine ungespeicherten Änderungen hier bleiben offen und werden weitergeschrieben.');
     } else {

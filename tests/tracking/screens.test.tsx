@@ -411,6 +411,18 @@ test('a failed first save with a list that lacks the record keeps the screen ope
   await waitFor(() => expect(map.get('workout:new-id')).toBeTruthy());
 });
 
+test('a delete from elsewhere on a clean screen mentions the copy when one was kept', async () => {
+  const { port, map, notify } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  await screen.findByRole('button', { name: 'Training beenden' });
+  const copy = { ...finished('open1-kopie-1'), keptCopyOf: 'open1' };
+  map.set('workout:open1-kopie-1', rec(copy));
+  map.set('workout:open1', { ...rec(open()), deleted: true, updatedMs: 5_000_000 });
+  notify();
+  expect((await screen.findByRole('status')).textContent).toMatch(/gelöscht.*Die Fassung mit mehr Sätzen liegt als Kopie im Verlauf\./);
+});
+
 async function dirtyOpen() {
   const h = fakePort([rec(open())]);
   render(<WorkoutScreen port={h.port} {...ids} />);
