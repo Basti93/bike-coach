@@ -281,7 +281,7 @@ function PushSettings({ push }: { push: PushState }) {
 }
 
 type Tab = 'heute' | 'coach' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'statistik' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Coach'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Woche'], ['training', 'Kraft'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';

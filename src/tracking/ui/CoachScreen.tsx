@@ -3,7 +3,8 @@ import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEnt
 import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekPlanBody, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
 import { usePortRecords } from './hooks';
-import { nextUpdatedMs } from './run-view';
+import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
+import type { PlannedRun } from '../../shared/run';
 
 const localKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dayName = (date: string) => WEEKDAY_LABEL[(new Date(`${date}T12:00:00`).getDay() + 6) % 7]!;
@@ -13,12 +14,16 @@ const SLOW_MS = 3 * 60_000;
 /** The coach no longer answers messages this old. */
 const STALE_MS = 2 * 86_400_000;
 
-function Week({ days, label, today }: { days: PlanDay[]; label: string; today?: string }) {
+const RUN_KIND: Record<string, string> = { easy: 'locker', long: 'lang', test: 'Test' };
+const runText = (r: PlannedRun & { done?: unknown }) => `Lauf ${RUN_KIND[r.kind] ?? ''} · ${r.minutes} Min.${r.hrCap !== null ? ` · Puls bis ${r.hrCap}` : ''}${r.done != null ? ' · gelaufen' : ''}`;
+
+function Week({ days, label, today, runs = [] }: { days: PlanDay[]; label: string; today?: string; runs?: PlannedRun[] }) {
   return (
     <ul className="tk-week" aria-label={label}>
       {days.map((d) => (
         <li key={d.date} className={d.date === today ? 'tk-today' : undefined} aria-current={d.date === today ? 'date' : undefined}>
           <b>{dayName(d.date)}</b> <span>{dayText(d)}</span>{d.fixed && <span className="muted"> · fest</span>}{d.note && <span className="muted"> · {d.note}</span>}
+          {runs.filter((r) => r.date === d.date).map((r) => <span key={r.kind} className="tk-sub"> · {runText(r)}</span>)}
         </li>
       ))}
     </ul>
@@ -45,6 +50,7 @@ function Proposal({ m, answer, onTake, onDecline }: { m: ChatEntry & { proposal:
 export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
+  const runRecords = usePortRecords(port, 'run').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -56,6 +62,9 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const monday = mondayOf(today);
   const current = planOfWeek(plans ?? [], monday);
   const next = planOfWeek(plans ?? [], addDays(monday, 7));
+  // The run coach's runs sit on their days; without a week plan they are listed on their own.
+  const runWeek = runView(runRecords ?? [], now()).week;
+  const runs = runWeek?.runs ?? [];
 
   const write = async (m: ChatMessage) => {
     setError(null);
@@ -78,11 +87,16 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
 
   return (
     <div className="tk-screen tk-coach">
-      <h1 className="tk-title">Coach</h1>
+      <h1 className="tk-title">Woche</h1>
       <section className="card" aria-label="Wochenplan">
         <h2>Diese Woche</h2>
-        {current ? <Week days={current.days} label="Wochenplan diese Woche" today={today} /> : <p className="muted">Noch kein Wochenplan. Schreib dem Coach, wie deine Woche aussehen soll, oder lass dir einen vorschlagen.</p>}
-        {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" /></>}
+        {current ? <Week days={current.days} label="Wochenplan diese Woche" today={today} runs={runs} /> : <p className="muted">Noch kein Wochenplan. Schreib dem Coach, wie deine Woche aussehen soll, oder lass dir einen vorschlagen.</p>}
+        {!current && runs.length > 0 && (
+          <ul className="tk-week" aria-label="Läufe diese Woche">
+            {runs.map((r) => <li key={r.date + r.kind}><b>{runDay(r.date)}</b> <span>{runText(r)}</span></li>)}
+          </ul>
+        )}
+        {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
       </section>
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}

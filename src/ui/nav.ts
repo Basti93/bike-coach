@@ -24,7 +24,7 @@ export type Views = {
 export type MenuItem = 'start' | 'coach' | 'rad' | 'kraft' | 'laufen' | 'essen' | 'verlauf' | 'statistik' | 'gesundheit' | 'gemeinsam' | 'profil';
 
 export const HOME: Views = { profile: false, review: false, health: undefined, history: false, together: false, strengthFor: null, bikeFor: null, trackFor: null, meals: false, run: false, stats: false, coach: false };
-export const MENU_LABEL: Record<MenuItem, string> = { start: 'Start', coach: 'Coach', rad: 'Rad', kraft: 'Kraft', laufen: 'Laufen', essen: 'Essen', verlauf: 'Verlauf', statistik: 'Statistik', gesundheit: 'Gesundheit', gemeinsam: 'Gemeinsam', profil: 'Profil' };
+export const MENU_LABEL: Record<MenuItem, string> = { start: 'Start', coach: 'Woche', rad: 'Rad', kraft: 'Kraft', laufen: 'Laufen', essen: 'Essen', verlauf: 'Verlauf', statistik: 'Statistik', gesundheit: 'Gesundheit', gemeinsam: 'Gemeinsam', profil: 'Profil' };
 const DEFAULT_HEALTH_DAYS = 28;
 
 /** The screen a menu item opens, with every other view closed. An open workout is not lost by this: it lives in its store and is offered again on the strength page. */

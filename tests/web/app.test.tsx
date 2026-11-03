@@ -85,7 +85,7 @@ describe('web app', () => {
   it('offline after the first load the app and an open workout work', async () => {
     const a = await boot({ offline: true, account: 'anna', seed: [plan(NOW - 1000)] });
     expect(await screen.findByText('Beine A')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Training' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Leeres Training starten' }));
     await waitFor(async () => {
       const s = await openIdb('anna', a.factory);
@@ -114,7 +114,7 @@ describe('web app', () => {
   it('without a plan there is a calm note and a workout can still be started', async () => {
     await boot({ seed: [] });
     expect(await screen.findByText(/Noch kein Krafttraining geplant/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Training' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
     expect(await screen.findByRole('button', { name: 'Leeres Training starten' })).toBeTruthy();
   });
 
@@ -152,7 +152,7 @@ describe('web app', () => {
     await boot({ seed: [plan(NOW - 1000)] });
     await screen.findByText('Beine A');
     const nav = screen.getByRole('navigation', { name: 'Seiten' });
-    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Coach', 'Training', 'Verlauf', 'Profil']);
+    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Woche', 'Kraft', 'Verlauf', 'Profil']);
     expect(screen.queryByRole('button', { name: 'Abmelden' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
     expect(await screen.findByRole('heading', { name: 'anna' })).toBeTruthy();
@@ -162,7 +162,7 @@ describe('web app', () => {
 
   it('the tab bar steps aside while a field has focus, so the keyboard never pushes it over an input', async () => {
     await boot({ seed: [] });
-    fireEvent.click(await screen.findByRole('button', { name: 'Coach' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Woche' }));
     const field = await screen.findByLabelText('Nachricht an den Coach');
     const nav = screen.getByRole('navigation', { name: 'Seiten' });
     fireEvent.focusIn(field);
@@ -238,7 +238,7 @@ describe('web app', () => {
     const open: TrackedRecord = { kind: 'workout', id: 'w-open', updatedMs: NOW - 60_000, deleted: false, body: { id: 'w-open', title: 'Offenes Training', startMs: NOW - 120_000, endMs: null, source: 'pandafit', exercises: [] } };
     await boot({ me: 401, account: 'anna', seed: [open], syncStatus: 401 });
     expect(await screen.findByText(/Bitte melde dich neu an/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Training' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
     expect(await screen.findByText(/Training fortsetzen/)).toBeTruthy();
   });
 
@@ -268,7 +268,7 @@ describe('web app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
     await waitFor(() => expect(storage.get('pandafit.account')).toBe('ben'));
     // The shell rebuilds after the login: open the chat until Ben's record shows there.
-    await waitFor(() => { fireEvent.click(screen.getByRole('button', { name: 'Coach' })); expect(screen.getByText('Nur Ben')).toBeTruthy(); });
+    await waitFor(() => { fireEvent.click(screen.getByRole('button', { name: 'Woche' })); expect(screen.getByText('Nur Ben')).toBeTruthy(); });
     expect(posts.filter((p) => p.user === 'ben' && p.ids.includes('a-only'))).toEqual([]);
     const a = await openIdb('anna', factory);
     expect((await a.list('chat')).map((r) => r.id)).toEqual(['a-only']);
@@ -297,7 +297,7 @@ describe('web app', () => {
     await boot({ noIdb: 'null', account: 'anna' });
     expect(await screen.findByText(/nicht gespeichert werden/)).toBeTruthy();
     expect(screen.queryByText(/Keine Verbindung/)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Kraft' })).toBeNull();
     cleanup();
     expect(screen.queryByText(/privat/i)).toBeNull(); // private mode is never claimed
   });
@@ -374,7 +374,7 @@ describe('web app', () => {
 
   it('a note typed in the last 400 ms survives logging out (the real store and port are flushed before the port stops)', async () => {
     const a = await boot({ account: 'anna', seed: [openRec(60_000)] });
-    fireEvent.click(await screen.findByRole('button', { name: 'Training' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Kraft' }));
     fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
     const note = await screen.findByLabelText('Notiz zu Kniebeuge');
     fireEvent.focus(note);
@@ -411,7 +411,7 @@ describe('web app', () => {
   it('a resumed workout older than 12 hours still counts as open while its screen is open', async () => {
     const a = await boot({ account: 'anna', seed: [openRec(13 * 3600_000)] });
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith('none'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Training' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Kraft' }));
     fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenLastCalledWith('open'));
   });
@@ -541,14 +541,14 @@ describe('Laufen on the phone', () => {
 
   it('a notification with tab laufen opens it, at start and while open', async () => {
     await boot({ account: 'anna', seed: [status(), planWeek], startTab: 'laufen' });
-    expect(await screen.findByRole('heading', { name: 'Diese Woche' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Läufe dieser Woche' })).toBeTruthy();
     cleanup();
     let open!: (t: string) => void;
     await boot({ account: 'anna', seed: [status(), planWeek], onOpenTab: (f) => { open = f; return () => {}; } });
     await screen.findByRole('navigation');
     await waitFor(() => expect(open).toBeTypeOf('function'));
     act(() => open('laufen'));
-    expect(await screen.findByRole('heading', { name: 'Diese Woche' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Läufe dieser Woche' })).toBeTruthy();
   });
 
   it('a notification for Laufen without a run status stays on Heute', async () => {

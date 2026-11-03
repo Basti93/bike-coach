@@ -241,19 +241,10 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
         </section>
       )}
       {status.on && !paused && week && week.runs.length > 0 && (
-        <section className="card">
-          <h2>Diese Woche</h2>
+        <section className="card" aria-label="Läufe dieser Woche">
           {week.reason && <p className="muted">{week.reason}</p>}
+          <p className="muted">Deine Läufe dieser Woche ({week.runs.length}) stehen mit allen anderen Sportarten im Tab Woche.</p>
           {week.note && <p>{week.note}</p>}
-          <ul className="tk-list tk-run-list">
-            {week.runs.map((r) => (
-              <li key={r.date + r.kind}>
-                <b>{dayText(r.date)}</b>
-                <span>{KIND[r.kind]} · {r.minutes} Min.{r.hrCap !== null ? ` · Puls bis ${r.hrCap}` : ''}</span>
-                {r.done !== null && <span className="muted">Gelaufen</span>}
-              </li>
-            ))}
-          </ul>
           {status.garmin && <GarminBlock week={week} pending={pending} onSend={send} />}
         </section>
       )}

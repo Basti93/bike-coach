@@ -95,14 +95,14 @@ test('a planned run shows what counts today', async () => {
   const today = (await screen.findByRole('heading', { name: 'Was heute zählt' })).closest('section')!;
   expect(within(today).getByText('Heute zählt die Zeit, nicht das Tempo.')).toBeTruthy();
   expect(within(today).getByText(/30 Min/)).toBeTruthy();
-  expect(screen.getByRole('heading', { name: 'Diese Woche' })).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Läufe dieser Woche' })).toBeTruthy();
   expect(screen.getByText('Ruhiger Start in die Woche.')).toBeTruthy();
 });
 
 test('no run today: no "Was heute zählt"', async () => {
   const { port } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody([planned({ date: '2026-11-07' })]))]);
   render(<RunScreen port={port} {...ids} />);
-  await screen.findByRole('heading', { name: 'Diese Woche' });
+  await screen.findByRole('region', { name: 'Läufe dieser Woche' });
   expect(screen.queryByRole('heading', { name: 'Was heute zählt' })).toBeNull();
 });
 
@@ -122,7 +122,7 @@ describe('Garmin', () => {
     // The week still carries sent ids after a disconnect, but the status says Garmin is not there: no button, no Garmin text.
     const b = seeded(false, garminOf({ status: 'sent', sent: { '2026-11-04': { workoutId: 'w', scheduleId: null, fp: 'x' } } }));
     render(<RunScreen port={b.port} {...ids} />);
-    await screen.findByRole('heading', { name: 'Diese Woche' });
+    await screen.findByRole('region', { name: 'Läufe dieser Woche' });
     expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
     expect(screen.queryByText('Auf deiner Uhr')).toBeNull();
   });
@@ -150,7 +150,7 @@ describe('Garmin', () => {
   test('a week without a Garmin object offers no button even when the status says Garmin is there', async () => {
     const a = seeded(true, null);
     render(<RunScreen port={a.port} {...ids} />);
-    await screen.findByRole('heading', { name: 'Diese Woche' });
+    await screen.findByRole('region', { name: 'Läufe dieser Woche' });
     expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
   });
 
@@ -170,7 +170,7 @@ describe('Garmin', () => {
     const a = seed(true, paused);
     render(<RunScreen port={a.port} {...ids} />);
     expect(await screen.findByText(question)).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Diese Woche' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Läufe dieser Woche' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
     await waitFor(() => expect(bodyOf(a.map, `send-${WEEK}`)).toEqual({ type: 'send', week: WEEK, fp: weekFp(paused.runs), atMs: NOW }));
     await waitFor(() => expect((screen.getByRole('button', { name: 'Entfernen' }) as HTMLButtonElement).disabled).toBe(true));
@@ -233,7 +233,7 @@ test('a pause status shows the calm pause text and no runs', async () => {
   const { port } = fakePort([rec('status', statusBody({ complaint: 'pause' })), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
   expect(await screen.findByText('Laufen pausiert, solange die Beschwerde offen ist. Sobald sie vorbei ist, geht es ruhig weiter.')).toBeTruthy();
-  expect(screen.queryByRole('heading', { name: 'Diese Woche' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Läufe dieser Woche' })).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Was heute zählt' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
 });

@@ -45,3 +45,19 @@ test('declining writes a decline and changes no plan', async () => {
   expect(records(map, 'weekplan')).toHaveLength(0);
   expect(await screen.findByText('Abgelehnt.')).toBeTruthy();
 });
+
+test('the run coach runs sit on their days in the week, and are listed alone without a week plan', async () => {
+  const { runFp } = await import('../../src/shared/run');
+  const run = { date: '2026-11-04', kind: 'easy' as const, minutes: 35, hrCap: 150, counts: 'Zeit zählt.', note: null };
+  const runWeek: TrackedRecord = { kind: 'run', id: 'week-2026-11-02', updatedMs: 1, deleted: false, body: {
+    type: 'week', week: '2026-11-02', announce: true, atMs: 1, phase: 1, source: 'rules', reason: 'Ruhig.', note: null, runs: [{ ...run, fp: runFp(run), done: null }], garmin: null } };
+  const { port } = fakePort([runWeek]);
+  render(<CoachScreen port={port} {...env} />);
+  expect((await screen.findByRole('list', { name: 'Läufe diese Woche' })).textContent).toContain('Lauf locker · 35 Min. · Puls bis 150');
+  cleanup();
+  const plan: TrackedRecord = { kind: 'weekplan', id: '2026-11-02', updatedMs: 1, deleted: false, body: { ...proposal, fromMessage: 'c1', acceptedMs: 1 } };
+  const two = fakePort([runWeek, plan]);
+  render(<CoachScreen port={two.port} {...env} />);
+  const wed = (await screen.findByRole('list', { name: 'Wochenplan diese Woche' })).querySelectorAll('li')[2]!;
+  expect(wed.textContent).toContain('Lauf locker · 35 Min.');
+});
