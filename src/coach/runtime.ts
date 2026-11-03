@@ -44,8 +44,11 @@ export type RuntimeOptions = {
   /** Folder with `bridge.py`, `garmin_sync.py` and `garmin_upload.py`. */
   garminScripts: string;
   links: RecordLinks;
-  /** 'own': a meal plan in `coach/meals`, ticked here. A shared MealCoach is ticked by its owner. null: no meal plan. */
-  meals: 'own' | MealCoach | null;
+  /**
+   * 'own': a meal plan in `coach/meals`, ticked here. A getter: a shared meal plan, ticked by its owner, asked on every use;
+   * while it gives null, meal messages are ignored and the view has `meals: null`. null: no meal plan.
+   */
+  meals: 'own' | (() => MealCoach | null) | null;
   together: () => Together;
   /** The old push of the coach state to the home server, called on every scan. */
   legacyPush?: (s: CoachState) => void;
@@ -67,6 +70,8 @@ export type CoachRuntime = {
   scan(): void;
   /** profileId: that profile's records changed. null: anything else changed. A view is worth sending again either way. */
   onChange(fn: (profileId: string | null) => void): () => void;
+  /** Tells the listeners that the profile's records changed, e.g. when a shared meal plan wrote them outside this runtime. */
+  notify(profileId: string): void;
   coachState(profileId: string): CoachState | null;
   profileIds(): string[];
   /** Weekdays (Monday 0) the profile usually trains on, from rides and workouts. For a meal plan shared by several runtimes. */
@@ -165,7 +170,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   });
   const trainingDays = (id: string): number[] => usualTrainingDays([...coach.state(id).summaries.map((r) => r.startedAtMs), ...gym.history(id).map((w) => w.startMs)], nowMs());
   // Optional and per profile, off by default: with no one in, nothing is read, asked or sent.
-  const meals: MealCoach | null = opts.meals === 'own' ? new MealCoach({
+  const ownCoach: MealCoach | null = opts.meals === 'own' ? new MealCoach({
     dir: path.join(coachDir, 'meals'), nowMs,
     profiles: () => profiles().map(({ id, name, avatar }) => ({ id, name, ...(avatar ? { avatar } : {}) })),
     noOpenRide: () => noOpenRide(),
@@ -173,9 +178,14 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     trainingDays: (id) => trainingDays(id),
     store: records, linked: (id) => opts.links.status(id).state === 'linked',
     onExport: (touched) => mealsChanged(touched),
-  }) : opts.meals;
-  const ownMeals = opts.meals === 'own';
-  const mealsOf = (profileId: string) => { try { return meals ? meals.view(profileId) : null; } catch { return null; } };
+  }) : null;
+  const sharedMeals = typeof opts.meals === 'function' ? opts.meals : null;
+  /** The meal plan right now: the own one, the shared one once it is there, or none. */
+  const mealsNow = (): MealCoach | null => {
+    if (ownCoach) return ownCoach;
+    try { return sharedMeals?.() ?? null; } catch { return null; }
+  };
+  const mealsOf = (profileId: string) => { try { const meals = mealsNow(); return meals ? meals.view(profileId) : null; } catch { return null; } };
   function mealsChanged(touched: string[]): void { for (const id of touched) { accountSync.touch(id); notifyRecords(id); } }
   const mobilityOf = (profileId: string) => { try { return mobility.view(profileId); } catch { return null; } };
   const gymOf = (profileId: string) => {
@@ -276,6 +286,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
 
   /** Settings, ticks and who eats are local writes and fine with a ride open. Planning and swapping wait for no ride (the coach checks). */
   const handleMeals = (m: CoachClientMessage): void => {
+    const meals = mealsNow();
     if (!meals) return;
     const sync = () => publish();
     if (m.type === 'meals-settings') meals.setSettings(m.profileId, m.settings);
@@ -380,7 +391,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
-      if (ownMeals && meals && scheduled()) void meals.tick().catch(() => {}).finally(publish);
+      if (ownCoach && scheduled()) void ownCoach.tick().catch(() => {}).finally(publish);
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
@@ -396,6 +407,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   return {
     handle, view, scan,
     onChange: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
+    notify: (profileId) => notifyRecords(profileId),
     coachState: (profileId) => { if (!known(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
     profileIds: () => profiles().map((p) => p.id),
     trainingDays: (profileId) => (known(profileId) ? trainingDays(profileId) : []),

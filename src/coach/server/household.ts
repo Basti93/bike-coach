@@ -72,23 +72,10 @@ export class Household {
   private readonly nowMs: () => number;
   private readonly ask: Ask;
   private mealCoach: MealCoach | null = null;
-  /** What every runtime gets as its meal plan: closed until the household's meals moved, then the one shared MealCoach. */
-  private readonly meals: MealCoach;
 
   constructor(private readonly opts: HouseholdOptions) {
     this.nowMs = opts.nowMs ?? (() => Date.now());
     this.ask = (input) => this.lock.run(() => opts.ask(input));
-    const closed = (): never => { throw new Error('Essensplan ist noch nicht umgezogen'); };
-    // Generic on purpose: whatever the runtime calls on its meal plan (a later chat too) is closed before the move and the real thing after.
-    this.meals = new Proxy({} as MealCoach, {
-      get: (_target, prop) => {
-        if (typeof prop === 'symbol' || prop === 'then') return undefined;
-        const mc = this.openMeals();
-        if (!mc) return closed;
-        const value: unknown = Reflect.get(mc, prop, mc);
-        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(mc) : value;
-      },
-    });
   }
 
   private accountDir(accountId: number): string { return path.join(this.opts.root, 'accounts', String(accountId)); }
@@ -126,8 +113,9 @@ export class Household {
       ask: this.ask,
       python: this.opts.python,
       garminScripts: this.opts.garminScripts,
-      links: internalLinks({ apiUrl: this.opts.apiUrl, token: this.opts.internalToken, accountId, profileId, dir: path.join(dir, 'links') }),
-      meals: this.meals,
+      links: internalLinks({ apiUrl: this.opts.apiUrl, token: this.opts.internalToken, accountId, profileId, dir: path.join(dir, 'links'), nowMs: this.nowMs }),
+      // Asked on every use: null until the household's meals moved, then the one shared MealCoach.
+      meals: () => this.openMeals(),
       together: () => this.together(),
       nowMs: this.nowMs,
       hevyCodec: () => sealedCodec(secretKey, `${accountId}:hevy`),
@@ -203,7 +191,15 @@ export class Household {
       store,
       // Every moved account syncs its records with the api.
       linked: (id) => this.byProfile(id) !== null,
-      onExport: (touched) => { for (const id of touched) this.byProfile(id)?.runtime.accountSync.touch(id); },
+      // The records sync goes soon, and subscribers get the new view at once.
+      onExport: (touched) => {
+        for (const id of touched) {
+          const a = this.byProfile(id);
+          if (!a) continue;
+          a.runtime.accountSync.touch(id);
+          a.runtime.notify(id);
+        }
+      },
     });
     return this.mealCoach;
   }

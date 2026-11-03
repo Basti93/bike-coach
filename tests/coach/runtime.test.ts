@@ -12,6 +12,7 @@ import type { CoachServerMessage } from '../../src/shared/coach-protocol';
 import { sealedTokens } from '../../src/coach/secrets/garmin-tokens';
 import { sealedCodec } from '../../src/coach/secrets/secret-box';
 import { CHAT_SYSTEM_PROMPT } from '../../src/coach/meals/chat';
+import { MealCoach } from '../../src/coach/meals/meal-coach';
 import { computeTogether } from '../../src/coach/together';
 import { TOGETHER_ID } from '../../src/shared/together';
 
@@ -217,4 +218,26 @@ test('the scan writes the together page to a linked profile, and not with a ride
   const free = make({ links: linked, together });
   free.runtime.scan();
   expect(free.runtime.records.all('pa', 'together').map((r) => r.id)).toEqual([TOGETHER_ID]);
+});
+
+test('meals as a getter: ignored while it gives null, then the messages reach the shared meal plan', () => {
+  const root = temp();
+  let shared: MealCoach | null = null;
+  const { runtime } = make({ meals: () => shared });
+  subscribe(runtime);
+  runtime.handle({ type: 'meals-settings', profileId: 'pa', settings: { on: true } }, () => {});
+  expect(runtime.view('pa')?.meals).toBeNull();
+  shared = new MealCoach({ dir: path.join(root, 'meals'), nowMs: () => Date.now(), profiles: () => PROFILES.map(({ id, name }) => ({ id, name })), noOpenRide: () => true });
+  expect(shared.enabled('pa')).toBe(false);
+  runtime.handle({ type: 'meals-settings', profileId: 'pa', settings: { on: true } }, () => {});
+  expect(shared.enabled('pa')).toBe(true);
+  expect(runtime.view('pa')?.meals?.settings.on).toBe(true);
+});
+
+test('notify tells the listeners about a profile whose records changed', () => {
+  const { runtime } = make();
+  const seen: (string | null)[] = [];
+  runtime.onChange((id) => seen.push(id));
+  runtime.notify('pa');
+  expect(seen).toEqual(['pa']);
 });

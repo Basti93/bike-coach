@@ -221,8 +221,12 @@ test('the meal plan waits until the household\'s meals moved, then plans for bot
   expect(a1.runtime.records.all('pa', 'mealplan')).toEqual([]);
 
   fs.writeFileSync(path.join(meals, 'moved.json'), JSON.stringify({ atMs: 2 }));
+  // The scheduled tick's records reach each account's subscribers at once, not at the next scan.
+  const told: (string | null)[] = [];
+  a2.runtime.onChange((id) => told.push(id));
   household.scan();
   await vi.waitFor(() => expect(a2.runtime.records.all('pb', 'mealplan').length).toBeGreaterThan(0), { timeout: 3000 });
+  await vi.waitFor(() => expect(told).toContain('pb'));
   expect(mealAsks()).toBeGreaterThan(0);
   const plan1 = a1.runtime.records.all('pa', 'mealplan').find((r) => r.id.startsWith('week-'))!;
   const plan2 = a2.runtime.records.all('pb', 'mealplan').find((r) => r.id.startsWith('week-'))!;
@@ -289,6 +293,45 @@ test('not there: an account without Hevy and Garmin coaches with no fetch and no
   expect(v.hevy?.state).not.toBe('connected');
   expect(v.garmin?.state).not.toBe('connected');
   expect(v.state.next).toBeTruthy();
+});
+
+test('a 401 on the internal records sync is logged without secrets and retried later', async () => {
+  let now = NOON;
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const links = internalLinks({ apiUrl: API, token: TOKEN, accountId: 1, profileId: 'pa', dir: temp(), nowMs: () => now });
+    links.reject('pa');
+    expect(links.token('pa')).toBeNull();
+    expect(links.status('pa').state).toBe('rejected');
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+    now += 29 * 60_000;
+    expect(links.token('pa')).toBeNull();
+    // Later the sync tries again with the token.
+    now += 2 * 60_000;
+    expect(links.token('pa')).toBe(TOKEN);
+    expect(links.status('pa').state).toBe('linked');
+
+    // Through the household: a refused sync stops, and runs again after the wait.
+    const root = temp();
+    seedAccount(root, 1, P1);
+    apiFetch.mockImplementation(async () => new Response('{}', { status: 401 }));
+    const { household } = make({ root, nowMs: () => now });
+    const a = household.account(1)!;
+    a.runtime.handle({ type: 'records-put', profileId: 'pa', records: [] } as never, () => {});
+    household.scan();
+    await vi.waitFor(() => expect(a.runtime.accountSync.status('pa').state).toBe('rejected'));
+    const calls = apiFetch.mock.calls.length;
+    household.scan();
+    await settle();
+    expect(apiFetch.mock.calls.length).toBe(calls);
+    apiFetch.mockImplementation(async () => new Response(JSON.stringify({ records: [], cursor: 0, more: false, refused: [] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    now += 31 * 60_000;
+    a.runtime.handle({ type: 'records-put', profileId: 'pa', records: [] } as never, () => {});
+    household.scan();
+    await vi.waitFor(() => expect(apiFetch.mock.calls.length).toBeGreaterThan(calls));
+    await vi.waitFor(() => expect(a.runtime.accountSync.status('pa').state).toBe('linked'));
+  } finally { log.mockRestore(); }
 });
 
 test('the records link points at /internal/accounts/1 with the internal token', async () => {
