@@ -110,6 +110,8 @@ export class GymCoach {
     try { this.deps.onWorkoutFinished?.(id); } catch { /* the other coach's trouble is not this workout's */ }
   }
   /** Begins strength training without Hevy. */
+  /** The rider took a new week plan: the next workout is planned again for it. */
+  weekPlanChanged(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
   start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
 
   /**

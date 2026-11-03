@@ -574,6 +574,8 @@ export class Coach {
     } catch { return ''; }
   }
   strengthChanged(profileId: string): void { this.update(profileId, (s) => this.markDirty(s)); }
+  /** The rider took a new week plan: the next session is planned again for it. */
+  weekPlanChanged(profileId: string): void { this.update(profileId, (s) => this.markDirty(s)); }
 
   private garminData(profileId: string): GarminCoachData | null {
     // Garmin is a bonus: a read error must never disturb the coach.
