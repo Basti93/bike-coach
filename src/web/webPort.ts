@@ -2,6 +2,7 @@ import { RECORD_KINDS, type RecordKind, type TrackedRecord } from '../shared/rec
 import type { TrackingPort } from '../tracking/ports';
 import { syncRecords } from '../tracking/sync';
 import type { IdbStore } from './idbStore';
+import type { PushEnv } from './push';
 
 export type SyncResult = 'ok' | 'login' | 'offline';
 export type WebPort = TrackingPort & {
@@ -39,6 +40,8 @@ export function createWebPort(o: {
   events?: EventTarget;
   intervalMs?: number;
   meTimeoutMs?: number;
+  /** With it, the port can ask the server for a push at the end of a rest. */
+  push?: PushEnv;
 }): WebPort {
   const { store } = o;
   const now = o.now ?? Date.now;
@@ -131,7 +134,19 @@ export function createWebPort(o: {
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
   const timer = setInterval(() => { void sync(); }, o.intervalMs ?? EVERY_MS);
 
+  const push = o.push;
+  /** Fire and forget: only with permission and a subscription, and every failure is swallowed. */
+  const restAlarm = push ? (atMs: number | null): void => {
+    void (async () => {
+      if (disposed || push.permission() !== 'granted') return;
+      const endpoint = (await push.current())?.endpoint;
+      if (!endpoint) return;
+      await call('POST', '/push/rest', { endpoint, atMs });
+    })().catch(() => {});
+  } : undefined;
+
   return {
+    ...(restAlarm ? { restAlarm } : {}),
     list: (kind: RecordKind) => store.list(kind),
     async put(r, opts) {
       writes++;
