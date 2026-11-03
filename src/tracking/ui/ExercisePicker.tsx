@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+import { exerciseDescription } from '../../shared/exercise-descriptions';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
+import { ExerciseInfo } from './ExerciseInfo';
 import { useCatalog } from './hooks';
 import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
 
@@ -12,6 +14,7 @@ export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = 
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ name: '', muscle: '', equipment: '', type: '' });
   const [error, setError] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -68,11 +71,23 @@ export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = 
         <section key={muscle}>
           <h3>{muscleLabel(muscle)}</h3>
           <div className="tk-list">
-            {list.map((e) => (
-              <button type="button" key={e.id} className="tk-pick" onClick={() => onPick(e)}>
-                {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
-              </button>
-            ))}
+            {list.map((e) => {
+              const description = exerciseDescription(e.id);
+              return (
+                <div key={e.id} className="tk-pick-item">
+                  <div className="tk-pick-row">
+                    <button type="button" className="tk-pick" onClick={() => onPick(e)}>
+                      {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
+                    </button>
+                    {description && (
+                      <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
+                        onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
+                    )}
+                  </div>
+                  {description && info === e.id && <ExerciseInfo title={e.title} description={description} />}
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}
