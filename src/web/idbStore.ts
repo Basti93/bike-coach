@@ -26,14 +26,19 @@ export type IdbStore = {
   close(): void;
 };
 
-const done = (tx: IDBTransaction): Promise<void> => new Promise((resolve, reject) => {
-  tx.oncomplete = () => resolve();
-  tx.onerror = () => reject(tx.error ?? new Error('transaction failed'));
-  tx.onabort = () => reject(tx.error ?? new Error('transaction aborted'));
-});
+const done = (tx: IDBTransaction): Promise<void> => {
+  const p = new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('transaction failed'));
+    tx.onabort = () => reject(tx.error ?? new Error('transaction aborted'));
+  });
+  p.catch(() => {}); // a failing request may reach the caller first
+  return p;
+};
 const req = <T>(r: IDBRequest<T>): Promise<T> => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
 
-const isStale = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { name?: string }).name === 'InvalidStateError';
+/** No room on the device: asking again at once changes nothing. The store above shows "not saved" and tries at its own pace. */
+const isQuota = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { name?: string }).name === 'QuotaExceededError';
 
 /** One IndexedDB database per account, so two people on one phone never see each other's data. */
 export async function openIdb(account: string, factory: IDBFactory = indexedDB, opts: { timeoutMs?: number } = {}): Promise<IdbStore> {
@@ -66,7 +71,12 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
   const notify = () => subs.forEach((f) => { try { f(); } catch { /* one listener must not stop the rest */ } });
   let counts = { pending: 0, refused: 0 };
 
-  /** Runs an operation on a live connection; a dead one is reopened and the operation tried once more. */
+  /**
+   * Runs an operation on a live connection. On any failure to start or complete a transaction the handle is dropped and
+   * the operation tried once more: WebKit reports a lost connection as UnknownError or AbortError, maybe without a close
+   * event. Repeating is safe for every operation here: an aborted transaction wrote nothing, a write that did commit
+   * meets its own identical record in `applyRecord` and changes nothing, and the rest are reads or plain keyed puts.
+   */
   async function run<T>(op: (d: IDBDatabase) => Promise<T>): Promise<T> {
     if (closed) throw new Error('store closed');
     for (let attempt = 0; ; attempt++) {
@@ -74,7 +84,10 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
         if (!db) db = watch(await connect());
         return await op(db);
       } catch (e) {
-        if (attempt === 0 && (isStale(e) || db === null)) { try { db?.close(); } catch { /* already gone */ } db = null; continue; }
+        if (isQuota(e)) throw e;
+        try { db?.close(); } catch { /* already gone */ }
+        db = null;
+        if (attempt === 0 && !closed) continue;
         throw e;
       }
     }
@@ -96,7 +109,8 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
 
   async function apply(rs: TrackedRecord[], remote: boolean): Promise<PutResult[]> {
     if (rs.length === 0) return [];
-    const { any: changed, results } = await run(async (d) => {
+    let wrote = false; // also a first attempt whose commit we did not hear about
+    const { results } = await run(async (d) => {
       // Local writes ask for a durable commit where the browser supports the option.
       const tx = d.transaction(['records', 'meta'], 'readwrite', { durability: remote ? 'default' : 'strict' });
       const finished = done(tx);
@@ -113,12 +127,12 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
         seq += 1; any = true;
         records.put({ key, seq, rec: keep, remote } satisfies Row);
       }
-      if (any) meta.put(seq, 'seq');
+      if (any) { meta.put(seq, 'seq'); wrote = true; }
       await finished;
       return { any, results };
     });
     await refreshCounts();
-    if (changed) notify();
+    if (wrote) notify();
     return results;
   }
 
