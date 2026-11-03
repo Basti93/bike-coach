@@ -49,7 +49,7 @@ try {
   if (scope !== `${base}/`) fail(`service worker scope is ${scope}`);
   step('service worker controls the page');
 
-  await page.getByRole('navigation').getByRole('button', { name: 'Training', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Kraft', exact: true }).click();
   await page.getByRole('button', { name: 'Leeres Training starten' }).click();
   await page.getByRole('button', { name: 'Übung hinzufügen' }).click();
   await page.locator('.tk-pick').first().click();
