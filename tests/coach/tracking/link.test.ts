@@ -441,6 +441,30 @@ describe('AccountSync', () => {
     expect(w.store.all(ID, 'routine').length).toBe(1);
   });
 
+  it('cursors stored without the kinds signature or with an old one fetch everything again; local records stay', async () => {
+    const w = await linked(world());
+    const file = path.join(tmp, 'accounts', `${ID}.cursors`);
+    await w.links.cursors(ID).set({ sent: 7, received: 40, generation: 'g1' });
+    expect(await w.links.cursors(ID).get()).toEqual({ sent: 7, received: 40, generation: 'g1' });
+    // An older Mac wrote them without a signature: received starts from 0, the rest stays.
+    fs.writeFileSync(file, JSON.stringify({ sent: 7, received: 40, generation: 'g1' }));
+    expect(await w.links.cursors(ID).get()).toEqual({ sent: 7, received: 0, generation: 'g1' });
+    fs.writeFileSync(file, JSON.stringify({ sent: 7, received: 40, kinds: 'workout,routine' }));
+    expect((await w.links.cursors(ID).get()).received).toBe(0);
+
+    // End to end: a run record the old version skipped comes down after the update.
+    w.store.put(ID, rec('mobility', 'm-local', NOW, { text: 'hier' }));
+    await w.sync.tick(ID);
+    w.server.add(rec('run', 'settings', NOW, { type: 'settings', on: true, weekdays: null, answers: null }));
+    const c = await w.links.cursors(ID).get();
+    // Pretend the run record was seen and dropped by an older version: cursor past it, no signature.
+    fs.writeFileSync(file, JSON.stringify({ sent: c.sent, received: 1_000, ...(c.generation ? { generation: c.generation } : {}) }));
+    w.now += 10 * MIN;
+    await w.sync.tick(ID);
+    expect(w.store.all(ID, 'run').map((r) => r.id)).toEqual(['settings']);
+    expect(w.store.all(ID, 'mobility').map((r) => r.id)).toEqual(['m-local']);
+  });
+
   it('settled: a run that leaves its resend open is not settled, even when the sent cursor is past every record', async () => {
     const w = await linked(world());
     w.store.put(ID, rec('mobility', 'm1', NOW, { text: 'a' }));

@@ -47,7 +47,7 @@ export const parseMealKey = (key: string): { day: number; slot: Slot } | null =>
 // ---- Weeks, in local time ----
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 /** Monday 0 … Sunday 6. */
 export const dayIndex = (ms: number): number => (new Date(ms).getDay() + 6) % 7;
 /** The Monday of the week `ms` lies in, as YYYY-MM-DD. */

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAccount } from '../../web-server/auth';
 import { openDb } from '../../web-server/db';
 import { buildServer } from '../../web-server';
-import { b64u, buildVersion, newVapidKeys, validEndpoint, webPushSender, type PushType, type Sender } from '../../web-server/push';
+import { MESSAGES, b64u, buildVersion, runWeekOf, newVapidKeys, validEndpoint, webPushSender, type PushType, type Sender } from '../../web-server/push';
 import { login, NOW, PW_A, PW_B, post } from './helpers';
 
 const KEY = newVapidKeys().publicKey; // any valid P-256 point
@@ -13,6 +13,7 @@ const AUTH = b64u(Buffer.alloc(16, 3));
 const sub = (n: string, host = 'web.push.apple.com') => ({ endpoint: `https://${host}/sub/${n}`, keys: { p256dh: KEY, auth: AUTH } });
 const H = (cookie: string) => ({ cookie, host: 'x.test', origin: 'https://x.test' });
 const week = (key: string, over: Record<string, unknown> = {}) => ({ kind: 'mealplan', id: `week-${key}`, updatedMs: NOW, deleted: false, body: { week: key, people: [], meals: [] }, ...over });
+const runWeek = (key: string, over: Record<string, unknown> = {}, body: Record<string, unknown> = {}) => ({ kind: 'run', id: `week-${key}`, updatedMs: NOW, deleted: false, body: { week: key, announce: true, runs: [{ date: key, kind: 'easy', minutes: 30 }], ...body }, ...over });
 // NOW is 2027-01-15 (Friday); the coming week starts 2027-01-18.
 const NEXT = '2027-01-18', THIS = '2027-01-11';
 
@@ -241,5 +242,79 @@ describe('real sender', () => {
     expect(calls).toHaveLength(3);
     expect(JSON.stringify(warn.mock.calls)).not.toMatch(/secret|vapid|sub\/a/);
     warn.mockRestore();
+  });
+});
+
+describe('run week notification', () => {
+  it('a new announced run week notifies the account once', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!, b = (await login(app, 'ben', PW_B)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await subscribe(app, b, sub('ben'));
+    await post(app, H(a), [runWeek(NEXT)]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ endpoint: sub('anna').endpoint, type: 'run' });
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 1 })]);
+    await settle();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('a run week with announce false, a resend or a past week does not notify', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [runWeek(NEXT, {}, { announce: false }), runWeek('2027-01-04'), runWeek('2026-11-02'), runWeek('2027-01-25', {}, { week: NEXT }),
+      { kind: 'run', id: 'status', updatedMs: NOW, deleted: false, body: { week: NEXT, announce: true } }, runWeek('2027-02-01', { deleted: true })]);
+    await settle();
+    expect(sent).toEqual([]);
+    const runs = [{ date: NEXT, kind: 'easy', minutes: 30 }];
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs } }, NOW)).toBe(NEXT);
+    expect(runWeekOf({ kind: 'mealplan', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs } }, NOW)).toBeNull();
+    // A paused week without runs is no plan to announce.
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs: [] } }, NOW)).toBeNull();
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true } }, NOW)).toBeNull();
+    // Announced first as a quiet week, later announced: that is the first announcement.
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 1 })]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 2 })]);
+    await settle();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('a paused run week without runs sends no push; once it has runs it does, once', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [runWeek(NEXT, {}, { runs: [] })]);
+    await settle();
+    expect(sent).toEqual([]);
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 1 })]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+  });
+
+  it('run weeks stored before the table existed count as announced', async () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'pf-push-')), 'test.db');
+    const db = openDb(dbPath);
+    await createAccount(db, 'anna', PW_A);
+    db.exec('DROP TABLE push_run_weeks');
+    db.prepare('INSERT INTO records VALUES (1, ?, ?, ?, 0, ?, 1)').run('run', `week-${NEXT}`, NOW, JSON.stringify({ week: NEXT, announce: true }));
+    db.prepare('INSERT INTO records VALUES (1, ?, ?, ?, 0, ?, 2)').run('run', 'week-2027-01-25', NOW, JSON.stringify({ week: '2027-01-25', announce: false }));
+    db.close();
+    const { app, sent } = await server({ db: dbPath });
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 5 })]);
+    await settle();
+    expect(sent).toEqual([]);
+  });
+
+  it('the run push carries no health details', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [runWeek(NEXT, {}, { note: 'Wade schmerzt', hrCap: 140 })]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(JSON.parse(sent[0]!.payload)).toEqual({ type: 'run', ...MESSAGES.run });
+    expect(MESSAGES.run).toEqual({ title: 'Pandafit', body: 'Dein Laufplan für die Woche ist da.' });
   });
 });

@@ -215,4 +215,11 @@ describe('push notifications', () => {
     expect(clickTarget({ url: 'https://evil.example/' }, [], ORIGIN)).toEqual({ open: '/' });
     expect(clickTarget(undefined, [], ORIGIN)).toEqual({ open: '/' });
   });
+
+  it('a run notice opens /?tab=laufen and an open window gets tab laufen', () => {
+    const r = notificationFor(JSON.stringify({ type: 'run' }))!;
+    expect(r.options).toMatchObject({ body: 'Dein Laufplan für die Woche ist da.', tag: 'pandafit-run', data: { url: '/?tab=laufen' } });
+    expect(clickTarget({ url: '/?tab=laufen' }, [{ url: `${ORIGIN}/` }], ORIGIN)).toEqual({ focus: 0, tab: 'laufen' });
+    expect(clickTarget({ url: '/?tab=laufen' }, [], ORIGIN)).toEqual({ open: '/?tab=laufen' });
+  });
 });

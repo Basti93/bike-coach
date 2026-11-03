@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrackedRecord } from '../../src/shared/records';
@@ -14,6 +14,7 @@ import path from 'node:path';
 import { MealCoach } from '../../src/coach/meals/meal-coach';
 import { MEAL_SYSTEM_PROMPT } from '../../src/coach/meals/prompt';
 import { RecordStore } from '../../src/coach/tracking/store';
+import { runFp } from '../../src/shared/run';
 
 afterEach(cleanup);
 
@@ -26,7 +27,7 @@ const plan = (atMs: number, mobility: unknown = null): TrackedRecord => ({
 });
 const session = (triggerMs: number) => ({ id: `mobility-bike-${triggerMs}`, forSession: 'bike', minutes: 8, exercises: [{ id: 'm1', title: 'Hüftbeuger dehnen', howTo: 'Ausfallschritt, ruhig atmen.', area: 'hueftbeuger' }], reason: 'Nach der Radfahrt tut das gut.' });
 
-type Opts = { logoutStatus?: number; hold?: { me: Promise<void> | null }; flaky?: { fail: boolean }; me?: number; hangMe?: boolean; noIdb?: 'null' | 'throws'; flags?: Record<string, string>; logoutFails?: boolean; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
+type Opts = { startTab?: string; onOpenTab?: (f: (tab: string) => void) => () => void; logoutStatus?: number; hold?: { me: Promise<void> | null }; flaky?: { fail: boolean }; me?: number; hangMe?: boolean; noIdb?: 'null' | 'throws'; flags?: Record<string, string>; logoutFails?: boolean; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
 async function boot(o: Opts = {}) {
   const factory = new IDBFactory();
   if (o.seed) { const s = await openIdb('anna', factory); for (const r of o.seed) await s.put(r); s.close(); }
@@ -51,7 +52,7 @@ async function boot(o: Opts = {}) {
   const ui = render(<App env={{
     fetchFn, idbFactory: o.flaky ? ({ open: (n: string, v?: number) => { if (o.flaky!.fail) throw new Error('denied'); return factory.open(n, v); } } as unknown as IDBFactory) : o.noIdb === 'null' ? null : o.noIdb === 'throws' ? ({ open: () => { throw new Error('denied'); } } as unknown as IDBFactory) : factory, now: () => NOW, newId: () => `id-${Math.random().toString(36).slice(2)}`,
     storage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, v); }, removeItem: (k: string) => { storage.delete(k); } },
-    persist, ua: o.ua ?? 'Mozilla/5.0 Android', standalone: o.standalone ?? false, onWorkoutOpen,
+    persist, ua: o.ua ?? 'Mozilla/5.0 Android', standalone: o.standalone ?? false, onWorkoutOpen, startTab: o.startTab, onOpenTab: o.onOpenTab,
   }} />);
   return { ...ui, factory, storage, calls, persist, onWorkoutOpen };
 }
@@ -508,4 +509,85 @@ describe('Essen on the phone', () => {
     expect((await s.list('mealplan')).length).toBe(0);
     s.close();
   });
+});
+
+describe('Laufen on the phone', () => {
+  const week = weekOf(NOW);
+  const planned = { date: week, kind: 'easy' as const, minutes: 30, hrCap: 150, counts: 'Heute zählt die Zeit.', note: null };
+  const run = (id: string, body: object): TrackedRecord => ({ kind: 'run', id, updatedMs: NOW - 1000, deleted: false, body });
+  const status = (over: object = {}) => run('status', {
+    type: 'status', atMs: NOW - 1000, on: true, suggest: false, needsAnswers: false, garmin: false, suggestedDays: [1, 3, 5], hrCap: 150, complaint: null,
+    numbers: { easyPace: { now: null, weeks4: null, weeks12: null, trend: [] }, weeks: [], longest: { blockKm: null, lastBlockKm: null }, tests: [] }, card: null, ...over,
+  });
+  const review = run(`review-${week}`, { type: 'review', week, atMs: NOW - 500, km: 12.5, minutes: 90, plannedMinutes: 90, runs: 3, longestKm: 6, easyPace: null, testM: null, focus: 'Ruhig weiter.' });
+  const planWeek = run(`week-${week}`, { type: 'week', week, announce: true, atMs: NOW - 900, phase: 1, source: 'rules', reason: 'r', note: null, runs: [{ ...planned, fp: runFp(planned), done: null }], garmin: null });
+
+  it('the Laufen tab appears only with a run status that is on or suggest', async () => {
+    await boot({ account: 'anna', seed: [] });
+    await screen.findByRole('navigation');
+    expect(screen.queryByRole('button', { name: 'Laufen' })).toBeNull();
+    cleanup();
+    await boot({ account: 'anna', seed: [status({ on: false, suggest: false })] });
+    await screen.findByRole('navigation');
+    expect(screen.queryByRole('button', { name: 'Laufen' })).toBeNull();
+    cleanup();
+    await boot({ account: 'anna', seed: [status()] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
+    expect(await screen.findByRole('heading', { name: 'Laufen' })).toBeTruthy();
+    cleanup();
+    await boot({ account: 'anna', seed: [status({ on: false, suggest: true })] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
+    expect(await screen.findByRole('button', { name: 'Laufen einschalten' })).toBeTruthy();
+  });
+
+  it('a record whose body type does not match its id is ignored', async () => {
+    await boot({ account: 'anna', seed: [run('status', { ...(status().body as object), type: 'review' })] });
+    await screen.findByRole('navigation');
+    expect(screen.queryByRole('button', { name: 'Laufen' })).toBeNull();
+  });
+
+  it('a notification with tab laufen opens it, at start and while open', async () => {
+    await boot({ account: 'anna', seed: [status(), planWeek], startTab: 'laufen' });
+    expect(await screen.findByRole('heading', { name: 'Diese Woche' })).toBeTruthy();
+    cleanup();
+    let open!: (t: string) => void;
+    await boot({ account: 'anna', seed: [status(), planWeek], onOpenTab: (f) => { open = f; return () => {}; } });
+    await screen.findByRole('navigation');
+    await waitFor(() => expect(open).toBeTypeOf('function'));
+    act(() => open('laufen'));
+    expect(await screen.findByRole('heading', { name: 'Diese Woche' })).toBeTruthy();
+  });
+
+  it('a notification for Laufen without a run status stays on Heute', async () => {
+    await boot({ account: 'anna', seed: [], startTab: 'laufen' });
+    await screen.findByRole('navigation');
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Laufen' })).toBeNull());
+  });
+
+  it('Verlauf shows the run look back only when a review exists', async () => {
+    await boot({ account: 'anna', seed: [status()] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Verlauf' }));
+    await screen.findByRole('heading', { name: 'Verlauf' });
+    expect(screen.queryByRole('heading', { name: 'Wochenrückblick' })).toBeNull();
+    cleanup();
+    await boot({ account: 'anna', seed: [status(), review] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Verlauf' }));
+    expect(await screen.findByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
+    expect(screen.getByText(/12,5 km/)).toBeTruthy();
+  });
+
+  it('Profil shows the Laufen switch, even with no run records', async () => {
+    const a = await boot({ account: 'anna', seed: [] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
+    const sw = await screen.findByRole('switch', { name: 'Laufen planen' });
+    await waitFor(() => expect((sw as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(sw);
+    await waitFor(async () => {
+      const s = await openIdb('anna', a.factory);
+      const rec = (await s.list('run')).find((r) => r.id === 'settings');
+      s.close();
+      expect(rec?.body).toMatchObject({ type: 'settings', on: true });
+    });
+  });
+
 });

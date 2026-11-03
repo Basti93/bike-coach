@@ -32,6 +32,14 @@ const mk = async (fetchFn: typeof fetch) => {
 };
 
 describe('webPort', () => {
+  it('run records from the server are kept and listed', async () => {
+    const { s, fetchFn } = server();
+    s.remote = [{ kind: 'run', id: 'settings', updatedMs: 5, deleted: false, body: { type: 'settings', on: true, weekdays: null, answers: null } }];
+    const { store, port } = await mk(fetchFn);
+    expect(await port.sync()).toBe('ok');
+    expect((await store.list('run')).map((r) => r.id)).toEqual(['settings']);
+  });
+
   it('sends local records with same-origin credentials and no redirects, and receives remote ones', async () => {
     const { s, fetchFn } = server();
     s.remote = [rec('remote')];

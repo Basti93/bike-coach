@@ -102,3 +102,11 @@ test('it never writes to the database', () => {
   fs.chmodSync(file, 0o400);
   expect(new GarminDb(file).days('2026-01-01')).toHaveLength(1);
 });
+
+test('runs: a row with broken JSON is skipped, and a missing beginTimestamp falls back to start_time', () => {
+  const { file, db, act } = make();
+  act({ activityId: 1, startTimeGMT: '2026-01-10 08:00:00', activityType: { typeKey: 'running' }, duration: 10 });
+  db.prepare('INSERT INTO activities VALUES (?,?,?,?,?)').run('2', '2026-01-11 08:00:00', 'running', '{broken', 't');
+  act({ activityId: 3, startTimeGMT: '2026-01-12 08:00:00', beginTimestamp: 5, activityType: { typeKey: 'running' }, duration: 10 });
+  expect(new GarminDb(file).runs(0).map((r) => [r.id, r.startMs])).toEqual([['1', Date.UTC(2026, 0, 10, 8)], ['3', 5]]);
+});

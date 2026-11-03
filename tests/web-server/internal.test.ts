@@ -98,6 +98,20 @@ describe('internal records routes', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('a run week written by the coach notifies like a meal week', async () => {
+    const { app, internal, sent } = await servers();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await app.inject({ method: 'POST', url: '/push/subscribe', headers: H(a), payload: sub('anna') });
+    const run = (over: Record<string, unknown> = {}) => ({ kind: 'run', id: `week-${NEXT}`, updatedMs: NOW, deleted: false, body: { week: NEXT, announce: true, runs: [{ date: NEXT, kind: 'easy', minutes: 30 }] }, ...over });
+    await internal.inject({ method: 'POST', url: '/internal/accounts/1/records', headers: BEARER, payload: { records: [run()] } });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ endpoint: sub('anna').endpoint, type: 'run' });
+    await internal.inject({ method: 'POST', url: '/internal/accounts/1/records', headers: BEARER, payload: { records: [run({ updatedMs: NOW + 1 })] } });
+    await post(app, H(a), [run({ updatedMs: NOW + 2 })]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sent).toHaveLength(1);
+  });
+
   it('a port that cannot be had is logged, without the token, and the api carries on without the internal app', async () => {
     const dbPath = join(mkdtempSync(join(tmpdir(), 'pf-int-')), 'test.db');
     const busy = createServer();

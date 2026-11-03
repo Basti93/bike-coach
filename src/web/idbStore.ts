@@ -1,4 +1,4 @@
-import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
+import { applyRecord, RECORD_KINDS, RECORD_KINDS_SIGNATURE, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { PutResult } from '../tracking/ports';
 import { lineAfterAck, planWrite, type WriteOrigin } from '../tracking/kept-copy';
 import type { SyncCursors } from '../tracking/sync';
@@ -6,8 +6,8 @@ import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
 type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number; line?: number[] };
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
-const KINDS_SIGNATURE = [...KINDS].sort().join(',');
+const KINDS: readonly RecordKind[] = RECORD_KINDS;
+const KINDS_SIGNATURE = RECORD_KINDS_SIGNATURE;
 
 export type IdbStore = {
   /** Records the screens can draw. Unreadable ones stay stored (and are still synced) but are not listed. */

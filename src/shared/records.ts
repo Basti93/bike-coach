@@ -1,4 +1,8 @@
-export type RecordKind = 'workout' | 'routine' | 'exercise' | 'mobility' | 'complaint' | 'plan' | 'mealplan' | 'together';
+/** The one list of record kinds. Every screen, store and route derives from it. */
+export const RECORD_KINDS = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together', 'run'] as const;
+export type RecordKind = (typeof RECORD_KINDS)[number];
+/** Stored with sync cursors: a version that did not know a kind skipped its records, so a changed list fetches everything again. */
+export const RECORD_KINDS_SIGNATURE = [...RECORD_KINDS].sort().join(',');
 export type TrackedRecord = { kind: RecordKind; id: string; updatedMs: number; deleted: boolean; body: unknown };
 
 export type LoggedSet = { type: 'warmup' | 'normal' | 'failure' | 'dropset'; weightKg: number | null; reps: number | null; durationS: number | null; doneMs: number | null };

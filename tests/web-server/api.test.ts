@@ -8,6 +8,14 @@ import { login, NOW, PW_A, PW_B, post, rec, setup } from './helpers';
 const get = (app: any, url: string, cookie: string) => app.inject({ method: 'GET', url, headers: { cookie } });
 
 describe('api', () => {
+  it('a run record is accepted, an unknown kind still refused', async () => {
+    const { app } = await setup();
+    const { cookie } = await login(app, 'anna', PW_A);
+    const res = await post(app, { cookie: cookie! }, [rec('settings', NOW, { type: 'settings', on: true, weekdays: null, answers: null }, { kind: 'run' }), rec('z', NOW, 1, { kind: 'zzz' })]);
+    expect(res.json().accepted).toBe(1);
+    expect(res.json().refused.map((r: any) => r.reason)).toEqual(['unknown kind']);
+  });
+
   it('no route answers without login except login, static files and healthz', async () => {
     const { app } = await setup();
     for (const [method, url] of [['GET', '/me'], ['GET', '/records'], ['POST', '/records'], ['POST', '/logout'], ['GET', '/records?since=0'], ['PUT', '/records'], ['DELETE', '/records']] as const) {

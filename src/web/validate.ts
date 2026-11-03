@@ -1,5 +1,6 @@
 import type { RecordKind, TrackedRecord } from '../shared/records';
 import { readMealPlan } from '../shared/meals';
+import { readRunBody } from '../shared/run';
 import { readTogether } from '../shared/together';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -24,6 +25,7 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     // The plan must be drawable; the state is read entry by entry and anything odd in it is skipped.
     case 'mealplan': return 'meals' in body ? readMealPlan(body) !== null : true;
     case 'together': return readTogether(body) !== null;
+    case 'run': return readRunBody(body) !== null;
   }
 }
 

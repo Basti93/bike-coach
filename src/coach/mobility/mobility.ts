@@ -22,13 +22,16 @@ const MAX_EXERCISES = 5;
 const FEEL_MAX = 300;
 
 export type MobilitySession = {
-  id: string; forSession: 'bike' | 'strength'; minutes: number;
+  id: string; forSession: MobilityFor; minutes: number;
   exercises: { id: string; title: string; howTo: string; area: string }[]; reason: string;
 };
+export type MobilityFor = 'bike' | 'strength' | 'run';
 export type MobilityView = { session: MobilitySession | null; askFeel: boolean };
-export type MobilityPromptData = { zuletzt: { tageHer: number; fuer: 'bike' | 'strength' }[]; feel: string | null };
+export type MobilityPromptData = { zuletzt: { tageHer: number; fuer: MobilityFor }[]; feel: string | null };
 
 const RIDE_FOCUS: MobilityArea[] = ['hueftbeuger', 'oberschenkel-hinten', 'waden', 'brust'];
+/** After a run: calves, hip flexors and the back of the thigh. */
+const RUN_FOCUS: MobilityArea[] = ['waden', 'hueftbeuger', 'oberschenkel-hinten'];
 const FALLBACK: MobilityArea[] = [...RIDE_FOCUS, 'gesaess', 'ruecken', 'oberschenkel-vorn', 'schultern', 'nacken'];
 
 /** Hevy's muscle names to the areas worth a calm stretch afterwards. */
@@ -65,28 +68,33 @@ const excludedAreas = (complaints: Complaint[]): Set<MobilityArea> => {
 export type MobilityInput = {
   nowMs: number; lastRideMs: number | null; lastStrengthMs: number | null; lastMobilityMs: number | null;
   complaints: Complaint[]; usedMuscles: string[];
+  /** When the last run ended; only with the run coach on. */
+  lastRunMs?: number | null;
 };
 
 /**
- * Rules only. `lastRideMs` and `lastStrengthMs` are the times the sessions ended. A session is offered if one ended within
+ * Rules only. `lastRideMs`, `lastStrengthMs` and `lastRunMs` are the times the sessions ended. A session is offered if one ended within
  * 24 hours and no mobility was done within 2 days. Its id depends on the triggering session alone, so it stays the same until
- * a new session ends. `rideKey` turns a ride's end into what the id shows.
+ * a new session ends. `rideKey` turns a ride's or run's end into what the id shows.
  */
 export function suggestMobility(input: MobilityInput, rideKey: (endMs: number) => string = String): MobilitySession | null {
   const { nowMs } = input;
   const recent = (ms: number | null): ms is number => ms !== null && ms <= nowMs && nowMs - ms <= OFFER_WINDOW_MS;
   const bike = recent(input.lastRideMs) ? input.lastRideMs : null;
   const strength = recent(input.lastStrengthMs) ? input.lastStrengthMs : null;
-  if (bike === null && strength === null) return null;
+  const run = recent(input.lastRunMs ?? null) ? input.lastRunMs! : null;
+  // The newest session decides.
+  const candidates = ([['bike', bike], ['strength', strength], ['run', run]] as const).filter((c): c is readonly [MobilityFor, number] => c[1] !== null);
+  if (candidates.length === 0) return null;
   if (input.lastMobilityMs !== null && nowMs - input.lastMobilityMs < PAUSE_MS) return null;
-  const forSession: 'bike' | 'strength' = strength !== null && (bike === null || strength > bike) ? 'strength' : 'bike';
-  const triggerMs = forSession === 'strength' ? strength! : bike!;
+  const [forSession, triggerMs] = candidates.reduce((a, c) => (c[1] > a[1] ? c : a));
 
   const excluded = excludedAreas(input.complaints);
   const list = kneeLoadBlocked(input.complaints) ? MOBILITY_EXERCISES.filter((x) => !x.kneeLoad) : MOBILITY_EXERCISES;
   const fromMuscles = forSession === 'strength' ? [...new Set(input.usedMuscles.flatMap((m) => MUSCLE_AREAS[m] ?? []))] : [];
-  const focus = [...(forSession === 'bike' ? RIDE_FOCUS : fromMuscles), ...FALLBACK].filter((a, i, all) => all.indexOf(a) === i && !excluded.has(a));
-  const wanted = (forSession === 'bike' ? RIDE_FOCUS : fromMuscles).filter((a) => !excluded.has(a));
+  const own = forSession === 'bike' ? RIDE_FOCUS : forSession === 'run' ? RUN_FOCUS : fromMuscles;
+  const focus = [...own, ...FALLBACK].filter((a, i, all) => all.indexOf(a) === i && !excluded.has(a));
+  const wanted = own.filter((a) => !excluded.has(a));
 
   // One per wanted area first, then a second one, then the rest only to reach the minimum.
   const picked: typeof list = [];
@@ -105,9 +113,11 @@ export function suggestMobility(input: MobilityInput, rideKey: (endMs: number) =
   const left = excluded.size > 0 || list !== MOBILITY_EXERCISES ? ' Bereiche, die dich gerade stören, habe ich weggelassen.' : '';
   const reason = forSession === 'bike'
     ? `Nach dem Radfahren eine kurze, ruhige Beweglichkeitseinheit, nur wenn du magst.${left}`
+    : forSession === 'run'
+    ? `Nach dem Laufen eine kurze, ruhige Beweglichkeitseinheit für Waden, Hüftbeuger und Oberschenkelrückseite, nur wenn du magst.${left}`
     : `Nach dem Krafttraining eine kurze, ruhige Beweglichkeitseinheit für die Muskeln, die du genutzt hast, nur wenn du magst.${left}`;
   return {
-    id: `mobility-${forSession}-${forSession === 'bike' ? rideKey(triggerMs) : triggerMs}`, forSession,
+    id: `mobility-${forSession}-${forSession === 'strength' ? triggerMs : rideKey(triggerMs)}`, forSession,
     minutes: Math.max(6, Math.min(10, picked.length * 2)),
     exercises: picked.map(({ id, title, howTo, area }) => ({ id, title, howTo, area })), reason,
   };
@@ -121,6 +131,7 @@ const GUESSES: [RegExp, string][] = [
 ];
 const defaultMuscleOf = (templateId: string, title: string): string | null =>
   EXERCISES.find((e) => e.id === templateId)?.primaryMuscle ?? GUESSES.find(([p]) => p.test(title))?.[1] ?? null;
+export { defaultMuscleOf as muscleOf };
 
 type Deps = {
   store: RecordStore; nowMs: () => number;
@@ -128,13 +139,15 @@ type Deps = {
   /** The merged history of the strength coach. */
   strength: (id: string) => StrengthWorkout[];
   complaints: (id: string) => Complaint[];
+  /** Runs of the run coach, only while it is on. Without it nothing is offered after a run. */
+  runs?: (id: string) => { startMs: number; durationS: number }[];
   muscleOf?: (templateId: string, title: string) => string | null;
 };
 
 type Body = { doneMs?: unknown; forSession?: unknown; feel?: unknown; skipped?: unknown };
 const bodyOf = (r: { body: unknown }): Body => (typeof r.body === 'object' && r.body !== null ? r.body as Body : {});
 
-/** Mobility offered after a bike or strength session. Local only: rules, records and no AI call. */
+/** Mobility offered after a bike, strength or run session. Local only: rules, records and no AI call. */
 export class MobilityCoach {
   constructor(private deps: Deps) {}
 
@@ -148,6 +161,7 @@ export class MobilityCoach {
     const lastStrength = workouts.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
     const muscleOf = this.deps.muscleOf ?? defaultMuscleOf;
     const doneMs = this.done(id).map((r) => bodyOf(r).doneMs as number);
+    const runEnds = this.runEnds(id).filter((ms) => ms <= now);
     return suggestMobility({
       nowMs: now,
       lastRideMs: rides.length ? Math.max(...rides) : null,
@@ -155,10 +169,15 @@ export class MobilityCoach {
       lastMobilityMs: doneMs.length ? Math.max(...doneMs) : null,
       complaints: this.deps.complaints(id),
       usedMuscles: lastStrength ? lastStrength.exercises.flatMap((e) => { const m = muscleOf(e.templateId, e.title); return m ? [m] : []; }) : [],
+      lastRunMs: runEnds.length ? Math.max(...runEnds) : null,
     }, (endMs) => this.rideKey(id, endMs));
   }
 
-  /** Stands for one ride and says nothing about it: session ids go to the server with the plan, ride times must not. */
+  private runEnds(id: string): number[] {
+    try { return (this.deps.runs?.(id) ?? []).filter((r) => r.durationS > 0).map((r) => r.startMs + r.durationS * 1000); } catch { return []; }
+  }
+
+  /** Stands for one ride or run and says nothing about it: session ids go to the server with the plan, their times must not. */
   private rideKey(id: string, endMs: number): string {
     return createHmac('sha256', this.deps.store.localSecret(id)).update(String(endMs)).digest('hex').slice(0, 16);
   }
@@ -178,16 +197,18 @@ export class MobilityCoach {
    */
   markDone(id: string, sessionId: string): void {
     const now = this.deps.nowMs();
-    const m = /^mobility-(bike|strength)-([0-9a-f]+)$/.exec(sessionId);
+    const m = /^mobility-(bike|strength|run)-([0-9a-f]+)$/.exec(sessionId);
     if (!m) return;
-    const forSession = m[1] as 'bike' | 'strength';
+    const forSession = m[1] as MobilityFor;
     const ends = forSession === 'bike'
       ? this.deps.rides(id).filter((r) => r.status === 'finished' && r.durationS >= MIN_COUNTED_S).map((r) => r.startedAtMs + r.durationS * 1000)
+      : forSession === 'run' ? this.runEnds(id)
       : this.deps.strength(id).filter((w) => w.durationS > 0).map((w) => w.startMs + w.durationS * 1000);
-    // A card from before ride keys may still carry the plain end time.
-    const endMs = ends.find((e) => m[2] === String(e) || (forSession === 'bike' && m[2] === this.rideKey(id, e)));
+    // A card from before ride keys may still carry the plain end time. A run card always carries the key.
+    const keyed = forSession !== 'strength';
+    const endMs = ends.find((e) => (forSession !== 'run' && m[2] === String(e)) || (keyed && m[2] === this.rideKey(id, e)));
     if (endMs === undefined || endMs > now || now - endMs > OFFER_WINDOW_MS + TAP_GRACE_MS) return;
-    const storedId = forSession === 'bike' ? `mobility-bike-${this.rideKey(id, endMs)}` : sessionId;
+    const storedId = keyed ? `mobility-${forSession}-${this.rideKey(id, endMs)}` : sessionId;
     const have = this.deps.store.all(id, 'mobility');
     if (have.some((r) => r.id === storedId || r.id === `mobility-${forSession}-${endMs}`)) return;
     // The same 2 day rule as for the offer, so a second session's card cannot add a second entry.
@@ -208,7 +229,7 @@ export class MobilityCoach {
     const now = this.deps.nowMs();
     const zuletzt = this.done(id).filter((r) => now - (bodyOf(r).doneMs as number) <= PROMPT_WINDOW_MS)
       .sort((a, b) => (bodyOf(b).doneMs as number) - (bodyOf(a).doneMs as number)).slice(0, 5)
-      .map((r) => ({ tageHer: Math.max(0, Math.floor((now - (bodyOf(r).doneMs as number)) / DAY)), fuer: bodyOf(r).forSession === 'strength' ? 'strength' as const : 'bike' as const }));
+      .map((r) => ({ tageHer: Math.max(0, Math.floor((now - (bodyOf(r).doneMs as number)) / DAY)), fuer: bodyOf(r).forSession === 'strength' || bodyOf(r).forSession === 'run' ? bodyOf(r).forSession as MobilityFor : 'bike' as const }));
     const feels = this.records(id).filter((r) => typeof bodyOf(r).feel === 'string' && (bodyOf(r).feel as string).trim()).sort((a, b) => b.updatedMs - a.updatedMs);
     const feel = feels.length && now - feels[0].updatedMs <= FEEL_EVERY_MS ? bodyOf(feels[0]).feel as string : null;
     return zuletzt.length || feel ? { zuletzt, feel } : null;

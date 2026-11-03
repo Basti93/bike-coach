@@ -307,3 +307,47 @@ describe('the coaches prompts carry recent mobility as data', () => {
     fs.rmSync(coachDir, { recursive: true, force: true });
   });
 });
+
+describe('mobility after a run', () => {
+  let dir: string;
+  let store: RecordStore;
+  let runs: { startMs: number; durationS: number }[];
+  let complaints: Complaint[];
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mob-run-'));
+    store = new RecordStore({ dir });
+    runs = []; complaints = [];
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const make = () => new MobilityCoach({ store, nowMs: () => NOW, rides: () => [], strength: () => [], complaints: () => complaints, runs: () => runs });
+
+  test('a run within 24 hours offers mobility for calves, hip flexors and the back of the thigh', () => {
+    runs = [{ startMs: NOW - 3 * HOUR, durationS: 2400 }];
+    const s = make().view('p').session!;
+    expect(s.forSession).toBe('run');
+    expect(s.id).toMatch(/^mobility-run-[0-9a-f]{16}$/);
+    expect(s.id).not.toContain(String(NOW - 3 * HOUR + 2400_000));
+    for (const a of ['waden', 'hueftbeuger', 'oberschenkel-hinten']) expect(s.exercises.map((e) => e.area)).toContain(a);
+    expect(s.reason).toMatch(/Laufen/);
+    make().markDone('p', s.id);
+    expect(store.all('p', 'mobility')[0]).toMatchObject({ id: s.id, body: { doneMs: NOW, forSession: 'run' } });
+    expect(make().view('p').session).toBeNull();
+  });
+
+  test('a run older than 24 hours offers nothing', () => {
+    runs = [{ startMs: NOW - 26 * HOUR, durationS: 2400 }];
+    expect(make().view('p').session).toBeNull();
+  });
+
+  test('a run complaint removes the matching areas', () => {
+    runs = [{ startMs: NOW - 3 * HOUR, durationS: 2400 }];
+    complaints = [complaint('Wade')];
+    const s = make().view('p').session!;
+    expect(s.forSession).toBe('run');
+    expect(s.exercises.map((e) => e.area)).not.toContain('waden');
+  });
+
+  test('without the run coach nothing changes for bike and strength', () => {
+    expect(suggestMobility(afterRide)!.forSession).toBe('bike');
+  });
+});

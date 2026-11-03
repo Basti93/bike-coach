@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { RECORD_KINDS_SIGNATURE } from '../../shared/records';
 import type { SyncCursors } from '../../tracking/sync';
 
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
@@ -94,14 +95,17 @@ export class AccountLinks {
     return {
       get: async () => {
         try {
-          const d = JSON.parse(fs.readFileSync(f, 'utf8')) as { sent?: unknown; received?: unknown; generation?: unknown; resend?: unknown };
+          const d = JSON.parse(fs.readFileSync(f, 'utf8')) as { sent?: unknown; received?: unknown; generation?: unknown; resend?: unknown; kinds?: unknown };
+          // A version that did not know a kind skipped its records while the cursor moved past them: when the
+          // known kinds change, fetch everything again. Records already here stay; fetching them again changes nothing.
+          const sameKinds = d.kinds === RECORD_KINDS_SIGNATURE;
           return {
-            sent: typeof d.sent === 'number' ? d.sent : 0, received: typeof d.received === 'number' ? d.received : 0,
+            sent: typeof d.sent === 'number' ? d.sent : 0, received: sameKinds && typeof d.received === 'number' ? d.received : 0,
             ...(typeof d.generation === 'string' ? { generation: d.generation } : {}), ...(d.resend === true ? { resend: true } : {}),
           };
         } catch { return { sent: 0, received: 0 }; }
       },
-      set: async (c) => { fs.writeFileSync(`${f}.tmp`, JSON.stringify(c)); fs.renameSync(`${f}.tmp`, f); },
+      set: async (c) => { fs.writeFileSync(`${f}.tmp`, JSON.stringify({ ...c, kinds: RECORD_KINDS_SIGNATURE })); fs.renameSync(`${f}.tmp`, f); },
     };
   }
 }

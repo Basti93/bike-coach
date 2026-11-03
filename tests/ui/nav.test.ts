@@ -53,3 +53,17 @@ test('Essen only for a profile that turned the meal plan on, right after Kraft',
   expect(activeItem(open('essen', 'a'), 'a', 'overview')).toBe('essen');
   expect(MENU_LABEL.essen).toBe('Essen');
 });
+
+test('open(laufen) shows only the run page', () => {
+  expect(open('laufen', 'a')).toEqual({ ...HOME, run: true });
+});
+test('activeItem is laufen while the run page is open', () => {
+  expect(activeItem({ ...HOME, run: true }, 'a', 'overview')).toBe('laufen');
+  expect(MENU_LABEL.laufen).toBe('Laufen');
+});
+test('menuItems lists Laufen after Kraft only when run is true', () => {
+  const base = { overview: true, gym: true, history: true, health: false, together: false, meals: true };
+  expect(menuItems({ ...base, run: true })).toEqual(['start', 'rad', 'kraft', 'laufen', 'essen', 'verlauf']);
+  expect(menuItems({ ...base, run: false })).not.toContain('laufen');
+  expect(menuItems(base)).not.toContain('laufen');
+});

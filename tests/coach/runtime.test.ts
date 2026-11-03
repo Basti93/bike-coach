@@ -15,6 +15,7 @@ import { CHAT_SYSTEM_PROMPT } from '../../src/coach/meals/chat';
 import { MealCoach } from '../../src/coach/meals/meal-coach';
 import { computeTogether } from '../../src/coach/together';
 import { TOGETHER_ID } from '../../src/shared/together';
+import { weekFp, type RunWeekBody } from '../../src/shared/run';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'));
 const good = { id: 'ki', name: 'KI', steps: [
@@ -253,4 +254,82 @@ test('a failed scan logs only the error kind, never its message or the error obj
     expect(JSON.stringify(log.mock.calls)).not.toContain('abc123');
     expect(log.mock.calls.flat().some((x) => x instanceof Error)).toBe(false);
   } finally { log.mockRestore(); }
+});
+
+describe('the run coach in the runtime', () => {
+  const runSettings = (runtime: ReturnType<typeof make>['runtime']) => runtime.records.put('pa', { kind: 'run', id: 'settings', updatedMs: Date.now(), deleted: false, body: { type: 'settings', on: true, weekdays: [0, 1, 2, 3, 4, 5, 6], answers: null } });
+  const runIds = (runtime: ReturnType<typeof make>['runtime']) => runtime.records.all('pa', 'run').map((r) => r.id).sort();
+
+  test('scan ticks the run coach only for profiles coached here', async () => {
+    const away = make({ coachHere: () => false });
+    runSettings(away.runtime);
+    away.runtime.scan();
+    await settle();
+    expect(runIds(away.runtime)).toEqual(['settings']);
+
+    const here = make();
+    runSettings(here.runtime);
+    here.runtime.scan();
+    await settle();
+    expect(runIds(here.runtime)).toContain('status');
+    expect(runIds(here.runtime).some((id) => id.startsWith('week-'))).toBe(true);
+  });
+
+  test('with no ride open and Garmin missing, scan writes no run records', async () => {
+    const { runtime } = make();
+    runtime.scan();
+    await settle();
+    runtime.scan();
+    await settle();
+    expect(runIds(runtime)).toEqual([]);
+  });
+
+  test('with a Garmin login the workout check runs once; a confirmed week is sent, and a disconnect stops the send', async () => {
+    const children: any[] = [];
+    const spawnFn = vi.fn((_bin: string, args: string[]) => {
+      const child: any = new EventEmitter();
+      child.stdout = new PassThrough();
+      child.stdin = new PassThrough();
+      child.args = args;
+      child.kill = vi.fn();
+      children.push(child);
+      return child;
+    });
+    const { root, runtime } = make({ spawnFn: spawnFn as never });
+    connectHevyAndGarmin(root);
+    runSettings(runtime);
+    const workoutRuns = () => children.filter((c) => String(c.args[0]).endsWith('garmin_workout.py'));
+    runtime.scan();
+    await settle();
+    runtime.scan();
+    await settle();
+    expect(workoutRuns()).toHaveLength(1);
+    expect(workoutRuns()[0].args).toContain('--check');
+    workoutRuns()[0].stdout.write('{"status":"ok"}\n');
+    workoutRuns()[0].emit('close', 0);
+    runtime.scan();
+    await settle();
+    const weekRec = runtime.records.all('pa', 'run').find((r) => r.id.startsWith('week-'))!;
+    const week = weekRec.body as RunWeekBody;
+    expect(week.garmin).toMatchObject({ status: 'none' });
+    runtime.records.put('pa', { kind: 'run', id: `send-${week.week}`, updatedMs: Date.now(), deleted: false, body: { type: 'send', week: week.week, fp: weekFp(week.runs), atMs: Date.now() } });
+    runtime.scan();
+    await settle();
+    expect(workoutRuns()).toHaveLength(2);
+    const send = workoutRuns()[1];
+    expect(send.args).not.toContain('--check');
+    const ops = JSON.parse(String(send.stdin.read()));
+    expect(ops.delete).toEqual([]);
+    expect(ops.create.length).toBeGreaterThan(0);
+    runtime.handle({ type: 'garmin-disconnect', profileId: 'pa' }, () => {});
+    expect(send.kill).toHaveBeenCalled();
+  });
+
+  test('with a ride open scan writes no run records', async () => {
+    const { runtime } = make({ noOpenRide: () => false });
+    runSettings(runtime);
+    runtime.scan();
+    await settle();
+    expect(runIds(runtime)).toEqual(['settings']);
+  });
 });

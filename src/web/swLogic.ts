@@ -33,6 +33,7 @@ export async function handleFetch(r: Req, origin: string, allow: ReadonlySet<str
 const NOTES: Record<string, { body: string; url: string }> = {
   version: { body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.', url: '/' },
   meal: { body: 'Dein Essensplan für die Woche ist da.', url: '/?tab=essen' },
+  run: { body: 'Dein Laufplan für die Woche ist da.', url: '/?tab=laufen' },
 };
 export type Note = { title: string; options: { body: string; tag: string; icon: string; badge: string; data: { url: string } } };
 
@@ -48,10 +49,10 @@ export function notificationFor(text: string | null): Note {
 }
 
 /** On a click: focus an open window of the app and tell it the tab, or open the app at the notice's own path. */
-export function clickTarget(data: unknown, windows: readonly { url: string }[], origin: string): { focus: number; tab: 'essen' | null } | { open: string } {
+export function clickTarget(data: unknown, windows: readonly { url: string }[], origin: string): { focus: number; tab: 'essen' | 'laufen' | null } | { open: string } {
   const raw = (data as { url?: unknown } | null | undefined)?.url;
   const url = typeof raw === 'string' && Object.values(NOTES).some((n) => n.url === raw) ? raw : '/';
   const i = windows.findIndex((w) => { try { return new URL(w.url).origin === origin; } catch { return false; } });
-  if (i >= 0) return { focus: i, tab: url === '/?tab=essen' ? 'essen' : null };
+  if (i >= 0) return { focus: i, tab: url === '/?tab=essen' ? 'essen' : url === '/?tab=laufen' ? 'laufen' : null };
   return { open: url };
 }

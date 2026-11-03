@@ -107,6 +107,22 @@ describe('idbStore', () => {
     expect(await a.cursors.get()).toEqual({ sent: 3, received: 0, generation: 'g1' });
   });
 
+  it('a cursor stored under the old kinds signature starts from 0 again', async () => {
+    const f = new IDBFactory();
+    const a = await openIdb('anna', f);
+    const old = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'].sort().join(',');
+    await new Promise<void>((resolve, reject) => {
+      const open = f.open('pandafit-anna');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put({ sent: 3, received: 9, kinds: old }, 'cursors');
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+      };
+    });
+    expect((await a.cursors.get()).received).toBe(0);
+  });
+
   it('keeps one database per account', async () => {
     const f = new IDBFactory();
     const a = await openIdb('anna', f);

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { RUN_TYPES, type RunType } from '../shared/run';
 import type { GarminActivity, GarminBody, GarminDay, GarminProgress } from '../shared/garmin';
 
 const DAY_MS = 86_400_000;
@@ -52,6 +53,11 @@ const toActivity = (id: string, sport: string, a: Raw): GarminActivity => ({
   fromBikeCoach: OWN_MANUFACTURER.test(text(a.manufacturer) ?? ''),
 });
 
+export type GarminRun = {
+  id: string; type: RunType; startMs: number; durationS: number; distanceM: number | null;
+  avgHr: number | null; maxHr: number | null; elevationGainM: number | null;
+};
+
 const gmt = (ms: number): string => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
 /** Reads the standalone Garmin database, never writes to it and derives everything from the raw data. */
@@ -88,6 +94,36 @@ export class GarminDb {
     return this.read<GarminActivity[]>([], (db) => {
       const rows = db.prepare('SELECT activity_id, sport, json FROM activities WHERE start_time >= ? ORDER BY start_time').all(gmt(fromMs)) as { activity_id: string; sport: string | null; json: string }[];
       return rows.map((r) => toActivity(r.activity_id, r.sport ?? 'other', obj(JSON.parse(r.json))));
+    });
+  }
+
+  runs(fromMs: number): GarminRun[] {
+    return this.read<GarminRun[]>([], (db) => {
+      const marks = RUN_TYPES.map(() => '?').join(',');
+      const rows = db.prepare(`SELECT activity_id, start_time, sport, json FROM activities WHERE start_time >= ? AND sport IN (${marks}) ORDER BY start_time`).all(gmt(fromMs), ...RUN_TYPES) as { activity_id: string; start_time: string; sport: RunType; json: string }[];
+      const out: GarminRun[] = [];
+      for (const r of rows) {
+        try {
+          const a = obj(JSON.parse(r.json));
+          out.push({
+            id: r.activity_id, type: r.sport,
+            startMs: num(a.beginTimestamp) ?? Date.parse(`${r.start_time.replace(' ', 'T')}Z`),
+            durationS: num(a.duration) ?? 0,
+            distanceM: positive(a.distance),
+            avgHr: positive(a.averageHR),
+            maxHr: positive(a.maxHR),
+            elevationGainM: notNegative(a.elevationGain),
+          });
+        } catch { /* one broken row must not hide the other runs */ }
+      }
+      return out;
+    });
+  }
+
+  activityFile(id: string): Uint8Array | null {
+    return this.read<Uint8Array | null>(null, (db) => {
+      const row = db.prepare('SELECT data FROM activity_files WHERE activity_id = ?').get(id) as { data: Uint8Array | null } | undefined;
+      return row?.data && row.data.length > 0 ? row.data : null;
     });
   }
 

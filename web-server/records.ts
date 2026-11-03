@@ -1,10 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
+import { applyRecord, RECORD_KINDS, type RecordKind, type TrackedRecord } from '../src/shared/records';
 import { generationOf } from './db';
-import { mealWeekOf } from './push';
+import { mealWeekOf, runWeekOf } from './push';
 
 /** The records of one account, shared by the public routes (login) and the internal ones (the coach). */
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
+const KINDS: readonly RecordKind[] = RECORD_KINDS;
 const RECORD_BODY_LIMIT = 1024 * 1024;
 export const MAX_RECORDS_PER_POST = 1000;
 const MAX_PAGE = 500;
@@ -31,12 +31,13 @@ export const pageOfQuery = (q: { since?: string; limit?: string }): { since: num
   return { since, limit };
 };
 
-/** Stores what is newer, keeps what lost, in one transaction. A new meal week is reported so its push goes out after the commit. */
-export function putRecords(db: DatabaseSync, accountId: number, list: unknown[], nowMs: number): { accepted: number; refused: { kind: unknown; id: unknown; reason: string }[]; newMealWeek: boolean } {
+/** Stores what is newer, keeps what lost, in one transaction. A new meal or run week is reported so its push goes out after the commit. */
+export function putRecords(db: DatabaseSync, accountId: number, list: unknown[], nowMs: number): { accepted: number; refused: { kind: unknown; id: unknown; reason: string }[]; newMealWeek: boolean; newRunWeek: boolean } {
   const account = accountId, t = nowMs;
   const refused: { kind: unknown; id: unknown; reason: string }[] = [];
-  let accepted = 0, newMealWeek = false;
+  let accepted = 0, newMealWeek = false, newRunWeek = false;
   const weekStmt = db.prepare('INSERT OR IGNORE INTO push_meal_weeks VALUES (?, ?)');
+  const runWeekStmt = db.prepare('INSERT OR IGNORE INTO push_run_weeks VALUES (?, ?)');
   const getStmt = db.prepare('SELECT * FROM records WHERE account_id = ? AND kind = ? AND id = ?');
   const putStmt = db.prepare(`INSERT INTO records (account_id, kind, id, updated_ms, deleted, body, seq)
     VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM records WHERE account_id = ?))
@@ -74,6 +75,8 @@ export function putRecords(db: DatabaseSync, accountId: number, list: unknown[],
         putStmt.run(account, keep.kind, keep.id, keep.updatedMs, keep.deleted ? 1 : 0, JSON.stringify(keep.body), account);
         const w = mealWeekOf(keep, t);
         if (w && weekStmt.run(account, w).changes > 0) newMealWeek = true;
+        const rw = runWeekOf(keep, t);
+        if (rw && runWeekStmt.run(account, rw).changes > 0) newRunWeek = true;
       }
       accepted++;
     }
@@ -83,7 +86,7 @@ export function putRecords(db: DatabaseSync, accountId: number, list: unknown[],
     db.exec('ROLLBACK');
     throw e;
   }
-  return { accepted, refused, newMealWeek };
+  return { accepted, refused, newMealWeek, newRunWeek };
 }
 
 /** One page after the cursor. A cursor from the future means the server lost data (restore): start over so nothing is missed. */

@@ -1,4 +1,5 @@
 import type { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import type { Profile } from '../shared/profiles';
 import type { CoachClientMessage, CoachServerMessage, CoachStateMessage } from '../shared/coach-protocol';
@@ -21,7 +22,11 @@ import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
 import { handleRecords } from './tracking/records-api';
 import { errorKind } from './error-kind';
-import { MobilityCoach } from './mobility/mobility';
+import { MobilityCoach, muscleOf } from './mobility/mobility';
+import { GarminWorkouts } from './run/garmin-workouts';
+import { RunCoach } from './run/run-coach';
+import { dayRatings } from './day-load';
+import { allTraining } from './all-training';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
@@ -42,7 +47,7 @@ export type RuntimeOptions = {
   heavyBusy?: () => boolean;
   ask: (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
   python: string;
-  /** Folder with `bridge.py`, `garmin_sync.py` and `garmin_upload.py`. */
+  /** Folder with `bridge.py`, `garmin_sync.py`, `garmin_upload.py` and `garmin_workout.py`. */
   garminScripts: string;
   links: RecordLinks;
   /**
@@ -181,6 +186,44 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     rides: (id) => coach.state(id).summaries,
     strength: (id) => gym.history(id),
     complaints: (id) => coach.state(id).complaints ?? [],
+    runs: (id) => run.runs(id),
+  });
+  // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
+  const run = new RunCoach({
+    dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
+    profile: (id) => profiles().find((p) => p.id === id) ?? null,
+    garminDb: (id) => {
+      if (!/^[A-Za-z0-9-]+$/.test(id)) return null;
+      const file = path.join(garminDir, 'data', id, 'garmin.db');
+      return fs.existsSync(file) ? new GarminDb(file) : null;
+    },
+    // Only reads the other coaches' plans and history; never changes them.
+    days: (id, dates) => {
+      const s = coach.state(id);
+      const history = gym.history(id);
+      const now = nowMs();
+      return dayRatings({
+        rides: s.summaries, bikeNext: s.next?.session ?? null, gym: history, gymNext: gym.state(id).next?.workout ?? null, muscleOf,
+        bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
+      }, dates);
+    },
+    weeks: (id) => allTraining({ rides: coach.state(id).summaries, workouts: gym.history(id), activities: garminData(id)?.activities }, nowMs())?.weeks ?? [],
+    complaints: (id) => coach.state(id).complaints ?? [],
+    garmin: (id) => {
+      const connected = garmin.status(id).state === 'connected';
+      // Once per process, and only with a login: can the library send running workouts?
+      if (connected) workouts.check(id);
+      return { connected, capable: workouts.capable(id) };
+    },
+    sendWorkouts: (id, week, ops) => workouts.send(id, week, ops),
+    onExport: (id) => { accountSync.touch(id); notifyRecords(id); },
+  });
+  // Planned runs go to Garmin only after a confirmation record, never during a ride and never without a login.
+  const workouts = new GarminWorkouts({
+    baseDir: garminDir, python: opts.python, script: path.join(opts.garminScripts, 'garmin_workout.py'),
+    tokens: garminTokens, rideOpen: () => !noOpenRide(),
+    onResult: (id, week, r) => { try { run.sendResult(id, week, r); } catch { /* the week stays as it was */ } publish(); },
+    ...spawnOpt,
   });
   // Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
   const accountSync = new AccountSync({
@@ -358,7 +401,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       // The profile's sync and upload stop first and keep nothing, so no token of the old login comes back.
-      if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
+      if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); workouts.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { send({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) }); return; }
       if (m.type.startsWith('gym-')) { handleGym(m, send); return; }
       if (m.type.startsWith('meals-')) { handleMeals(m, atMs); return; }
@@ -420,6 +463,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (syncs) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
       // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
       if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+      // Separate safeguard: the run coach must never disturb a ride or the other coaches, and plans with no ride open only.
+      if (runs) for (const p of list) { try { void run.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);

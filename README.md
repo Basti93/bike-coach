@@ -36,7 +36,7 @@ The training recommendations are not medical advice. Limits and own settings are
 
   ```bash
   V="$HOME/Library/Application Support/bike-coach/garmin"
-  python3 -m venv "$V/venv" && "$V/venv/bin/pip" install garminconnect==0.3.20
+  python3 -m venv "$V/venv" && "$V/venv/bin/pip" install "garminconnect[workout]==0.3.20"
   ```
 
 ## Getting started

@@ -1,7 +1,7 @@
 import { uploadSettings } from '../../coach/garmin-upload';
 import { GarminUploadButton } from './GarminUploadButton';
 import { DebriefCard } from './DebriefCard';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { bestPowers, loadSeries } from '../../coach/metrics';
 import { progressText, rideProgress } from '../../coach/progress';
 import { rideStats } from '../../coach/stats';
@@ -35,9 +35,9 @@ const WeekBars = ({ weeks }: { weeks: { startMs: number; minutes: number }[] }) 
   );
 };
 
-type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack?: () => void; garminConnected?: boolean };
+type Props = { state: CoachState; detail: RideDetail | null; send: (m: CoachClientMessage) => void; onBack?: () => void; garminConnected?: boolean; /** The run look back; nothing when there is none. */ lookBack?: ReactNode };
 
-export const HistoryView = ({ state, detail, send, onBack, garminConnected = false }: Props) => {
+export const HistoryView = ({ state, detail, send, onBack, garminConnected = false, lookBack }: Props) => {
   const [open, setOpen] = useState<string | null>(null);
   const stats = rideStats(state.summaries, Date.now());
   const rides = [...state.summaries].sort((a, b) => b.startedAtMs - a.startedAtMs);
@@ -59,6 +59,7 @@ export const HistoryView = ({ state, detail, send, onBack, garminConnected = fal
         <div className="tile"><span className="label">Längste Fahrt</span><b>{stats.longestMinutes} Min.</b></div>
         <div className="tile"><span className="label">Beste Minute</span><b>{stats.bestMinuteW === null ? '–' : `${stats.bestMinuteW} W`}</b></div>
       </div>
+      {lookBack}
       <section className="card">
         <h3>Minuten pro Woche</h3>
         <WeekBars weeks={stats.weeks} />
