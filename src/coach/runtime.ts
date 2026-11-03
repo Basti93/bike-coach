@@ -26,11 +26,10 @@ import { MobilityCoach, muscleOf } from './mobility/mobility';
 import { GarminWorkouts } from './run/garmin-workouts';
 import { RunCoach } from './run/run-coach';
 import { dateKey, dayRatings, type DayInput, type DayRating } from './day-load';
-import { allTraining, CYCLING, overlapsByHalf, STRENGTH } from './all-training';
-import { lastDates, statsDays } from './stats/stats-days';
+import { allTraining } from './all-training';
+import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
-import { SPORTS, type StatsBody } from '../shared/stats';
-import { RUN_TYPES } from '../shared/run';
+import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
@@ -108,8 +107,8 @@ const RETRY_MS = 30 * 60_000;
 const GARMIN_CACHE_MS = 5 * 60_000;
 const GARMIN_DAYS = 60;
 /** A mobility session done without its own length counts this many minutes. */
-const MOBILITY_MINUTES = 10;
-const READ_ONLY =new Set<string>(['subscribe', 'records-list', 'ride-detail', 'garmin-health', 'gym-preview']);
+const STATS_EVERY_MS = 5 * 60_000;
+const READ_ONLY = new Set<string>(['subscribe', 'records-list', 'ride-detail', 'garmin-health', 'gym-preview']);
 
 /** One coach for the profiles of one data root: the Mac's own, or one account's on the server. */
 export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
@@ -210,42 +209,22 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     }, dates);
   };
   /** What the stats record of a profile says; null when there is nothing in the nine weeks. */
-  const statsContent = (id: string): Omit<StatsBody, 'atMs'> | null => {
-    const now = nowMs();
-    const dates = lastDates(now);
-    const inDates = new Set(dates);
-    const rides = coach.state(id).summaries;
-    const history = gym.history(id);
+  const statsOf = (id: string): Omit<StatsBody, 'atMs'> | null => {
     const runs = run.runsFor(id);
-    const mobility = records.all(id, 'mobility').flatMap((r) => {
-      if (r.deleted || typeof r.body !== 'object' || r.body === null) return [];
-      const b = r.body as { doneMs?: unknown; minutes?: unknown };
-      if (typeof b.doneMs !== 'number' || !Number.isFinite(b.doneMs)) return [];
-      return [{ doneMs: b.doneMs, minutes: typeof b.minutes === 'number' && Number.isFinite(b.minutes) ? b.minutes : MOBILITY_MINUTES }];
+    return statsContent({
+      nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
+      mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
+      ratings: (dates) => ratingsOf(id, dates, runs), goal: gym.state(id).goal ?? null,
     });
-    // The same overlap rules as allTraining: a ride of this app or a strength workout recorded here counts once. Runs come from the run coach.
-    const other = (garminData(id)?.activities ?? []).filter((a) => {
-      if (a.fromBikeCoach || (RUN_TYPES as readonly string[]).includes(a.sport)) return false;
-      if (CYCLING.test(a.sport) && rides.some((r) => overlapsByHalf({ startMs: r.startedAtMs, durationS: r.durationS }, a))) return false;
-      return !(STRENGTH.test(a.sport) && history.some((w) => overlapsByHalf(w, a)));
-    }).map((a) => ({ startMs: a.startMs, durationS: a.durationS, sport: a.sport }));
-    const days = statsDays({
-      rides: rides.map((r) => ({ startedAtMs: r.startedAtMs, durationS: r.durationS })),
-      strength: history.map((w) => ({ startMs: w.startMs, durationS: w.durationS })),
-      runs, mobility, other, ratings: ratingsOf(id, dates, runs),
-    }, dates);
-    const found = new Map<string, string>();
-    for (const w of history) {
-      if (!inDates.has(dateKey(w.startMs))) continue;
-      for (const e of w.exercises) {
-        const m = muscleOf(e.templateId, e.title);
-        if (m) found.set(e.templateId, m);
-      }
-    }
-    const muscles = Object.fromEntries([...found].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-    const empty = days.every((d) => d.hardness === null && !d.legs && SPORTS.every((s) => d.minutes[s] === 0));
-    if (empty && found.size === 0) return null;
-    return { type: 'stats', goal: gym.state(id).goal ?? null, days, muscles };
+  };
+  /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */
+  const statsMade = new Map<string, { atMs: number; date: string }>();
+  const statsDue = (id: string): Omit<StatsBody, 'atMs'> | null => {
+    const now = nowMs();
+    const last = statsMade.get(id);
+    if (last && now - last.atMs < STATS_EVERY_MS && now >= last.atMs && last.date === dateKey(now)) return null;
+    statsMade.set(id, { atMs: now, date: dateKey(now) });
+    return statsOf(id);
   };
   // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
   const run = new RunCoach({
@@ -522,7 +501,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       // The stats record for every profile coached here, linked or not: written only when it changes, never with a ride open. Never throws.
-      if (free) mealsChanged(exportStats({ store: records, profileIds: list.map((p) => p.id), coachHere, noOpenRide, nowMs: now, content: statsContent }));
+      if (free) mealsChanged(exportStats({ store: records, profileIds: list.map((p) => p.id), coachHere, noOpenRide, nowMs: now, content: statsDue }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
       for (const p of all) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the fetch must never disturb the coach run.
