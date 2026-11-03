@@ -6,6 +6,7 @@ import { ClaudeError } from '../claude-client';
 import { dateKey } from '../day-load';
 import { dataBlock } from '../meals/prompt';
 import type { RecordStore } from '../tracking/store';
+import { LONG_TERM_GUIDE, weekHistory } from './long-term';
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = {
@@ -36,6 +37,7 @@ Regeln, die der Code prüft: höchstens zwei harte Tage pro Woche; kein harter R
 Will die Person ausdrücklich mehr als die Regeln erlauben, sag einmal klar und ohne Drama, was du davon hältst, und setze riderAskedForMore auf true; sonst ist es false. Bei offenen Beschwerden (beschwerden) bleibst du vorsichtig, das gilt immer.
 Plane nur Sportarten, die die Person macht oder ausdrücklich will (siehe letzteTage). Hevy und Garmin sind optional; erwähne sie nicht.
 Beschwerden kommen jetzt über diesen Chat: Erzählt die Person von einem neuen Schmerz oder Zwicken (etwa "Knie zwickt"), setze newComplaint auf einen kurzen Text in ihren Worten und plane vorsichtig; sonst ist newComplaint null. Sagt sie, dass eine Beschwerde aus beschwerden vorbei ist, nenne deren id in complaintsOver; sonst ist complaintsOver leer. Frag nicht nach, ob du sie eintragen sollst.
+${LONG_TERM_GUIDE} Wenn es passt, sag in einem Halbsatz, wo die Person gerade steht (etwa „dritte volle Woche, nächste Woche darf leichter werden“).
 Antworte in text in ein bis vier Sätzen. Medizinische Ratschläge gibst du nicht.`;
 
 const answerSchema = {
@@ -154,6 +156,7 @@ export class ChatCoach {
       dataBlock('wocheJetzt', { montag: monday, plan: week(monday) }),
       dataBlock('wocheNaechste', { montag: addDays(monday, 7), plan: week(addDays(monday, 7)) }),
       dataBlock('letzteTage', days),
+      dataBlock('wochenVerlauf', weekHistory(this.deps.store.all(id, 'stats'), now)),
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
       dataBlock('beschwerden', this.complaintList(id)),
       dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}) }))),

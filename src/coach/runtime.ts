@@ -32,6 +32,7 @@ import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
 import { ChatCoach } from './chat/chat-coach';
 import { planHint } from './chat/plan-hint';
+import { longTermHint } from './chat/long-term';
 import { PlanSeen, weekPlanKey } from './chat/plan-seen';
 import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
@@ -163,7 +164,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     ridesDir: dir, coachDir, nowMs, garmin: garminData,
     strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
     mobility: (profileId) => mobility.promptData(profileId),
-    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike'),
+    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike') + longTermHint(records.all(profileId, 'stats'), nowMs()),
     ask,
   });
 
@@ -178,7 +179,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     dir: path.join(coachDir, 'gym'), nowMs,
     store: records, hevy: gymConnected,
     mobility: (id) => mobility.promptData(id),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym'),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()),
     ask,
     workouts: (id) => hevy.workouts(id),
     templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
@@ -247,7 +248,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run'),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()),
     planKey: (id) => weekPlanKey(records.all(id, 'weekplan')),
     profile: (id) => profiles().find((p) => p.id === id) ?? null,
     garminDb: (id) => {
