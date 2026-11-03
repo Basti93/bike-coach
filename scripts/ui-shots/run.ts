@@ -56,6 +56,7 @@ const GYM = {
   state: { ...initialGymState('pa'), localStart: true, planned: true, next: { source: 'rules' as const, reason: 'Beine und Rumpf, ruhiger Aufbau nach der Woche mit viel Radfahren.', workout: { name: 'Beine A', exercises: [
     { templateId: 'squat', title: 'Kniebeuge', restS: 120, supersetId: null, notes: '', sets: [{ type: 'warmup' as const, weightKg: 20, reps: 10 }, { type: 'normal' as const, weightKg: 40, reps: 8 }, { type: 'normal' as const, weightKg: 40, reps: 8 }] },
     { templateId: 'rdl', title: 'Rumänisches Kreuzheben', restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 50, reps: 10 }, { type: 'normal' as const, weightKg: 50, reps: 10 }] },
+    { templateId: 'leg-press', title: 'Beinpresse', restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: null, reps: null, repRange: { start: 10, end: 12 } }, { type: 'normal' as const, weightKg: null, reps: null, repRange: { start: 10, end: 12 } }] },
   ] } } },
   thinking: false, ready: true, hevy: false, hasHistory: true, complaints: [],
 };
@@ -101,16 +102,21 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
   { name: 'coach-garmin', ride: idle(), coach: coach(GARMIN), pick: true },
   { name: 'coach-garmin-login', ride: idle(), coach: coach({ garminMsg: { garmin: { state: 'idle' } } }), pick: true },
   { name: 'garmin-review', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Werte aus Garmin prüfen' },
-  { name: 'profile-edit', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Profil bearbeiten' },
+  { name: 'profile-edit', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Profil', height: 1500 },
+  { name: 'profile-connections-idle', ride: idle(), coach: coach({ garminMsg: { garmin: { state: 'idle' } } }), pick: true, click: 'Profil', height: 1500 },
+  { name: 'start-overview', ride: idle(), coach: coach({ gym: GYM }), pick: true },
   { name: 'health', ride: idle(), coach: coach(GARMIN), pick: true, click: 'Gesundheit', height: 1300 },
   { name: 'mobility-bike', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: false } }), pick: true, height: 1500, crop: '.mobility' },
   { name: 'mobility-bike-done', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: false }, mobilityAfter: none }), pick: true, height: 1500, click: 'Gemacht' },
+  { name: 'mobility-bike-open', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: false } }), pick: true, height: 1500, click: 'Ansehen', crop: '.mobility' },
   { name: 'mobility-bike-feel', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: null, askFeel: true } }), pick: true, height: 1100, crop: '.mobility-feel' },
   { name: 'mobility-bike-both', ride: idle(), coach: coach({ summaries: afterRide, mobility: { session: BIKE_MOBILITY, askFeel: true } }), pick: true, height: 1900 },
   { name: 'mobility-strength', ride: idle(), coach: coach({ gym: GYM, mobility: { session: STRENGTH_MOBILITY, askFeel: false } }), pick: true, click: 'Kraft', height: 1500, crop: '.mobility' },
   { name: 'mobility-strength-done', ride: idle(), coach: coach({ gym: GYM, mobility: { session: STRENGTH_MOBILITY, askFeel: false }, mobilityAfter: none }), pick: true, click: 'Kraft', click2: /^Gemacht$/, height: 1100 },
   { name: 'mobility-strength-feel', ride: idle(), coach: coach({ gym: GYM, mobility: { session: null, askFeel: true } }), pick: true, click: 'Kraft', height: 1100, crop: '.mobility-feel' },
-  { name: 'tracking-workout', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1300, steps: async (win) => {
+  { name: 'tracking-workout', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1500, steps: async (win) => {
+    // Last time's Kniebeuge, so the rows can show it as a hint.
+    await win.evaluate((t) => { const w = window as unknown as { __db?: Map<string, unknown> }; w.__db = new Map([['workout:old', { kind: 'workout', id: 'old', updatedMs: t, deleted: false, body: { id: 'old', title: 'Beine A', startMs: t - 3600000, endMs: t, source: 'pandafit', exercises: [{ exerciseId: 'squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [{ type: 'warmup', weightKg: 20, reps: 10, durationS: null, doneMs: t }, { type: 'normal', weightKg: 37.5, reps: 8, durationS: null, doneMs: t }, { type: 'normal', weightKg: 37.5, reps: 7, durationS: null, doneMs: t }] }] } }]]); }, Date.now() - 86400000 * 4);
     await win.getByRole('button', { name: 'Training starten' }).click();
     await win.getByRole('button', { name: 'Beine A starten' }).click();
     await win.waitForTimeout(200);
@@ -157,7 +163,7 @@ for (const s of shots) {
   await win.waitForTimeout(150);
   if (s.pick) { await win.getByRole('button', { name: /Max/ }).first().click(); await win.waitForTimeout(150); }
   if (s.wait) await win.waitForTimeout(s.wait);
-  if (s.click) { await win.getByRole('button', { name: s.click }).click(); await win.waitForTimeout(100); }
+  if (s.click) { await win.getByRole('button', { name: s.click, exact: true }).first().click(); await win.waitForTimeout(100); }
   if (s.click2) { await win.getByRole('button', { name: s.click2 }).click(); await win.waitForTimeout(150); }
   if (s.steps) await s.steps(win);
   if (s.fill) {
