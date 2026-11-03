@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXERCISES } from '../../src/shared/exercises';
-import { matchesSearch, similarExercises } from '../../src/tracking/similar';
+import { describeExercise, matchesSearch, similarExercises } from '../../src/tracking/similar';
+import { exerciseDescription } from '../../src/shared/exercise-descriptions';
 
 const ids = (title: string, exerciseId = 'hevy-template-x') => similarExercises({ title, exerciseId }, EXERCISES).map((e) => e.id);
 
@@ -33,5 +34,24 @@ describe('matchesSearch', () => {
     expect(matchesSearch(squat, 'squat')).toBe(true);
     expect(matchesSearch(squat, 'kniebeuge')).toBe(true);
     expect(matchesSearch(squat, 'bench')).toBe(false);
+  });
+});
+
+describe('describeExercise', () => {
+  it('finds the description of a Hevy exercise by its exact English title', () => {
+    const d = describeExercise({ exerciseId: 'hevy-abc', title: 'Lat Pulldown - Close Grip (Cable)' }, EXERCISES);
+    expect(d?.description).toBe(exerciseDescription('pf-lat-pulldown-close'));
+    expect(d?.via).toBeNull();
+  });
+
+  it('falls back to the same movement with other equipment and says which one', () => {
+    const d = describeExercise({ exerciseId: 'hevy-def', title: 'Squat (Smith Machine)' }, EXERCISES);
+    expect(d?.description).toBe(exerciseDescription('pf-squat'));
+    expect(d?.via).toBe('Kniebeuge');
+  });
+
+  it('uses the own id first and finds nothing for an unknown exercise', () => {
+    expect(describeExercise({ exerciseId: 'pf-squat', title: 'egal' }, EXERCISES)?.via).toBeNull();
+    expect(describeExercise({ exerciseId: 'x', title: 'Seitheben Maschine Stehend' }, EXERCISES)).toBeNull();
   });
 });

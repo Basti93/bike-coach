@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
-import { exerciseDescription } from '../../shared/exercise-descriptions';
-import type { Exercise } from '../../shared/exercises';
+import { EXERCISES, type Exercise } from '../../shared/exercises';
+import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
@@ -130,7 +130,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const labels = setLabels(e.sets);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
-        const description = exerciseDescription(e.exerciseId);
+        const described = describeExercise(e, EXERCISES);
+        const description = described?.description ?? null;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
         const current = e.rid === currentRid;
@@ -163,7 +164,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
               </div>
             )}
             {description && showInfo && (
-              <ExerciseInfo title={e.title} description={description}>
+              <ExerciseInfo title={e.title} description={description} via={described?.via ?? null}>
                 <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
               </ExerciseInfo>
             )}

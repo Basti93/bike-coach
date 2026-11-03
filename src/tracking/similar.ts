@@ -1,3 +1,4 @@
+import { exerciseDescription, type ExerciseDescription } from '../shared/exercise-descriptions';
 import type { Exercise } from '../shared/exercises';
 import { muscleLabel } from './ui/labels';
 
@@ -36,4 +37,23 @@ export function similarExercises(current: { title: string; exerciseId: string },
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || a.e.title.localeCompare(b.e.title, 'de'))
     .map((x) => x.e);
+}
+
+/**
+ * How to do an exercise, also for Hevy exercises (whose ids are Hevy template ids): by own id, then by the exact
+ * German or English title, then by the same movement with other equipment. `via` names that stand-in, else null.
+ */
+export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): { description: ExerciseDescription; via: string | null } | null {
+  const own = exerciseDescription(current.exerciseId);
+  if (own) return { description: own, via: null };
+  for (const e of catalog) {
+    const d = names(e).includes(current.title) ? exerciseDescription(e.id) : null;
+    if (d) return { description: d, via: null };
+  }
+  const want = base(current.title);
+  for (const e of catalog) {
+    const d = names(e).map(base).includes(want) ? exerciseDescription(e.id) : null;
+    if (d) return { description: d, via: e.title };
+  }
+  return null;
 }
