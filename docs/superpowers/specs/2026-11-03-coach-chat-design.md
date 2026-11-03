@@ -1,6 +1,6 @@
 # Pandafit: talking to the coach (week plan, in-workout changes, effort questions)
 
-Status: draft for the riders to approve. "[Rider]" marks what the riders decided, "[Builder's call]" what was settled on their behalf and can be overruled.
+Status: approved by the riders on 2026-11-03. "[Rider]" marks what the riders decided, "[Builder's call]" what was settled on their behalf and can be overruled.
 
 ## Why
 
@@ -39,7 +39,9 @@ Each coach (bike, strength, run, mobility) plans its own next session from data.
 - No hard bike or run day the day after a hard leg day.
 - The long session (long ride, long run) not the day after a leg day.
 - Never two sessions planned on one day unless the rider asks for it.
-These use the day ratings the coaches already share (`src/coach/day-load.ts`). A proposal that breaks a rule is corrected before the rider sees it, as the bike guardrails do today.
+These use the day ratings the coaches already share (`src/coach/day-load.ts`). A proposal of the coach that breaks a rule is corrected before the rider sees it, as the bike guardrails do today.
+
+**When the rider explicitly wants more than the rules allow** [Rider: "warnen und zulassen"]: the coach says once, clearly and without drama, what it thinks of it, and applies it when the rider confirms anyway. This never applies to open complaints or pain: there the existing careful behaviour of the coaches stays a hard limit.
 
 ## How it runs
 

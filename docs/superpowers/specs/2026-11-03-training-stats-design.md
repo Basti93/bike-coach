@@ -1,6 +1,6 @@
 # Pandafit: training statistics
 
-Status: draft for the riders to approve. "[Rider]" marks what the riders decided, "[Builder's call]" what was settled on their behalf and can be overruled.
+Status: approved by the riders on 2026-11-03. "[Rider]" marks what the riders decided, "[Builder's call]" what was settled on their behalf and can be overruled.
 
 ## Why
 
