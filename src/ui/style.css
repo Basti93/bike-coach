@@ -375,8 +375,15 @@ button.menu-item[aria-current='page'] { background: #2d4638; color: var(--text);
 button.menu-switch { font-size: .85rem; }
 button.choice small { display: block; margin-top: .4rem; font-size: .9rem; font-weight: 400; color: var(--muted); }
 /* Profile page: the form, small settings, then the connections. */
+main.profile-page { max-width: 46rem; }
+main.profile-page .form { width: 100%; }
 main.profile-page > .card, main.profile-page > .connections { margin-top: 1rem; }
+main.overview .top { justify-content: center; margin: 1.5rem 0 1.8rem; }
+.profile-settings p.muted { margin-top: .6rem; font-size: .9rem; }
 .connections { display: flex; flex-direction: column; gap: .7rem; }
 .connections h2 { font-size: 1.3rem; margin-top: .6rem; }
 .profile-settings .row { gap: .5rem; }
 .card.mobility-feel.small { padding: 1rem 1.4rem; }
+.mobility-feel.small .row { flex-wrap: nowrap; }
+.mobility-feel.small input { flex: 1; min-width: 0; }
+.mobility-feel.small h3 { margin-bottom: .5rem; }

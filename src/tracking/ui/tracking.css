@@ -20,7 +20,7 @@
 .tk-screen button:disabled, .tk-picker button:disabled { opacity: .4; cursor: default; }
 .tk-screen button.secondary, .tk-picker button.secondary { background: #2d4638; color: var(--text, #f6eedd); }
 .tk-screen button.ghost, .tk-picker button.ghost { background: transparent; color: var(--muted, #aebba9); border: 1px solid var(--line, #33493c); }
-.tk-screen input, .tk-screen select, .tk-picker input, .tk-picker select {
+.tk-screen input, .tk-screen select, .tk-screen textarea, .tk-picker input, .tk-picker select {
   font: inherit; min-height: 44px; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line, #33493c); background: var(--field, #101b16); color: inherit;
 }
 /* One grid for every set row and its header: delete, chip, kg, reps, done. A hint line sits under kg and reps. */
@@ -73,3 +73,4 @@
 .tk-mob-reason { margin: .6rem 0 0; }
 .tk-mob-list { margin: .4rem 0 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: .6rem; }
 .tk-mob-list span { display: block; color: var(--muted, #aebba9); }
+.tk-screen .card p, .tk-screen .card ul, .tk-screen .card ol { margin: 0; }

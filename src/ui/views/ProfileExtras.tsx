@@ -13,15 +13,18 @@ type Props = {
   hevy?: HevyStatus; account?: AccountStatus;
   /** The language toggle and anything else that only concerns this profile. */
   settings?: ReactNode;
+  /** A calm line under the settings, for example what "Krafttraining starten" does. */
+  settingsNote?: string;
 };
 
 /** The profile page's own sections: small settings, then every connection, each optional and shown whether connected or not. */
-export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, settings }: Props) => (
+export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, settings, settingsNote }: Props) => (
   <>
     {settings && (
       <section className="card profile-settings">
         <h3>Einstellungen</h3>
         <div className="row">{settings}</div>
+        {settingsNote && <p className="muted">{settingsNote}</p>}
       </section>
     )}
     <section className="connections" aria-label="Verbindungen">

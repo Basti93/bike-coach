@@ -7,7 +7,7 @@ type Props = { name: string; avatar?: string; onBike: () => void; onStrength: ()
 
 /** The start page: the three areas with what is next in each. The menu bar above leads to the same places. */
 export const OverviewView = ({ name, avatar, onBike, onStrength, onHealth, bikeNext, strengthNext }: Props) => (
-  <main className="home">
+  <main className="home overview">
     <div className="top">
       <h1>{avatar && <span aria-hidden="true">{avatar} </span>}{name}</h1>
     </div>
