@@ -27,7 +27,7 @@ export type Unit = (typeof UNITS)[number];
 export type Ingredient = { name: string; amount: number; unit: Unit; section: Section; raw?: boolean };
 export type Dish = { title: string; ingredients: Ingredient[]; steps: string[]; minutes: number; proteinG: number; keepsDays: number; source: 'coach' | 'liste'; recipeId?: string };
 /** `reuseOf` names the meal this one is the rest of (cook once, eat twice): it has nothing of its own to shop or cook. */
-export type Meal = { day: number; slot: Slot; dish: Dish; reuseOf: string | null; eaters: string[]; takeAlong: boolean };
+export type Meal = { day: number; slot: Slot; dish: Dish; reuseOf: string | null; eaters: string[]; takeAlong: boolean; /** Changed in the chat with the coach at this person's wish. */ askedBy?: string };
 export type Person = { id: string; name: string; avatar?: string };
 export type MealPlan = { week: string; createdMs: number; source: 'coach' | 'liste' | 'gemischt'; people: Person[]; meals: Meal[]; trainingDays: number[] };
 export type ItemState = 'offen' | 'gekauft' | 'da';
@@ -221,7 +221,7 @@ export function readMealPlan(body: unknown): MealPlan | null {
     if (!isObj(m) || !num(m.day) || m.day < 0 || m.day > 6 || !SLOTS.includes(m.slot as Slot) || !Array.isArray(m.eaters)) return [];
     const dish = readDish(m.dish);
     if (!dish) return [];
-    return [{ day: m.day, slot: m.slot as Slot, dish, reuseOf: str(m.reuseOf) && parseMealKey(m.reuseOf) ? m.reuseOf : null, eaters: m.eaters.filter(str), takeAlong: m.takeAlong === true }];
+    return [{ day: m.day, slot: m.slot as Slot, dish, reuseOf: str(m.reuseOf) && parseMealKey(m.reuseOf) ? m.reuseOf : null, eaters: m.eaters.filter(str), takeAlong: m.takeAlong === true, ...(str(m.askedBy) ? { askedBy: m.askedBy } : {}) }];
   });
   const trainingDays = Array.isArray(body.trainingDays) ? body.trainingDays.filter((d): d is number => num(d) && d >= 0 && d <= 6) : [];
   const source = body.source === 'coach' || body.source === 'gemischt' ? body.source : 'liste';
@@ -250,5 +250,23 @@ export const weekOfRecordId = (id: string): { week: string; part: 'week' | 'stat
   const m = /^(week|state)-(\d{4}-\d{2}-\d{2})$/.exec(id);
   return m && isWeekKey(m[2]) ? { week: m[2]!, part: m[1] as 'week' | 'state' } : null;
 };
+
+// ---- The chat with the coach about the plan ----
+
+/**
+ * One message to the coach and its answer. Per person: it lives in that person's account as a `mealplan` record with
+ * the id `chat-…`, written first by the device it was typed on and then once more by the Mac with the reply.
+ */
+export type MealChat = { id: string; week: string; text: string; atMs: number; reply: string | null; answeredMs: number | null; changed: string[] };
+export const CHAT_MAX_CHARS = 300;
+export const isChatRecordId = (id: string): boolean => /^chat-[a-z0-9]{4,40}$/.test(id);
+export const newChatId = (nowMs: number, random: () => number = Math.random): string => `chat-${Math.round(nowMs).toString(36)}${Math.floor(random() * 2 ** 40).toString(36).padStart(8, '0')}`;
+export function readMealChat(id: string, body: unknown): MealChat | null {
+  if (!isChatRecordId(id) || !isObj(body) || !isWeekKey(body.week) || !str(body.text) || !num(body.atMs)) return null;
+  const text = body.text.trim().slice(0, CHAT_MAX_CHARS);
+  if (!text) return null;
+  const changed = Array.isArray(body.changed) ? body.changed.filter((k): k is string => str(k) && parseMealKey(k) !== null) : [];
+  return { id, week: body.week, text, atMs: body.atMs, reply: str(body.reply) ? body.reply : null, answeredMs: num(body.answeredMs) ? body.answeredMs : null, changed };
+}
 
 export const initialOf = (p: Person): string => p.avatar || (p.name.trim()[0] ?? '?').toUpperCase();

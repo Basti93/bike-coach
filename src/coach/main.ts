@@ -272,6 +272,7 @@ const handleMeals = (m: CoachClientMessage): void => {
   if (m.type === 'meals-item') meals.setItem(m.profileId, m.week, m.item, m.state);
   if (m.type === 'meals-replan') { void meals.replan(m.profileId, m.week).catch(() => {}).finally(sync); }
   if (m.type === 'meals-swap') { void meals.swap(m.profileId, m.week, m.meal, m.ai === true).catch(() => {}).finally(sync); }
+  if (m.type === 'meals-chat') { void meals.chat(m.profileId, m.week, m.text).catch(() => {}).finally(sync); }
   sync();
 };
 
