@@ -6,6 +6,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { QUEUEABLE, type CoachClientMessage, type CoachServerMessage, type CoachStateMessage } from '../../shared/coach-protocol';
 import { ChangeClock, changeKey, isHouseholdKey } from './change-clock';
+import { RIDE_ID } from '../ride-upload-format';
+import { storeRide } from './ride-store';
 import { RecordStore } from '../tracking/store';
 import type { AccountCoach, Household } from './household';
 
@@ -23,7 +25,7 @@ const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
 /** Per account: what the restore drill compares. Counts only, never content, read from the disk without starting a coach. */
 const accountCounts = (a: { profileId: string; dir: string }) => {
   const count = (dir: string, test: (name: string) => boolean): number => { try { return fs.readdirSync(dir).filter(test).length; } catch { return 0; } };
-  const rides = count(path.join(a.dir, 'rides'), (name) => fs.existsSync(path.join(a.dir, 'rides', name, 'meta.json')));
+  const rides = count(path.join(a.dir, 'rides'), (name) => RIDE_ID.test(name) && fs.existsSync(path.join(a.dir, 'rides', name, 'meta.json')));
   let records = 0;
   try { records = new RecordStore({ dir: path.join(a.dir, 'coach', 'tracking') }).all(a.profileId).length; } catch { /* no records yet */ }
   return {
@@ -73,6 +75,23 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   app.get('/status', async (req) => {
     const a = household.account(authorised(req.raw)!);
     return { profileId: a?.profileId ?? null, moved: a !== null };
+  });
+
+  // ---- Rides from the Mac ----
+
+  // The account comes from the header, so a ride lands in that account's folder only and only with its bound profile id.
+  app.put('/rides/:rideId', { bodyLimit: 32 * 1024 * 1024 }, async (req, reply) => {
+    const a = household.account(authorised(req.raw)!);
+    if (!a) return reply.code(404).send({ error: 'not moved' });
+    const upload = req.body;
+    const rideId = (req.params as { rideId: string }).rideId;
+    if (!RIDE_ID.test(rideId) || (upload as { rideId?: unknown } | null)?.rideId !== rideId) return reply.code(409).send({ reason: 'invalid' });
+    let out;
+    try { out = storeRide({ ridesDir: path.join(a.dir, 'rides'), profileId: a.profileId, upload, nowMs: nowMs() }); } catch { return reply.code(500).send({ error: 'store failed' }); }
+    if (!out.ok) return reply.code(409).send({ reason: out.reason });
+    // The coach reads the new ride now. A scan never uploads to Garmin: that only happens when the person asks.
+    if (!out.same) { try { a.runtime.scan(); } catch { /* the next scan reads it */ } }
+    return { sha256: out.sha256, same: out.same };
   });
 
   // ---- The coach socket ----

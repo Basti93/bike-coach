@@ -195,7 +195,8 @@ export class Coach {
       this.states.get(p.id)!.ftpCapW = p.ftpCapW;
     }
     if (!fs.existsSync(this.deps.ridesDir)) return;
-    for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-')).sort(byStart)) {
+    // `<id>.replaced-<ms>` is an old copy of a ride, never a ride of its own.
+    for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-') && !n.includes('.')).sort(byStart)) {
       try { this.scanRide(name); } catch { /* skip a broken ride, try again on the next run */ }
     }
     for (const s of this.states.values()) this.backfillInsights(s);
