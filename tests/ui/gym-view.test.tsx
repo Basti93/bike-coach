@@ -234,12 +234,11 @@ test('"Sobald" appears with really no history, even after an error', () => {
   expect(screen.getByRole('status').textContent).toMatch(/Sobald/);
 });
 
-test('open complaints show on the strength page and can be closed with the same message as on the bike page', () => {
+test('open complaints show on the strength page as a line; closing them goes through the coach chat', () => {
   const complaint = { id: 'c1', text: 'Das Knie zwickt', status: 'active' as const, startedMs: 1, updatedMs: 1 };
-  const { send } = show({ gym: { ...gymOf(), complaints: [complaint] } });
-  expect(screen.getByText(/Das Knie zwickt/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Wieder gut' }));
-  expect(send).toHaveBeenCalledWith({ type: 'complaint-update', profileId: 'p', id: 'c1', status: 'over' });
+  show({ gym: { ...gymOf(), complaints: [complaint] } });
+  expect(screen.getByText(/Der Coach nimmt Rücksicht auf: Das Knie zwickt/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Wieder gut' })).toBeNull();
 });
 
 test('without open complaints there is no complaint section', () => {

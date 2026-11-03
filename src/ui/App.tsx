@@ -20,6 +20,7 @@ import { GymView } from './views/GymView';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
+import { TodayCard } from '../tracking/ui/TodayCard';
 import type { TrackingPort } from '../tracking/ports';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { runView } from '../tracking/ui/run-view';
@@ -82,6 +83,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const runRecords = usePortRecords(coach.tracking ?? NO_PORT, 'run').records;
+  const weekplanRecords = usePortRecords(coach.tracking ?? NO_PORT, 'weekplan').records;
   const runOn = !!coach.tracking && runView(runRecords ?? [], Date.now()).visible;
   const mealsOn = coach.meals?.settings.on === true;
   const statsRecords = usePortRecords(coach.tracking ?? NO_PORT, 'stats').records;
@@ -193,7 +195,10 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   }
   if (waiting) return <>{notice}<main aria-busy="true" /></>;
   const overviewOpen = home === 'overview' && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
-  if (overviewOpen) return page(<OverviewView name={profile.name} avatar={profile.avatar} bikeNext={coach.state?.next?.session.name} strengthNext={coach.gym?.state.next?.workout.name} onBike={() => go('rad')} onStrength={() => go('kraft')} onHealth={() => go('gesundheit')} />);
+  if (overviewOpen) return page(<OverviewView name={profile.name} avatar={profile.avatar} bikeNext={coach.state?.next?.session.name} strengthNext={coach.gym?.state.next?.workout.name} onBike={() => go('rad')} onStrength={() => go('kraft')} onHealth={() => go('gesundheit')}
+    today={coach.tracking ? <TodayCard weekplans={weekplanRecords} runs={runRecords} nowMs={Date.now()} onRun={runOn ? () => go('laufen') : undefined}
+      gym={<><p>{coach.gym?.state.next?.workout.name ?? 'Dein Krafttraining'}</p><button type="button" onClick={() => go('kraft')}>Zum Krafttraining</button></>}
+      bike={<><p>{coach.state?.next?.session.name ?? 'Deine Radeinheit'}</p><button type="button" onClick={() => go('rad')}>Zur Radeinheit</button></>} /> : undefined} />);
   return page(
     v.history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} garminConnected={coach.garmin?.state === 'connected'} lookBack={coach.tracking ? <RunLookBack port={coach.tracking} now={runNow} /> : undefined} /> : coachScreen(coach.state) === 'debrief' && coach.state?.debriefToShow
       ? <DebriefView profileId={profile.id} debrief={coach.state.debriefs![coach.state.debriefToShow]} next={coach.state.next} thinking={coach.debriefing} title={coach.state.summaries.find((r) => r.rideId === coach.state?.debriefToShow)?.sessionName} send={coach.send} />

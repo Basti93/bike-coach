@@ -51,10 +51,15 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
   const runRecords = usePortRecords(port, 'run').all;
+  const complaintRecords = usePortRecords(port, 'complaint').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const thread = chatThread(chat ?? []);
+  const complaints = (complaintRecords ?? []).flatMap((r) => {
+    const b = r.body as { text?: unknown; status?: unknown } | null;
+    return !r.deleted && b && typeof b.text === 'string' && b.status !== 'over' ? [b.text] : [];
+  });
   const waiting = waitingMessage(thread);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [thread.length]);
 
@@ -88,6 +93,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   return (
     <div className="tk-screen tk-coach">
       <h1 className="tk-title">Woche</h1>
+      {complaints.length > 0 && <p className="muted">Der Coach nimmt Rücksicht auf: {complaints.join(', ')}. Schreib ihm, wenn es wieder gut ist.</p>}
       <section className="card" aria-label="Wochenplan">
         <h2>Diese Woche</h2>
         {current ? <Week days={current.days} label="Wochenplan diese Woche" today={today} runs={runs} /> : <p className="muted">Noch kein Wochenplan. Schreib dem Coach, wie deine Woche aussehen soll, oder lass dir einen vorschlagen.</p>}

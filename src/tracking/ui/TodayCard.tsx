@@ -13,8 +13,10 @@ export const todayPlan = (weekplans: TrackedRecord[] | null, nowMs: number): Pla
  * Heute from the week plan: what today is for, with the one thing to do for it, and tomorrow in a line. `gym` is the strength
  * plan card, shown on a strength day. Without a plan for today it shows nothing; the caller keeps its own view then.
  */
-export function TodayCard({ weekplans, runs, nowMs, gym, onRun }: {
+export function TodayCard({ weekplans, runs, nowMs, gym, onRun, bike }: {
   weekplans: TrackedRecord[] | null; runs: TrackedRecord[] | null; nowMs: number; gym: ReactNode; onRun?: () => void;
+  /** On the Mac: the bike session to start; elsewhere a note that it starts on the Mac. */
+  bike?: ReactNode;
 }) {
   const today = todayPlan(weekplans, nowMs);
   if (!today) return null;
@@ -31,7 +33,7 @@ export function TodayCard({ weekplans, runs, nowMs, gym, onRun }: {
           {onRun && <button type="button" onClick={onRun}>Zum Laufen</button>}
         </>
       )}
-      {today.sport === 'bike' && <p>Die Radeinheit startest du am Mac.</p>}
+      {today.sport === 'bike' && (bike ?? <p>Die Radeinheit startest du am Mac.</p>)}
       {today.sport === 'mobility' && <p>Heute ist Beweglichkeit dran.</p>}
       {today.sport === 'rest' && <p>Ruhetag. Erholung gehört zum Training.</p>}
       {tomorrow && <p className="muted">Morgen: {label(tomorrow)}</p>}
