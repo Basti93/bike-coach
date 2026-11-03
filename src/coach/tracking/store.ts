@@ -2,12 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { RecordKind, TrackedRecord } from '../../shared/records';
-import { planWrite, type WriteOrigin } from '../../tracking/kept-copy';
+import { lineAfterAck, planWrite, type WriteOrigin } from '../../tracking/kept-copy';
 import type { PutResult } from '../../tracking/ports';
 
 const MAX_OVERWRITTEN = 200;
 
-type Entry = { record: TrackedRecord; seq: number; /** See tracking/kept-copy. */ serverMs?: number };
+type Entry = { record: TrackedRecord; seq: number; /** See tracking/kept-copy. */ serverMs?: number; line?: number[] };
 type FileData = { seq: number; entries: Record<string, Entry>; overwritten: TrackedRecord[] };
 
 const empty = (): FileData => ({ seq: 0, entries: {}, overwritten: [] });
@@ -87,15 +87,15 @@ export class RecordStore {
     const results = records.map((r) => {
       const key = keyOf(r);
       const have = data.entries[key];
-      const plan = planWrite(have && { rec: have.record, serverMs: have.serverMs }, r, origin);
+      const plan = planWrite(have && { rec: have.record, serverMs: have.serverMs, line: have.line }, r, origin);
       if (plan.copy) {
         const copyKey = keyOf(plan.copy);
         const other = data.entries[copyKey];
-        const c = planWrite(other && { rec: other.record, serverMs: other.serverMs }, plan.copy, { from: 'import' });
-        if (c.replaces) { data.entries[copyKey] = { record: c.keep, seq: ++data.seq, serverMs: c.serverMs }; changed = true; copies.push(c.keep); }
+        const c = planWrite(other && { rec: other.record, serverMs: other.serverMs, line: other.line }, plan.copy, { from: 'import' });
+        if (c.replaces) { data.entries[copyKey] = { record: c.keep, seq: ++data.seq, serverMs: c.serverMs, line: c.line }; changed = true; copies.push(c.keep); }
       }
-      if (plan.replaces) { data.entries[key] = { record: plan.keep, seq: ++data.seq, serverMs: plan.serverMs }; changed = true; }
-      else if (have && plan.serverMs !== have.serverMs) { have.serverMs = plan.serverMs; changed = true; }
+      if (plan.replaces) { data.entries[key] = { record: plan.keep, seq: ++data.seq, serverMs: plan.serverMs, line: plan.line }; changed = true; }
+      else if (have && plan.serverMs !== have.serverMs) { have.serverMs = plan.serverMs; have.line = plan.line; changed = true; }
       if (plan.overwritten) keepLoser(plan.overwritten);
       return plan.result;
     });
@@ -107,7 +107,7 @@ export class RecordStore {
   acknowledged(profileId: string, records: TrackedRecord[]): void {
     if (records.length === 0) return;
     const data = this.load(profileId);
-    for (const r of records) { const e = data.entries[keyOf(r)]; if (e) e.serverMs = r.updatedMs; }
+    for (const r of records) { const e = data.entries[keyOf(r)]; if (e) { e.serverMs = r.updatedMs; e.line = lineAfterAck(e.line, r.updatedMs); } }
     this.save(profileId, data);
   }
 

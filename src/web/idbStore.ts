@@ -1,11 +1,11 @@
 import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { PutResult } from '../tracking/ports';
-import { planWrite, type WriteOrigin } from '../tracking/kept-copy';
+import { lineAfterAck, planWrite, type WriteOrigin } from '../tracking/kept-copy';
 import type { SyncCursors } from '../tracking/sync';
 import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
-type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number };
+type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number; line?: number[] };
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan'];
 
 export type IdbStore = {
@@ -133,12 +133,12 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
           if (!other || keep !== other.rec) { seq += 1; any = true; records.put({ key: copyKey, seq, rec: keep, remote: false } satisfies Row); }
         }
         if (!plan.replaces) {
-          // The newer one stays, but now the device knows what the server has.
-          if (have && plan.serverMs !== have.serverMs) records.put({ ...have, serverMs: plan.serverMs } satisfies Row);
+          // The same version came back: now the device knows the server has it.
+          if (have && plan.serverMs !== have.serverMs) records.put({ ...have, serverMs: plan.serverMs, line: plan.line } satisfies Row);
           continue;
         }
         seq += 1; any = true;
-        records.put({ key, seq, rec: plan.keep, remote: origin.from === 'remote', serverMs: plan.serverMs } satisfies Row);
+        records.put({ key, seq, rec: plan.keep, remote: origin.from === 'remote', serverMs: plan.serverMs, line: plan.line } satisfies Row);
       }
       if (any) { meta.put(seq, 'seq'); wrote = true; }
       await finished;
@@ -166,7 +166,7 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
         for (const r of rs) {
           const key = `${r.kind}:${r.id}`;
           const row = (await req(tx.objectStore('records').get(key))) as Row | undefined;
-          if (row) tx.objectStore('records').put({ ...row, serverMs: r.updatedMs } satisfies Row);
+          if (row) tx.objectStore('records').put({ ...row, serverMs: r.updatedMs, line: lineAfterAck(row.line, r.updatedMs) } satisfies Row);
         }
         await finished;
       });

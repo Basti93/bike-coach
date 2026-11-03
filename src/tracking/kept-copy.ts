@@ -24,11 +24,11 @@ function keptCopy(lost: TrackedRecord, winner: TrackedRecord): TrackedRecord | n
   const body = bodyOf(lost);
   if (lost.kind !== 'workout' || lost.deleted || body.source === 'hevy' || !Array.isArray(body.exercises)) return null;
   if (confirmedSets(lost) <= setsWeighed(winner)) return null;
-  const exercises = body.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => typeof s.doneMs === 'number') })).filter((e) => e.sets.length > 0);
+  const exercises = body.exercises.filter((e) => Array.isArray(e?.sets)).map((e) => ({ ...e, sets: e.sets.filter((s) => typeof s?.doneMs === 'number') })).filter((e) => e.sets.length > 0);
   const lastDone = Math.max(...exercises.flatMap((e) => e.sets.map((s) => s.doneMs as number)));
   const id = `${lost.id}-kopie-${lost.updatedMs}`;
   const title = String(body.title ?? '');
-  const { baseMs: _base, ...rest } = body;
+  const { baseMs: _base, ancestors: _ancestors, ...rest } = body;
   return {
     kind: 'workout', id, updatedMs: lost.updatedMs, deleted: false,
     body: {
@@ -41,7 +41,7 @@ function keptCopy(lost: TrackedRecord, winner: TrackedRecord): TrackedRecord | n
 }
 
 /** A version this device holds, with what it knows of the server: the `updatedMs` of the last version sent and acknowledged, or received. */
-export type Held = { rec: TrackedRecord; serverMs?: number };
+export type Held = { rec: TrackedRecord; serverMs?: number; /** The versions on this record's line, oldest first: acknowledged or received here, or inherited with a version taken over. */ line?: number[] };
 /**
  * - `local`: a write made here. `seenMs` is the version the writer stands on, when it knows one.
  * - `remote`: a version from the server.
@@ -57,21 +57,39 @@ export type WritePlan = {
   replaces: boolean;
   overwritten: TrackedRecord | null;
   serverMs: number | undefined;
+  line: number[] | undefined;
   /** Written before or with the replacement, when the replaced version was not known to the writer and held more sets. */
   copy: TrackedRecord | null;
   result: PutResult;
 };
 
-const withBase = (r: TrackedRecord, baseMs: number | undefined): TrackedRecord => {
+const MAX_LINE = 20;
+const onLine = (line: number[], ms: number): number[] => [...line.filter((m) => m !== ms), ms].slice(-MAX_LINE);
+/** The server took a version from here: it joins the line. */
+export const lineAfterAck = (line: number[] | undefined, ms: number): number[] => onLine(line ?? [], ms);
+
+const withBase = (r: TrackedRecord, baseMs: number | undefined, line: number[]): TrackedRecord => {
   if (r.kind !== 'workout' || typeof r.body !== 'object' || r.body === null) return r;
-  const { baseMs: _old, ...rest } = r.body as { baseMs?: number };
-  return { ...r, body: baseMs === undefined ? rest : { ...rest, baseMs } };
+  const { baseMs: _base, ancestors: _ancestors, ...rest } = r.body as { baseMs?: number; ancestors?: number[] };
+  const ancestors = line.filter((m) => m !== baseMs);
+  return { ...r, body: { ...rest, ...(baseMs === undefined ? {} : { baseMs }), ...(ancestors.length > 0 ? { ancestors } : {}) } };
 };
+
+const ancestorsOf = (body: { ancestors?: unknown } | null): number[] =>
+  Array.isArray(body?.ancestors) ? body.ancestors.filter((m): m is number => typeof m === 'number') : [];
+
+/** Made on the held version or a descendant of it. A workout with no base, once one is held, is not; what Hevy holds is no device's work. */
+function standsOn(w: TrackedRecord, heldMs: number): boolean {
+  const body = w.body as { baseMs?: unknown; ancestors?: unknown; source?: unknown } | null;
+  if (body?.source === 'hevy') return true;
+  return body?.baseMs === heldMs || ancestorsOf(body).includes(heldMs);
+}
 
 /**
  * The one conflict rule, for every store and every way a version gets replaced. `baseMs` says which server version a
- * record was made on. A version made on the one being replaced is a legit change, whatever it removed. Any other
- * replacement with fewer confirmed sets is a conflict, and the replaced version stays as a copy. No base, no conflict.
+ * record was made on, `ancestors` the ones before it on its line. A version made on the one being replaced, or on a
+ * descendant of it, is a legit change, whatever it removed. Any other replacement with fewer confirmed sets is a
+ * conflict, and the replaced version stays as a copy.
  */
 export function planWrite(have: Held | undefined, r: TrackedRecord, origin: WriteOrigin): WritePlan {
   const held = have?.rec;
@@ -81,15 +99,23 @@ export function planWrite(have: Held | undefined, r: TrackedRecord, origin: Writ
     // A write standing on the held version carries what this device knows of the server, and stays in its chain of edits.
     // One standing on something else carries that: every device holding a version other than that one will see the conflict.
     unseen = held !== undefined && origin.seenMs !== undefined && origin.seenMs !== held.updatedMs;
-    incoming = withBase(r, unseen ? origin.seenMs : have?.serverMs);
+    // Only what came before the version it stood on: the held one it never saw must not look like an ancestor.
+    const line = have?.line ?? [];
+    incoming = withBase(r, unseen ? origin.seenMs : have?.serverMs, unseen ? line.filter((m) => m < origin.seenMs!) : line);
   }
   const { keep, overwritten } = applyRecord(held, incoming);
   const replaces = !held || keep !== held;
-  const base = (incoming.body as { baseMs?: unknown } | null)?.baseMs;
-  const conflict = origin.from === 'remote' ? typeof base === 'number' && base !== held?.updatedMs : unseen;
+  const conflict = origin.from === 'remote' ? held !== undefined && !standsOn(incoming, held.updatedMs) : unseen;
+  // The device knows the server has a version only when it takes it over or holds the same one, never from a download that lost.
+  const takenOver = origin.from === 'remote' && (replaces || JSON.stringify(held) === JSON.stringify(incoming));
+  const body = incoming.body as { baseMs?: unknown; ancestors?: unknown } | null;
+  const line = takenOver && replaces
+    ? onLine(typeof body?.baseMs === 'number' ? onLine(ancestorsOf(body), body.baseMs) : ancestorsOf(body), r.updatedMs)
+    : takenOver ? onLine(have?.line ?? [], r.updatedMs) : have?.line;
   return {
     incoming, keep, replaces, overwritten,
-    serverMs: origin.from === 'remote' ? r.updatedMs : have?.serverMs,
+    serverMs: takenOver ? r.updatedMs : have?.serverMs,
+    line,
     copy: held && replaces && conflict ? keptCopy(held, incoming) : null,
     result: { kept: replaces || JSON.stringify(held) === JSON.stringify(incoming), updatedMs: keep.updatedMs },
   };
