@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EXERCISES } from '../../src/shared/exercises';
-import { describeExercise, matchesSearch, similarExercises } from '../../src/tracking/similar';
+import { describeExercise, matchesSearch, ownExerciseFor, similarExercises } from '../../src/tracking/similar';
 import { exerciseDescription } from '../../src/shared/exercise-descriptions';
 
 const ids = (title: string, exerciseId = 'hevy-template-x') => similarExercises({ title, exerciseId }, EXERCISES).map((e) => e.id);
@@ -66,5 +66,26 @@ describe('similarExercises puts the same muscle on top', () => {
   it('lists chest exercises before presses for other muscles', () => {
     const got = similarExercises({ title: 'Incline Bench Press (Smith Machine)', exerciseId: 'hevy-y' }, EXERCISES);
     expect(got.every((e) => e.primaryMuscle === 'chest')).toBe(true);
+  });
+});
+
+describe('ownExerciseFor', () => {
+  const ownId = (exerciseId: string, title: string) => ownExerciseFor({ exerciseId, title }, EXERCISES)?.id ?? null;
+
+  it('finds the own exercise by id first', () => {
+    expect(ownId('pf-bench-press', 'anders benannt')).toBe('pf-bench-press');
+  });
+
+  it('finds it by the exact German or English title', () => {
+    expect(ownId('hevy-1', 'Kniebeuge')).toBe('pf-squat');
+    expect(ownId('hevy-2', 'Lat Pulldown - Close Grip (Cable)')).toBe('pf-lat-pulldown-close');
+  });
+
+  it('falls back to the same movement with other equipment', () => {
+    expect(ownId('hevy-3', 'Squat (Smith Machine)')).toBe('pf-squat');
+  });
+
+  it('finds nothing for an unknown exercise', () => {
+    expect(ownId('x', 'Völlig eigene Übung')).toBeNull();
   });
 });

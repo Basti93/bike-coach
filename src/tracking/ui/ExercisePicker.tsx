@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { exerciseDescription } from '../../shared/exercise-descriptions';
 import type { Exercise } from '../../shared/exercises';
+import { muscleGroupOf } from '../../shared/muscle-targets';
+import { exerciseImages, videoSearchUrl } from '../media';
 import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
+import { MuscleIcon } from './MuscleIcon';
 import { matchesSearch, similarExercises } from '../similar';
 import { useCatalog } from './hooks';
 import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
@@ -38,19 +41,20 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   }
 
   const item = (e: Exercise) => {
-    const description = exerciseDescription(e.id);
+    const icon = <MuscleIcon group={muscleGroupOf(e)} />;
     return (
       <div key={e.id} className="tk-pick-item">
         <div className="tk-pick-row">
+          <span className="tk-pick-icon">{icon}</span>
           <button type="button" className="tk-pick" onClick={() => onPick(e)}>
             {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
           </button>
-          {description && (
-            <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
-              onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
-          )}
+          <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
+            onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
         </div>
-        {description && info === e.id && <ExerciseInfo title={e.title} description={description} />}
+        {info === e.id && (
+          <ExerciseInfo title={e.title} description={exerciseDescription(e.id)} images={exerciseImages(e.id)} video={videoSearchUrl(e)} icon={icon} />
+        )}
       </div>
     );
   };

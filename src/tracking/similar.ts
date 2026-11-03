@@ -44,6 +44,19 @@ const mostCommon = (xs: string[]): string | undefined => {
   return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 };
 
+/** The own exercise by id, else by the exact German or English title. */
+export const exactExercise = (current: { title: string; exerciseId: string }, catalog: Exercise[]): Exercise | null =>
+  catalog.find((e) => e.id === current.exerciseId) ?? catalog.find((e) => names(e).includes(current.title)) ?? null;
+
+/**
+ * The own exercise behind a logged one (Hevy ids are template ids): by id, then by the exact German or English title,
+ * then by the same movement with other equipment ("Squat (Smith Machine)" → Kniebeuge).
+ */
+export function ownExerciseFor(current: { title: string; exerciseId: string }, catalog: Exercise[]): Exercise | null {
+  const want = base(current.title);
+  return exactExercise(current, catalog) ?? catalog.find((e) => names(e).map(base).includes(want)) ?? null;
+}
+
 /**
  * How to do an exercise, also for Hevy exercises (whose ids are Hevy template ids): by own id, then by the exact
  * German or English title, then by the same movement with other equipment. `via` names that stand-in, else null.
@@ -51,10 +64,9 @@ const mostCommon = (xs: string[]): string | undefined => {
 export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): { description: ExerciseDescription; via: string | null } | null {
   const own = exerciseDescription(current.exerciseId);
   if (own) return { description: own, via: null };
-  for (const e of catalog) {
-    const d = names(e).includes(current.title) ? exerciseDescription(e.id) : null;
-    if (d) return { description: d, via: null };
-  }
+  const exact = exactExercise(current, catalog);
+  const d = exact && exerciseDescription(exact.id);
+  if (d) return { description: d, via: null };
   const want = base(current.title);
   for (const e of catalog) {
     const d = names(e).map(base).includes(want) ? exerciseDescription(e.id) : null;

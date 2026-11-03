@@ -9,6 +9,8 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/ui',
+    // The web app's static files, for the exercise pictures the shared tracking screens show.
+    publicDir: resolve('src/web/public'),
     plugins: [react()],
     build: { rollupOptions: { input: resolve('src/ui/index.html') } },
   },
