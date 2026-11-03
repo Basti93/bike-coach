@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import type { TrackedRecord } from '../shared/records';
 import {
-  addWeeks, cookPortions, DAY_LONG, DAY_SHORT, dayDate, dayIndex, eatersOf, initialOf, mealKey, readMealPlan, readMealState, recipeAmount,
+  addWeeks, CHAT_MAX_CHARS, cookPortions, isChatRecordId, newChatId, readMealChat, DAY_LONG, DAY_SHORT, dayDate, dayIndex, eatersOf, initialOf, mealKey, readMealPlan, readMealState, recipeAmount,
   shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS, stateRecordId, weekOf, weekRangeText, withEater, withItem,
-  type ItemState, type Meal, type MealPlan, type MealState, type ShopItem,
+  type ItemState, type Meal, type MealChat, type MealPlan, type MealState, type ShopItem,
 } from '../shared/meals';
 import type { WebPort } from './webPort';
 import { usePortRecords } from '../tracking/ui/hooks';
@@ -22,6 +22,41 @@ export function mealWeeks(records: TrackedRecord[] | null, now: number): Week[] 
   });
 }
 
+/** This person's messages to the coach about the plan, oldest first. */
+export const mealChats = (records: TrackedRecord[] | null): MealChat[] =>
+  (records ?? []).flatMap((r) => { const c = !r.deleted && isChatRecordId(r.id) ? readMealChat(r.id, r.body) : null; return c ? [c] : []; }).sort((a, b) => a.atMs - b.atMs);
+
+const chatDate = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+const ChatRow = ({ c }: { c: MealChat }) => (
+  <li>
+    <p className="pm-said">{c.text}<small>{chatDate(c.atMs)}</small></p>
+    <p className={c.reply ? 'pm-reply' : 'pm-reply pending'}>{c.reply ?? 'Der Coach antwortet, sobald der Mac wieder da ist.'}</p>
+  </li>
+);
+
+/** "Sag dem Coach, was du ändern willst": written as a record, answered by the Mac at its next sync with no ride open. */
+function ChatBox({ chat, onSend }: { chat: MealChat[]; onSend: (text: string) => Promise<void> }) {
+  const [text, setText] = useState('');
+  const [last, ...before] = [...chat].reverse();
+  const submit = () => { const t = text.trim(); if (!t) return; setText(''); void onSend(t); };
+  return (
+    <section className="card pm-chat" aria-label="Mit dem Coach über den Plan sprechen">
+      <h3>Sag dem Coach, was du ändern willst</h3>
+      <form className="tk-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <input aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="z. B. Mittwoch lieber Nudeln" value={text} onChange={(e) => setText(e.target.value)} />
+        <button type="submit" className="secondary" disabled={!text.trim()}>Senden</button>
+      </form>
+      {last && <ul className="pm-chat-list"><ChatRow c={last} /></ul>}
+      {before.length > 0 && (
+        <details className="pm-chat-before">
+          <summary>Bisheriges Gespräch ({before.length})</summary>
+          <ul className="pm-chat-list">{before.map((c) => <ChatRow key={c.id} c={c} />)}</ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
 const short = (k: string) => { const [d, s] = k.split('-'); return `${DAY_SHORT[Number(d)]}${s === 'mittag' ? '' : ` ${SLOT_LABEL[s as keyof typeof SLOT_LABEL]}`}`; };
 const color = (plan: MealPlan, id: string) => Math.max(0, plan.people.findIndex((p) => p.id === id)) % 4;
 const NEXT: Record<ItemState, ItemState> = { offen: 'gekauft', gekauft: 'offen', da: 'offen' };
@@ -36,6 +71,7 @@ function MealCard({ week, meal, onEater }: { week: Week; meal: Meal; onEater: (p
       <div className="pm-slot"><b>{SLOT_LABEL[meal.slot]}</b> <span>{SLOT_TIME[meal.slot]}{meal.takeAlong ? ' · zum Mitnehmen' : meal.slot === 'abend' ? ' · kleine Portion' : ''}</span></div>
       {meal.reuseOf && <span className="pm-badge">Rest von {short(meal.reuseOf)}: nur einpacken</span>}
       <h2>{meal.dish.title}</h2>
+      {meal.askedBy && week.plan.people.some((p) => p.id === meal.askedBy) && <p className="pm-asked">auf Wunsch von {week.plan.people.find((p) => p.id === meal.askedBy)!.name}</p>}
       <p className="pm-meta">{!meal.reuseOf && <>{meal.dish.minutes} Min · </>}<b>{meal.dish.proteinG} g</b> Eiweiß pro Portion{reuses.length > 0 && <> · reicht für {reuses.map((r) => short(mealKey(r.day, r.slot))).join(', ')}</>}</p>
       <div className="tk-row pm-people">
         {week.plan.people.map((p) => {
@@ -93,6 +129,7 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
   const day = dayPick ?? (isCurrent ? today : 0);
   const [tab, setTab] = useState<'tage' | 'einkauf'>('tage');
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const chat = useMemo(() => mealChats(records), [records]);
   if (!week) return <div className="tk-screen"><h1 className="tk-title">Essen</h1><p className="muted">Noch kein Essensplan da. Der Mac plant samstagmorgens die kommende Woche.</p></div>;
 
   /** One more change on top of what this phone has; the newer entry wins on the Mac. */
@@ -105,6 +142,11 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
       await port.put({ kind: 'mealplan', id, updatedMs: Math.max(at, (have?.updatedMs ?? 0) + 1), deleted: false, body: f(readMealState(have?.deleted ? undefined : have?.body), at) });
     }).catch(() => { /* shown as before; nothing lost */ });
     return queue.current;
+  };
+  /** A new record of its own: only the Mac writes it again, with the reply. */
+  const say = async (text: string) => {
+    const at = now();
+    await port.put({ kind: 'mealplan', id: newChatId(at), updatedMs: at, deleted: false, body: { week: week.plan.week, text, atMs: at, reply: null, answeredMs: null, changed: [] } }).catch(() => { /* the field stays empty; nothing else is lost */ });
   };
   const list = shoppingList(week.plan, week.state);
   const pick = (w: Week) => { setWeekKey(w.plan.week); setDay(w.plan.week === current ? today : 0); };
@@ -139,6 +181,7 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
               ? <MealCard key={slot} week={week} meal={m} onEater={(person, on) => void change((s, at) => withEater(s, mealKey(m.day, m.slot), person, on, at))} />
               : <section key={slot} className="card pm-meal pm-empty"><div className="pm-slot"><b>{SLOT_LABEL[slot]}</b></div><p className="muted">Frei.</p></section>;
           })}
+          <ChatBox chat={chat} onSend={say} />
         </>
       ) : <Shopping week={week} onSet={(item, state) => void change((s, at) => withItem(s, item, state, at))} />}
     </div>

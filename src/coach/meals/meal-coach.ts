@@ -1,15 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  addWeeks, dayIndex, DEFAULT_MEAL_SETTINGS, DIETS, EMPTY_STATE, HABITS, isWeekKey, mealKey, mergeStates, planRecordId, readMealState,
-  SLOTS, stateRecordId, weekOf, weekOfRecordId, withEater, withItem, type Diet, type Habit, type ItemState, type Meal, type MealPlan,
-  type MealSettings, type MealState, type Person, type Slot,
+  addWeeks, CHAT_MAX_CHARS, dayIndex, eatersOf, DEFAULT_MEAL_SETTINGS, DIETS, EMPTY_STATE, HABITS, isChatRecordId, isWeekKey, mealKey, mergeStates,
+  newChatId, planRecordId, readMealChat, readMealState, SLOTS, stateRecordId, weekOf, weekOfRecordId, withEater, withItem, type Diet,
+  type Habit, type ItemState, type Meal, type MealChat, type MealPlan, type MealSettings, type MealState, type Person, type Slot,
 } from '../../shared/meals';
 import type { TrackedRecord } from '../../shared/records';
 import type { RecordStore } from '../tracking/store';
 import { fitsEveryone } from './check';
 import { buildMealPrompt, buildSwapPrompt, dishFrom, MEAL_SYSTEM_PROMPT, mealAnswerJsonSchema, mealAnswerSchema, mealsFromAnswer } from './prompt';
-import { constraintsFor, dishOf, pickRecipe, ruleMeals, seeded, skeleton, type Member, type Slotted } from './rules';
+import { constraintsFor, ruleMeals, seeded, skeleton, type Member, type Slotted } from './rules';
+import { applyChat, buildChatPrompt, CHAT_SYSTEM_PROMPT, chatAnswerJsonSchema, chatAnswerSchema, listDish, putDish, REPLY_NO_AI, REPLY_NO_PLAN, replySwapped, ruleTarget, type ChatResult } from './chat';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -18,6 +19,9 @@ const PLAN_DAY = 5;
 const PLAN_HOUR = 6;
 const PLAN_TIMEOUT_MS = 300_000;
 const SWAP_TIMEOUT_MS = 120_000;
+const CHAT_TIMEOUT_MS = 120_000;
+/** Messages kept per person, the newest. */
+const CHAT_KEEP = 10;
 const MAX_TAGS = 20;
 const TAG_MAX = 40;
 const TRAINING_WINDOW_DAYS = 28;
@@ -43,7 +47,11 @@ type Deps = {
   /** Profiles whose records were just written, so their sync can go soon. */
   onExport?: (ids: string[]) => void;
 };
-type FileData = { settings: Record<string, MealSettings>; plans: Record<string, MealPlan>; states: Record<string, MealState>; notices: Record<string, string | null>; lastAuto: string | null };
+type FileData = {
+  settings: Record<string, MealSettings>; plans: Record<string, MealPlan>; states: Record<string, MealState>; notices: Record<string, string | null>; lastAuto: string | null;
+  /** The chat with the coach, per person, oldest first. */
+  chats: Record<string, MealChat[]>;
+};
 
 export type MealWeek = { plan: MealPlan; state: MealState; notice: string | null };
 export type MealsView = {
@@ -51,8 +59,10 @@ export type MealsView = {
   /** The current week, then the next one if it is planned already. */
   weeks: MealWeek[];
   currentWeek: string; today: number;
-  /** A week or a meal key being planned right now. */
+  /** A week or a meal key being planned right now, or "chat" while the coach answers a message. */
   planning: string | null;
+  /** This person's last messages to the coach about the plan, oldest first. */
+  chat: MealChat[];
   /** False while a ride is open. */
   canPlan: boolean;
 };
@@ -91,7 +101,7 @@ export class MealCoach {
     if (this.data) return this.data;
     let d: Partial<FileData> = {};
     try { const parsed = JSON.parse(fs.readFileSync(this.file(), 'utf8')) as unknown; if (isObj(parsed)) d = parsed as Partial<FileData>; } catch { /* no file yet */ }
-    this.data = { settings: isObj(d.settings) ? d.settings : {}, plans: isObj(d.plans) ? d.plans : {}, states: isObj(d.states) ? d.states : {}, notices: isObj(d.notices) ? d.notices : {}, lastAuto: typeof d.lastAuto === 'string' ? d.lastAuto : null };
+    this.data = { settings: isObj(d.settings) ? d.settings : {}, plans: isObj(d.plans) ? d.plans : {}, states: isObj(d.states) ? d.states : {}, notices: isObj(d.notices) ? d.notices : {}, lastAuto: typeof d.lastAuto === 'string' ? d.lastAuto : null, chats: isObj(d.chats) ? d.chats : {} };
     return this.data;
   }
   private save(): void {
@@ -136,7 +146,8 @@ export class MealCoach {
     const d = this.load();
     const current = weekOf(now);
     const weeks = [current, addWeeks(current, 1)].flatMap((w) => (d.plans[w] ? [{ plan: d.plans[w]!, state: d.states[w] ?? EMPTY_STATE, notice: d.notices[w] ?? null }] : []));
-    return { settings: this.settings(id), weeks: this.enabled(id) ? weeks : [], currentWeek: current, today: dayIndex(now), planning: this.planning, canPlan: this.deps.noOpenRide() };
+    const on = this.enabled(id);
+    return { settings: this.settings(id), weeks: on ? weeks : [], currentWeek: current, today: dayIndex(now), planning: this.planning, canPlan: this.deps.noOpenRide(), chat: on ? d.chats[id] ?? [] : [] };
   }
 
   /** From the scan loop. Never throws into it, never plans with a ride open, and does nothing at all with no one in. */
@@ -146,7 +157,9 @@ export class MealCoach {
       if (Object.keys(this.load().settings).length === 0) return [];
       if (this.members().length === 0) return this.exportAll();
       this.importStates();
-      const touched = this.exportAll();
+      let touched = this.exportAll();
+      // Messages from phones, and those typed here during a ride, once no ride is open.
+      if (await this.answerPending()) touched = [...new Set([...touched, ...this.exportAll()])];
       const now = this.deps.nowMs();
       const day = dayIndex(now);
       const due = (day === PLAN_DAY && new Date(now).getHours() >= PLAN_HOUR) || day === PLAN_DAY + 1;
@@ -219,7 +232,7 @@ export class MealCoach {
     if (!plan || !meal) return;
     const members = this.members();
     const state = d.states[week] ?? EMPTY_STATE;
-    const eatersNow = (k: string) => { const m = plan.meals.find((x) => mealKey(x.day, x.slot) === k); const over = state.eaters[k] ?? {}; return m ? plan.people.map((p) => p.id).filter((p) => (over[p] ? over[p]!.on : m.eaters.includes(p))) : []; };
+    const eatersNow = (k: string) => eatersOf(plan, state, k);
     const slot: Slotted = { day: meal.day, slot: meal.slot, eaters: eatersNow(key), takeAlong: meal.takeAlong, reuseOf: null };
     const reuses = plan.meals.filter((m) => m.reuseOf === key);
     const who = constraintsFor(members, [...new Set([...slot.eaters, ...reuses.flatMap((r) => eatersNow(mealKey(r.day, r.slot)))])]);
@@ -236,28 +249,94 @@ export class MealCoach {
         if (got && !avoid.includes(got.title) && fitsEveryone(got, who.map((m) => m.settings))) dish = got;
       } catch { /* the list takes over */ } finally { this.planning = null; }
     }
-    if (!dish) {
-      const used = new Set(plan.meals.flatMap((m) => (m.dish.recipeId ? [m.dish.recipeId] : [])));
-      const keepDays = Math.max(0, ...reuses.map((r) => r.day - meal.day));
-      const r = pickRecipe({ slot: meal.slot, eaters: who, takeAlong: meal.takeAlong, training: plan.trainingDays.includes(meal.day), keepDays, used, not: meal.dish.recipeId, random })
-        ?? pickRecipe({ slot: meal.slot, eaters: constraintsFor(members, slot.eaters), takeAlong: meal.takeAlong, training: false, keepDays: 0, used, not: meal.dish.recipeId, random });
-      if (!r) return;
-      dish = dishOf(r);
-    }
+    dish ??= listDish(plan, state, members, key, random);
+    if (!dish) return;
     // Re-read: the plan may have changed while the AI thought.
     const fresh = this.load().plans[week];
     const target = fresh?.meals.find((m) => mealKey(m.day, m.slot) === key);
     if (!fresh || !target || target.dish.title !== meal.dish.title) return;
-    target.dish = dish; target.reuseOf = null;
-    for (const r of fresh.meals.filter((m) => m.reuseOf === key)) {
-      if (r.day - target.day <= dish.keepsDays && fitsEveryone(dish, constraintsFor(members, eatersNow(mealKey(r.day, r.slot))).map((m) => m.settings))) r.dish = dish;
-      else {
-        const own = pickRecipe({ slot: r.slot, eaters: constraintsFor(members, eatersNow(mealKey(r.day, r.slot))), takeAlong: r.takeAlong, training: false, keepDays: 0, used: new Set([dish.recipeId ?? '']), random });
-        if (own) { r.dish = dishOf(own); r.reuseOf = null; }
-      }
-    }
+    delete target.askedBy;
+    putDish(fresh, this.load().states[week] ?? EMPTY_STATE, members, key, dish, random);
     this.save();
     this.exportAll();
+  }
+
+  // ---- The chat with the coach ----
+
+  /** A message typed on this Mac. It is answered at once with no ride open, otherwise at the first tick after the ride. */
+  async chat(id: string, week: string, text: string): Promise<void> {
+    const t = typeof text === 'string' ? text.trim().replace(/\s+/g, ' ').slice(0, CHAT_MAX_CHARS) : '';
+    const d = this.load();
+    if (!this.enabled(id) || !t || !isWeekKey(week) || !d.plans[week]) return;
+    const now = this.deps.nowMs();
+    this.keepChat(id, { id: newChatId(now, this.deps.random), week, text: t, atMs: now, reply: null, answeredMs: null, changed: [] });
+    this.save();
+    this.exportAll();
+    if (await this.answerPending()) this.exportAll();
+  }
+
+  private keepChat(id: string, c: MealChat): void {
+    const d = this.load();
+    d.chats[id] = [...(d.chats[id] ?? []).filter((x) => x.id !== c.id), c].sort((a, b) => a.atMs - b.atMs).slice(-CHAT_KEEP);
+  }
+
+  /** Answers waiting messages one by one, oldest first, never with a ride open and never next to another AI call. True when one was answered. */
+  private async answerPending(): Promise<boolean> {
+    let any = false;
+    for (let n = 0; n < CHAT_KEEP * 2; n++) {
+      if (!this.deps.noOpenRide() || this.planning) return any;
+      const d = this.load();
+      const next = this.members().flatMap((m) => (d.chats[m.id] ?? []).filter((c) => c.reply === null).map((c) => ({ id: m.id, c }))).sort((a, b) => a.c.atMs - b.c.atMs)[0];
+      if (!next) return any;
+      await this.answer(next.id, next.c);
+      any = true;
+    }
+    return any;
+  }
+
+  private async answer(id: string, msg: MealChat): Promise<void> {
+    const now = this.deps.nowMs();
+    const current = weekOf(now);
+    const random = this.deps.random ?? Math.random;
+    const done = (reply: string, changed: string[] = []) => {
+      const have = (this.load().chats[id] ?? []).find((c) => c.id === msg.id);
+      if (have) this.keepChat(id, { ...have, reply, answeredMs: this.deps.nowMs(), changed });
+      this.save();
+    };
+    if (!this.load().plans[msg.week] || (msg.week !== current && msg.week !== addWeeks(current, 1))) { done(REPLY_NO_PLAN); return; }
+    const fromDay = msg.week === current ? dayIndex(now) : 0;
+    const input = () => {
+      const d = this.load();
+      return { members: this.members(), asker: id, plan: d.plans[msg.week]!, state: d.states[msg.week] ?? EMPTY_STATE, fromDay, text: msg.text, history: (d.chats[id] ?? []).filter((c) => c.id !== msg.id) };
+    };
+    let answer = null;
+    if (this.deps.ask) {
+      this.planning = 'chat';
+      try {
+        const raw = await this.deps.ask({ prompt: buildChatPrompt(input()), systemPrompt: CHAT_SYSTEM_PROMPT, schema: chatAnswerJsonSchema, timeoutMs: CHAT_TIMEOUT_MS });
+        const parsed = chatAnswerSchema.safeParse(raw);
+        if (parsed.success) answer = parsed.data;
+      } catch { /* the rules take over */ } finally { this.planning = null; }
+    }
+    const d = this.load();
+    // Re-read after the AI: the plan may have been replanned meanwhile, and every check runs on what is there now.
+    if (!d.plans[msg.week]) { done(REPLY_NO_PLAN); return; }
+    if (answer) {
+      const result: ChatResult = applyChat(input(), answer);
+      d.plans[msg.week]!.meals = result.meals;
+      if (result.remembered.length) d.settings[id] = { ...this.settings(id), dislikes: [...this.settings(id).dislikes, ...result.remembered] };
+      done(result.reply, result.changed);
+      return;
+    }
+    // Without the AI: a plain "Mittwoch Mittag tauschen" swaps from the list, anything else gets a plain answer.
+    const key = ruleTarget(msg.text, msg.week === current ? dayIndex(now) : null);
+    const plan = d.plans[msg.week]!;
+    const meal = key ? plan.meals.find((m) => mealKey(m.day, m.slot) === key) : undefined;
+    const dish = meal && meal.day >= fromDay ? listDish(plan, d.states[msg.week] ?? EMPTY_STATE, this.members(), key!, random) : null;
+    if (!meal || !dish) { done(REPLY_NO_AI); return; }
+    putDish(plan, d.states[msg.week] ?? EMPTY_STATE, this.members(), key!, dish, random);
+    meal.askedBy = id;
+    done(replySwapped(meal, dish.title), [key!]);
   }
 
   setEater(id: string, week: string, key: string, person: string, on: boolean): void {
@@ -302,6 +381,23 @@ export class MealCoach {
     if (changed) this.save();
   }
 
+  /** New messages from this person's phone into the chat. True when there was one. */
+  private importChats(id: string, have: TrackedRecord[]): boolean {
+    const d = this.load();
+    const known = new Set((d.chats[id] ?? []).map((c) => c.id));
+    const oldest = (d.chats[id] ?? []).length >= CHAT_KEEP ? d.chats[id]![0]!.atMs : -Infinity;
+    let any = false;
+    for (const r of have) {
+      if (r.deleted || !isChatRecordId(r.id) || known.has(r.id)) continue;
+      const c = readMealChat(r.id, r.body);
+      // A message older than every kept one was trimmed here before; it is not taken in again.
+      if (!c || c.atMs < oldest) continue;
+      this.keepChat(id, c);
+      any = true;
+    }
+    return any;
+  }
+
   /** Writes the plan and its state into each synced profile's records, and tombstones what is no longer wanted. Returns the profiles it changed. */
   exportAll(): string[] {
     const { store } = this.deps;
@@ -322,6 +418,9 @@ export class MealCoach {
             wanted.set(planRecordId(w), { ...d.plans[w], you: p.id });
             wanted.set(stateRecordId(w), d.states[w] ?? EMPTY_STATE);
           }
+          // Messages typed on a phone first, so none is taken for an old one and removed before it was read.
+          if (this.importChats(p.id, have)) this.save();
+          for (const c of d.chats[p.id] ?? []) { const { id: cid, ...body } = c; wanted.set(cid, body); }
         }
         const out: TrackedRecord[] = [];
         for (const [rid, body] of wanted) {

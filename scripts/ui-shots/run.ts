@@ -77,6 +77,23 @@ const MEALS = await (async () => {
   w.state = withItem(withItem(withEater(w.state, '3-abend', 'pb', false, now), itemKey('Haferflocken', 'g'), 'da', now), itemKey('Skyr', 'g'), 'gekauft', now);
   return v;
 })();
+// The same week after a short chat with the coach: Lena's lunch on Wednesday changed at her wish, one message still waiting.
+const MEALS_CHAT = (() => {
+  const v = JSON.parse(JSON.stringify(MEALS));
+  const now = new Date(2026, 10, 10, 9).getTime();
+  const w = v.weeks[0];
+  const m = w.plan.meals.find((x: { day: number; slot: string }) => x.day === 4 && x.slot === 'abend');
+  // A whole dish of its own (title, ingredients and steps together), as the chat would put it there.
+  const { recipeId: _r, ...other } = w.plan.meals.find((x: { day: number; slot: string }) => x.day === 0 && x.slot === 'mittag').dish;
+  m.dish = { ...other, source: 'coach' };
+  m.askedBy = 'pa';
+  v.chat = [
+    { id: 'chat-a1', week: w.plan.week, text: 'Danke, sieht gut aus', atMs: now - 2 * 86_400_000, reply: 'Gern, guten Appetit diese Woche.', answeredMs: now - 2 * 86_400_000, changed: [] },
+    { id: 'chat-a2', week: w.plan.week, text: 'Das Rezept am Freitag ist zu aufwendig', atMs: now - 3_600_000, reply: 'Am Freitagabend gibt es jetzt Ofengemüse mit Halloumi, das ist schnell vorbereitet.', answeredMs: now - 3_500_000, changed: ['4-abend'] },
+    { id: 'chat-a3', week: w.plan.week, text: 'Sonntag lieber was mit Nudeln', atMs: now - 60_000, reply: null, answeredMs: null, changed: [] },
+  ];
+  return v;
+})();
 
 const shots: { name: string; ride: object; coach?: object | null; steps?: (win: Page) => Promise<void>; crop?: string; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
@@ -143,6 +160,9 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.waitForTimeout(300);
   } },
   { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
+  { name: 'meals-chat', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280 },
+  { name: 'meals-chat-history', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, steps: async (win) => { await win.getByText(/Bisheriges Gespräch/).click(); await win.waitForTimeout(150); } },
+  { name: 'meals-chat-recipe', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, click2: /Freitag, Abendessen/ },
   { name: 'meals-recipe', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280, click2: /Mittwoch, Mittagessen/ },
   { name: 'meals-shopping', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 1000, width: 1280, click2: /^Einkaufsliste$/ },
   { name: 'meals-settings', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Profil', height: 1700 },

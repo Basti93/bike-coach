@@ -487,3 +487,11 @@ button.shop-have:hover, button.shop-have:focus-visible { border-color: var(--lin
 .meal-tags input { flex: 1; min-width: 10rem; width: auto; }
 .meal-tag { display: inline-flex; align-items: center; gap: .2rem; background: #2d4638; border-radius: 999px; padding: .2rem .2rem .2rem .75rem; font-size: .9rem; }
 .meal-tag button { background: transparent; color: var(--muted); padding: .1rem .5rem; font-size: 1rem; }
+
+/* The chat with the coach on the meal page */
+.meal-chat { margin-bottom: 1rem; padding: .8rem 1rem; }
+.meal-chat .coach-log { margin-top: .4rem; }
+.meal-chat-last { list-style: none; margin: .6rem 0 0; padding: 0; }
+.meal-chat .reply.pending { font-style: italic; }
+.meal-asked { font-size: .68rem; color: var(--muted, #9aa0aa); }
+.meal-asked-note { margin: -.2rem 0 .6rem; font-size: .85rem; }
