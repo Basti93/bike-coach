@@ -30,12 +30,13 @@ export async function handleFetch(r: Req, origin: string, allow: ReadonlySet<str
 // ---- push notifications ----
 
 /** The only texts the worker ever shows: what the server sends is used for its type only. */
-const NOTES: Record<string, { body: string; url: string }> = {
+const NOTES: Record<string, { body: string; url: string; alert?: boolean }> = {
   version: { body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.', url: '/' },
   meal: { body: 'Dein Essensplan für die Woche ist da.', url: '/?tab=essen' },
   run: { body: 'Dein Laufplan für die Woche ist da.', url: '/?tab=laufen' },
+  rest: { body: 'Pause vorbei. Weiter mit dem nächsten Satz.', url: '/', alert: true },
 };
-export type Note = { title: string; options: { body: string; tag: string; icon: string; badge: string; data: { url: string } } };
+export type Note = { title: string; options: { body: string; tag: string; icon: string; badge: string; data: { url: string }; renotify?: boolean; silent?: boolean; vibrate?: number[] } };
 
 /** A push always shows something (Safari ends subscriptions that stay silent); unknown or broken data gets a plain notice. */
 export function notificationFor(text: string | null): Note {
@@ -44,7 +45,8 @@ export function notificationFor(text: string | null): Note {
   const n = Object.hasOwn(NOTES, type) ? NOTES[type]! : null;
   return {
     title: 'Pandafit',
-    options: { body: n?.body ?? 'Neues in Pandafit.', tag: n ? `pandafit-${type}` : 'pandafit', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: n?.url ?? '/' } },
+    options: { body: n?.body ?? 'Neues in Pandafit.', tag: n ? `pandafit-${type}` : 'pandafit', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: n?.url ?? '/' },
+      ...(n?.alert ? { renotify: true, silent: false, vibrate: [200, 100, 200] } : {}) },
   };
 }
 
