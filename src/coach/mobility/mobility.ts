@@ -121,6 +121,7 @@ const GUESSES: [RegExp, string][] = [
 ];
 const defaultMuscleOf = (templateId: string, title: string): string | null =>
   EXERCISES.find((e) => e.id === templateId)?.primaryMuscle ?? GUESSES.find(([p]) => p.test(title))?.[1] ?? null;
+export { defaultMuscleOf as muscleOf };
 
 type Deps = {
   store: RecordStore; nowMs: () => number;

@@ -12,3 +12,5 @@ export const MIN_SPEED = 0.5;
 export const MIN_EASY_S = 300;
 // Our own choice: a test run is the best 30 minutes.
 export const TEST_WINDOW_S = 1800;
+// Our own choice: after a closed leg complaint, the plan starts gently again for a week.
+export const RESTART_DAYS = 7;

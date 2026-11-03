@@ -20,7 +20,7 @@ export const QUESTIONS = [
   { id: 'erfolg', text: 'Woran würdest du in drei Monaten merken, dass es sich gelohnt hat?' },
 ] as const;
 
-const BODY = /knie|rücken|hüfte|schulter|nacken|wade|achilles|oberschenkel|schmerz|zwick|tut .*weh|verletz|stechen|zerr|beschwerd|krank|erkält|fieber|schwindel|gebrochen|\bbruch|sitzbein|becken|knöchel|sprunggelenk|handgelenk|ellbogen|\bfu(ß|ss)\b|operation|operiert|bandscheib|sehne|prellung|gelenk/i;
+const BODY = /schienbein|sprunggelenk|lendenwirbel|\b(knee|foot|feet|ankle|shin|calf|calves|hip|lower back)\b|knie|rücken|hüfte|schulter|nacken|wade|achilles|oberschenkel|schmerz|zwick|tut .*weh|verletz|stechen|zerr|beschwerd|krank|erkält|fieber|schwindel|gebrochen|\bbruch|sitzbein|becken|knöchel|sprunggelenk|handgelenk|ellbogen|\bfu(ß|ss)\b|operation|operiert|bandscheib|sehne|prellung|gelenk/i;
 const FINE = /wieder gut|alles gut|keine? (schmerz|beschwerd)|nicht mehr weh/i;
 const HEALING = /verheil|heilt|besser|unsicher|abgeklungen|fast weg/i;
 
