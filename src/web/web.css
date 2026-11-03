@@ -24,7 +24,8 @@ body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemF
 :root { --slot-fruehstueck: #f2bd55; --slot-mittag: #9ccb68; --slot-abend: #7fb4e8; --pc0: #e8964a; --pc1: #c9a0e8; --pc2: #9ccb68; --pc3: #7fb4e8; }
 @media (prefers-color-scheme: light) {
   :root { --slot-fruehstueck: #c98a12; --slot-mittag: #4f8a2a; --slot-abend: #2f78bf; --pc0: #e8964a; --pc1: #b98ad8; --pc2: #8cc05a; --pc3: #6aa6e0; }
-  .pm button.pm-person.on, .pm .pm-seg button[aria-pressed='true'], .pm .pm-days button[aria-selected='true'] { background: #dcd5bd; }
+  .tk-screen.pm button.pm-person.on, .tk-screen.pm .pm-seg button[aria-pressed='true'] { background: #dcd5bd; color: var(--text); }
+  .tk-screen.pm .pm-seg { background: #ece6d4; }
 }
 .pm .slot-fruehstueck { --slot: var(--slot-fruehstueck); } .pm .slot-mittag { --slot: var(--slot-mittag); } .pm .slot-abend { --slot: var(--slot-abend); }
 .pm-head { display: flex; flex-direction: column; gap: .15rem; }
