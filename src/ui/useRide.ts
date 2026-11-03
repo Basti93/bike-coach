@@ -27,6 +27,8 @@ export const useRide = () => {
       };
       ws.onclose = () => {
         setConnected(false);
+        // A restarted service may have recovered an open ride: the old state says nothing until a fresh one arrives.
+        setState(null);
         if (!closed) timer = setTimeout(open, 500);
       };
     };
