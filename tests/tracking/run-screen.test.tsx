@@ -202,6 +202,7 @@ describe('Garmin', () => {
 test('manual entry writes manual-<id> with minutes in seconds and km in metres', async () => {
   const { port, map } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   expect(await screen.findByRole('heading', { name: 'Lauf eintragen' })).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Dauer in Minuten'), { target: { value: '32' } });
   fireEvent.change(screen.getByLabelText('Strecke in km'), { target: { value: '5,2' } });
@@ -213,7 +214,7 @@ test('manual entry writes manual-<id> with minutes in seconds and km in metres',
 test('manual entry needs a duration and writes nothing otherwise', async () => {
   const { port, map, state } = fakePort([rec('status', statusBody())]);
   render(<RunScreen port={port} {...ids} />);
-  await screen.findByRole('heading', { name: 'Lauf eintragen' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   fireEvent.click(screen.getByRole('button', { name: 'Lauf speichern' }));
   await new Promise((r) => setTimeout(r, 30));
   expect(state.puts).toHaveLength(0);
@@ -223,6 +224,7 @@ test('manual entry needs a duration and writes nothing otherwise', async () => {
 test('on a test day the distance field reads "Strecke in den 30 Minuten"', async () => {
   const { port, map } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody([planned({ kind: 'test', minutes: 30 })]))]);
   render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   fireEvent.change(await screen.findByLabelText('Strecke in den 30 Minuten'), { target: { value: '5' } });
   fireEvent.change(screen.getByLabelText('Dauer in Minuten'), { target: { value: '30' } });
   fireEvent.click(screen.getByRole('button', { name: 'Lauf speichern' }));
@@ -277,7 +279,7 @@ test('the easy pace shows now, vor 4 Wochen and vor 12 Wochen with a decimal com
 test('no progress without numbers', async () => {
   const { port } = fakePort([rec('status', statusBody())]);
   render(<RunScreen port={port} {...ids} />);
-  await screen.findByRole('heading', { name: 'Lauf eintragen' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   expect(screen.queryByRole('heading', { name: 'Dein Fortschritt' })).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Kilometer pro Woche' })).toBeNull();
 });
@@ -328,6 +330,7 @@ test('the test-day label and hint follow the chosen date', async () => {
   const w = weekBody([planned({ kind: 'test', date: '2026-11-07' })]);
   const { port } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, w)]);
   render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   expect(await screen.findByLabelText('Strecke in km')).toBeTruthy();
   expect(screen.queryByText(/An diesem Tag ist ein Testlauf/)).toBeNull();
   fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-11-07' } });
@@ -413,4 +416,15 @@ test('changing can be cancelled without writing', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
   expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull();
   expect(map.get('run:settings')!.updatedMs).toBe(1);
+});
+
+test('the entry form is closed until asked for, and closes again on Abbrechen', async () => {
+  const { port } = fakePort([rec('status', statusBody())]);
+  render(<RunScreen port={port} {...ids} />);
+  const open = await screen.findByRole('button', { name: 'Lauf eintragen' });
+  expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
+  fireEvent.click(open);
+  expect(screen.getByLabelText('Dauer in Minuten')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+  expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
 });

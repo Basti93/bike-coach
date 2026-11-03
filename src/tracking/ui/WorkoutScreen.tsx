@@ -246,6 +246,17 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   );
 }
 
+/** One exercise of the plan in a line: "Bankdrücken · 3 × 8 · 60 kg". Warm-ups are not counted. */
+export function planLine(e: GymWorkout['exercises'][number]): string {
+  const work = e.sets.filter((s) => s.type !== 'warmup');
+  const reps = [...new Set(work.map((s) => (s.repRange ? `${s.repRange.start}–${s.repRange.end}` : s.reps)).filter((r) => r != null))];
+  const kg = [...new Set(work.map((s) => s.weightKg).filter((w): w is number => w != null && w > 0))];
+  const parts = [e.title];
+  if (work.length > 0) parts.push(reps.length === 1 ? `${work.length} × ${reps[0]}` : `${work.length} Sätze`);
+  if (kg.length === 1) parts.push(`${String(kg[0]).replace('.', ',')} kg`);
+  return parts.join(' · ');
+}
+
 function OpenCard({ rec, primary, onResume, onEnd, onDiscard }: { rec: TrackedRecord; primary: boolean; onResume: () => void; onEnd: () => void; onDiscard: () => Promise<void> }) {
   const w = rec.body as LoggedWorkout;
   const [asking, setAsking] = useState(false);
@@ -334,7 +345,13 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       {message && <p role="status" className="tk-note">{message}</p>}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      {plan && <button type="button" onClick={() => void startPlan(plan)}>{plan.name} starten</button>}
+      {plan && (
+        <section className="card tk-plan-preview" aria-label="Heutiger Plan">
+          <h2>{plan.name}</h2>
+          <ul>{plan.exercises.map((e, i) => <li key={i}>{planLine(e)}</li>)}</ul>
+          <button type="button" aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
+        </section>
+      )}
       {(routinesQ.records ?? []).map((r) => {
         const body = r.body as GymWorkout;
         return <button type="button" key={r.id} className="secondary" onClick={() => void startPlan(body)}>{body.name} starten</button>;

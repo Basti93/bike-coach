@@ -59,7 +59,8 @@ try {
   await page.getByLabel('Wiederholungen Satz 1').blur();
   await page.getByRole('button', { name: 'Satz 1 erledigt' }).click();
   await page.getByRole('button', { name: 'Training beenden' }).click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Verlauf' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
+  await page.getByRole('button', { name: 'Verlauf' }).click();
   await page.locator('.tk-pick').first().waitFor();
   step('workout tracked and finished');
 
@@ -70,7 +71,8 @@ try {
   await ctx1.setOffline(true);
   await page.reload();
   await page.getByRole('navigation').waitFor();
-  await page.getByRole('navigation').getByRole('button', { name: 'Verlauf' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
+  await page.getByRole('button', { name: 'Verlauf' }).click();
   await page.locator('.tk-pick').first().waitFor();
   step('offline reload: app shell and data come from the device');
   await ctx1.setOffline(false);
@@ -78,7 +80,8 @@ try {
   const ctx2 = await browser.newContext();
   const second = await ctx2.newPage();
   await login(second);
-  await second.getByRole('navigation').getByRole('button', { name: 'Verlauf' }).click();
+  await second.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
+  await second.getByRole('button', { name: 'Verlauf' }).click();
   await second.locator('.tk-pick').first().waitFor({ timeout: 20_000 });
   step('a second browser sees the workout');
   console.log('SMOKE PASSED');

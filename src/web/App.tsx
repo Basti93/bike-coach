@@ -159,16 +159,18 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
 
 function Training({ port, env }: { port: WebPort; env: Env }) {
   const plans = usePortRecords(port, 'plan').records;
-  const [screen, setScreen] = useState<'workout' | 'routines'>('workout');
+  const [screen, setScreen] = useState<'workout' | 'routines' | 'history'>('workout');
   const [routine, setRoutine] = useState<GymWorkout | null>(null);
   const plan = readPlan((plans ?? []).find((r) => r.id === 'current'));
   return (
     <>
-      <div className="tk-screen"><div className="tk-row">
-        <button type="button" className="ghost" aria-pressed={screen === 'workout'} onClick={() => { setRoutine(null); setScreen('workout'); }}>Heute trainieren</button>
-        <button type="button" className="ghost" aria-pressed={screen === 'routines'} onClick={() => setScreen('routines')}>Routinen</button>
+      <div className="tk-screen"><div className="tk-seg" role="group" aria-label="Kraft">
+        <button type="button" aria-pressed={screen === 'workout'} onClick={() => { setRoutine(null); setScreen('workout'); }}>Training</button>
+        <button type="button" aria-pressed={screen === 'routines'} onClick={() => setScreen('routines')}>Routinen</button>
+        <button type="button" aria-pressed={screen === 'history'} onClick={() => setScreen('history')}>Verlauf</button>
       </div></div>
       {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
+      {screen === 'history' && <HistoryScreen port={port} now={env.now} />}
       {screen === 'routines' && <RoutinesScreen port={port} now={env.now} newId={env.newId} onStart={(r) => { setRoutine(r); setScreen('workout'); }} />}
     </>
   );
@@ -266,7 +268,7 @@ function PushSettings({ push }: { push: PushState }) {
       {p.support === 'none' && <p className="muted">In diesem Browser gibt es keine Benachrichtigungen.</p>}
       {p.support === 'ok' && (
         <>
-          <p className="muted">Nur drei: wenn eine neue Version da ist, wenn dein Essensplan für die Woche kommt und wenn dein Laufplan da ist.</p>
+          <p className="muted">Nur wenige: wenn eine neue Version da ist, wenn dein Essensplan oder Laufplan für die Woche kommt und wenn der Coach dir schreibt.</p>
           <label className="tk-row">
             <input type="checkbox" role="switch" checked={push.on && granted} disabled={push.busy}
               onChange={(e) => void (e.target.checked ? push.enable() : push.disable())} />
@@ -279,8 +281,9 @@ function PushSettings({ push }: { push: PushState }) {
   );
 }
 
-type Tab = 'heute' | 'coach' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'statistik' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Woche'], ['training', 'Kraft'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
+type Tab = 'heute' | 'coach' | 'training' | 'essen' | 'laufen' | 'statistik' | 'profil';
+// At most six tabs: Verlauf lives in Kraft, the profile is the round button at the top right.
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Woche'], ['training', 'Kraft'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['statistik', 'Statistik']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
@@ -375,6 +378,9 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   return (
     <>
       <main className="web-main" onClick={() => setTimeout(() => tick((n) => n + 1), 50)}>
+        <button type="button" className="web-profile" aria-label="Profil" aria-current={tab === 'profil' ? 'page' : undefined} onClick={() => setTab('profil')}>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+        </button>
         {status === 'login' && (
           <div className="tk-screen">
             <LoginForm env={env}
@@ -386,17 +392,16 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         {push.state?.showCard && <PushCard push={push.state} />}
         {push.msg && <div className="tk-screen"><p role="status" className="tk-note">{push.msg}</p></div>}
         {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
-        {persistRefused && tab === 'profil' && <div className="tk-screen"><p role="status" className="muted">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
           {tab === 'training' && <Training port={port} env={env} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
-          {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
-          {tab === 'verlauf' && <><HistoryScreen port={port} now={env.now} /><RunLookBack port={port} now={env.now} /></>}
+          {tab === 'laufen' && hasRun && <><RunScreen port={port} now={env.now} newId={env.newId} /><RunLookBack port={port} now={env.now} /></>}
           {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} />}
           {tab === 'statistik' && hasStats && <StatsScreen port={port} now={env.now} />}
           {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} push={push.state} />}
         </ErrorBoundary>
+        {persistRefused && tab === 'profil' && <div className="tk-screen"><p role="status" className="muted">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
       </main>
       <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map(([t, label]) => (

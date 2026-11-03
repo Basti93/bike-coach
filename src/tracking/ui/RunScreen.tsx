@@ -158,11 +158,14 @@ function ManualForm({ plannedOn, now, onSave }: { plannedOn: (date: string) => P
   const avg = num(hr);
   const startMs = new Date(`${date}T${time}`).getTime();
   const ok = dur !== null && dur > 0 && dist !== null && dist >= 0 && Number.isFinite(startMs) && (hr.trim() === '' || (avg !== null && avg > 0));
+  const [open, setOpen] = useState(false);
   const save = () => {
     if (!ok) return;
     onSave({ startMs, durationS: Math.round(dur * 60), distanceM: Math.round(dist * 1000), avgHr: avg === null ? null : Math.round(avg) });
-    setMinutes(''); setKm(''); setHr('');
+    setMinutes(''); setKm(''); setHr(''); setOpen(false);
   };
+  // Closed by default: most runs come from Garmin, the form would take half the page.
+  if (!open) return <button type="button" className="secondary" onClick={() => setOpen(true)}>Lauf eintragen</button>;
   return (
     <section className="card tk-form">
       <h2>Lauf eintragen</h2>
@@ -176,7 +179,10 @@ function ManualForm({ plannedOn, now, onSave }: { plannedOn: (date: string) => P
         <label className="tk-field">Puls im Schnitt (optional)<input inputMode="numeric" value={hr} onChange={(e) => setHr(e.target.value)} /></label>
       </div>
       {testDay && <p className="muted">An diesem Tag ist ein Testlauf geplant. Trag die Strecke ein, die du in 30 Minuten geschafft hast, in km.</p>}
-      <button type="button" disabled={!ok} onClick={save}>Lauf speichern</button>
+      <div className="tk-row">
+        <button type="button" disabled={!ok} onClick={save}>Lauf speichern</button>
+        <button type="button" className="ghost" onClick={() => setOpen(false)}>Abbrechen</button>
+      </div>
     </section>
   );
 }

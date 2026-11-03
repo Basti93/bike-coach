@@ -145,6 +145,6 @@ describe('push notifications on the phone', () => {
     const push = fakePush();
     await boot({ push, loggedIn: true });
     fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
-    expect(await screen.findByText('Nur drei: wenn eine neue Version da ist, wenn dein Essensplan für die Woche kommt und wenn dein Laufplan da ist.')).toBeTruthy();
+    expect(await screen.findByText('Nur wenige: wenn eine neue Version da ist, wenn dein Essensplan oder Laufplan für die Woche kommt und wenn der Coach dir schreibt.')).toBeTruthy();
   });
 });

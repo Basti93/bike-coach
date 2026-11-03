@@ -51,7 +51,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onApply }: {
     await write({ role: 'rider', text: 'Übernommen.', atMs: now(), takes: m.id, inWorkout: workout.id });
   };
 
-  if (!shown) return <button type="button" className="secondary tk-coach-open" onClick={() => setOpen(true)}>Coach fragen</button>;
+  if (!shown) return <button type="button" className="ghost tk-coach-open" onClick={() => setOpen(true)}>Coach fragen</button>;
   return (
     <section className="card tk-coach-panel" aria-label="Coach im Training">
       {mine.length === 0 && <p className="muted">Zum Beispiel: „Gerät belegt“, „Schulter zwickt“ oder „nur noch 30 Minuten“.</p>}

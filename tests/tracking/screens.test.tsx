@@ -706,3 +706,16 @@ describe('effort question after an exercise', () => {
     expect(screen.queryByRole('group', { name: /noch geschafft/ })).toBeNull();
   });
 });
+
+test('the start screen shows what the plan holds before starting', async () => {
+  const { port } = fakePort();
+  const plan: GymWorkout = { name: 'Oberkörper', exercises: [
+    { templateId: 'pf-bench-press', title: 'Bankdrücken', restS: null, supersetId: null, notes: '', sets: [
+      { type: 'warmup', weightKg: 20, reps: 10 }, { type: 'normal', weightKg: 62.5, reps: 8 }, { type: 'normal', weightKg: 62.5, reps: 8 }, { type: 'normal', weightKg: 62.5, reps: 8 }] },
+    { templateId: 'pf-squat', title: 'Kniebeuge', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null, repRange: { start: 8, end: 12 } }, { type: 'normal', weightKg: null, reps: null, repRange: { start: 8, end: 12 } }] },
+  ] };
+  render(<WorkoutScreen port={port} plan={plan} {...ids} />);
+  const card = await screen.findByRole('region', { name: 'Heutiger Plan' });
+  expect([...card.querySelectorAll('li')].map((l) => l.textContent)).toEqual(['Bankdrücken · 3 × 8 · 62,5 kg', 'Kniebeuge · 2 × 8–12']);
+  expect(within(card).getByRole('button', { name: 'Oberkörper starten' })).toBeTruthy();
+});

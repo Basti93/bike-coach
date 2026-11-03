@@ -117,3 +117,11 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 @media (prefers-color-scheme: light) { .gm-bar i, .gm-cell[style] { background: #6fa043 !important; } }
 .gm-stack li { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
 .gm-stack li span { text-align: left; }
+/* The profile sits at the top right instead of taking a tab. */
+.web-main { position: relative; }
+.web-profile { position: absolute; z-index: 4; top: calc(env(safe-area-inset-top) + .45rem); right: calc(env(safe-area-inset-right) + .8rem); width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.web-profile[aria-current='page'] { color: var(--text); border-color: var(--accent); }
+/* Sub pages of a tab (Kraft: Training, Routinen, Verlauf): one pill with segments, not loose buttons. */
+.tk-seg { display: flex; background: var(--card); border-radius: 999px; padding: 3px; margin-right: 3.4rem; }
+.tk-screen .tk-seg button { flex: 1; background: transparent; color: var(--muted); border: 0; min-height: 40px; padding: .3rem .5rem; box-shadow: none; }
+.tk-screen .tk-seg button[aria-pressed='true'] { background: var(--bg); color: var(--text); font-weight: 700; }

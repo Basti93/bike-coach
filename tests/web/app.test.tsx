@@ -149,11 +149,11 @@ describe('web app', () => {
     st.close();
   });
 
-  it('the tab bar has Heute, Training, Verlauf and Profil; the profile shows the account and the sync state', async () => {
+  it('the tab bar has Heute, Woche and Kraft; the profile button shows the account and the sync state', async () => {
     await boot({ seed: [plan(NOW - 1000)] });
     await screen.findByText('Beine A');
     const nav = screen.getByRole('navigation', { name: 'Seiten' });
-    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Woche', 'Kraft', 'Verlauf', 'Profil']);
+    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Woche', 'Kraft']);
     expect(screen.queryByRole('button', { name: 'Abmelden' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
     expect(await screen.findByRole('heading', { name: 'anna' })).toBeTruthy();
@@ -557,14 +557,21 @@ describe('Laufen on the phone', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Laufen' })).toBeNull());
   });
 
-  it('Verlauf shows the run look back only when a review exists', async () => {
-    await boot({ account: 'anna', seed: [status()] });
+  it('Verlauf is part of Kraft', async () => {
+    await boot({ account: 'anna', seed: [] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Kraft' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Verlauf' }));
-    await screen.findByRole('heading', { name: 'Verlauf' });
+    expect(await screen.findByRole('heading', { name: 'Verlauf' })).toBeTruthy();
+  });
+
+  it('Laufen shows the run look back only when a review exists', async () => {
+    await boot({ account: 'anna', seed: [status()] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
+    await screen.findByRole('button', { name: 'Lauf eintragen' });
     expect(screen.queryByRole('heading', { name: 'Wochenrückblick' })).toBeNull();
     cleanup();
     await boot({ account: 'anna', seed: [status(), review] });
-    fireEvent.click(await screen.findByRole('button', { name: 'Verlauf' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
     expect(await screen.findByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
     expect(screen.getByText(/12,5 km/)).toBeTruthy();
   });

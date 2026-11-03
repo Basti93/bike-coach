@@ -181,3 +181,8 @@
 /* Long muscle names wrap so four weeks fit a phone without scrolling sideways. */
 .tk-sets-table th[scope="row"] { white-space: normal; }
 .tk-sets-table td, .tk-sets-table thead th { padding: .2rem .25rem; }
+/* The plan of the day before starting: what is coming, then one button. */
+.tk-plan-preview ul { margin: .2rem 0 .8rem; padding-left: 1.1rem; }
+.tk-plan-preview li { margin: .15rem 0; }
+/* "Coach fragen" is a quiet helper, not a main action. */
+.tk-coach-open { font-size: .9rem; min-height: 0; padding: .3rem .8rem; }
