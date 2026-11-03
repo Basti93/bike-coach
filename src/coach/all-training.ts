@@ -16,8 +16,8 @@ const WEEKS = 12;
 const RECENT = 10;
 /** Two records are the same session if they share at least this part of the shorter one. */
 const SAME_SHARE = 0.5;
-const CYCLING = /cycling|biking|ride|bike/i;
-const STRENGTH = /strength/i;
+export const CYCLING = /cycling|biking|ride|bike/i;
+export const STRENGTH = /strength/i;
 
 export type Span = { startMs: number; durationS: number };
 /** Two records are the same session if they share at least half of the shorter one. */

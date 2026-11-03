@@ -877,3 +877,40 @@ describe('sending to Garmin after confirmation', () => {
     expect(c).toEqual({ date: test.date, name: 'Pandafit · Testlauf 30 Minuten', warmupS: 600, mainS: 1800, cooldownS: 300, hrLow: null, hrHigh: null });
   });
 });
+
+describe('runs for the statistics', () => {
+  const manual = (id: string, startMs: number, minutes: number): void => {
+    store.put('pa', { kind: 'run', id, updatedMs: now, deleted: false, body: { type: 'manual', startMs, durationS: minutes * 60, distanceM: 5000, avgHr: null, runType: 'running' } });
+  };
+  const plannedWeek = (date: string, kind: 'easy' | 'long' | 'test'): void => {
+    const p = { date, kind, minutes: 40, hrCap: null, counts: 'x', note: null };
+    store.put('pa', { kind: 'run', id: `week-${W0}`, updatedMs: now, deleted: false, body: {
+      type: 'week', week: W0, announce: false, atMs: now, phase: 1, source: 'rules', reason: 'x', note: null,
+      runs: [{ ...p, fp: JSON.stringify([p.date, p.kind, p.minutes, p.hrCap]), done: null }], garmin: null,
+    } });
+  };
+
+  test('a manual run in the window comes with its hardness, Garmin and manual merged, nothing older than 70 days', () => {
+    garmin = [run('g1', at(-1), 80), run('g-old', at(-80), 30)];
+    manual('manual-a', at(1, 7), 30);
+    // The same run as the Garmin one: counts once.
+    manual('manual-b', at(-1), 80);
+    expect(make().runsFor('pa')).toEqual([
+      { startMs: at(-1), durationS: 4800, hardness: 'moderate' },
+      { startMs: at(1, 7), durationS: 1800, hardness: 'easy' },
+    ]);
+  });
+
+  test('the planned kind of that date from the week record rates the run', () => {
+    garmin = null;
+    manual('manual-a', at(1, 7), 30);
+    plannedWeek('2026-11-03', 'test');
+    expect(make().runsFor('pa')).toEqual([{ startMs: at(1, 7), durationS: 1800, hardness: 'hard' }]);
+  });
+
+  test('a run later than now is not counted', () => {
+    garmin = null;
+    manual('manual-a', at(5), 30);
+    expect(make().runsFor('pa')).toEqual([]);
+  });
+});
