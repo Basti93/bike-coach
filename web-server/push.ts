@@ -5,13 +5,14 @@ import type { DatabaseSync } from 'node:sqlite';
 
 /**
  * Web Push with Node's own crypto: VAPID (RFC 8292, ES256 JWT) and aes128gcm payload encryption (RFC 8291).
- * Only three messages exist, all short and without health details, because they pass through the browser vendor's push service.
+ * Only four messages exist, all short and without health details, because they pass through the browser vendor's push service.
  */
-export type PushType = 'version' | 'meal' | 'run';
+export type PushType = 'version' | 'meal' | 'run' | 'rest';
 export const MESSAGES: Record<PushType, { title: string; body: string }> = {
   version: { title: 'Pandafit', body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.' },
   meal: { title: 'Pandafit', body: 'Dein Essensplan für die Woche ist da.' },
   run: { title: 'Pandafit', body: 'Dein Laufplan für die Woche ist da.' },
+  rest: { title: 'Pandafit', body: 'Pause vorbei. Weiter mit dem nächsten Satz.' },
 };
 export const MAX_SUBSCRIPTIONS = 10;
 export const SEND_TIMEOUT_MS = 10_000;
@@ -114,7 +115,7 @@ export function webPushSender(o: { keys: VapidKeys; subject: () => string | null
       const res = await f(sub.endpoint, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(o.timeoutMs ?? SEND_TIMEOUT_MS),
         headers: {
-          TTL: String(TTL_S), Urgency: 'normal', Topic: `pandafit-${type}`, 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
+          TTL: type === 'rest' ? '60' : String(TTL_S), Urgency: type === 'rest' ? 'high' : 'normal', Topic: `pandafit-${type}`, 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
           Authorization: vapidAuthorization(sub.endpoint, o.keys, subject, (o.now ?? Date.now)()),
         },
         body: new Uint8Array(encryptPayload(Buffer.from(payload), sub)),
@@ -137,14 +138,18 @@ export type Push = {
   /** Fire and forget: never awaited by a request. The promise is for tests. */
   notifyAccount(accountId: number, type: PushType): Promise<void>;
   notifyAll(type: PushType): Promise<void>;
+  /** One subscription only (it must still belong to the account and be live). */
+  notifyEndpoint(accountId: number, endpoint: string, type: PushType): Promise<void>;
 };
 
 export function createPush(db: DatabaseSync, send: Sender | null, now: () => number): Push {
-  const run = async (type: PushType, accountId: number | null): Promise<void> => {
+  const run = async (type: PushType, accountId: number | null, endpoint?: string): Promise<void> => {
     if (!send) return;
     try {
       db.prepare(`DELETE FROM push_subs AS s WHERE NOT ${LIVE}`).run({ now: now() });
-      const subs = (accountId === null
+      const subs = (endpoint !== undefined
+        ? db.prepare('SELECT endpoint, p256dh, auth FROM push_subs WHERE account_id = ? AND endpoint = ?').all(accountId, endpoint)
+        : accountId === null
         ? db.prepare('SELECT endpoint, p256dh, auth FROM push_subs').all()
         : db.prepare('SELECT endpoint, p256dh, auth FROM push_subs WHERE account_id = ?').all(accountId)) as Subscription[];
       const payload = JSON.stringify({ type, ...MESSAGES[type] });
@@ -156,7 +161,7 @@ export function createPush(db: DatabaseSync, send: Sender | null, now: () => num
       console.warn('push: error', (e as { name?: string }).name ?? 'Error');
     }
   };
-  return { notifyAccount: (id, type) => run(type, id), notifyAll: (type) => run(type, null) };
+  return { notifyAccount: (id, type) => run(type, id), notifyAll: (type) => run(type, null), notifyEndpoint: (id, endpoint, type) => run(type, id, endpoint) };
 }
 
 export type PushOptions = {

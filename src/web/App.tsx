@@ -438,7 +438,7 @@ export function App({ env }: { env: Env }) {
     let store;
     try { store = await openIdb(account, factory); } catch { setPhase({ kind: 'storagefail' }); return false; } // may pass; not the same as unavailable
     const old = portRef.current;
-    const p = createWebPort({ store, account, fetchFn: env.fetchFn, now: env.now });
+    const p = createWebPort({ store, account, fetchFn: env.fetchFn, now: env.now, push: env.push });
     setPort({ account, port: p });
     if (old) void retire(old); // after its screens have unmounted and flushed
     setPhase({ kind: 'in', account });

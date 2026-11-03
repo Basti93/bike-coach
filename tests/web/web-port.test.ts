@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { TrackedRecord } from '../../src/shared/records';
 import { openIdb } from '../../src/web/idbStore';
 import { createWebPort } from '../../src/web/webPort';
+import type { PushEnv } from '../../src/web/push';
 
 const rec = (id: string, updatedMs = 10): TrackedRecord => ({ kind: 'workout', id, updatedMs, deleted: false, body: { id, title: 'T', startMs: 1, endMs: null, exercises: [] } });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -230,5 +231,54 @@ describe('webPort', () => {
     await port.idle();
     await w;
     expect((await port.list('workout')).length).toBe(1);
+  });
+
+  describe('restAlarm', () => {
+    const env = (o: { permission?: NotificationPermission; endpoint?: string | null; fail?: boolean } = {}): PushEnv => ({
+      support: 'ok', permission: () => o.permission ?? 'granted', requestPermission: async () => 'granted',
+      current: async () => { if (o.fail) throw new Error('x'); return o.endpoint === null ? null : { endpoint: o.endpoint ?? 'https://web.push.apple.com/s1' }; },
+      subscribe: async () => ({}), unsubscribe: async () => null,
+    });
+    const rest = async (push: PushEnv | undefined, fetchFn: typeof fetch) => {
+      const store = await openIdb('anna', new IDBFactory());
+      return createWebPort({ store, fetchFn, account: 'anna', now: () => 1000, push });
+    };
+
+    it('posts the endpoint and time to /push/rest with the same-origin credentials', async () => {
+      const { s, fetchFn } = server();
+      const port = await rest(env(), fetchFn);
+      port.restAlarm!(5000);
+      await new Promise((r) => setTimeout(r, 10));
+      const c = s.calls.find((x) => x.url === '/push/rest')!;
+      expect(c.init).toMatchObject({ method: 'POST', credentials: 'same-origin', redirect: 'error' });
+      expect(JSON.parse(String(c.init.body))).toEqual({ endpoint: 'https://web.push.apple.com/s1', atMs: 5000 });
+      port.restAlarm!(null);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(JSON.parse(String(s.calls.filter((x) => x.url === '/push/rest')[1]!.init.body))).toEqual({ endpoint: 'https://web.push.apple.com/s1', atMs: null });
+    });
+
+    it('is absent without a PushEnv, and silent without permission or subscription', async () => {
+      const { s, fetchFn } = server();
+      expect((await rest(undefined, fetchFn)).restAlarm).toBeUndefined();
+      for (const e of [env({ permission: 'denied' }), env({ permission: 'default' }), env({ endpoint: null })]) {
+        (await rest(e, fetchFn)).restAlarm!(5000);
+      }
+      await new Promise((r) => setTimeout(r, 10));
+      expect(s.calls.some((x) => x.url === '/push/rest')).toBe(false);
+    });
+
+    it('swallows every error', async () => {
+      const bad = (async () => { throw new TypeError('offline'); }) as unknown as typeof fetch;
+      const down = (async () => json(500, {})) as unknown as typeof fetch;
+      for (const [e, f] of [[env(), bad], [env(), down], [env({ fail: true }), bad]] as const) {
+        const unhandled: unknown[] = [];
+        const h = (x: unknown) => unhandled.push(x);
+        process.on('unhandledRejection', h);
+        expect(() => (e && (rest(e, f) as Promise<ReturnType<typeof createWebPort>>).then((p) => p.restAlarm!(5000)))).not.toThrow();
+        await new Promise((r) => setTimeout(r, 20));
+        process.off('unhandledRejection', h);
+        expect(unhandled).toEqual([]);
+      }
+    });
   });
 });

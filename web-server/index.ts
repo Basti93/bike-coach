@@ -7,6 +7,7 @@ import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, re
 import { registerCoachProxy } from './coach-proxy';
 import { openDb } from './db';
 import { INTERNAL_PORT, startInternal, validInternalToken } from './internal';
+import { createRestAlarms, REST_MAX_AHEAD_MS } from './rest-alarm';
 import { announceVersion, buildVersion, MAX_SUBSCRIPTIONS, pushFor, rememberOrigin, validEndpoint, validKeys, type PushOptions } from './push';
 import { listRecords, pageOfQuery, putRecords, recordsOfBody } from './records';
 
@@ -63,6 +64,13 @@ export const buildServer = (opts: {
   /** How the request logged in: a push subscription is bound to it and ends with it. */
   const owners = new WeakMap<FastifyRequest, { session: string } | { device: number }>();
   const { keys: pushKeys, push } = pushFor(db, opts.push, now);
+  /** Rest-end alarms: endpoint -> account at the time it was set; the push goes to that one subscription only. */
+  const restOwner = new Map<string, number>();
+  const restAlarms = createRestAlarms({
+    now,
+    fire: async (endpoint) => { const id = restOwner.get(endpoint); restOwner.delete(endpoint); if (id !== undefined) await push.notifyEndpoint(id, endpoint, 'rest'); },
+  });
+  const cancelRest = (endpoint: string) => { restAlarms.cancel(endpoint); restOwner.delete(endpoint); };
 
   app.setErrorHandler((err: { statusCode?: number; name?: string }, req, reply) => {
     const code = typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
@@ -162,6 +170,7 @@ export const buildServer = (opts: {
   app.post('/logout', { onRequest: requireAuth }, async (req, reply) => {
     const token = cookieOf(req);
     if (token) {
+      for (const r of db.prepare('SELECT endpoint FROM push_subs WHERE session_hash = ?').all(hashToken(token)) as { endpoint: string }[]) cancelRest(r.endpoint);
       db.prepare('DELETE FROM push_subs WHERE session_hash = ?').run(hashToken(token));
       db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
     }
@@ -206,7 +215,19 @@ export const buildServer = (opts: {
   app.post('/push/unsubscribe', { onRequest: requireAuth, bodyLimit: PUSH_BODY_LIMIT }, async (req, reply) => {
     const b = isObj(req.body) ? req.body : {};
     if (!str(b.endpoint, 1024)) return reply.code(400).send({ error: 'bad request' });
-    db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND account_id = ?').run(b.endpoint, acct(req));
+    const r = db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND account_id = ?').run(b.endpoint, acct(req));
+    if (Number(r.changes) > 0) cancelRest(b.endpoint);
+    return { ok: true };
+  });
+
+  app.post('/push/rest', { onRequest: requireAuth, bodyLimit: PUSH_BODY_LIMIT }, async (req, reply) => {
+    const b = isObj(req.body) ? req.body : {};
+    if (!str(b.endpoint, 1024) || (b.atMs !== null && (typeof b.atMs !== 'number' || !Number.isFinite(b.atMs) || b.atMs <= now() || b.atMs > now() + REST_MAX_AHEAD_MS)))
+      return reply.code(400).send({ error: 'bad request' });
+    const account = acct(req);
+    if (!db.prepare('SELECT 1 FROM push_subs WHERE endpoint = ? AND account_id = ?').get(b.endpoint, account)) return reply.code(404).send({ error: 'not found' });
+    if (b.atMs === null) cancelRest(b.endpoint);
+    else if (restAlarms.set(b.endpoint, b.atMs)) restOwner.set(b.endpoint, account);
     return { ok: true };
   });
 
@@ -249,7 +270,7 @@ export const buildServer = (opts: {
 
   const version = opts.push?.version;
   if (version) app.addHook('onReady', async () => { void announceVersion(db, push, version); });
-  app.addHook('onClose', async () => { db.close(); });
+  app.addHook('onClose', async () => { restAlarms.clearAll(); restOwner.clear(); db.close(); });
   return app;
 };
 

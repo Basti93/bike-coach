@@ -216,6 +216,16 @@ describe('push notifications', () => {
     expect(clickTarget(undefined, [], ORIGIN)).toEqual({ open: '/' });
   });
 
+  it('the rest notice renotifies with sound and vibration; other notices do not', () => {
+    const r = notificationFor(JSON.stringify({ type: 'rest' }))!;
+    expect(r.options).toMatchObject({ body: 'Pause vorbei. Weiter mit dem nächsten Satz.', tag: 'pandafit-rest', renotify: true, silent: false, vibrate: [200, 100, 200], data: { url: '/' } });
+    for (const t of ['version', 'meal', 'run', 'nope']) {
+      const o = notificationFor(JSON.stringify({ type: t }))!.options;
+      expect(o).not.toHaveProperty('renotify');
+      expect(o).not.toHaveProperty('vibrate');
+    }
+  });
+
   it('a run notice opens /?tab=laufen and an open window gets tab laufen', () => {
     const r = notificationFor(JSON.stringify({ type: 'run' }))!;
     expect(r.options).toMatchObject({ body: 'Dein Laufplan für die Woche ist da.', tag: 'pandafit-run', data: { url: '/?tab=laufen' } });

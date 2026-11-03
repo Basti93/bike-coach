@@ -59,6 +59,38 @@ test('the rest timer survives a reload through its stored start', async () => {
   expect((await screen.findByRole('timer')).textContent).toContain('1:00');
 });
 
+test('the rest end is armed once with the end time, and skipping or unmounting cancels it', async () => {
+  const w = { ...open(), rest: { startMs: 70_000, durationS: 90 } };
+  const { port } = fakePort([rec(w as LoggedWorkout)]);
+  const restAlarm = vi.fn();
+  port.restAlarm = restAlarm;
+  const view = render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  await screen.findByRole('timer');
+  expect(restAlarm.mock.calls).toEqual([[160_000]]);
+  fireEvent.click(screen.getByRole('button', { name: 'Pause überspringen' }));
+  await waitFor(() => expect(restAlarm).toHaveBeenLastCalledWith(null));
+  expect(restAlarm).toHaveBeenCalledTimes(2);
+  view.unmount();
+  expect(restAlarm).toHaveBeenLastCalledWith(null);
+});
+
+test('a rest that is already over arms nothing, and a port without restAlarm works', async () => {
+  const over = { ...open(), rest: { startMs: 1000, durationS: 90 } };
+  const { port } = fakePort([rec(over as LoggedWorkout)]);
+  const restAlarm = vi.fn();
+  port.restAlarm = restAlarm;
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  await screen.findByText('Bankdrücken');
+  expect(restAlarm.mock.calls.every((c) => c[0] === null)).toBe(true);
+  cleanup();
+  const plain = fakePort([rec({ ...open(), rest: { startMs: 70_000, durationS: 90 } } as LoggedWorkout)]);
+  render(<WorkoutScreen port={plain.port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  expect(await screen.findByRole('timer')).toBeTruthy();
+});
+
 test('starting from the plan prefills the range and saves at once', async () => {
   const plan: GymWorkout = { name: 'Plan', exercises: [{ templateId: 'pf-squat', title: 'Kniebeuge', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null, repRange: { start: 8, end: 12 } }] }] };
   const { port, map } = fakePort();

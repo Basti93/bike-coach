@@ -43,6 +43,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   useEffect(() => () => releaseStore(port, store), [store, port]);
   const remaining = restRemainingS(w, now());
 
+  // The rest end is armed once per rest (not per tick); skipping or leaving cancels it.
+  const restEnd = w.rest ? w.rest.startMs + w.rest.durationS * 1000 : null;
+  useEffect(() => { port.restAlarm?.(restEnd !== null && restEnd > now() ? restEnd : null); }, [restEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { port.restAlarm?.(null); }, [port]);
+
   // Unsaved work on this device always wins. Only a clean store steps aside for what happened elsewhere.
   useEffect(() => {
     if (!remote || leaving.current) return;
