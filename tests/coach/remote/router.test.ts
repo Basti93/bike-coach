@@ -5,7 +5,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { createCoachRuntime } from '../../../src/coach/runtime';
 import { AccountLinks } from '../../../src/coach/tracking/link';
 import { rampTest } from '../../../src/coach/rules';
-import { homeOf, markMoved } from '../../../src/coach/remote/home';
+import { homeOf, markMealsMoved, markMoved, mealFile, mealPeople, mealsDue } from '../../../src/coach/remote/home';
 import { RemoteCoach, ruleFallback } from '../../../src/coach/remote/remote-coach';
 import { createRouter, mealsStayLocal } from '../../../src/coach/remote/router';
 import type { CoachServerMessage } from '../../../src/shared/coach-protocol';
@@ -68,7 +68,7 @@ let stops: (() => void)[] = [];
 afterEach(() => { for (const s of stops) s(); stops = []; vi.unstubAllGlobals(); });
 
 /** The Mac's coach process as main.ts wires it, with a fake socket. */
-const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[]; timers?: (() => void)[] } = {}) => {
+const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[]; mealsMoved?: boolean; timers?: (() => void)[] } = {}) => {
   const root = temp();
   const rides = path.join(root, 'rides');
   fs.mkdirSync(rides, { recursive: true });
@@ -80,6 +80,7 @@ const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[]; timers?
     fs.mkdirSync(path.join(coachDir, 'meals'), { recursive: true });
     fs.writeFileSync(path.join(coachDir, 'meals', 'household.json'), JSON.stringify({ settings: Object.fromEntries(o.meals.map((id) => [id, { ...DEFAULT_MEAL_SETTINGS, on: true }])), plans: {}, states: {}, notices: {}, lastAuto: null }));
   }
+  if (o.mealsMoved) markMealsMoved(coachDir, 1);
   const ws = fakeSockets();
   const links = new AccountLinks({ dir: path.join(root, 'accounts') });
   const onServer = (id: string) => homeOf(coachDir, id, links.status(id).state !== 'idle') === 'server';
@@ -103,7 +104,7 @@ const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[]; timers?
     }
     return r;
   };
-  const mealsLocal = () => mealsStayLocal(PROFILES.map((p) => p.id), (id) => runtime.mealsView(id)?.settings.on === true, onServer);
+  const mealsLocal = () => mealsStayLocal(coachDir);
   const runtime = createCoachRuntime({
     root, profiles: () => PROFILES, noOpenRide: () => !w.ride, ask,
     python: process.execPath, garminScripts: path.join(root, 'scripts'),
@@ -258,10 +259,29 @@ test('unlinking a moved profile returns it to the local coach', () => {
   expect(m.onServer('pa')).toBe(false);
 });
 
-test('meals stay local until every person in the meal plan has moved', () => {
-  expect(mealsStayLocal(['pa', 'pb'], () => true, (id) => id === 'pa')).toBe(true);
-  expect(mealsStayLocal(['pa', 'pb'], () => true, () => true)).toBe(false);
-  expect(mealsStayLocal(['pa', 'pb'], (id) => id === 'pa', (id) => id === 'pa')).toBe(false);
+test('the meal plan is due to move once everyone listed in its settings moved, meals on or off, and stays moved', () => {
+  const coachDir = path.join(temp(), 'coach');
+  fs.mkdirSync(path.join(coachDir, 'meals'), { recursive: true });
+  fs.writeFileSync(mealFile(coachDir), JSON.stringify({ settings: { pa: { ...DEFAULT_MEAL_SETTINGS, on: true }, pb: { ...DEFAULT_MEAL_SETTINGS, on: false } } }));
+  // pb has meals off and is still here: it still counts, as on the server.
+  expect(mealPeople(coachDir, ['pa'])).toEqual(['pa', 'pb']);
+  expect(mealsDue(coachDir, ['pa', 'pb'], (id) => id === 'pa')).toBe(false);
+  expect(mealsStayLocal(coachDir)).toBe(true);
+  expect(mealsDue(coachDir, ['pa', 'pb'], () => true)).toBe(true);
+  // Everyone moved but the meal file is not up yet: the meal plan is still the Mac's.
+  expect(mealsStayLocal(coachDir)).toBe(true);
+  markMealsMoved(coachDir, 1);
+  expect(mealsStayLocal(coachDir)).toBe(false);
+  expect(mealsDue(coachDir, ['pa', 'pb'], () => true)).toBe(false);
+  // A new profile here turning meals on does not take the meal plan back.
+  fs.writeFileSync(mealFile(coachDir), JSON.stringify({ settings: { pa: {}, pb: {}, pc: { ...DEFAULT_MEAL_SETTINGS, on: true } } }));
+  expect(mealsStayLocal(coachDir)).toBe(false);
+  // Without a meal file, every profile on this Mac counts.
+  fs.rmSync(mealFile(coachDir));
+  expect(mealPeople(coachDir, ['pa', 'pb'])).toEqual(['pa', 'pb']);
+});
+
+test('meals stay local until the meal plan moved', () => {
 
   // pb is still here: pa's meal ticks stay local and its view shows the local meal plan.
   const m = mac({ moved: ['pa'], meals: ['pa', 'pb'] });
@@ -275,7 +295,7 @@ test('meals stay local until every person in the meal plan has moved', () => {
   expect(m.remote('pa')!.status().queued).toBe(0);
 
   // Both moved: the meal plan is the server's.
-  const all = mac({ moved: ['pa', 'pb'], meals: ['pa', 'pb'] });
+  const all = mac({ moved: ['pa', 'pb'], meals: ['pa', 'pb'], mealsMoved: true });
   all.handle({ type: 'subscribe', profileId: 'pa' });
   all.ws.last().open();
   all.ws.last().answer({ type: 'coach-state', state: ruleFallback(temp(), 'pa', 200, Date.now()), thinking: false, together: { summits: [] }, meals: null });

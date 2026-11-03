@@ -1,7 +1,7 @@
-import type { CoachClientMessage, CoachServerMessage, CoachStateMessage } from '../../shared/coach-protocol';
+import type { CoachClientMessage, CoachHome, CoachServerMessage, CoachStateMessage } from '../../shared/coach-protocol';
 import type { GarminHealth } from '../../shared/garmin';
 import type { CoachRuntime } from '../runtime';
-import { clearMoved } from './home';
+import { clearMoved, mealsMoved } from './home';
 import type { RemoteCoach } from './remote-coach';
 
 /** How long a request to the server waits for its answer before the interface gets the empty one. */
@@ -11,7 +11,7 @@ export type RouterOptions = {
   local: CoachRuntime;
   /** The server coach of a moved profile, or null for a profile coached here. */
   remote: (profileId: string) => RemoteCoach | null;
-  /** True while someone in the meal plan is still coached here: the meal plan stays local for everyone. */
+  /** True until the household's meal plan went to the server: until then it stays local for everyone. */
   mealsLocal: () => boolean;
   /**
    * True while anyone on this Mac is still coached here: the Mac's together page (local states plus the cached server
@@ -20,6 +20,8 @@ export type RouterOptions = {
   togetherLocal: () => boolean;
   /** The local runtime's `coach` folder, where the moved marker lives. */
   coachDir: string;
+  /** A local profile on its way to the server: how far the move is, or why it stops. Null otherwise. */
+  moving?: (profileId: string) => CoachHome | null;
   /** Default: setTimeout. For tests. */
   setTimer?: (fn: () => void, ms: number) => unknown;
 };
@@ -56,9 +58,16 @@ export const createRouter = (opts: RouterOptions) => {
   const mealsLocal = (): boolean => { try { return opts.mealsLocal(); } catch { return true; } };
   const togetherLocal = (): boolean => { try { return opts.togetherLocal(); } catch { return true; } };
 
+  const movingOf = (profileId: string): CoachHome | null => { try { return opts.moving?.(profileId) ?? null; } catch { return null; } };
+  /** A local view with the move's progress, when a move is under way. */
+  const withMoving = (profileId: string, v: CoachStateMessage): CoachStateMessage => {
+    const home = movingOf(profileId);
+    return home ? { ...v, coachHome: home } : v;
+  };
+
   const view = (profileId: string): CoachStateMessage | null => {
     const remote = remoteOf(profileId);
-    if (!remote) return local.view(profileId);
+    if (!remote) { const v = local.view(profileId); return v ? withMoving(profileId, v) : v; }
     const v = remote.view();
     // The link is this Mac's: its status comes from the local account sync, not from the server's own link.
     let account = v.account;
@@ -75,7 +84,10 @@ export const createRouter = (opts: RouterOptions) => {
       const profileId = (m as { profileId?: unknown }).profileId;
       const remote = typeof profileId === 'string' ? remoteOf(profileId) : null;
       // Records sync through the account sync as before, and the link is this Mac's.
-      if (!remote || m.type === 'records-put' || m.type === 'records-list' || m.type === 'account-link') { local.handle(m, reply); return; }
+      if (!remote || m.type === 'records-put' || m.type === 'records-list' || m.type === 'account-link') {
+        local.handle(m, typeof profileId === 'string' && !remote ? (msg) => reply(msg.type === 'coach-state' ? withMoving(profileId, msg) : msg) : reply);
+        return;
+      }
       const id = profileId as string;
       // Back to the local coach, whose view goes out at once.
       if (m.type === 'account-unlink') {
@@ -131,6 +143,5 @@ export const createRouter = (opts: RouterOptions) => {
 };
 export type CoachRouter = ReturnType<typeof createRouter>;
 
-/** The meal plan stays local while anyone in it (meals turned on) is still coached here. */
-export const mealsStayLocal = (profileIds: string[], inMealPlan: (id: string) => boolean, onServer: (id: string) => boolean): boolean =>
-  profileIds.some((id) => { try { return inMealPlan(id) && !onServer(id); } catch { return false; } });
+/** The meal plan stays local until it went to the server; see `mealsDue` for when it goes. */
+export const mealsStayLocal = (coachDir: string): boolean => !mealsMoved(coachDir);

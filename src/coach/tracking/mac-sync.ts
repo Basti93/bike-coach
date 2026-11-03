@@ -40,6 +40,8 @@ type Per = {
   refused: Set<string>; linking: boolean; failure: LinkFailure | null;
   /** Records an older server refused as an unknown kind: not a problem to show, sent again later. */
   later: Map<string, number>;
+  /** The store's sequence the last run sent up to, when that run went through to its end. Null otherwise. */
+  settledAt: number | null;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -56,7 +58,7 @@ export class AccountSync {
 
   private st(id: string): Per {
     let s = this.per.get(id);
-    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map() }; this.per.set(id, s); }
+    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map(), settledAt: null }; this.per.set(id, s); }
     return s;
   }
 
@@ -86,6 +88,18 @@ export class AccountSync {
     return { state, name: l.name, reason: s.failure, refused: s.refused.size, offline: s.offline, lastSyncMs: s.lastSyncMs };
   }
 
+  /**
+   * The last run went through and nothing changed here since: every record of the profile is on the server. Records the server
+   * refused for good do not hold this up; they are shown as refused.
+   */
+  settled(profileId: string): boolean {
+    try {
+      const s = this.st(profileId);
+      if (s.running || s.dirty || s.settledAt === null || !this.deps.links.token(profileId)) return false;
+      return this.deps.store.changedSince(profileId, s.settledAt).records.length === 0;
+    } catch { return false; }
+  }
+
   /** Safe to call from the scan loop without awaiting. Never rejects. */
   tick(profileId: string): Promise<void> {
     try {
@@ -106,6 +120,7 @@ export class AccountSync {
     const { links } = this.deps;
     const s = this.st(id);
     const token = links.token(id), url = links.url(id);
+    s.settledAt = null;
     if (!token || !url) return;
     const call = async (method: 'GET' | 'POST', path: string, body?: unknown): Promise<unknown> => {
       const res = await (this.deps.fetchFn ?? fetch)(`${url}${path}`, {
@@ -152,6 +167,9 @@ export class AccountSync {
         },
       });
       s.offline = false; s.lastSyncMs = this.deps.nowMs();
+      // Settled only when the run sent everything: a run stopped by a ride leaves its cursor behind the store.
+      const c = await links.cursors(id).get();
+      if (!c.resend) s.settledAt = c.sent;
     } catch (e) {
       if (e instanceof Rejected) { links.reject(id); s.offline = false; } else s.offline = true;
     }

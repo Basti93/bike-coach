@@ -415,4 +415,31 @@ describe('AccountSync', () => {
     expect(w.gym.enabled(ID)).toBe(false);
     expect(w.store.all(ID, 'routine').length).toBe(1);
   });
+
+  it('settled: only after a run that went through, and not once something changed here since', async () => {
+    const w = await linked(world());
+    expect(w.sync.settled(ID)).toBe(false);
+    w.store.put(ID, rec('mobility', 'n1', NOW, { text: 'a' }));
+    await w.sync.tick(ID);
+    expect(w.server.posted()).toContain('n1');
+    expect(w.sync.settled(ID)).toBe(true);
+    // A new record here: not settled until the next run sent it.
+    w.store.put(ID, rec('mobility', 'n2', NOW + 1, { text: 'b' }));
+    expect(w.sync.settled(ID)).toBe(false);
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(true);
+    // A failed run is not settled.
+    w.server.offline = true;
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(false);
+    // A run stopped by a ride before it sent is not settled either.
+    w.server.offline = false;
+    w.store.put(ID, rec('mobility', 'n3', NOW + 2, { text: 'c' }));
+    w.server.hook = () => { w.ride = true; };
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(false);
+  });
 });
