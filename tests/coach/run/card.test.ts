@@ -65,3 +65,17 @@ test('no card text contains Rekord, Serie, Streak, musst or Pflicht', () => {
     }
   }
 });
+
+test('the slower threshold is 3 %: 2 % above the trend is not explained, 4 % is', () => {
+  const at = (pct: number) => runCard(run({ easyPace: { sPerKm: 372 * pct, seconds: 1800 } }), planned(), { ...ctx, dayBefore: hardDay }).sentence;
+  expect(at(1.02)).not.toContain('gestern');
+  expect(at(1.04)).toContain('gestern');
+});
+
+test('a legs day before is named as leg training, a hard day as a strenuous day', () => {
+  const slow = run({ easyPace: { sPerKm: 400, seconds: 1800 } });
+  const legs = runCard(slow, planned(), { ...ctx, dayBefore: { date: '2027-06-15', hardness: 'moderate', legs: true, minutes: 45 } }).sentence;
+  expect(legs).toContain('Beintraining gestern');
+  expect(legs).not.toContain('anstrengenden Tag');
+  expect(runCard(slow, planned(), { ...ctx, dayBefore: hardDay }).sentence).toContain('anstrengenden Tag');
+});

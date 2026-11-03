@@ -1,4 +1,5 @@
 import type { DayRating } from '../day-load';
+import { dateKey } from '../../shared/meals';
 import { kmText, paceText, type PlannedRun, type RunCard } from '../../shared/run';
 import type { Run } from './garmin-runs';
 
@@ -34,6 +35,7 @@ const UNPLANNED = [
 ];
 const REASONS = {
   day: ['Nach dem anstrengenden Tag gestern ist das Tempo heute oft etwas gemächlicher. Das ist ganz normal.'],
+  legs: ['Nach dem Beintraining gestern ist das Tempo heute oft etwas gemächlicher. Das ist ganz normal.'],
   hills: ['Auf der Strecke lagen viele Höhenmeter, das erklärt das Tempo.'],
   heat: ['Bei der Wärme läuft es sich oft etwas gemächlicher. Das Tempo erklärt sich damit.'],
   sleep: ['Nach einer kurzen Nacht ist das Tempo oft etwas gemächlicher. Das ist ganz normal.'],
@@ -41,10 +43,6 @@ const REASONS = {
 };
 
 const pick = (list: string[], seed: number): string => list[Math.abs(seed) % list.length]!;
-const dateKey = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 /** The short card after a run. A slower pace is explained by one reason at most, never judged. */
 export function runCard(run: Run, planned: PlannedRun | null, ctx: { trendNow: number | null; dayBefore: DayRating | null; sleepS: number | null }): RunCard {
@@ -77,12 +75,13 @@ export function runCard(run: Run, planned: PlannedRun | null, ctx: { trendNow: n
       sentence = pick(kind === 'long' ? LONG : kind === 'unplanned' ? UNPLANNED : EASY, seed);
     } else {
       const hills = run.elevationGainM !== null && run.distanceM !== null && run.distanceM > 0 && run.elevationGainM / (run.distanceM / 1000) > HILLS_M_PER_KM;
-      const reason = ctx.dayBefore && (ctx.dayBefore.hardness === 'hard' || ctx.dayBefore.legs) ? 'day'
+      const reason = ctx.dayBefore?.hardness === 'hard' ? 'day'
+        : ctx.dayBefore?.legs ? 'legs'
         : hills ? 'hills'
         : run.tempC !== null && run.tempC >= HEAT_C ? 'heat'
         : ctx.sleepS !== null && ctx.sleepS < SHORT_NIGHT_S ? 'sleep' : 'none';
       sentence = pick(REASONS[reason], seed);
     }
   }
-  return { runId: run.id, date: dateKey(run.startMs), kind, counted, result, sentence };
+  return { runId: run.id, date: dateKey(new Date(run.startMs)), kind, counted, result, sentence };
 }

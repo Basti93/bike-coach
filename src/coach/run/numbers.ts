@@ -1,19 +1,15 @@
 import type { Profile } from '../../shared/profiles';
 import type { RunNumbers, RunWeekBody } from '../../shared/run';
-import { addWeeks, weekOf } from '../../shared/meals';
+import { addWeeks, dateKey, weekOf } from '../../shared/meals';
 import type { HrBand } from './fit';
 import type { Run } from './garmin-runs';
-import { BAND_LOW_PCT, HR_CAP_PCT, TREND_DAYS, TREND_RUNS } from './limits';
+import { BAND_LOW_PCT, HR_CAP_PCT, TEST_WINDOW_S, TREND_DAYS, TREND_RUNS } from './limits';
 
 const DAY = 86_400_000;
 const WEEKS = 12;
 const START_DAYS = 56;
 const DEFAULT_DAYS = [1, 3, 5];
 
-const dateKey = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 const weekdayOf = (ms: number): number => (new Date(ms).getDay() + 6) % 7;
 const round1 = (x: number): number => Math.round(x * 10) / 10;
 
@@ -39,7 +35,7 @@ export const easyPaceAt = (runs: Run[], atMs: number): number | null => {
 };
 
 const longestKm = (runs: Run[], fromMs: number, toMs: number): number | null => {
-  const m = runs.filter((r) => r.startMs >= fromMs && r.startMs <= toMs).map((r) => r.distanceM ?? 0);
+  const m = runs.filter((r) => r.startMs >= fromMs && r.startMs <= toMs && r.distanceM !== null).map((r) => r.distanceM!);
   return m.length > 0 ? Math.max(...m) / 1000 : null;
 };
 
@@ -52,7 +48,10 @@ export const runNumbers = (runs: Run[], weeks: RunWeekBody[], nowMs: number): Ru
   for (const w of keys) {
     for (const p of records.get(w)?.runs ?? []) {
       if (p.kind !== 'test') continue;
-      const hit = runs.find((r) => dateKey(r.startMs) === p.date && r.best30M !== null);
+      const onDay = runs.filter((r) => dateKey(new Date(r.startMs)) === p.date);
+      // The run the week record names, else the best one that lasted a full test window.
+      const hit = p.done !== null ? onDay.find((r) => r.id === p.done && r.best30M !== null)
+        : onDay.filter((r) => r.best30M !== null && r.durationS >= TEST_WINDOW_S).sort((a, b) => b.best30M! - a.best30M!)[0];
       if (hit) tests.push({ date: p.date, distanceM: hit.best30M! });
     }
   }

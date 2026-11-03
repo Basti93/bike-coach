@@ -102,3 +102,41 @@ test('paceText(372) is "6:12 /km" and kmText(5230) is "5,2 km"', () => {
   expect(paceText(372)).toBe('6:12 /km');
   expect(kmText(5230)).toBe('5,2 km');
 });
+
+const testPlan = (done: string | null = null) => week('2027-06-14', [
+  { date: '2027-06-17', kind: 'test', minutes: 30, hrCap: null, counts: '', note: null, fp: 'b', done },
+]);
+const onThursday = (o: Partial<Run>) => run({ startMs: new Date(2027, 5, 17, 8).getTime(), ...o });
+
+test('a skipped test day with only a short ordinary run gives no test result', () => {
+  expect(runNumbers([onThursday({ id: 's', durationS: 900, best30M: 2500 })], [testPlan()], NOW).tests).toEqual([]);
+});
+
+test('with two runs on the test day, the longest-enough one with the largest 30-minute distance is taken', () => {
+  const a = onThursday({ id: 'a', durationS: 2400, best30M: 4800 });
+  const b = onThursday({ id: 'b', durationS: 2400, best30M: 5300 });
+  const short = onThursday({ id: 'c', durationS: 600, best30M: 6000 });
+  expect(runNumbers([a, b, short], [testPlan()], NOW).tests).toEqual([{ date: '2027-06-17', distanceM: 5300 }]);
+});
+
+test('a planned test run with done set takes exactly that run', () => {
+  const a = onThursday({ id: 'a', durationS: 2400, best30M: 4800 });
+  const b = onThursday({ id: 'b', durationS: 2400, best30M: 5300 });
+  expect(runNumbers([a, b], [testPlan('a')], NOW).tests).toEqual([{ date: '2027-06-17', distanceM: 4800 }]);
+});
+
+test('the longest run is null when no run in the block has a distance', () => {
+  const r = run({ startMs: NOW - DAY, distanceM: null });
+  expect(runNumbers([r], [], NOW).longest.blockKm).toBeNull();
+});
+
+test('a run at Sunday 23:30 belongs to that week, also in a daylight-saving week', () => {
+  const now = new Date(2026, 10, 4, 12).getTime();
+  const sunday = run({ id: 'late', startMs: new Date(2026, 10, 1, 23, 30).getTime(), distanceM: 3000, durationS: 1200 });
+  const n = runNumbers([sunday], [], now);
+  expect(n.weeks).toHaveLength(12);
+  expect(new Set(n.weeks.map((w) => w.week)).size).toBe(12);
+  expect(n.weeks.find((w) => w.week === '2026-10-26')).toEqual({ week: '2026-10-26', km: 3, minutes: 20, plannedMinutes: null });
+  expect(n.weeks[11].week).toBe('2026-11-02');
+  expect(n.weeks[11].km).toBe(0);
+});
