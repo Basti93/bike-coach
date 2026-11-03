@@ -380,3 +380,37 @@ test('RunSettingsCard keeps earlier answers when switching', async () => {
   fireEvent.click(sw);
   await waitFor(() => expect(bodyOf(map, 'settings')).toEqual({ ...keep, on: false }));
 });
+
+test('after Speichern the questions close at once, before the coach answers', async () => {
+  const { port, map } = fakePort([rec('status', statusBody({ needsAnswers: true })), rec('settings', { type: 'settings', on: true, weekdays: null, answers: null })]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Speichern' }));
+  await waitFor(() => expect(bodyOf(map, 'settings')?.weekdays).toEqual([1, 3, 5]));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull());
+  expect(screen.getByRole('status').textContent).toMatch(/Gespeichert/);
+});
+
+test('days and answers can be changed later, starting from what was saved', async () => {
+  const saved = { type: 'settings', on: true, weekdays: [0, 3], answers: { runsPerWeek: 2, usualMinutes: 40, pain: false } };
+  const { port, map } = fakePort([rec('status', statusBody()), rec('settings', saved), rec(`week-${WEEK}`, weekBody())]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauftage und Angaben ändern' }));
+  expect((screen.getByLabelText('Wie oft läufst du pro Woche?') as HTMLInputElement).value).toBe('2');
+  expect((screen.getByLabelText('Wie lange dauert ein Lauf meist (Minuten)?') as HTMLInputElement).value).toBe('40');
+  expect(screen.getByRole('button', { name: 'Montag' }).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button', { name: 'Samstag' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+  await waitFor(() => expect(bodyOf(map, 'settings')?.weekdays).toEqual([0, 3, 5]));
+  expect(bodyOf(map, 'settings')?.on).toBe(true);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull());
+});
+
+test('changing can be cancelled without writing', async () => {
+  const saved = { type: 'settings', on: true, weekdays: [0, 3], answers: { runsPerWeek: 2, usualMinutes: 40, pain: false } };
+  const { port, map } = fakePort([rec('status', statusBody()), rec('settings', saved)]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauftage und Angaben ändern' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+  expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull();
+  expect(map.get('run:settings')!.updatedMs).toBe(1);
+});

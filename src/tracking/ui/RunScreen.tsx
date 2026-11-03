@@ -31,11 +31,16 @@ function Suggestion({ onAnswer }: { onAnswer: (on: boolean) => void }) {
   );
 }
 
-function Questions({ suggested, onSave }: { suggested: number[]; onSave: (a: { runsPerWeek: number; usualMinutes: number; pain: boolean }, days: number[]) => void }) {
-  const [perWeek, setPerWeek] = useState(String(suggested.length || 3));
-  const [minutes, setMinutes] = useState('30');
-  const [pain, setPain] = useState(false);
-  const [days, setDays] = useState<number[]>(suggested);
+type Answers = { runsPerWeek: number; usualMinutes: number; pain: boolean };
+function Questions({ suggested, saved, onSave, onCancel }: {
+  suggested: number[]; saved: { answers: Answers | null; weekdays: number[] | null } | null;
+  onSave: (a: Answers, days: number[]) => void; onCancel?: () => void;
+}) {
+  const start = saved?.weekdays?.length ? saved.weekdays : suggested;
+  const [perWeek, setPerWeek] = useState(String(saved?.answers?.runsPerWeek ?? (start.length || 3)));
+  const [minutes, setMinutes] = useState(String(saved?.answers?.usualMinutes ?? 30));
+  const [pain, setPain] = useState(saved?.answers?.pain ?? false);
+  const [days, setDays] = useState<number[]>(start);
   const toggle = (d: number) => setDays((x) => (x.includes(d) ? x.filter((y) => y !== d) : [...x, d].sort((a, b) => a - b)));
   const p = num(perWeek);
   const m = num(minutes);
@@ -57,7 +62,10 @@ function Questions({ suggested, onSave }: { suggested: number[]; onSave: (a: { r
           ))}
         </div>
       </div>
-      <button type="button" disabled={!ok} onClick={() => ok && onSave({ runsPerWeek: Math.round(p), usualMinutes: Math.round(m), pain }, days)}>Speichern</button>
+      <div className="tk-row">
+        <button type="button" disabled={!ok} onClick={() => ok && onSave({ runsPerWeek: Math.round(p), usualMinutes: Math.round(m), pain }, days)}>Speichern</button>
+        {onCancel && <button type="button" className="ghost" onClick={onCancel}>Abbrechen</button>}
+      </div>
     </section>
   );
 }
@@ -176,6 +184,8 @@ function ManualForm({ plannedOn, now, onSave }: { plannedOn: (date: string) => P
 /** The run page, shared by the phone and the Mac. Only records in, only records out. */
 export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const q = usePortRecords(port, 'run');
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(false);
   const view = runView(q.records ?? [], now());
   if (q.records === null || !view.visible || !view.status) return null;
   const { status, week } = view;
@@ -195,13 +205,26 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
   // Workouts sent before the pause that are still ahead on the watch: the same confirmation, with the paused week, removes them.
   const leftOnWatch = paused && status.garmin && !!week?.garmin && Object.keys(week.garmin.sent).some((d) => d >= todayKey);
 
+  // The coach's status lags behind a save: once the settings hold days and answers, the questions are done here.
+  const answered = !!(view.settings?.answers && view.settings.weekdays?.length);
+  const asking = editing || (status.needsAnswers && !answered);
+
   return (
     <div className="tk-screen tk-run">
       <h1 className="tk-title">Laufen</h1>
       {status.suggest && !status.on && <Suggestion onAnswer={(on) => { void writeSettings(port, all, now(), (old) => ({ type: 'settings', on, weekdays: old?.weekdays ?? null, answers: old?.answers ?? null })).catch(() => {}); }} />}
-      {status.on && status.needsAnswers && (
-        <Questions suggested={status.suggestedDays} onSave={(answers, days) => { void writeSettings(port, all, now(), () => ({ type: 'settings', on: true, weekdays: days, answers })).catch(() => {}); }} />
-      )}
+      {status.on && (asking ? (
+        <Questions suggested={status.suggestedDays} saved={view.settings ?? null} onCancel={editing ? () => setEditing(false) : undefined}
+          onSave={(answers, days) => {
+            setEditing(false); setSavedNote(true);
+            void writeSettings(port, all, now(), (old) => ({ type: 'settings', on: old?.on ?? true, weekdays: days, answers })).catch(() => setSavedNote(false));
+          }} />
+      ) : (
+        <div className="tk-row">
+          {savedNote && <p role="status" className="muted">Gespeichert. Der Coach plant deine Woche damit neu, das dauert einen Moment.</p>}
+          <button type="button" className="secondary" onClick={() => { setSavedNote(false); setEditing(true); }}>Lauftage und Angaben ändern</button>
+        </div>
+      ))}
       {status.on && paused && <p role="status" className="tk-note">{PAUSE}</p>}
       {status.on && leftOnWatch && week && (
         <section className="card tk-garmin">
