@@ -220,6 +220,7 @@ export function putDish(plan: MealPlan, state: MealState, members: Member[], key
   if (!target) return;
   target.dish = dish; target.reuseOf = null;
   for (const r of plan.meals.filter((m) => m.reuseOf === key)) {
+    delete r.askedBy;
     const eaters = constraintsFor(members, eatersOf(plan, state, mealKey(r.day, r.slot)));
     if (r.day - target.day <= dish.keepsDays && fitsEveryone(dish, eaters.map((m) => m.settings))) r.dish = dish;
     else {
