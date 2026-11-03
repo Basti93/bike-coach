@@ -19,8 +19,9 @@ const SAME_SHARE = 0.5;
 const CYCLING = /cycling|biking|ride|bike/i;
 const STRENGTH = /strength/i;
 
-type Span = { startMs: number; durationS: number };
-const same = (a: Span, b: Span): boolean => {
+export type Span = { startMs: number; durationS: number };
+/** Two records are the same session if they share at least half of the shorter one. */
+export const overlapsByHalf = (a: Span, b: Span): boolean => {
   const shorter = Math.min(a.durationS, b.durationS) * 1000;
   const shared = Math.min(a.startMs + a.durationS * 1000, b.startMs + b.durationS * 1000) - Math.max(a.startMs, b.startMs);
   return shorter > 0 && shared >= shorter * SAME_SHARE;
@@ -39,8 +40,8 @@ export const allTraining = (input: TrainingInput, nowMs: number): AllTraining | 
     ...workouts.map((w): TrainingSession => ({ key: `kraft-${w.id}`, source: 'kraft', title: w.title, startMs: w.startMs, minutes: w.durationS / 60 })),
   ];
   for (const a of input.activities ?? []) {
-    const ownRide = CYCLING.test(a.sport) && rides.some((r) => same({ startMs: r.startedAtMs, durationS: r.durationS }, a));
-    const ownWorkout = STRENGTH.test(a.sport) && workouts.some((w) => same(w, a));
+    const ownRide = CYCLING.test(a.sport) && rides.some((r) => overlapsByHalf({ startMs: r.startedAtMs, durationS: r.durationS }, a));
+    const ownWorkout = STRENGTH.test(a.sport) && workouts.some((w) => overlapsByHalf(w, a));
     if (ownRide || ownWorkout) continue;
     // A ride from this app that exists only at Garmin is still a ride from this app.
     sessions.push({ key: `garmin-${a.id}`, source: a.fromBikeCoach ? 'rad' : 'andere', title: a.name, sport: a.sport, startMs: a.startMs, minutes: a.durationS / 60 });
