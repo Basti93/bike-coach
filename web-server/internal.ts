@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { lookup as dnsLookup } from 'node:dns/promises';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { openDb } from './db';
 import { pushFor, type PushOptions } from './push';
@@ -19,7 +20,12 @@ const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
  * place of a login, and the account named in the path. A separate app on its own port and database handle, so the public port
  * never has these routes. A new meal week written here sends its push like one written by a phone.
  */
-export const buildInternal = (opts: { dbPath: string; token: string; push?: PushOptions; nowMs?: () => number }): FastifyInstance => {
+/** How long a resolved peer address list is trusted. */
+const PEER_TTL_MS = 10_000;
+export type PeerCheck = { host: string; lookup?: (host: string) => Promise<{ address: string }[]> };
+const bare = (ip: string): string => ip.replace(/^::ffff:/i, '').toLowerCase();
+
+export const buildInternal = (opts: { dbPath: string; token: string; push?: PushOptions; nowMs?: () => number; peer?: PeerCheck }): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
@@ -32,7 +38,23 @@ export const buildInternal = (opts: { dbPath: string; token: string; push?: Push
     if (code === 500) console.error('internal error', req.method, req.url.split('?')[0], err.name ?? 'Error');
     return reply.code(code).send({ error: code === 413 ? 'too large' : code === 500 ? 'error' : 'bad request' });
   });
+  // With a peer name set, only the addresses it resolves to may talk to this listener (the name is the coach on the internal network).
+  // A failed lookup refuses everyone. The answer is cached for 10 seconds.
+  const peer = opts.peer;
+  const resolveAll = peer?.lookup ?? ((h: string) => dnsLookup(h, { all: true }));
+  let known: { at: number; addresses: Set<string> } | null = null;
+  const peerAddresses = async (): Promise<Set<string>> => {
+    const t = now();
+    if (known && t - known.at < PEER_TTL_MS && t >= known.at) return known.addresses;
+    try {
+      known = { at: t, addresses: new Set((await resolveAll(peer!.host)).map((a) => bare(a.address))) };
+    } catch {
+      known = { at: t, addresses: new Set() };
+    }
+    return known.addresses;
+  };
   app.addHook('onRequest', async (req, reply) => {
+    if (peer && !(await peerAddresses()).has(bare(req.socket.remoteAddress ?? ''))) return reply.code(403).send({ error: 'forbidden' });
     const auth = req.headers.authorization;
     if (typeof auth !== 'string' || !timingSafeEqual(digest(auth), expected)) return reply.code(401).send({ error: 'unauthorized' });
   });

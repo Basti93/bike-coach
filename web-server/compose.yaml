@@ -27,9 +27,10 @@ services:
       PANDAFIT_PUSH_SUBJECT: ${PANDAFIT_PUSH_SUBJECT:-}
       PANDAFIT_PUSH: ${PANDAFIT_PUSH:-on}
       # Coach: the api forwards /coach requests to it. Its internal listener (8081) is never published, but it listens on all interfaces
-      # of the api container, so tailscale (default network) can reach it, gated by the internal token only. Binding to the internal
-      # network's address is not possible without a fixed address for that network.
+      # of the api container, so web-server/internal.ts checks the sender: only addresses the name in PANDAFIT_INTERNAL_PEER resolves to.
       PANDAFIT_COACH_URL: http://coach:8090
+      # The internal listener (8081) answers only the addresses the name `coach` resolves to.
+      PANDAFIT_INTERNAL_PEER: coach
       PANDAFIT_INTERNAL_TOKEN: ${PANDAFIT_INTERNAL_TOKEN:?set PANDAFIT_INTERNAL_TOKEN in .env (openssl rand -hex 32)}
     networks: [default, internal]
     ports:

@@ -13,7 +13,7 @@ mkdir -p "$BACKUP_DIR"
 out="$BACKUP_DIR/pandafit-coach-$(date +%Y%m%d-%H%M%S).tar.gz"
 raw="$BACKUP_DIR/.coach-backup.tar.tmp"
 cleanup() {
-  rm -f "$raw" "$out.part"
+  rm -f "$raw" "$raw.list" "$out.part"
   docker compose exec -T coach rm -rf /data/.backup-staging >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -33,10 +33,12 @@ docker compose exec -T coach sh -c '
   [ -d accounts ] || { echo "no accounts folder" >&2; exit 1; }
   rm -rf .backup-staging
   mkdir -p .backup-staging/snap
-  find accounts -type f -name "*.db" | node -e "
+  # Same scope as the tar exclusion of *.db below: every database in the volume except home/, work/ and the staging folder.
+  find . \( -path ./home -o -path ./work -o -path ./.backup-staging \) -prune -o -type f -name "*.db" -print > .backup-staging/list
+  node -e "
     const { DatabaseSync } = require(\"node:sqlite\");
     const fs = require(\"node:fs\"); const path = require(\"node:path\");
-    for (const rel of fs.readFileSync(0, \"utf8\").split(\"\\n\").filter(Boolean)) {
+    for (const rel of fs.readFileSync(\"/data/.backup-staging/list\", \"utf8\").split(\"\\n\").filter(Boolean)) {
       const dest = path.join(\"/data/.backup-staging/snap\", rel);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       const db = new DatabaseSync(path.join(\"/data\", rel), { readOnly: true });
@@ -53,7 +55,7 @@ docker compose exec -T coach cat /data/.backup-staging/all.tar > "$raw"
 [ -s "$raw" ] || { echo "empty backup" >&2; exit 1; }
 tar -tf "$raw" > "$raw.list"
 if ! grep -q '^\./accounts/' "$raw.list"; then rm -f "$raw.list"; echo "backup has no accounts" >&2; exit 1; fi
-if grep -q 'home' "$raw.list"; then rm -f "$raw.list"; echo "backup contains home" >&2; exit 1; fi
+if grep -qE '^\./home(/|$)' "$raw.list"; then rm -f "$raw.list"; echo "backup contains home" >&2; exit 1; fi
 rm -f "$raw.list"
 gzip -c "$raw" > "$out.part"
 gzip -t "$out.part"

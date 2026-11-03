@@ -118,3 +118,46 @@ describe('internal records routes', () => {
     }
   });
 });
+
+describe('internal peer check', () => {
+  const peerApp = async (lookup: (h: string) => Promise<{ address: string }[]>, clock: { t: number }) => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'pf-peer-')), 'test.db');
+    openDb(dbPath).close();
+    const app = buildInternal({ dbPath, token: TOKEN, nowMs: () => clock.t, peer: { host: 'coach', lookup } });
+    open.push(app);
+    return app;
+  };
+  const get = (app: Awaited<ReturnType<typeof peerApp>>, remoteAddress: string) =>
+    app.inject({ method: 'GET', url: '/internal/accounts/1/records', remoteAddress, headers: BEARER });
+
+  it('accepts only addresses the peer name resolves to, and caches the lookup for 10 seconds', async () => {
+    const clock = { t: NOW };
+    let addresses = [{ address: '10.9.0.5' }];
+    const lookup = vi.fn(async () => addresses);
+    const app = await peerApp(lookup, clock);
+    expect((await get(app, '10.9.0.5')).statusCode).toBe(404); // past the peer check and the token: no such account
+    expect((await get(app, '::ffff:10.9.0.5')).statusCode).toBe(404);
+    expect((await get(app, '10.9.0.6')).statusCode).toBe(403);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    addresses = [{ address: '10.9.0.6' }];
+    clock.t += 9_000;
+    expect((await get(app, '10.9.0.6')).statusCode).toBe(403);
+    clock.t += 2_000;
+    expect((await get(app, '10.9.0.6')).statusCode).toBe(404);
+    expect((await get(app, '10.9.0.5')).statusCode).toBe(403);
+    expect(lookup).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses everything when the lookup fails, and checks the peer before the token', async () => {
+    const app = await peerApp(async () => { throw new Error('ENOTFOUND'); }, { t: NOW });
+    expect((await get(app, '10.9.0.5')).statusCode).toBe(403);
+    const ok = await peerApp(async () => [{ address: '10.9.0.5' }], { t: NOW });
+    expect((await ok.inject({ method: 'GET', url: '/internal/accounts/1/records', remoteAddress: '10.9.0.6' })).statusCode).toBe(403);
+    expect((await ok.inject({ method: 'GET', url: '/internal/accounts/1/records', remoteAddress: '10.9.0.5' })).statusCode).toBe(401);
+  });
+
+  it('without a peer the behaviour is unchanged', async () => {
+    const { internal } = await servers();
+    expect((await internal.inject({ method: 'GET', url: '/internal/accounts/1/records', remoteAddress: '10.9.0.6', headers: BEARER })).statusCode).toBe(200);
+  });
+});

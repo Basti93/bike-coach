@@ -185,6 +185,10 @@ test('the coach backup snapshots databases, checks migration staging and leaves 
   expect(b).toContain('VACUUM INTO');
   expect(b).toContain('--exclude=./home');
   expect(b).not.toContain('--exclude=./home/');
+  expect(b).toContain("grep -qE '^\\./home(/|$)'");
+  expect(b).toContain('.backup-staging/list');
+  expect(b).toContain('$raw.list');
+  expect(b).not.toMatch(/find accounts -type f/);
   expect(b).toContain('migrate/incoming/hevy-key');
   expect(b).toContain('migrate/incoming/garmin-tokens');
   expect(b).toContain('.backup-staging');
@@ -197,6 +201,10 @@ test('the coach restore drill hardens the unpack container and refuses a copy wi
   for (const f of ['--read-only', '--cap-drop ALL', '--security-opt no-new-privileges:true']) expect(unpack).toContain(f);
   expect(r).toContain('/data/accounts');
   expect(r).toMatch(/accounts"? = ?"?0|-eq 0|Backup has no accounts/);
+});
+
+test('the api limits its internal listener to the coach', () => {
+  expect(compose().services.api!.environment!.PANDAFIT_INTERNAL_PEER).toBe('coach');
 });
 
 test('the README keeps the key copy away from the pulled backups and has no nested backticks in the SERVER.md line', () => {
@@ -215,8 +223,8 @@ describe('backup-coach.sh with a stub docker', () => {
     const r = spawnSync('sh', [resolve(root, 'web-server/backup-coach.sh')], { env: { PATH: `${dir}:/usr/bin:/bin`, HOME: dir, BACKUP_DIR: resolve(dir, 'b') }, encoding: 'utf8' });
     return { ...r, dir };
   };
-  test('a failing tar leaves no backup and no ok line', () => {
-    const r = run('tar');
+  test.each(['tar', 'cat '])('a failing %s step leaves no backup and no ok line', (step) => {
+    const r = run(step);
     expect(r.status).not.toBe(0);
     expect(r.stdout).not.toMatch(/ ok /);
     expect(spawnSync('sh', ['-c', `ls ${r.dir}/b | grep -c tar.gz`], { encoding: 'utf8' }).stdout.trim()).toBe('0');

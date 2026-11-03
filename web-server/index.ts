@@ -259,6 +259,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   app.listen({ port: Number(process.env.PORT ?? 8080), host: process.env.HOST ?? '127.0.0.1' });
   // The internal records routes listen on the internal network only when the token is set; the public port never has them.
   if (token) {
-    void startInternal({ dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db', token, push: pushOpts, host: '0.0.0.0', port: INTERNAL_PORT });
+    void startInternal({ dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db', token, push: pushOpts, host: '0.0.0.0', port: INTERNAL_PORT, peer: process.env.PANDAFIT_INTERNAL_PEER?.trim() ? { host: process.env.PANDAFIT_INTERNAL_PEER.trim() } : undefined });
   }
 }
