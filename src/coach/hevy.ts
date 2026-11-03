@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { HevyStatus } from '../shared/coach-protocol';
+import { PLAIN_CODEC, type SecretCodec } from './secrets/secret-box';
 
 const API = 'https://api.hevyapp.com';
 const PAGE_SIZE = 10;
@@ -181,7 +182,11 @@ export class HevySync {
   private failedAtMs: number | null = null;
 }
 
-type LinkOptions = { baseDir: string; nowMs: () => number; fetchFn?: typeof fetch; sleep?: (ms: number) => Promise<void>; onChange: (profileId: string) => void };
+type LinkOptions = {
+  baseDir: string; nowMs: () => number; fetchFn?: typeof fetch; sleep?: (ms: number) => Promise<void>; onChange: (profileId: string) => void;
+  /** How the key file is stored, one for all profiles or one per profile. Default: plain, as on the Mac. */
+  codec?: SecretCodec | ((profileId: string) => SecretCodec);
+};
 
 /** Every profile brings its own key, or none: without one nothing here ever runs. The key stays in a private file on this Mac. */
 export class HevyLinks {
@@ -192,12 +197,21 @@ export class HevyLinks {
 
   private dir(profileId: string): string { return path.join(this.opts.baseDir, profileId); }
 
+  private codec(profileId: string): SecretCodec {
+    const c = this.opts.codec ?? PLAIN_CODEC;
+    return typeof c === 'function' ? c(profileId) : c;
+  }
+
+  /** The stored key, or null when there is none or it does not open. Never throws, never logs. */
+  private readKey(profileId: string): string | null {
+    try { return this.codec(profileId).open(fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim()).trim() || null; } catch { return null; }
+  }
+
   private sync(profileId: string): HevySync | null {
     if (!SAFE_ID.test(profileId)) return null;
     const known = this.syncs.get(profileId);
     if (known) return known;
-    let key: string;
-    try { key = fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim(); } catch { return null; }
+    const key = this.readKey(profileId);
     if (!key) return null;
     const sync = new HevySync({ key, dir: this.dir(profileId), nowMs: this.opts.nowMs, ...(this.opts.fetchFn ? { fetchFn: this.opts.fetchFn } : {}), ...(this.opts.sleep ? { sleep: this.opts.sleep } : {}) });
     this.syncs.set(profileId, sync);
@@ -207,7 +221,7 @@ export class HevyLinks {
   /** For the coach process only: never part of a status, a log or a prompt. */
   apiKey(profileId: string): string | null {
     if (!SAFE_ID.test(profileId)) return null;
-    try { return fs.readFileSync(path.join(this.dir(profileId), KEY_FILE), 'utf8').trim() || null; } catch { return null; }
+    return this.readKey(profileId);
   }
 
   status(profileId: string): HevyStatus {
@@ -234,8 +248,10 @@ export class HevyLinks {
       if (res.status === 401 || res.status === 403) { this.attempts.set(profileId, { state: 'failed', reason: 'invalid' }); return; }
       if (!res.ok) throw new Error(`Hevy ${res.status}`);
     } catch { this.attempts.set(profileId, { state: 'failed', reason: 'failed' }); return; }
+    let stored: string;
+    try { stored = this.codec(profileId).seal(key); } catch { this.attempts.set(profileId, { state: 'failed', reason: 'failed' }); return; }
     fs.mkdirSync(this.dir(profileId), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(path.join(this.dir(profileId), KEY_FILE), key, { mode: 0o600 });
+    fs.writeFileSync(path.join(this.dir(profileId), KEY_FILE), stored, { mode: 0o600 });
     fs.chmodSync(path.join(this.dir(profileId), KEY_FILE), 0o600);
     this.syncs.get(profileId)?.close();
     this.syncs.delete(profileId);

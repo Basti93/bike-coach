@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { GarminSyncInfo } from '../shared/coach-protocol';
+import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
 
 const HOUR = 3600_000;
 const WHILE_LOADING_MS = 3 * HOUR;
@@ -12,7 +13,7 @@ const EXIT_REAUTH = 10;
 const EXIT_RATE = 11;
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 
-type Options = { baseDir: string; python: string; script: string; rideOpen: () => boolean; onUpdate: () => void; nowMs: () => number; spawnFn?: typeof spawn };
+type Options = { baseDir: string; python: string; script: string; rideOpen: () => boolean; onUpdate: () => void; nowMs: () => number; spawnFn?: typeof spawn; tokens?: GarminTokens };
 type Meta = { lastRunMs: number | null; lastTryMs: number | null; complete: boolean; problem: GarminSyncInfo['problem']; tokensMtimeMs: number | null };
 const EMPTY: Meta = { lastRunMs: null, lastTryMs: null, complete: false, problem: null, tokensMtimeMs: null };
 
@@ -21,10 +22,12 @@ export class GarminSync {
   private running = new Map<string, ReturnType<typeof spawn>>();
   private metas = new Map<string, Meta>();
   private stopping = new Set<string>();
-  constructor(private opts: Options) {}
+  private tokens: GarminTokens;
+  constructor(private opts: Options) {
+    this.tokens = opts.tokens ?? plainTokens(opts.baseDir);
+  }
 
   private dataDir(id: string): string { return path.join(this.opts.baseDir, 'data', id); }
-  private tokenDir(id: string): string { return path.join(this.opts.baseDir, 'tokens', id); }
 
   private meta(id: string): Meta {
     let m = this.metas.get(id);
@@ -45,10 +48,6 @@ export class GarminSync {
       fs.renameSync(`${file}.tmp`, file);
     } catch { /* then it only holds until the restart */ }
     this.opts.onUpdate();
-  }
-
-  private tokensMtime(id: string): number | null {
-    try { return fs.statSync(path.join(this.tokenDir(id), 'garmin_tokens.json')).mtimeMs; } catch { return null; }
   }
 
   info(id: string): GarminSyncInfo {
@@ -74,7 +73,7 @@ export class GarminSync {
       return;
     }
     if (this.opts.rideOpen()) return;
-    const mtime = this.tokensMtime(id);
+    const mtime = this.tokens.mtimeMs(id);
     if (mtime === null) return;
     const m = this.meta(id);
     if (!this.due(id, m, mtime)) return;
@@ -87,9 +86,21 @@ export class GarminSync {
 
   private start(id: string, mtime: number): void {
     const startedAt = this.opts.nowMs();
-    const child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
-      this.opts.script, '--tokens', this.tokenDir(id), '--db', path.join(this.dataDir(id), 'garmin.db'),
-    ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const failed = (): void => this.save(id, { problem: 'failed', lastTryMs: startedAt, tokensMtimeMs: mtime });
+    let tokenDir: string;
+    try { tokenDir = this.tokens.checkout(id); } catch { failed(); return; }
+    let checkedIn = false;
+    const checkin = (): void => {
+      if (checkedIn) return;
+      checkedIn = true;
+      try { this.tokens.checkin(id); } catch { /* the folder is wiped either way; the next login stores anew */ }
+    };
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
+        this.opts.script, '--tokens', tokenDir, '--db', path.join(this.dataDir(id), 'garmin.db'),
+      ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch { checkin(); failed(); return; }
     this.running.set(id, child);
     if (this.meta(id).problem === 'reauth') this.save(id, { problem: null });
     let complete = this.meta(id).complete;
@@ -109,6 +120,7 @@ export class GarminSync {
     const end = (code: number | null): void => {
       if (ended) return;
       ended = true;
+      checkin();
       this.running.delete(id);
       if (this.stopping.delete(id)) { this.opts.onUpdate(); return; }
       const problem = code === 0 ? null : code === EXIT_REAUTH ? 'reauth' : code === EXIT_RATE ? 'rate-limit' : 'failed';

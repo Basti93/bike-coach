@@ -1,5 +1,4 @@
 import type { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import type { Profile } from '../shared/profiles';
 import type { CoachClientMessage, CoachServerMessage, CoachStateMessage } from '../shared/coach-protocol';
@@ -26,6 +25,8 @@ import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { mergedHealth, mergedStrength } from './tracking/strength-source';
 import { MealCoach, usualTrainingDays } from './meals/meal-coach';
+import type { SecretCodec } from './secrets/secret-box';
+import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
 
 export type RuntimeOptions = {
   /** Holds `rides/`, `coach/`, `garmin/`, `hevy/` and `accounts/`. */
@@ -53,6 +54,10 @@ export type RuntimeOptions = {
   /** For tests: Garmin runs and Hevy requests. */
   spawnFn?: typeof spawn;
   fetchFn?: typeof fetch;
+  /** How the Hevy key is stored per profile. Default: plain, as on the Mac. */
+  hevyCodec?: (profileId: string) => SecretCodec;
+  /** Where the Garmin login lives. Default: plain in `<root>/garmin/tokens/<id>`, as on the Mac. */
+  garminTokens?: GarminTokens;
 };
 
 export type CoachRuntime = {
@@ -84,6 +89,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const coachDir = path.join(root, 'coach');
   const garminDir = path.join(root, 'garmin');
   const hevyDir = path.join(root, 'hevy');
+  const garminTokens = opts.garminTokens ?? plainTokens(garminDir);
 
   const listeners = new Set<(profileId: string | null) => void>();
   const emit = (profileId: string | null): void => { for (const fn of listeners) { try { fn(profileId); } catch { /* a listener never stops the coach */ } } };
@@ -106,7 +112,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
 
   // Optional and per profile: without a key nothing happens.
-  const hevy = new HevyLinks({ baseDir: hevyDir, nowMs, ...(opts.fetchFn ? { fetchFn: opts.fetchFn } : {}), onChange: (profileId) => {
+  const hevy = new HevyLinks({ baseDir: hevyDir, nowMs, ...(opts.fetchFn ? { fetchFn: opts.fetchFn } : {}), ...(opts.hevyCodec ? { codec: opts.hevyCodec } : {}), onChange: (profileId) => {
     try { coach.strengthChanged(profileId); } catch { /* unknown profile */ }
     // Keeps the new Hevy workouts here too, so they stay when Hevy is removed.
     try { gym.importHevy(profileId); } catch { /* try again on the next change */ }
@@ -183,11 +189,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
 
   const garmin = new GarminLink({
     baseDir: garminDir, python: opts.python, script: path.join(opts.garminScripts, 'bridge.py'),
-    onUpdate: () => publish(), ...spawnOpt,
+    onUpdate: () => publish(), tokens: garminTokens, ...spawnOpt,
   });
   const garminSync = new GarminSync({
     baseDir: garminDir, python: opts.python, script: path.join(opts.garminScripts, 'garmin_sync.py'),
-    rideOpen: () => !noOpenRide(), onUpdate: () => publish(), nowMs, ...spawnOpt,
+    rideOpen: () => !noOpenRide(), onUpdate: () => publish(), nowMs, tokens: garminTokens, ...spawnOpt,
   });
 
   const readinessOf = (profileId: string) => {
@@ -227,7 +233,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     baseDir: garminDir, python: opts.python, script: path.join(opts.garminScripts, 'garmin_upload.py'),
     exportsDir: path.join(dir, 'exports'),
     rideOpen: () => !noOpenRide(),
-    hasTokens: (profileId) => fs.existsSync(path.join(garminDir, 'tokens', profileId, 'garmin_tokens.json')),
+    tokens: garminTokens,
     onResult: (profileId, rideId, result) => { coach.markUpload(profileId, rideId, result); publish(); },
     ...spawnOpt,
   });
