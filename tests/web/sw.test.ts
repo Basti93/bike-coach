@@ -83,6 +83,12 @@ describe('update decisions', () => {
     expect(w('none', false)).toBe(false);
   });
 
+  it('right after a cold start, before any tap, an open workout does not hold back an update', () => {
+    expect(shouldActivateNow({ waiting: true, workout: 'open', fresh: true })).toBe(true);
+    expect(shouldActivateNow({ waiting: true, workout: 'open', fresh: false })).toBe(false);
+    expect(shouldActivateNow({ waiting: true, workout: 'unknown', fresh: true })).toBe(false);
+  });
+
   function harness(open: OpenState) {
     const posted: unknown[] = [];
     const listeners: Record<string, () => void> = {};
@@ -95,9 +101,27 @@ describe('update decisions', () => {
     };
     const container = { controller: {} as object | null, register: async () => reg, addEventListener: (t: string, f: () => void) => { listeners[t] = f; } };
     let reloads = 0;
-    const state = { open };
-    return { container, posted, listeners, regListeners, reg, installing, state, reloads: () => reloads, start: () => setupServiceWorker({ container: container as never, isWorkoutOpen: () => state.open, reload: () => { reloads++; }, url: '/sw.js' }) };
+    const state = { open, fresh: false };
+    return { container, posted, listeners, regListeners, reg, installing, state, reloads: () => reloads, start: () => setupServiceWorker({ container: container as never, isWorkoutOpen: () => state.open, isFresh: () => state.fresh, reload: () => { reloads++; }, url: '/sw.js' }) };
   }
+
+  it('a cold start with an open workout updates and reloads before the first tap', async () => {
+    const h = harness('open');
+    h.state.fresh = true;
+    await h.start();
+    expect(h.posted).toEqual([{ type: 'SKIP_WAITING' }]);
+    h.listeners.controllerchange?.();
+    expect(h.reloads()).toBe(1);
+  });
+
+  it('once the person has tapped, the reload waits even if the update was already asked for', async () => {
+    const h = harness('open');
+    h.state.fresh = true;
+    await h.start();
+    h.state.fresh = false;
+    h.listeners.controllerchange?.();
+    expect(h.reloads()).toBe(0);
+  });
 
   it('a new service worker waits while a workout is open and activates afterwards', async () => {
     const h = harness('open');
