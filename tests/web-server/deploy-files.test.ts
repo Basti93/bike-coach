@@ -1,4 +1,6 @@
-import { readFileSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
 
@@ -116,8 +118,16 @@ test('api and coach share the internal network, which has no way out, and no coa
   const { services, networks } = compose();
   expect(networks.internal).toEqual({ internal: true });
   expect(services.api!.networks).toEqual(expect.arrayContaining(['default', 'internal']));
-  expect(services.coach!.networks).toEqual(expect.arrayContaining(['default', 'internal']));
+  expect(services.coach!.networks).toEqual(expect.arrayContaining(['coach-egress', 'internal']));
+  expect(services.coach!.networks).not.toContain('default');
   expect(services.tailscale!.networks).toBeUndefined();
+  // No network other than `internal` is shared between the coach and any other service (tailscale sits on the implicit default).
+  const nets = (svc: Service): string[] => svc.networks ?? ['default'];
+  for (const [name, svc] of Object.entries(services)) {
+    if (name === 'coach') continue;
+    expect(nets(svc).filter((n) => nets(services.coach!).includes(n)), name).toEqual(name === 'api' ? ['internal'] : []);
+  }
+  expect(networks['coach-egress']?.internal).not.toBe(true);
   expect(services.api!.environment!.PANDAFIT_COACH_URL).toBe('http://coach:8090');
   expect(services.api!.environment!.PANDAFIT_INTERNAL_TOKEN).toMatch(/^\$\{PANDAFIT_INTERNAL_TOKEN:\?/);
   expect(services.coach!.environment!.PANDAFIT_INTERNAL_TOKEN).toMatch(/^\$\{PANDAFIT_INTERNAL_TOKEN:\?/);
@@ -168,4 +178,47 @@ test('the coach restore drill runs with --network none and PANDAFIT_COACH_DRY=1'
   expect(r).toMatch(/docker run -d --name "\$app" --network none -e PANDAFIT_COACH_DRY=1/);
   expect(r).toContain('gunzip -c');
   for (const f of ['backup-coach.sh', 'restore-drill-coach.sh']) expect(statSync(resolve(root, 'web-server', f)).mode & 0o111, f).toBeGreaterThan(0);
+});
+
+test('the coach backup snapshots databases, checks migration staging and leaves out all of home', () => {
+  const b = read('web-server/backup-coach.sh');
+  expect(b).toContain('VACUUM INTO');
+  expect(b).toContain('--exclude=./home');
+  expect(b).not.toContain('--exclude=./home/');
+  expect(b).toContain('migrate/incoming/hevy-key');
+  expect(b).toContain('migrate/incoming/garmin-tokens');
+  expect(b).toContain('.backup-staging');
+  expect(b).not.toMatch(/staging.*\/tmp|\/tmp.*staging/);
+});
+
+test('the coach restore drill hardens the unpack container and refuses a copy without accounts', () => {
+  const r = read('web-server/restore-drill-coach.sh');
+  const unpack = r.split('\n').filter((l) => l.includes('docker run -i')).join('\n');
+  for (const f of ['--read-only', '--cap-drop ALL', '--security-opt no-new-privileges:true']) expect(unpack).toContain(f);
+  expect(r).toContain('/data/accounts');
+  expect(r).toMatch(/accounts"? = ?"?0|-eq 0|Backup has no accounts/);
+});
+
+test('the README keeps the key copy away from the pulled backups and has no nested backticks in the SERVER.md line', () => {
+  const t = read('web-server/README.md');
+  expect(t).toMatch(/nicht neben den (geholten|gezogenen) Sicherungen/);
+  expect(t).not.toMatch(/\| Pandafit-Coach \| `/);
+  expect(t).toContain('coach-egress');
+  expect(t).not.toMatch(/nur im internen Netz/);
+});
+
+describe('backup-coach.sh with a stub docker', () => {
+  const run = (failOn: string) => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'pfbk-'));
+    writeFileSync(resolve(dir, 'docker'), `#!/bin/sh\ncase "$*" in *${failOn}*) echo boom >&2; exit 2;; esac\ncase "$*" in *"cat "*) printf 'xx';; esac\nexit 0\n`);
+    chmodSync(resolve(dir, 'docker'), 0o755);
+    const r = spawnSync('sh', [resolve(root, 'web-server/backup-coach.sh')], { env: { PATH: `${dir}:/usr/bin:/bin`, HOME: dir, BACKUP_DIR: resolve(dir, 'b') }, encoding: 'utf8' });
+    return { ...r, dir };
+  };
+  test('a failing tar leaves no backup and no ok line', () => {
+    const r = run('tar');
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toMatch(/ ok /);
+    expect(spawnSync('sh', ['-c', `ls ${r.dir}/b | grep -c tar.gz`], { encoding: 'utf8' }).stdout.trim()).toBe('0');
+  });
 });

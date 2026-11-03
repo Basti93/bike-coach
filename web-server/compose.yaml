@@ -26,7 +26,9 @@ services:
       # Web Push: VAPID subject (mailto: or https:); empty means the public origin. PANDAFIT_PUSH=off sends nothing.
       PANDAFIT_PUSH_SUBJECT: ${PANDAFIT_PUSH_SUBJECT:-}
       PANDAFIT_PUSH: ${PANDAFIT_PUSH:-on}
-      # Coach: the api forwards /coach requests (container-internal) and serves its records on 8081 (never published).
+      # Coach: the api forwards /coach requests to it. Its internal listener (8081) is never published, but it listens on all interfaces
+      # of the api container, so tailscale (default network) can reach it, gated by the internal token only. Binding to the internal
+      # network's address is not possible without a fixed address for that network.
       PANDAFIT_COACH_URL: http://coach:8090
       PANDAFIT_INTERNAL_TOKEN: ${PANDAFIT_INTERNAL_TOKEN:?set PANDAFIT_INTERNAL_TOKEN in .env (openssl rand -hex 32)}
     networks: [default, internal]
@@ -52,7 +54,7 @@ services:
       start_period: 15s
 
   coach:
-    # The coach: Claude, Hevy and Garmin for every profile. No published port; only api reaches it, over the internal network.
+    # The coach: Claude, Hevy and Garmin for every profile. No published port; only api shares a network with it (internal).
     # Garmin and Hevy secrets are sealed with PANDAFIT_SECRET_KEY (only here). The Claude login lives in /data/home (volume, never in a backup).
     build:
       context: ..
@@ -64,8 +66,9 @@ services:
       PANDAFIT_SECRET_KEY: ${PANDAFIT_SECRET_KEY:?set PANDAFIT_SECRET_KEY in .env (openssl rand -hex 32)}
       PANDAFIT_INTERNAL_TOKEN: ${PANDAFIT_INTERNAL_TOKEN:?set PANDAFIT_INTERNAL_TOKEN in .env (openssl rand -hex 32)}
       TZ: ${TZ:-UTC}
-    # internal: shared with api, no way out. default: the way out to Claude, Hevy and Garmin.
-    networks: [internal, default]
+    # internal: shared with api, no way out. coach-egress: the coach's own way out to Claude, Hevy and Garmin; no other service joins it,
+    # so tailscale (on default) cannot reach the coach.
+    networks: [internal, coach-egress]
     volumes:
       - coach:/data
     tmpfs:
@@ -127,6 +130,7 @@ services:
 networks:
   internal:
     internal: true
+  coach-egress: {}
 
 volumes:
   coach:

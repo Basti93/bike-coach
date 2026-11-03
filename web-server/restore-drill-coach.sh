@@ -32,8 +32,11 @@ trap 'cleanup; trap - EXIT; exit 129' HUP
 echo "Backup: $base, throwaway volume: $vol"
 docker volume create "$vol" >/dev/null
 # Unpack as user node (no network). The backup is streamed in on stdin, because the file is 0600 and owned by the host user.
-gunzip -c "$dir/$base" | docker run -i --rm --network none --memory 128m --pids-limit 64 -v "$vol:/data" --entrypoint sh "$IMAGE" -c \
+gunzip -c "$dir/$base" | docker run -i --rm --network none --memory 128m --pids-limit 64 --read-only --cap-drop ALL --security-opt no-new-privileges:true -v "$vol:/data" --entrypoint sh "$IMAGE" -c \
   'umask 077 && tar -C /data -xf - && ls /data >/dev/null'
+docker run --rm --network none --memory 64m --pids-limit 32 --read-only --cap-drop ALL --security-opt no-new-privileges:true -v "$vol:/data:ro" --entrypoint sh "$IMAGE" -c \
+  '[ -d /data/accounts ] && [ "$(ls /data/accounts | wc -l)" -gt 0 ]' \
+  || { echo "Backup has no accounts; refusing to call this a good backup." >&2; exit 1; }
 
 # Dummy key and token: the drill never sees the real ones, and in dry mode nothing is opened.
 docker run -d --name "$app" --network none -e PANDAFIT_COACH_DRY=1 \
@@ -51,11 +54,18 @@ echo "Coach answers /healthz in the container (dry run, no network)."
 # No secret may be plain text in the restored copy.
 docker exec "$app" sh -c '
   cd /data; bad=0
-  for f in accounts/*/hevy/*/api-key accounts/*/garmin/tokens/*/garmin_tokens.json.sealed; do
+  for f in accounts/*/hevy/*/api-key accounts/*/garmin/tokens/*/garmin_tokens.json.sealed accounts/*/migrate/incoming/hevy-key accounts/*/migrate/incoming/garmin-tokens; do
     [ -e "$f" ] || continue
     [ "$(head -c 5 "$f")" = "pfs1." ] || { echo "unsealed secret: $f" >&2; bad=1; }
   done
   exit $bad' || { echo "The restored copy holds an unsealed secret." >&2; exit 1; }
+# Every restored database must pass its integrity check.
+docker exec "$app" sh -c 'cd /data; find accounts -type f -name "*.db" | node -e "
+  const { DatabaseSync } = require(\"node:sqlite\"); const fs = require(\"node:fs\");
+  for (const f of fs.readFileSync(0, \"utf8\").split(\"\\n\").filter(Boolean)) {
+    const db = new DatabaseSync(f, { readOnly: true });
+    if (db.prepare(\"PRAGMA integrity_check\").get().integrity_check !== \"ok\") { console.error(\"integrity check failed: \" + f); process.exit(1); }
+  }"' || { echo "A restored database fails its integrity check." >&2; exit 1; }
 accounts="$(docker exec "$app" sh -c 'ls /data/accounts 2>/dev/null | wc -l' | tr -d ' ')"
 mkdir -p "$BACKUP_DIR"
 echo "$(date '+%Y-%m-%dT%H:%M:%S%z') restore-drill-coach ok $base accounts $accounts" >> "$BACKUP_DIR/drill.log"
