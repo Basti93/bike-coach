@@ -28,6 +28,7 @@ import { handleRecords } from './tracking/records-api';
 import { MobilityCoach } from './mobility/mobility';
 import { AccountLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
+import { exportTogether } from './tracking/together-export';
 import { mergedHealth, mergedStrength } from './tracking/strength-source';
 import { MealCoach, usualTrainingDays } from './meals/meal-coach';
 
@@ -361,6 +362,8 @@ const scan = (): void => {
     if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
     void meals.tick().catch(() => {}).finally(publish);
+    // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
+    if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => accounts.status(id).state === 'linked', noOpenRide, nowMs: now, together }));
     // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
     for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.

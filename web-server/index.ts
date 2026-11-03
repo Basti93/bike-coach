@@ -7,7 +7,7 @@ import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, re
 import { generationOf, openDb } from './db';
 import { announceVersion, buildVersion, createPush, MAX_SUBSCRIPTIONS, mealWeekOf, rememberOrigin, storedOrigin, validEndpoint, validKeys, vapidKeys, webPushSender, type Sender } from './push';
 
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
+const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
 const BODY_LIMIT = 5 * 1024 * 1024;
 const RECORD_BODY_LIMIT = 1024 * 1024;
 const MAX_RECORDS_PER_POST = 1000;
