@@ -114,7 +114,7 @@ test('an exercise can be swapped from the workout screen', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Brustpresse/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Brustpresse/ }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.exerciseId)).toEqual(['pf-chest-press-machine']));
 });
 

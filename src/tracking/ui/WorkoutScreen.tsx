@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
+import { exerciseDescription } from '../../shared/exercise-descriptions';
 import type { Exercise } from '../../shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
@@ -9,6 +10,7 @@ import {
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
+import { ExerciseInfo } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
@@ -28,6 +30,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const [ask, setAsk] = useState<Ask>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [info, setInfo] = useState<ReadonlySet<string>>(new Set());
+  const toggleInfo = (rid: string) => setInfo((s) => { const n = new Set(s); if (!n.delete(rid)) n.add(rid); return n; });
   const ending = useRef(false);
   const leaving = useRef(false);
   const remote = usePortRecords(port, 'workout').all;
@@ -111,6 +115,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const labels = setLabels(e.sets);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
+        const description = exerciseDescription(e.exerciseId);
+        const showInfo = info.has(e.rid);
         return (
           <section key={e.rid} className="tk-ex card" aria-label={e.title}>
             <div className="tk-ex-head">
@@ -120,10 +126,19 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             </div>
             {menu === e.rid && (
               <div className="tk-row tk-menu">
+                {description && (
+                  <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
+                    onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
+                )}
                 <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
                 <button type="button" className="secondary" aria-label={`${e.title} entfernen`}
                   onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
               </div>
+            )}
+            {description && showInfo && (
+              <ExerciseInfo title={e.title} description={description}>
+                <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
+              </ExerciseInfo>
             )}
             {exerciseHasNoWeight(e) && <p className="muted tk-sub">Gewicht nach Gefühl</p>}
             {removing === e.rid && (

@@ -94,10 +94,11 @@ if (mode === 'propose') {
   let bad = 0;
   const matches = readMatches();
   for (const [own, d] of Object.entries(EXERCISE_DESCRIPTIONS)) {
-    if (d.source.kind !== 'wger') { if (matches[own] !== undefined) { console.log(`${own}: matched in wger-matches.json but own text`); bad++; } continue; }
-    const w = data.find((x) => x.exerciseId === d.source.wgerId);
-    if (matches[own] !== d.source.wgerId) { console.log(`${own}: wger id ${d.source.wgerId} not the accepted match`); bad++; }
-    if (!w || w.author !== d.source.author || w.licence !== d.source.licence) { console.log(`${own}: author or licence differ from wger (${w?.author}, ${w?.licence})`); bad++; }
+    const src = d.source;
+    if (src.kind !== 'wger') { if (matches[own] !== undefined) { console.log(`${own}: matched in wger-matches.json but own text`); bad++; } continue; }
+    const w = data.find((x) => x.exerciseId === src.wgerId);
+    if (matches[own] !== src.wgerId) { console.log(`${own}: wger id ${src.wgerId} not the accepted match`); bad++; }
+    if (!w || w.author !== src.author || w.licence !== src.licence) { console.log(`${own}: author or licence differ from wger (${w?.author}, ${w?.licence})`); bad++; }
   }
   console.log(bad ? `${bad} problems` : 'all sources match wger');
   process.exitCode = bad ? 1 : 0;
