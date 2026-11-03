@@ -6,6 +6,14 @@ export const MAX_BATCH_RECORDS = 200;
 export const MAX_BATCH_BYTES = 4_500_000;
 const MAX_PAGES = 1000;
 
+export type SyncCursors = {
+  sent: number; received: number;
+  /** The server database these cursors belong to. */
+  generation?: string;
+  /** The server was restored: everything here goes up again. `sent` stays, it still says what was really unsent. */
+  resend?: boolean;
+};
+
 export type SyncOptions = {
   local: {
     changedSince(cursor: number): Promise<{ records: TrackedRecord[]; cursor: number }>;
@@ -16,8 +24,8 @@ export type SyncOptions = {
     put?(r: TrackedRecord): Promise<unknown>;
   };
   send: (rs: TrackedRecord[]) => Promise<{ refused: Refusal[] } | void>;
-  fetchSince: (cursor: number) => Promise<{ records: TrackedRecord[]; cursor: number; more?: boolean; reset?: boolean }>;
-  cursors: { get(): Promise<{ sent: number; received: number }>; set(c: { sent: number; received: number }): Promise<void> };
+  fetchSince: (cursor: number) => Promise<{ records: TrackedRecord[]; cursor: number; more?: boolean; reset?: boolean; generation?: string }>;
+  cursors: { get(): Promise<SyncCursors>; set(c: SyncCursors): Promise<void> };
   /** Checked before every request. False ends the run quietly; what is done stays done. */
   mayContinue?: () => boolean;
   /** Records the server refused. They stay in the local store; the queue moves on past them. */
@@ -82,11 +90,20 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
   };
 
   if (!may()) return { refused };
-  if ((await sendChanged(cur.sent)) === null) return { refused };
+  if ((await sendChanged(cur.resend ? 0 : cur.sent)) === null) return { refused };
 
   for (let page = 0; page < MAX_PAGES; page++) {
     if (!may()) return { refused };
     const got = await opts.fetchSince(cur.received);
+    if (got.generation !== undefined && got.generation !== cur.generation) {
+      // Another database than the one the cursors count in (a restore). The very first contact has nothing to redo.
+      const first = cur.generation === undefined && cur.sent === 0 && cur.received === 0;
+      const wasAt = cur.received;
+      cur.generation = got.generation;
+      if (!first) { cur.resend = true; cur.received = 0; sentNow.clear(); }
+      await opts.cursors.set({ ...cur });
+      if (wasAt !== 0) continue; // that page was read from a cursor of the old database
+    }
     if (got.records.length > 0) {
       // The copy first: if anything fails after this, the same copy is written again, the same text under the same id.
       for (const c of await copiesFor(got.records)) await putLocal(c);
@@ -95,7 +112,7 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
       for (const r of got.records) fromServer.set(key(r), JSON.stringify(r));
     }
     // The server lost data and counts from the start again: everything here goes up again.
-    if (got.reset) cur.sent = 0;
+    if (got.reset) cur.resend = true;
     const advanced = got.cursor !== cur.received;
     cur.received = got.cursor;
     await opts.cursors.set({ ...cur });
@@ -103,9 +120,10 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
   }
 
   if (!may()) return { refused };
-  const sentTo = await sendChanged(cur.sent);
+  const sentTo = await sendChanged(cur.resend ? 0 : cur.sent);
   if (sentTo === null) return { refused };
   cur.sent = sentTo;
+  cur.resend = false;
   await opts.cursors.set({ ...cur });
   if (refused.length > 0) opts.refused?.(refused);
   return { refused };

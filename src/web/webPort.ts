@@ -96,7 +96,7 @@ export function createWebPort(o: {
           await verify();
           const out = await call('GET', `/records?since=${cursor}&limit=${PAGE}`);
           if (!isObj(out) || !Array.isArray(out.records) || typeof out.cursor !== 'number') throw new Error('unexpected answer');
-          return { records: out.records.filter(valid), cursor: out.cursor, more: out.more === true, reset: out.reset === true };
+          return { records: out.records.filter(valid), cursor: out.cursor, more: out.more === true, reset: out.reset === true, generation: typeof out.generation === 'string' ? out.generation : undefined };
         },
         mayContinue: () => !disposed && !paused,
       });

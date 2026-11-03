@@ -55,7 +55,7 @@ describe('api', () => {
     const second = (await get(app, '/records', a)).json();
     expect(second.records).toHaveLength(2);
     expect(second.cursor).toBe(first.cursor);
-    expect((await get(app, `/records?since=${first.cursor}`, a)).json()).toEqual({ records: [], cursor: first.cursor, more: false, reset: false });
+    expect((await get(app, `/records?since=${first.cursor}`, a)).json()).toMatchObject({ records: [], cursor: first.cursor, more: false, reset: false });
   });
 
   it('an older send does not win and the overwritten copy is kept', async () => {

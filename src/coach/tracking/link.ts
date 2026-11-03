@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { SyncCursors } from '../../tracking/sync';
 
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 const TIMEOUT_MS = 15_000;
@@ -88,13 +89,16 @@ export class AccountLinks {
   /** The server said 401: no more calls until the profile is linked again. */
   reject(profileId: string): void { if (this.read(profileId)) this.rejected.add(profileId); }
 
-  cursors(profileId: string): { get(): Promise<{ sent: number; received: number }>; set(c: { sent: number; received: number }): Promise<void> } {
+  cursors(profileId: string): { get(): Promise<SyncCursors>; set(c: SyncCursors): Promise<void> } {
     const f = `${this.file(profileId)}.cursors`;
     return {
       get: async () => {
         try {
-          const d = JSON.parse(fs.readFileSync(f, 'utf8')) as { sent?: unknown; received?: unknown };
-          return { sent: typeof d.sent === 'number' ? d.sent : 0, received: typeof d.received === 'number' ? d.received : 0 };
+          const d = JSON.parse(fs.readFileSync(f, 'utf8')) as { sent?: unknown; received?: unknown; generation?: unknown; resend?: unknown };
+          return {
+            sent: typeof d.sent === 'number' ? d.sent : 0, received: typeof d.received === 'number' ? d.received : 0,
+            ...(typeof d.generation === 'string' ? { generation: d.generation } : {}), ...(d.resend === true ? { resend: true } : {}),
+          };
         } catch { return { sent: 0, received: 0 }; }
       },
       set: async (c) => { fs.writeFileSync(`${f}.tmp`, JSON.stringify(c)); fs.renameSync(`${f}.tmp`, f); },

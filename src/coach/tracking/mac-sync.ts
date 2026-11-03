@@ -128,7 +128,7 @@ export class AccountSync {
           const out = await call('GET', `/records?since=${cursor}&limit=${PAGE}`);
           if (!isObj(out) || !Array.isArray(out.records) || typeof out.cursor !== 'number' || !Number.isFinite(out.cursor)) throw new Error('unexpected answer');
           const records = out.records.flatMap((x) => { const r = validRecord(x); return r ? [r] : []; });
-          return { records, cursor: out.cursor, more: out.more === true, reset: out.reset === true };
+          return { records, cursor: out.cursor, more: out.more === true, reset: out.reset === true, generation: typeof out.generation === 'string' ? out.generation : undefined };
         },
         refused: (list) => { for (const r of list) s.refused.add(r.id); },
       });

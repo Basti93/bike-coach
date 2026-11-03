@@ -59,6 +59,9 @@ if [ "$actual" != "$expected" ]; then
   echo "Counts differ after starting the app on the copy:" >&2; echo "$actual" >&2; exit 1
 fi
 echo "Counts match."
+docker exec "$app" node -e "const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(process.argv[1], { readOnly: true }); process.exit(db.prepare(\"SELECT 1 FROM meta WHERE key = 'from_backup'\").get() ? 1 : 0);" /data/pandafit.db \
+  || { echo "The restored copy did not get a new generation." >&2; exit 1; }
+echo "New generation in place."
 mkdir -p "$BACKUP_DIR"
 echo "$(date '+%Y-%m-%dT%H:%M:%S%z') restore-drill ok $base $(echo "$expected" | tr '\n' ' ')" >> "$BACKUP_DIR/drill.log"
 echo "Restore drill ok. Throwaway container and volume are removed; production was not touched."

@@ -91,7 +91,7 @@ describe('records', () => {
     const r = (await get(app, '/records?since=999&limit=2', a)).json();
     expect(r.reset).toBe(true); expect(r.records).toHaveLength(2); expect(r.more).toBe(true); expect(r.cursor).toBe(2);
     const n = (await get(app, '/records?since=3', a)).json();
-    expect(n).toEqual({ records: [], cursor: 3, more: false, reset: false });
+    expect(n).toMatchObject({ records: [], cursor: 3, more: false, reset: false });
   });
 });
 

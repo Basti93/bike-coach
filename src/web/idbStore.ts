@@ -1,5 +1,6 @@
 import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { PutResult } from '../tracking/ports';
+import type { SyncCursors } from '../tracking/sync';
 import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
@@ -14,7 +15,7 @@ export type IdbStore = {
   /** One transaction for a whole page. */
   applyMany(rs: TrackedRecord[]): Promise<void>;
   changedSince(cursor: number): Promise<{ records: TrackedRecord[]; cursor: number }>;
-  cursors: { get(): Promise<{ sent: number; received: number }>; set(c: { sent: number; received: number }): Promise<void> };
+  cursors: { get(): Promise<SyncCursors>; set(c: SyncCursors): Promise<void> };
   /** Refused records stay in their own store, with the record as it was. */
   addRefused(list: Refusal[]): Promise<void>;
   /** These were accepted by the server after all (a later edit): they leave the refused list. */
@@ -138,14 +139,14 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
     cursors: {
       get: () => run(async (d) => {
         const tx = d.transaction('meta', 'readonly');
-        const c = (await req(tx.objectStore('meta').get('cursors'))) as { sent: number; received: number } | undefined;
-        return { sent: c?.sent ?? 0, received: c?.received ?? 0 };
+        const c = (await req(tx.objectStore('meta').get('cursors'))) as SyncCursors | undefined;
+        return { ...c, sent: c?.sent ?? 0, received: c?.received ?? 0 };
       }),
       async set(c) {
         await run(async (d) => {
           const tx = d.transaction('meta', 'readwrite');
           const finished = done(tx);
-          tx.objectStore('meta').put({ sent: c.sent, received: c.received }, 'cursors');
+          tx.objectStore('meta').put({ ...c }, 'cursors');
           await finished;
         });
         if (await refreshCounts()) notify();

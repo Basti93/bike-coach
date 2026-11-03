@@ -19,6 +19,10 @@ const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 fs.rmSync('/data/backup.db', { force: true });
 new DatabaseSync('/data/pandafit.db').exec("VACUUM INTO '/data/backup.db'");
+// Marks the copy, not the live data: whenever this file comes up as the database it gets a new generation (web-server/db.ts).
+const marked = new DatabaseSync('/data/backup.db');
+marked.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT OR REPLACE INTO meta VALUES ('from_backup', '1')");
+marked.close();
 const copy = new DatabaseSync('/data/backup.db', { readOnly: true });
 if (copy.prepare('PRAGMA integrity_check').get().integrity_check !== 'ok') { console.error('integrity check failed'); process.exit(1); }
 if (copy.prepare('SELECT count(*) AS n FROM accounts').get().n === 0) { console.error('backup has no accounts'); process.exit(1); }

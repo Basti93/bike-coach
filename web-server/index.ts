@@ -4,7 +4,7 @@ import { extname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
 import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
-import { openDb } from './db';
+import { generationOf, openDb } from './db';
 
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan'];
 const BODY_LIMIT = 5 * 1024 * 1024;
@@ -31,6 +31,7 @@ const str = (v: unknown, max: number): v is string => typeof v === 'string' && v
 
 export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string }): FastifyInstance => {
   const db = openDb(opts.dbPath);
+  const generation = generationOf(db);
   const now = opts.nowMs ?? Date.now;
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
   const staticRoot = opts.staticDir && existsSync(opts.staticDir) ? realpathSync(opts.staticDir) : null;
@@ -197,7 +198,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     if (reset) since = 0;
     const rows = db.prepare('SELECT * FROM records WHERE account_id = ? AND seq > ? ORDER BY seq LIMIT ?').all(acct(req), since, n + 1) as Row[];
     const page = rows.slice(0, n);
-    return { records: page.map(toRecord), cursor: page.length ? page[page.length - 1]!.seq : since, more: rows.length > n, reset };
+    return { records: page.map(toRecord), cursor: page.length ? page[page.length - 1]!.seq : since, more: rows.length > n, reset, generation };
   });
 
   // Static files: GET only, only from staticDir, no traversal, no symlink escape.

@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { createAccount, listDevices, revokeDevice, setPassword } from './auth';
-import { openDb } from './db';
+import { newGeneration, openDb } from './db';
 
 export type Io = { readPassword: () => Promise<string>; out: (s: string) => void };
 
@@ -25,13 +25,16 @@ export const run = async (args: string[], dbPath: string, io: Io): Promise<numbe
       const id = Number(flag(args, '--id'));
       if (!Number.isInteger(id) || !revokeDevice(db, id)) throw new Error('no such device');
       io.out('device revoked');
+    } else if (cmd === 'new-generation') {
+      newGeneration(db);
+      io.out('new generation; devices send and fetch everything again on their next sync');
     } else if (cmd === 'list-kept') {
       const name = flag(args, '--name');
       const account = name ? db.prepare('SELECT id FROM accounts WHERE name = ?').get(name) as { id: number } | undefined : undefined;
       if (!account) throw new Error('list-kept needs the --name of an account');
       const rows = db.prepare('SELECT kind, id, updated_ms, deleted, stale, at_ms, body FROM overwritten WHERE account_id = ? ORDER BY n').all(account.id) as { kind: string; id: string; updated_ms: number; deleted: number; stale: number; at_ms: number; body: string }[];
       for (const r of rows) io.out([r.kind, r.id, r.updated_ms, r.deleted ? 'gelöscht' : 'vorhanden', r.stale ? 'veraltet gesendet' : 'überschrieben', new Date(r.at_ms).toISOString(), r.body].join('\t'));
-    } else throw new Error('commands: create-account --name <n> [--force], set-password --name <n>, list-devices, revoke-device --id <id>, list-kept --name <n>');
+    } else throw new Error('commands: create-account --name <n> [--force], set-password --name <n>, list-devices, revoke-device --id <id>, list-kept --name <n>, new-generation');
     return 0;
   } catch (e) {
     io.out(`error: ${(e as Error).message}`);
