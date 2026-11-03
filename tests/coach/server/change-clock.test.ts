@@ -71,3 +71,14 @@ describe('ChangeClock', () => {
     expect(new ChangeClock(file).admit('ftp', 1)).toBe(true);
   });
 });
+
+test('admits only asks; stamp records an applied change and never moves back', () => {
+  const file = path.join(temp(), 'clock.json');
+  const clock = new ChangeClock(file);
+  expect(clock.admits('ftp', 2000)).toBe(true);
+  expect(fs.existsSync(file)).toBe(false);
+  clock.stamp('ftp', 2000);
+  clock.stamp('ftp', 1000);
+  expect(clock.admits('ftp', 1500)).toBe(false);
+  expect(clock.admits('ftp', 2000)).toBe(true);
+});

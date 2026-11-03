@@ -363,3 +363,19 @@ test('the records link points at /internal/accounts/1 with the internal token', 
   expect(url.startsWith(`${API}/internal/accounts/1/records`)).toBe(true);
   expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${TOKEN}`);
 });
+
+test('a coach that does not start is logged once with the kind of error, never its message', () => {
+  const root = temp();
+  seedAccount(root, 1, P1);
+  const { household } = make({ root });
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    vi.spyOn(household, 'start').mockImplementation(() => { throw new SyntaxError('Unexpected token in "Mein Knie schmerzt"'); });
+    expect(household.account(1)).toBeNull();
+    household.scan();
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = JSON.stringify(log.mock.calls);
+    expect(line).toContain('SyntaxError');
+    expect(line).not.toContain('Knie');
+  } finally { log.mockRestore(); }
+});

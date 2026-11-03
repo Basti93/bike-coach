@@ -8,6 +8,7 @@ import { sealedTokens } from '../secrets/garmin-tokens';
 import { sealedCodec } from '../secrets/secret-box';
 import { computeTogether, type Together } from '../together';
 import type { RecordStore } from '../tracking/store';
+import { ChangeClock } from './change-clock';
 import { HeavyLock, inQuietHours } from './heavy';
 import { internalLinks } from './internal-links';
 
@@ -53,6 +54,13 @@ const readProfile = (file: string): Profile | null => {
   } catch { return null; }
 };
 
+/** An error's code or name, never its message. */
+const errorKind = (e: unknown): string => {
+  const code = (e as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && /^[A-Z0-9_]{1,40}$/.test(code)) return code;
+  return e instanceof Error && /^[A-Za-z]{1,40}$/.test(e.name) ? e.name : 'Fehler';
+};
+
 const writeJson = (file: string, data: unknown): void => {
   const tmp = `${file}.tmp`;
   const fd = fs.openSync(tmp, 'w', 0o600);
@@ -74,6 +82,7 @@ export class Household {
   private readonly nowMs: () => number;
   private readonly ask: Ask;
   private mealCoach: MealCoach | null = null;
+  private clock: ChangeClock | null = null;
   /** Accounts whose start failed, so the log says it once. */
   private readonly failed = new Set<number>();
 
@@ -100,7 +109,8 @@ export class Household {
       this.start(accountId);
       this.failed.delete(accountId);
     } catch (e) {
-      if (!this.failed.has(accountId)) console.error(`Konto ${accountId}: Coach startet nicht`, e instanceof Error ? e.message.slice(0, 200) : 'Fehler');
+      // The message can quote an account's file, so only its kind goes to the log.
+      if (!this.failed.has(accountId)) console.error(`Konto ${accountId}: Coach startet nicht (${errorKind(e)})`);
       this.failed.add(accountId);
     }
   }
@@ -152,6 +162,24 @@ export class Household {
         writeJson(profileFile, next);
         current = next;
       },
+    });
+  }
+
+  /** "Last change wins" for the items of the shared meal plan: one clock for every account, in `household/meals/clock.json`. */
+  mealClock(): ChangeClock {
+    this.clock ??= new ChangeClock(path.join(this.mealsDir(), 'clock.json'));
+    return this.clock;
+  }
+
+  /** Every moved account with a valid profile, read from the disk only: starts nothing. */
+  movedAccounts(): { accountId: number; profileId: string; dir: string }[] {
+    let names: string[] = [];
+    try { names = fs.readdirSync(path.join(this.opts.root, 'accounts')); } catch { /* no account yet */ }
+    return names.filter((n) => ACCOUNT_DIR.test(n)).sort((x, y) => Number(x) - Number(y)).flatMap((name) => {
+      const dir = this.accountDir(Number(name));
+      if (!fs.existsSync(path.join(dir, 'moved.json'))) return [];
+      const p = readProfile(path.join(dir, 'profile.json'));
+      return p ? [{ accountId: Number(name), profileId: p.id, dir }] : [];
     });
   }
 

@@ -22,7 +22,10 @@ export const changeKey = (m: CoachClientMessage): string | null => {
   }
 };
 
-/** Per account: when each item last changed. A change older than that is skipped, so a queued change never undoes a newer one. */
+/** True for the keys of the household's shared meal plan, which one clock for the whole household keeps. */
+export const isHouseholdKey = (key: string): boolean => key.startsWith('meal:') || key.startsWith('eater:');
+
+/** Per account (and one for the shared meal plan): when each item last changed. A change older than that is skipped, so a queued change never undoes a newer one. */
 export class ChangeClock {
   private stamps: Map<string, number> | null = null;
 
@@ -53,12 +56,25 @@ export class ChangeClock {
     fs.renameSync(tmp, this.file);
   }
 
-  /** True when the change at `atMs` is not older than the item's last one; it then becomes the item's last change. */
-  admit(key: string, atMs: number): boolean {
+  /** True when a change at `atMs` is not older than the item's last one. Changes nothing. */
+  admits(key: string, atMs: number): boolean {
+    const last = this.load().get(key);
+    return last === undefined || atMs >= last;
+  }
+
+  /** Records a change that was applied. The item's last change never moves back. */
+  stamp(key: string, atMs: number): void {
     const stamps = this.load();
     const last = stamps.get(key);
-    if (last !== undefined && atMs < last) return false;
-    if (last !== atMs) { stamps.set(key, atMs); this.save(); }
+    if (last !== undefined && last >= atMs) return;
+    stamps.set(key, atMs);
+    this.save();
+  }
+
+  /** admits, then stamp: true when the change at `atMs` is not older than the item's last one, which it then becomes. */
+  admit(key: string, atMs: number): boolean {
+    if (!this.admits(key, atMs)) return false;
+    this.stamp(key, atMs);
     return true;
   }
 }

@@ -8,6 +8,7 @@ import { Household } from '../../../src/coach/server/household';
 import { buildCoachServer } from '../../../src/coach/server/http';
 import type { CoachServerMessage } from '../../../src/shared/coach-protocol';
 import type { Profile } from '../../../src/shared/profiles';
+import { DEFAULT_MEAL_SETTINGS } from '../../../src/shared/meals';
 
 const KEY = Buffer.alloc(32, 7);
 const TOKEN = 'b'.repeat(64);
@@ -42,9 +43,15 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: number } } = {}) => {
+const start = async (o: { accounts?: [number, Profile, boolean?][]; now?: { ms: number }; meals?: boolean } = {}) => {
   const root = temp();
   for (const [id, p, moved] of o.accounts ?? [[1, P1], [2, P2]]) seedAccount(root, id, p, moved !== false);
+  if (o.meals) {
+    const dir = path.join(root, 'household', 'meals');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'household.json'), JSON.stringify({ settings: { pa: { ...DEFAULT_MEAL_SETTINGS, on: true }, pb: { ...DEFAULT_MEAL_SETTINGS, on: true } }, plans: {}, states: {}, notices: {}, lastAuto: null }));
+    fs.writeFileSync(path.join(dir, 'moved.json'), JSON.stringify({ atMs: 1 }));
+  }
   const clock = o.now ?? { ms: NOON };
   const ask = vi.fn(async (): Promise<unknown> => { throw new Error('no Claude in tests'); });
   const hevyFetch = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -246,10 +253,65 @@ test('a binary or broken frame is ignored and the socket stays open', async () =
 test('/healthz?counts=1 with the token gives each account\'s counts', async () => {
   const t = await start();
   t.household.account(1)!.runtime.handle({ type: 'subscribe', profileId: 'pa' }, () => {});
+  const started = vi.spyOn(t.household, 'start');
   const res = await app!.inject({ method: 'GET', url: '/healthz?counts=1', headers: { 'x-pandafit-internal': TOKEN } });
   expect(res.statusCode).toBe(200);
   const body = res.json() as { ok: boolean; accounts: Record<string, { profileId: string; rides: number; records: number; coach: boolean }> };
   expect(body.ok).toBe(true);
   expect(body.accounts['1']).toMatchObject({ profileId: 'pa', rides: 0, records: 0, coach: true });
   expect(body.accounts['2']).toMatchObject({ profileId: 'pb', rides: 0 });
+  // A probe reads the disk only: it starts no account's coach.
+  expect(started).not.toHaveBeenCalled();
+  // One parser decides: a repeated counts=1 is still a counts request and still needs the token.
+  expect((await app!.inject({ method: 'GET', url: '/healthz?counts=1&counts=1' })).statusCode).toBe(401);
+  const twice = await app!.inject({ method: 'GET', url: '/healthz?counts=1&counts=1', headers: { 'x-pandafit-internal': TOKEN } });
+  expect(twice.json()).toHaveProperty('accounts');
+});
+
+test('a probe before any socket starts no coach and counts every moved account from the disk', async () => {
+  const t = await start({ accounts: [[1, P1], [3, { id: 'pc', name: 'C', ftpW: 150 }, false]] });
+  const started = vi.spyOn(t.household, 'start');
+  const res = await app!.inject({ method: 'GET', url: '/healthz?counts=1', headers: { 'x-pandafit-internal': TOKEN } });
+  expect(Object.keys((res.json() as { accounts: object }).accounts)).toEqual(['1']);
+  expect(started).not.toHaveBeenCalled();
+});
+
+test('the shared meal plan has one clock: a stale queued tick from account 1 does not undo a newer live tick from account 2', async () => {
+  const t = await start({ meals: true });
+  const c1 = await t.as(1), c2 = await t.as(2);
+  t.send(c1, { type: 'subscribe', profileId: 'pa' });
+  t.send(c2, { type: 'subscribe', profileId: 'pb' });
+  await vi.waitFor(() => expect(states(c1).at(-1)?.meals).toBeTruthy());
+  await vi.waitFor(() => expect(states(c2).at(-1)?.meals).toBeTruthy());
+  const week = states(c1).at(-1)!.meals!.currentWeek;
+  t.send(c1, { type: 'meals-replan', profileId: 'pa', week });
+  const item = () => t.household.account(2)!.runtime.view('pb')!.meals!.weeks.find((w) => w.plan.week === week)?.state.items['Haferflocken']?.state;
+  await vi.waitFor(() => expect(t.household.account(1)!.runtime.view('pa')!.meals!.weeks.some((w) => w.plan.week === week)).toBe(true), { timeout: 3000 });
+  t.clock.ms = NOON + 2000;
+  t.send(c2, { type: 'meals-item', profileId: 'pb', week, item: 'Haferflocken', state: 'gekauft' });
+  await vi.waitFor(() => expect(item()).toBe('gekauft'));
+  t.clock.ms = NOON + 3000;
+  t.send(c1, { type: 'queued', atMs: NOON + 1000, message: { type: 'meals-item', profileId: 'pa', week, item: 'Haferflocken', state: 'offen' } });
+  await settle();
+  expect(item()).toBe('gekauft');
+  // A newer queued tick from account 1 still wins.
+  t.send(c1, { type: 'queued', atMs: NOON + 2500, message: { type: 'meals-item', profileId: 'pa', week, item: 'Haferflocken', state: 'da' } });
+  await vi.waitFor(() => expect(item()).toBe('da'));
+});
+
+test('the clock moves only for a change that was applied', async () => {
+  const t = await start();
+  const c = await t.as(1);
+  t.send(c, { type: 'subscribe', profileId: 'pa' });
+  // A refused profile-update (another profile) at 2000 ...
+  t.clock.ms = NOON + 2000;
+  t.send(c, { type: 'profile-update', profileId: 'pa', profile: { ...P2 } });
+  // ... and a meal tick before the household's meals moved change nothing, so they stamp nothing.
+  t.send(c, { type: 'meals-item', profileId: 'pa', week: '2026-11-02', item: 'Haferflocken', state: 'da' });
+  await settle();
+  const clocks = [path.join(t.root, 'accounts', '1', 'clock.json'), path.join(t.root, 'household', 'meals', 'clock.json')];
+  for (const f of clocks) if (fs.existsSync(f)) expect(fs.readFileSync(f, 'utf8')).not.toMatch(/profile|meal:/);
+  // An older queued profile-update still applies.
+  t.send(c, { type: 'queued', atMs: NOON + 1000, message: { type: 'profile-update', profileId: 'pa', profile: { ...P1, name: 'Alt' } } });
+  await vi.waitFor(() => expect(t.household.account(1)!.profile().name).toBe('Alt'));
 });

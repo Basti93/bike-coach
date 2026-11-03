@@ -5,7 +5,8 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { QUEUEABLE, type CoachClientMessage, type CoachServerMessage, type CoachStateMessage } from '../../shared/coach-protocol';
-import { ChangeClock, changeKey } from './change-clock';
+import { ChangeClock, changeKey, isHouseholdKey } from './change-clock';
+import { RecordStore } from '../tracking/store';
 import type { AccountCoach, Household } from './household';
 
 export type CoachServerOptions = { household: Household; internalToken: string; nowMs?: () => number };
@@ -19,12 +20,12 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 /** Compares digests, so neither the length nor the content of the token leaks through the time taken. */
 const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
 
-/** Per account: what the restore drill compares. Counts only, never content. */
-const accountCounts = (a: AccountCoach) => {
+/** Per account: what the restore drill compares. Counts only, never content, read from the disk without starting a coach. */
+const accountCounts = (a: { profileId: string; dir: string }) => {
   const count = (dir: string, test: (name: string) => boolean): number => { try { return fs.readdirSync(dir).filter(test).length; } catch { return 0; } };
   const rides = count(path.join(a.dir, 'rides'), (name) => fs.existsSync(path.join(a.dir, 'rides', name, 'meta.json')));
   let records = 0;
-  try { records = a.runtime.records.all(a.profileId).length; } catch { /* no records yet */ }
+  try { records = new RecordStore({ dir: path.join(a.dir, 'coach', 'tracking') }).all(a.profileId).length; } catch { /* no records yet */ }
   return {
     profileId: a.profileId, rides, records,
     coach: fs.existsSync(path.join(a.dir, 'coach', `${encodeURIComponent(a.profileId)}.json`)),
@@ -53,19 +54,19 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   const authorised = (req: IncomingMessage): number | null => (tokenOk(req.headers['x-pandafit-internal']) ? accountOf(req.headers['x-pandafit-account']) : null);
 
   app.addHook('onRequest', async (req, reply) => {
-    const url = req.url.split('?')[0];
-    if (url === '/healthz') {
-      const counts = new URLSearchParams(req.url.split('?')[1] ?? '').get('counts') === '1';
-      if (counts && !tokenOk(req.headers['x-pandafit-internal'])) return reply.code(401).send({ error: 'unauthorized' });
-      return;
-    }
+    // /healthz checks the token itself, for counts only.
+    if (req.url.split('?')[0] === '/healthz') return;
     if (authorised(req.raw) === null) return reply.code(401).send({ error: 'unauthorized' });
   });
 
-  app.get('/healthz', async (req) => {
-    if ((req.query as Record<string, unknown>).counts !== '1') return { ok: true };
+  app.get('/healthz', async (req, reply) => {
+    // One parser decides: any counts=1 among the query values asks for counts, and that needs the token.
+    const value = (req.query as Record<string, unknown>).counts;
+    const counts = (Array.isArray(value) ? value : [value]).includes('1');
+    if (!counts) return { ok: true };
+    if (!tokenOk(req.headers['x-pandafit-internal'])) return reply.code(401).send({ error: 'unauthorized' });
     const accounts: Record<string, ReturnType<typeof accountCounts>> = {};
-    for (const a of household.startAll()) accounts[String(a.accountId)] = accountCounts(a);
+    for (const a of household.movedAccounts()) accounts[String(a.accountId)] = accountCounts(a);
     return { ok: true, accounts };
   });
 
@@ -111,18 +112,42 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     }));
   };
 
+  /** Whether a keyed change will take effect, judged before it is applied. A refused one must not move the clock. */
+  const takesEffect = (a: AccountCoach, m: CoachClientMessage): boolean => {
+    try {
+      const meals = a.runtime.view(a.profileId)?.meals ?? null;
+      const planned = (week: unknown) => meals !== null && meals.settings.on && meals.weeks.some((w) => w.plan.week === week);
+      switch (m.type) {
+        case 'complaint-update': return (a.runtime.coachState(a.profileId)?.complaints ?? []).some((c) => c.id === m.id) && ['active', 'healing', 'over'].includes(m.status);
+        case 'set-ftp': return typeof m.ftpW === 'number' && m.ftpW >= 50;
+        case 'feedback': return typeof m.rideId === 'string' && ['easy', 'right', 'hard'].includes(m.rating);
+        case 'meals-settings': return meals !== null;
+        case 'meals-item': return planned(m.week) && typeof m.item === 'string' && ['offen', 'gekauft', 'da'].includes(m.state);
+        case 'meals-eater': return planned(m.week) && (meals?.weeks.find((w) => w.plan.week === m.week)?.plan.people.some((p) => p.id === m.person) ?? false);
+        case 'garmin-upload-settings': return m.mode === 'off' || m.mode === 'ask';
+        default: return true;
+      }
+    } catch { return false; }
+  };
+
   /** One message for this account, live or from a client's queue. Anything for another profile id is refused without an answer. */
   const apply = (c: Conn, a: AccountCoach, m: Record<string, unknown>, atMs: number, queued: boolean): void => {
     if (typeof m.type !== 'string' || m.profileId !== a.profileId) return;
     const msg = m as CoachClientMessage;
     const key = changeKey(msg);
-    // A live change is the newest by definition and stamps now; a queued one older than the item's last change is skipped.
-    if (key !== null && !clockOf(a).admit(key, atMs) && queued) return;
+    // The shared meal plan's items have one clock for the household; everything else is the account's own.
+    const clock = key === null ? null : isHouseholdKey(key) ? household.mealClock() : clockOf(a);
+    // A queued change older than the item's last change is skipped. A live one is the newest by definition.
+    if (key !== null && clock && queued && !clock.admits(key, atMs)) return;
+    // Only a change that takes effect moves the clock.
+    const stamp = (): void => { if (key !== null && clock) clock.stamp(key, atMs); };
     if (msg.type === 'profile-update') {
       try { a.setProfile(msg.profile); } catch { return; }
+      stamp();
       publish(a);
       return;
     }
+    if (key !== null && takesEffect(a, msg)) stamp();
     if (msg.type === 'subscribe') {
       c.subscribed = true;
       // The runtime reads new rides on subscribe; its own view is replaced by the one with the profile.

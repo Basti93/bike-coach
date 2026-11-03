@@ -4,7 +4,8 @@ import { pathToFileURL } from 'node:url';
 import { askClaude, findClaude } from '../claude-client';
 import { secretKeyFrom } from '../secrets/secret-box';
 import { buildCoachServer } from './http';
-import { Household } from './household';
+import type { FastifyInstance } from 'fastify';
+import { Household, type HouseholdOptions } from './household';
 
 const SCAN_MS = 10_000;
 /** tmpfs: opened Garmin tokens live here only while a Python run lasts. */
@@ -24,7 +25,7 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
   const internalToken = env.PANDAFIT_INTERNAL_TOKEN;
   if (typeof internalToken !== 'string' || !HEX_TOKEN.test(internalToken)) throw new Error('PANDAFIT_INTERNAL_TOKEN fehlt oder ist ungültig (64 Hex-Zeichen)');
   const port = Number(env.PORT ?? 8090);
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error('PORT ist ungültig');
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT ist ungültig');
   return {
     port, host: env.HOST ?? '0.0.0.0',
     root: env.PANDAFIT_COACH_DATA ?? '/data',
@@ -37,34 +38,68 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
   };
 };
 
-const run = (): void => {
-  let config: CoachServerConfig;
-  try { config = readCoachServerConfig(process.env); } catch (e) {
-    console.error(`Coach startet nicht: ${(e as Error).message}`);
-    process.exit(1);
-  }
-  const { dry } = config;
+/** The household's options. In the dry run Claude, Garmin and Hevy refuse at once, so nothing reaches the network. */
+export const householdOptions = (config: CoachServerConfig): HouseholdOptions => {
   const workDir = path.join(config.root, 'work');
-  if (!dry) fs.mkdirSync(workDir, { recursive: true, mode: 0o700 });
-  const refuse = (what: string) => () => { throw new Error(`${what} ist im Probelauf aus`); };
-  const household = new Household({
+  const refuse = (what: string) => (): never => { throw new Error(`${what} ist im Probelauf aus`); };
+  return {
     root: config.root, secretKey: config.secretKey, runDir: RUN_DIR,
     python: config.python, garminScripts: config.garminScripts,
     apiUrl: config.apiUrl, internalToken: config.internalToken,
     // askClaude ends every call at its timeout, so the household's one-at-a-time lock never stays held.
-    ask: dry ? async () => refuse('Claude')() : async (input) => askClaude({ ...input, workDir, bin: config.claudeBin ?? (await findClaude()) }),
-    ...(dry ? { spawnFn: refuse('Garmin') as never, fetchFn: (async () => refuse('Hevy')()) as never } : {}),
-  });
-  const app = buildCoachServer({ household, internalToken: config.internalToken });
-  app.listen({ port: config.port, host: config.host }).then(() => {
-    process.stdout.write(`Coach bereit auf Port ${config.port}${dry ? ' (Probelauf)' : ''}\n`);
-    if (dry) return;
-    household.scan();
-    setInterval(() => household.scan(), SCAN_MS);
-  }).catch((e: unknown) => {
-    console.error(`Coach startet nicht: ${e instanceof Error ? e.message : 'Fehler'}`);
-    process.exit(1);
-  });
+    ask: config.dry ? async () => refuse('Claude')() : async (input) => askClaude({ ...input, workDir, bin: config.claudeBin ?? (await findClaude()) }),
+    ...(config.dry ? { spawnFn: refuse('Garmin') as never, fetchFn: (async () => refuse('Hevy')()) as never } : {}),
+  };
 };
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) run();
+export type RunningCoachServer = { app: FastifyInstance; household: Household; stop(): Promise<void> };
+
+/** Listens, then scans at once and every `scanMs` (never in the dry run). stop() ends the scan and closes every socket. */
+export const startCoachServer = async (config: CoachServerConfig, opts: { scanMs?: number } = {}): Promise<RunningCoachServer> => {
+  if (!config.dry) fs.mkdirSync(path.join(config.root, 'work'), { recursive: true, mode: 0o700 });
+  const household = new Household(householdOptions(config));
+  const app = buildCoachServer({ household, internalToken: config.internalToken });
+  await app.listen({ port: config.port, host: config.host });
+  let timer: NodeJS.Timeout | null = null;
+  if (!config.dry) {
+    household.scan();
+    timer = setInterval(() => household.scan(), opts.scanMs ?? SCAN_MS);
+  }
+  let stopping: Promise<void> | null = null;
+  const stop = (): Promise<void> => {
+    stopping ??= (async () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      await app.close();
+    })();
+    return stopping;
+  };
+  return { app, household, stop };
+};
+
+type Proc = { env: Record<string, string | undefined>; on: (signal: 'SIGTERM' | 'SIGINT', fn: () => void) => void; exit: (code: number) => void; log: (line: string) => void };
+
+/** The container's entry: refuses a bad config with exit code 1, and on SIGTERM or SIGINT stops the scan, closes the server and exits 0. */
+export const run = async (proc: Proc): Promise<void> => {
+  let config: CoachServerConfig;
+  try { config = readCoachServerConfig(proc.env); } catch (e) {
+    proc.log(`Coach startet nicht: ${(e as Error).message}`);
+    proc.exit(1);
+    return;
+  }
+  let server: RunningCoachServer;
+  try { server = await startCoachServer(config); } catch (e) {
+    const code = (e as { code?: unknown } | null)?.code;
+    proc.log(`Coach startet nicht: ${typeof code === 'string' ? code : 'Fehler beim Start'}`);
+    proc.exit(1);
+    return;
+  }
+  const shutdown = (): void => { void server.stop().catch(() => {}).finally(() => proc.exit(0)); };
+  proc.on('SIGTERM', shutdown);
+  proc.on('SIGINT', shutdown);
+  process.stdout.write(`Coach bereit auf Port ${config.port}${config.dry ? ' (Probelauf)' : ''}\n`);
+};
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  void run({ env: process.env, on: (signal, fn) => { process.once(signal, fn); }, exit: (code) => process.exit(code), log: (line) => console.error(line) });
+}
