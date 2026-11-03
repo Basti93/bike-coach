@@ -210,6 +210,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   /** What the stats record of a profile says; null when there is nothing in the nine weeks. */
   const statsOf = (id: string): Omit<StatsBody, 'atMs'> | null => {
+    // After a start the gym coach has not listed the templates yet: list them once (cache first), then make the stats again.
+    if (!gym.knowsTemplates(id)) void gym.templateList(id).then(() => { statsMade.delete(id); }, () => {});
     const runs = run.runsFor(id);
     return statsContent({
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,

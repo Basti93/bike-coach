@@ -179,6 +179,8 @@ export class GymCoach {
     return list;
   }
   private known = new Map<string, Map<string, string>>();
+  /** Whether a template list of this profile was made since the start. */
+  knowsTemplates(id: string): boolean { return this.known.has(id); }
   /** The primary muscle of a template from the last template list of this profile; null before the first one or when unknown. */
   templateMuscle(id: string, templateId: string): string | null {
     return this.known.get(id)?.get(templateId) || null;
