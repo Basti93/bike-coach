@@ -9,6 +9,7 @@ import { openIdb } from './idbStore';
 import { mobilityToShow, openComplaints, planDateText, planIsStale, readPlan, shouldShowInstallHint } from './logic';
 import type { OpenState } from './register';
 import { createWebPort, type WebPort } from './webPort';
+import { MealsScreen, mealWeeks } from './MealsScreen';
 
 export type Env = {
   fetchFn: typeof fetch;
@@ -171,8 +172,8 @@ function Training({ port, env }: { port: WebPort; env: Env }) {
   );
 }
 
-type Tab = 'heute' | 'training' | 'verlauf' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
+type Tab = 'heute' | 'training' | 'essen' | 'verlauf' | 'profil';
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
@@ -216,6 +217,11 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   const [, tick] = useState(0);
   const status = useSyncExternalStore(port.onStatus, port.status);
   const workouts = usePortRecords(port, 'workout').records;
+  // Essen only when the Mac sent a plan for this account: the meal plan is off by default.
+  const mealRecords = usePortRecords(port, 'mealplan').records;
+  const hasMeals = mealWeeks(mealRecords, env.now()).length > 0;
+  const tabs = TABS.filter(([t]) => t !== 'essen' || hasMeals);
+  useEffect(() => { if (tab === 'essen' && mealRecords !== null && !hasMeals) setTab('heute'); }, [tab, hasMeals, mealRecords]);
 
   // Open on this device: a recent open record, or a store this session has opened or still has unsaved. Unknown until the first read.
   const state: OpenState = workouts === null ? 'unknown'
@@ -262,12 +268,13 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} />}
           {tab === 'training' && <Training port={port} env={env} />}
+          {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'verlauf' && <HistoryScreen port={port} now={env.now} />}
           {tab === 'profil' && <Profil account={account} port={port} status={status} onLogout={onLogout} />}
         </ErrorBoundary>
       </main>
-      <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`}>
-        {TABS.map(([t, label]) => (
+      <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+        {tabs.map(([t, label]) => (
           <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => setTab(t)}>{label}</button>
         ))}
       </nav>
