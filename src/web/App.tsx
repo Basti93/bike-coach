@@ -39,7 +39,6 @@ export type Env = {
 
 const ACCOUNT_KEY = 'pandafit.account';
 const HINT_KEY = 'pandafit.installHint';
-const PERSIST_KEY = 'pandafit.persistNote';
 const LOGGED_OUT_KEY = 'pandafit.loggedOut';
 const OPEN_MAX_AGE_MS = 12 * 3600_000;
 const ME_TIMEOUT_MS = 5000;
@@ -352,7 +351,8 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
 
   useEffect(() => {
     void env.persist().then((ok) => {
-      if (!ok && env.storage.getItem(PERSIST_KEY) !== '1') { env.storage.setItem(PERSIST_KEY, '1'); setPersistRefused(true); }
+      // A quiet line on Profil only, as long as the browser refuses; no banner over the other tabs.
+      if (!ok) setPersistRefused(true);
     }, () => {});
     if (shouldShowInstallHint({ ua: env.ua, standalone: env.standalone, seen: env.storage.getItem(HINT_KEY) === '1' })) {
       setHint(true);
@@ -386,7 +386,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         {push.state?.showCard && <PushCard push={push.state} />}
         {push.msg && <div className="tk-screen"><p role="status" className="tk-note">{push.msg}</p></div>}
         {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
-        {persistRefused && <div className="tk-screen"><p role="status" className="tk-note">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
+        {persistRefused && tab === 'profil' && <div className="tk-screen"><p role="status" className="muted">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
           {tab === 'training' && <Training port={port} env={env} />}

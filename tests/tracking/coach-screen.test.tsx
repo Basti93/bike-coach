@@ -31,7 +31,7 @@ test('taking a proposal writes the week plan and shows it; then it cannot be tak
   await waitFor(() => expect(records(map, 'weekplan')).toHaveLength(1));
   expect(records(map, 'weekplan')[0]).toMatchObject({ id: '2026-11-02', body: { fromMessage: 'c1', weekStart: '2026-11-02' } });
   expect(records(map, 'chat').some((r) => (r.body as { takes?: string }).takes === 'c1')).toBe(true);
-  expect(await screen.findByText('Übernommen.')).toBeTruthy();
+  expect(await screen.findByText(/Wochenplan übernommen/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Übernehmen' })).toBeNull();
   expect(screen.getByRole('list', { name: 'Wochenplan diese Woche' }).textContent).toContain('Kraft, mittel');
   expect(screen.queryByRole('status')).toBeNull();
@@ -43,7 +43,7 @@ test('declining writes a decline and changes no plan', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Nein danke' }));
   await waitFor(() => expect(records(map, 'chat').some((r) => (r.body as { declines?: string }).declines === 'c1')).toBe(true));
   expect(records(map, 'weekplan')).toHaveLength(0);
-  expect(await screen.findByText('Abgelehnt.')).toBeTruthy();
+  expect(await screen.findByText(/Vorschlag abgelehnt/)).toBeTruthy();
 });
 
 test('the run coach runs sit on their days in the week, and are listed alone without a week plan', async () => {
@@ -53,13 +53,13 @@ test('the run coach runs sit on their days in the week, and are listed alone wit
     type: 'week', week: '2026-11-02', announce: true, atMs: 1, phase: 1, source: 'rules', reason: 'Ruhig.', note: null, runs: [{ ...run, fp: runFp(run), done: null }], garmin: null } };
   const { port } = fakePort([runWeek]);
   render(<CoachScreen port={port} {...env} />);
-  expect((await screen.findByRole('list', { name: 'Läufe diese Woche' })).textContent).toContain('Lauf locker · 35 Min. · Puls bis 150');
+  expect((await screen.findByRole('list', { name: 'Läufe diese Woche' })).textContent).toContain('Laufen, 35 Min. locker · Puls bis 150');
   cleanup();
   const plan: TrackedRecord = { kind: 'weekplan', id: '2026-11-02', updatedMs: 1, deleted: false, body: { ...proposal, fromMessage: 'c1', acceptedMs: 1 } };
   const two = fakePort([runWeek, plan]);
   render(<CoachScreen port={two.port} {...env} />);
   const wed = (await screen.findByRole('list', { name: 'Wochenplan diese Woche' })).querySelectorAll('li')[2]!;
-  expect(wed.textContent).toContain('Lauf locker · 35 Min.');
+  expect(wed.textContent).toContain('Laufen, 35 Min. locker'); expect(wed.textContent?.match(/Laufen/g)).toHaveLength(1);
 });
 
 test('the coach writes by itself only when switched on here; the settings are saved as a record', async () => {

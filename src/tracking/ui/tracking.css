@@ -176,3 +176,8 @@
 .tk-coach-open { align-self: flex-start; }
 .tk-prefs summary { cursor: pointer; font-weight: 700; }
 .tk-prefs label { gap: .5rem; }
+/* The chat input stays at hand above the tab bar, like a messenger. */
+.tk-chat-input { position: sticky; bottom: calc(var(--web-nav-h, 0px) + env(safe-area-inset-bottom, 0px)); z-index: 3; background: var(--bg, #12201a); padding: .5rem 0; }
+/* Long muscle names wrap so four weeks fit a phone without scrolling sideways. */
+.tk-sets-table th[scope="row"] { white-space: normal; }
+.tk-sets-table td, .tk-sets-table thead th { padding: .2rem .25rem; }

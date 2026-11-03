@@ -135,3 +135,26 @@ test('Fortschritt shows one line per area with data and nothing for the rest', a
   expect(card.textContent).toContain('+10 W seit 10 Wochen');
   expect(card.querySelectorAll('dt')).toHaveLength(1);
 });
+
+test('this week lists only trained muscles; the rest is one tap away', async () => {
+  await show([statsRec(statsBody(days)), ...workouts]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  expect(within(week).getByText('Brust')).toBeTruthy();
+  expect(within(week).queryByText('Rücken')).toBeNull();
+  fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
+  expect(within(week).getByText('Rücken')).toBeTruthy();
+  fireEvent.click(within(week).getByRole('button', { name: 'Nur trainierte Muskeln' }));
+  expect(within(week).queryByText('Rücken')).toBeNull();
+});
+
+test('Fortschritt comes first, and the sets table shows the last four weeks', async () => {
+  const at = NOW;
+  const body = { ...statsBody(days), ftp: [{ atMs: at - 86_400_000, ftpW: 210 }], weightKg: 70 };
+  const { port } = fakePort([statsRec(body), ...workouts]);
+  render(<StatsScreen port={port} now={now} />);
+  const progress = await screen.findByRole('region', { name: 'Fortschritt' });
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  expect(progress.compareDocumentPosition(week) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const table = within(screen.getByRole('region', { name: 'Letzte 8 Wochen' })).getByRole('table');
+  expect(table.querySelectorAll('thead th').length).toBe(5); // the muscle column and four weeks
+});

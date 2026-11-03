@@ -15,15 +15,16 @@ const SLOW_MS = 3 * 60_000;
 const STALE_MS = 2 * 86_400_000;
 
 const RUN_KIND: Record<string, string> = { easy: 'locker', long: 'lang', test: 'Test' };
-const runText = (r: PlannedRun & { done?: unknown }) => `Lauf ${RUN_KIND[r.kind] ?? ''} · ${r.minutes} Min.${r.hrCap !== null ? ` · Puls bis ${r.hrCap}` : ''}${r.done != null ? ' · gelaufen' : ''}`;
+const runText = (r: PlannedRun & { done?: unknown }) => `Laufen, ${r.minutes} Min. ${RUN_KIND[r.kind] ?? ''}${r.hrCap !== null ? ` · Puls bis ${r.hrCap}` : ''}${r.done != null ? ' · gelaufen' : ''}`;
 
 function Week({ days, label, today, runs = [] }: { days: PlanDay[]; label: string; today?: string; runs?: PlannedRun[] }) {
   return (
     <ul className="tk-week" aria-label={label}>
       {days.map((d) => (
         <li key={d.date} className={d.date === today ? 'tk-today' : undefined} aria-current={d.date === today ? 'date' : undefined}>
-          <b>{dayName(d.date)}</b> <span>{dayText(d)}</span>{d.fixed && <span className="muted"> · fest</span>}{d.note && <span className="muted"> · {d.note}</span>}
-          {runs.filter((r) => r.date === d.date).map((r) => <span key={r.kind} className="tk-sub"> · {runText(r)}</span>)}
+          <b>{dayName(d.date)}</b> <span>{d.sport === 'run' && runs.some((r) => r.date === d.date) ? runs.filter((r) => r.date === d.date).map(runText).join(' · ') : dayText(d)}</span>
+          {d.fixed && <span className="muted"> · fest</span>}{d.note && <span className="muted"> · {d.note}</span>}
+          {d.sport !== 'run' && runs.filter((r) => r.date === d.date).map((r) => <span key={r.kind} className="tk-sub"> · {runText(r)}</span>)}
         </li>
       ))}
     </ul>
@@ -32,6 +33,8 @@ function Week({ days, label, today, runs = [] }: { days: PlanDay[]; label: strin
 
 function Proposal({ m, answer, past, onTake, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | null; past: boolean; onTake: () => void; onDecline: () => void }) {
   const p = m.proposal;
+  // A proposal that was answered is one line; the plan itself stands at the top of the page.
+  if (answer !== null) return <p className="muted">{answer === 'taken' ? 'Wochenplan übernommen' : 'Vorschlag abgelehnt'} (ab {p.weekStart.slice(8, 10)}.{p.weekStart.slice(5, 7)}.)</p>;
   return (
     <div className="tk-proposal">
       <Week days={p.days} label={`Vorschlag für die Woche ab ${dayName(p.weekStart)}, ${p.weekStart.slice(8, 10)}.${p.weekStart.slice(5, 7)}.`} />
@@ -135,6 +138,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
         )}
         {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
       </section>
+      <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
         {thread.map((m) => (m.takes || m.declines ? null : (
@@ -152,7 +156,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
         <textarea aria-label="Nachricht an den Coach" rows={2} value={text} maxLength={MAX_CHAT_TEXT} onChange={(e) => setText(e.target.value)} placeholder="Nachricht an den Coach" />
         <button type="submit" disabled={!text.trim()}>Senden</button>
       </form>
-      <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
     </div>
   );
 }

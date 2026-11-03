@@ -72,6 +72,7 @@ describe('web app', () => {
     fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
     await waitFor(() => expect(a.persist).toHaveBeenCalled());
+    fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
     expect((await screen.findAllByText(/dauerhaften Speicher/)).length).toBe(1);
   });
 
@@ -302,14 +303,13 @@ describe('web app', () => {
     expect(screen.queryByText(/privat/i)).toBeNull(); // private mode is never claimed
   });
 
-  it('the persistence notice shows only once', async () => {
-    await boot({ persist: false, seed: [] });
-    expect(await screen.findByText(/dauerhaften Speicher/)).toBeTruthy();
-    cleanup();
-    const again = await boot({ persist: false, seed: [], flags: { 'pandafit.persistNote': '1' } });
+  it('the persistence notice sits on Profil only, not over the other tabs', async () => {
+    const again = await boot({ persist: false, seed: [] });
     await screen.findByRole('navigation');
     await waitFor(() => expect(again.persist).toHaveBeenCalled());
     expect(screen.queryByText(/dauerhaften Speicher/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    expect(await screen.findByText(/dauerhaften Speicher/)).toBeTruthy();
   });
 
   it('the workout state is unknown until read, open for a fresh open workout, and none for a stale one', async () => {

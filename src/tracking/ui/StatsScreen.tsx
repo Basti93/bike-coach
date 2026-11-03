@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { MUSCLE_TARGETS, PAIRS, type MuscleGroup } from '../../shared/muscle-targets';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
@@ -30,7 +30,11 @@ export const statsVisible = (stats: TrackedRecord[] | null, workouts: TrackedRec
 
 function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; muscles: boolean }) {
   const w = v.thisWeek;
-  const groups = GROUPS.filter((g) => v.targets[g].max > 0 || (w.sets[g] ?? 0) > 0);
+  const [all, setAll] = useState(false);
+  const allGroups = GROUPS.filter((g) => v.targets[g].max > 0 || (w.sets[g] ?? 0) > 0);
+  // Only what was trained this week; the rest one tap away, so the page stays short.
+  const trained = allGroups.filter((g) => (w.sets[g] ?? 0) > 0);
+  const groups = all ? allGroups : trained;
   return (
     <section className="card tk-stats" aria-label="Diese Woche">
       <h2>Diese Woche</h2>
@@ -59,6 +63,10 @@ function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; m
             );
           })}
         </ul>
+      )}
+      {muscles && trained.length === 0 && !all && <p className="muted">Diese Woche noch keine Sätze.</p>}
+      {muscles && allGroups.length > trained.length && (
+        <button type="button" className="ghost" onClick={() => setAll(!all)}>{all ? 'Nur trainierte Muskeln' : 'Alle Muskelgruppen anzeigen'}</button>
       )}
       {v.verdicts.length > 0 && <ul className="tk-verdicts">{v.verdicts.map((t) => <li key={t}>{t}</li>)}</ul>}
     </section>
@@ -97,13 +105,15 @@ function MinutesChart({ v, weeks, hasStats }: { v: StatsView; weeks: WeekStats[]
   );
 }
 
-function SetsTable({ weeks }: { weeks: WeekStats[] }) {
+function SetsTable({ weeks: all }: { weeks: WeekStats[] }) {
+  // Four weeks fit a phone without scrolling sideways.
+  const weeks = all.slice(-4);
   const groups = GROUPS.filter((g) => weeks.some((w) => (w.sets[g] ?? 0) > 0));
   if (groups.length === 0) return <p className="muted">In diesen Wochen noch keine Sätze.</p>;
   return (
     <div className="tk-table-wrap">
       <table className="tk-sets-table">
-        <caption>Sätze pro Woche</caption>
+        <caption>Sätze pro Woche (letzte 4 Wochen)</caption>
         <thead><tr><th scope="col">Muskel</th>{weeks.map((w) => <th key={w.weekStart} scope="col">{shortDate(w.weekStart)}</th>)}</tr></thead>
         <tbody>
           {groups.map((g) => (
@@ -167,8 +177,8 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
         <h1 className="tk-title">Statistik</h1>
         <p className="muted">{v.asOfMs !== null ? `Stand: ${dateLabel(v.asOfMs)}` : 'Minuten und harte Tage erscheinen nach dem nächsten Lauf des Coaches.'}</p>
       </div>
-      <ThisWeek v={v} hasStats={hasStats} muscles={muscles} />
       <Progress rows={progress} />
+      <ThisWeek v={v} hasStats={hasStats} muscles={muscles} />
       {(minutes || muscles) && (
         <section className="card tk-stats" aria-label="Letzte 8 Wochen">
           <h2>Letzte 8 Wochen</h2>
