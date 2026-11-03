@@ -4,7 +4,8 @@ import { CoachLog } from './CoachLog';
 import { Encouragement, MotivationCard } from './MotivationCard';
 import type { CoachState } from '../../coach/state';
 import type { Together } from '../../coach/together';
-import type { CoachClientMessage, GarminStatus, GarminSyncInfo } from '../../shared/coach-protocol';
+import { CoachHomeNote } from './CoachHomeNote';
+import type { CoachHome, CoachClientMessage, GarminStatus, GarminSyncInfo } from '../../shared/coach-protocol';
 import type { Profile } from '../../shared/profiles';
 import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
@@ -42,7 +43,7 @@ const greeting = (): string => {
 type Choice = { session: Session; why: string; tag: string };
 
 type Props = {
-  together?: Together | null;
+  together?: Together | null; coachHome?: CoachHome;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; passCard?: ReactNode;
   /** Only for a Garmin login that has run out: the connections themselves live on the profile page. */
@@ -50,7 +51,7 @@ type Props = {
   garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; mobility?: MobilityView | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, passCard, garmin, garminSync, onProfile, garminReadiness, garminSuggestion, onReviewGarmin, mobility }: Props) => {
+export const CoachView = ({ coachHome, together, profile, state, thinking, coachConnected, sendRide, sendCoach, passCard, garmin, garminSync, onProfile, garminReadiness, garminSuggestion, onReviewGarmin, mobility }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
@@ -77,6 +78,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
       <div className="top">
         <h1>{profile.avatar && <span aria-hidden="true">{profile.avatar} </span>}{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
       </div>
+      {coachHome && <CoachHomeNote coachHome={coachHome} />}
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
       {state && (
         <Encouragement state={state}>

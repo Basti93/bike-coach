@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { GarminUploadSettings } from '../../coach/garmin-upload';
 import type { AccountStatus, CoachClientMessage, GarminStatus, GarminSyncInfo, HevyStatus } from '../../shared/coach-protocol';
+import type { CoachHome } from '../../shared/coach-protocol';
 import { AccountCard } from './AccountCard';
 import { GarminCard } from './GarminCard';
 import { HevyCard } from './HevyCard';
@@ -10,7 +11,7 @@ const NO_ACCOUNT: AccountStatus = { state: 'idle', name: null, reason: null, ref
 type Props = {
   profileId: string; coachConnected: boolean; send: (m: CoachClientMessage) => void;
   garmin: GarminStatus; garminSync?: GarminSyncInfo | null; upload?: GarminUploadSettings;
-  hevy?: HevyStatus; account?: AccountStatus;
+  hevy?: HevyStatus; account?: AccountStatus; coachHome?: CoachHome;
   /** The language toggle and anything else that only concerns this profile. */
   settings?: ReactNode;
   /** A calm line under the settings, for example what "Krafttraining starten" does. */
@@ -20,7 +21,7 @@ type Props = {
 };
 
 /** The profile page's own sections: small settings, then every connection, each optional and shown whether connected or not. */
-export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, settings, settingsNote, meals }: Props) => (
+export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, coachHome, settings, settingsNote, meals }: Props) => (
   <>
     {settings && (
       <section className="card profile-settings">
@@ -39,7 +40,7 @@ export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminS
             ? <details className="card garmin-later"><summary>Garmin verbinden (optional)</summary><GarminCard profileId={profileId} status={garmin} sync={garminSync} send={send} upload={upload} /></details>
             : <GarminCard profileId={profileId} status={garmin} sync={garminSync} send={send} upload={upload} />}
           <HevyCard profileId={profileId} status={hevy ?? { state: 'idle' }} send={send} />
-          <AccountCard profileId={profileId} status={account ?? NO_ACCOUNT} send={send} />
+          <AccountCard profileId={profileId} status={account ?? NO_ACCOUNT} send={send} coachHome={coachHome} />
         </>
       )}
     </section>

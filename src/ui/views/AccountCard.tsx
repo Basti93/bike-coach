@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { AccountStatus, CoachClientMessage } from '../../shared/coach-protocol';
+import { MovingNote } from './CoachHomeNote';
+import type { AccountStatus, CoachClientMessage, CoachHome } from '../../shared/coach-protocol';
 
 const REASON = {
   invalid: 'Name oder Passwort stimmen nicht. Bitte noch einmal prüfen.',
@@ -16,7 +17,7 @@ const syncText = (s: AccountStatus): string => {
 };
 
 /** Optional, each profile with its own account. The password stays in the form only until it is submitted and is never stored. */
-export const AccountCard = ({ profileId, status, send }: { profileId: string; status: AccountStatus; send: (m: CoachClientMessage) => void }) => {
+export const AccountCard = ({ profileId, status, send, coachHome }: { profileId: string; status: AccountStatus; send: (m: CoachClientMessage) => void; coachHome?: CoachHome }) => {
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +29,7 @@ export const AccountCard = ({ profileId, status, send }: { profileId: string; st
         {status.state === 'rejected'
           ? <p className="notice" role="status">Der Server erkennt dieses Gerät nicht mehr. Bitte das Konto neu verbinden. Deine Daten bleiben solange hier.</p>
           : <p className="muted">{syncText(status)}</p>}
+        {coachHome && <MovingNote coachHome={coachHome} />}
         {status.refused > 0 && <p className="notice" role="status">Ein Eintrag wurde vom Server nicht angenommen. Er bleibt sicher auf diesem Mac gespeichert.</p>}
         <p className="muted">Dein Training wird mit deinem Pandafit-Konto abgeglichen, damit du es auch am Handy siehst. Beim Trennen bleiben alle Daten auf diesem Mac.</p>
         <button className="ghost" onClick={() => send({ type: 'account-unlink', profileId })}>Trennen</button>

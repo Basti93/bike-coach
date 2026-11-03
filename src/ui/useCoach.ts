@@ -1,3 +1,4 @@
+import type { Profile } from '../shared/profiles';
 import type { MobilityView } from '../coach/mobility/mobility';
 import type { MealsView } from '../coach/meals/meal-coach';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,9 +10,11 @@ import type { GarminSuggestion } from '../shared/garmin-profile';
 import type { GymPublic } from '../coach/gym/public';
 import type { StrengthHealth } from '../coach/strength';
 import type { GymWorkout } from '../coach/gym/types';
-import { COACH_PORT, type CoachClientMessage, type AccountStatus, type GymConfirmResult, type GarminStatus, type GarminSyncInfo, type HevyStatus, type RideDetail } from '../shared/coach-protocol';
+import { COACH_PORT, type CoachClientMessage, type AccountStatus, type GymConfirmResult, type GarminStatus, type GarminSyncInfo, type HevyStatus, type RideDetail, type CoachHome } from '../shared/coach-protocol';
 
 const IDLE_ACCOUNT: AccountStatus = { state: 'idle', name: null, reason: null, refused: 0, offline: false, lastSyncMs: null };
+
+const LOCAL_HOME: CoachHome = { where: 'local' };
 
 export const useCoach = (profileId: string | null) => {
   const [state, setState] = useState<CoachState | null>(null);
@@ -19,6 +22,8 @@ export const useCoach = (profileId: string | null) => {
   const [debriefing, setDebriefing] = useState(false);
   const [hevy, setHevy] = useState<HevyStatus>({ state: 'idle' });
   const [account, setAccount] = useState<AccountStatus>(IDLE_ACCOUNT);
+  const [coachHome, setCoachHome] = useState<CoachHome>(LOCAL_HOME);
+  const [serverProfile, setServerProfile] = useState<Profile | null>(null);
   const [detail, setDetail] = useState<RideDetail | null>(null);
   const [together, setTogether] = useState<Together | null>(null);
   const [garmin, setGarmin] = useState<GarminStatus>({ state: 'idle' });
@@ -45,6 +50,8 @@ export const useCoach = (profileId: string | null) => {
 
   useEffect(() => {
     setState(null);
+    setCoachHome(LOCAL_HOME);
+    setServerProfile(null);
     setGarminHealth(null);
     setGym(null);
     setMobility(null);
@@ -73,7 +80,7 @@ export const useCoach = (profileId: string | null) => {
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
-        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setMeals(m.meals ?? null); setAccount(m.account ?? IDLE_ACCOUNT); }
+        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setMeals(m.meals ?? null); setAccount(m.account ?? IDLE_ACCOUNT); setCoachHome(m.coachHome ?? LOCAL_HOME); setServerProfile(m.coachHome?.where === 'server' ? m.profile ?? null : null); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -92,5 +99,5 @@ export const useCoach = (profileId: string | null) => {
     if (what !== 'result') { setGymPreview(null); setGymPreviewFailed(false); }
     if (what !== 'preview') setGymConfirmResult(null);
   };
-  return { account, tracking, mobility, meals, gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { coachHome, serverProfile, account, tracking, mobility, meals, gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

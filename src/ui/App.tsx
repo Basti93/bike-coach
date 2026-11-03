@@ -2,6 +2,7 @@ import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { hrMaxFor } from '../shared/hr-zones';
 import type { Profile } from '../shared/profiles';
 import { useCoach } from './useCoach';
+import { useServerProfile } from './useServerProfile';
 import { useLanguageLearning } from './useLanguageLearning';
 import { useRide } from './useRide';
 import { FilmView } from './views/FilmView';
@@ -68,6 +69,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const patch = (p: Partial<Views>) => setV((x) => (Object.entries(p).every(([k, val]) => x[k as keyof Views] === val) ? x : { ...x, ...p }));
   const setProfile = (p: Profile | null) => { setPicked(p); setV(HOME); };
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
+  useServerProfile(profile ?? null, coach.serverProfile, !!state?.engine || !!state?.ride, send);
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,8 +143,8 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
         {!coach.gym && coach.connected && <button className="secondary" onClick={() => coach.send({ type: 'gym-start', profileId: profile.id })}>Krafttraining starten</button>}
       </>
     );
-    return page(<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setV(HOME)} onDeleted={() => setProfile(null)}
-      extra={<ProfileExtras profileId={profile.id} coachConnected={coach.connected} send={coach.send} garmin={coach.garmin ?? { state: 'idle' }} garminSync={coach.garminSync} upload={coach.state?.garminUpload} hevy={coach.hevy} account={coach.account} settings={settings} settingsNote={!coach.gym && coach.connected ? 'Mit „Krafttraining starten“ plant Pandafit auch dein Krafttraining, mit oder ohne Hevy. Danach findest du es oben unter Kraft.' : undefined}
+    return page(<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} coachHome={coach.coachHome} sendRide={send} sendCoach={coach.send} onBack={() => setV(HOME)} onDeleted={() => setProfile(null)}
+      extra={<ProfileExtras profileId={profile.id} coachConnected={coach.connected} send={coach.send} garmin={coach.garmin ?? { state: 'idle' }} garminSync={coach.garminSync} upload={coach.state?.garminUpload} hevy={coach.hevy} account={coach.account} coachHome={coach.coachHome} settings={settings} settingsNote={!coach.gym && coach.connected ? 'Mit „Krafttraining starten“ plant Pandafit auch dein Krafttraining, mit oder ohne Hevy. Danach findest du es oben unter Kraft.' : undefined}
         meals={coach.connected ? <MealSettingsCard profileId={profile.id} settings={coach.meals?.settings} coachConnected={coach.connected && coach.meals != null} send={coach.send} /> : undefined} />} />);
   }
   if (v.health !== undefined) return page(<HealthView data={coach.garminHealth} range={v.health} onRange={(range) => { patch({ health: range }); requestHealth(range); }} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} />);
@@ -178,6 +180,6 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       ? <DebriefView profileId={profile.id} debrief={coach.state.debriefs![coach.state.debriefToShow]} next={coach.state.next} thinking={coach.debriefing} title={coach.state.summaries.find((r) => r.rideId === coach.state?.debriefToShow)?.sessionName} send={coach.send} />
       : coach.state?.awaitingFeedback
       ? <FeedbackView garminConnected={coach.garmin?.state === 'connected'} upload={coach.state.garminUpload} debrief={coach.state.debriefs?.[coach.state.awaitingFeedback]} debriefing={coach.debriefing} next={coach.state.next} together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
-      : <CoachView mobility={coach.mobility} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => patch({ review: true })} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} onProfile={() => go('profil')} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} />,
+      : <CoachView coachHome={coach.coachHome} mobility={coach.mobility} garminSuggestion={coach.garminSuggestion} onReviewGarmin={() => patch({ review: true })} garmin={coach.garmin} garminSync={coach.garminSync} garminReadiness={coach.garminReadiness} onProfile={() => go('profil')} passCard={<PassCard profileId={profile.id} pass={coach.state?.pass} send={coach.send} />} together={coach.together} profile={profile} state={coach.state} thinking={coach.thinking} coachConnected={coach.connected} sendRide={send} sendCoach={coach.send} />,
   );
 };
