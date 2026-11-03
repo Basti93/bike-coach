@@ -2,8 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { once } from 'node:events';
+import { finished } from 'node:stream/promises';
 import { parseProfile, type Profile } from '../../shared/profiles';
 import { RIDE_ID, readRideFiles, rideHash } from '../ride-upload-format';
 import { sealedCodec } from '../secrets/secret-box';
@@ -25,6 +25,7 @@ export type MigrationDeskOptions = {
   secretKey: Buffer;
   /** After the moved marker is written. */
   onMoved: (accountId: number) => void;
+  nowMs?: () => number;
   /** Takes a person's uploaded meal file into the household. Goes through the household, so it never writes behind the meal plan's back. */
   meals: (profileId: string, upload: Record<string, unknown>) => void;
 };
@@ -35,6 +36,7 @@ export const MAX_ITEM_BYTES = 128 * 1024 * 1024;
 const MAX_SECRET_BYTES = 64 * 1024;
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const ACCOUNT_DIR = /^[1-9][0-9]{0,15}$/;
 
 /** Where each item goes in the account's folder, for profile `p`. Only these names ever become paths. */
 const INSTALL: Record<MigrationItem, (p: string) => string[]> = {
@@ -90,6 +92,11 @@ const fsyncFile = (file: string): void => {
   const fd = fs.openSync(file, 'r+');
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 };
+/** Makes the renames inside a folder durable. */
+const fsyncDir = (dir: string): void => {
+  const fd = fs.openSync(dir, 'r');
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+};
 const writeSynced = (file: string, data: string | Buffer): void => {
   const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
   const fd = fs.openSync(tmp, 'w', 0o600);
@@ -135,7 +142,34 @@ type Held = { sha256: string; bytes: number };
  * either the account as it was or the whole move. Secrets are sealed as they arrive and never logged or answered.
  */
 export class MigrationDesk {
-  constructor(private readonly opts: MigrationDeskOptions) {}
+  private readonly nowMs: () => number;
+
+  constructor(private readonly opts: MigrationDeskOptions) {
+    this.nowMs = opts.nowMs ?? (() => Date.now());
+    this.sweepParts();
+  }
+
+  /** Parts an earlier process left behind when it stopped mid-upload: never trusted, never kept. */
+  private sweepParts(): void {
+    let names: string[] = [];
+    try { names = fs.readdirSync(path.join(this.opts.root, 'accounts')); } catch { return; }
+    for (const n of names) {
+      if (!ACCOUNT_DIR.test(n)) continue;
+      const dir = path.join(this.opts.root, 'accounts', n, 'migrate', 'incoming');
+      let files: string[] = [];
+      try { files = fs.readdirSync(dir); } catch { continue; }
+      for (const f of files) if (f.startsWith('.') && f.endsWith('.part')) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  }
+
+  /**
+   * What follows the moved marker: the waiting items go, the coach starts and the meal plan may move. Safe to repeat, so a crash
+   * after the marker is made good by the next begin or finish.
+   */
+  private complete(accountId: number): void {
+    fs.rmSync(path.join(this.accountDir(accountId), 'migrate'), { recursive: true, force: true });
+    this.opts.onMoved(accountId);
+  }
 
   private accountDir(accountId: number): string {
     if (!Number.isSafeInteger(accountId) || accountId <= 0) throw new MigrationError('invalid');
@@ -153,7 +187,7 @@ export class MigrationDesk {
   private heldElsewhere(accountId: number, profileId: string): boolean {
     let names: string[] = [];
     try { names = fs.readdirSync(path.join(this.opts.root, 'accounts')); } catch { /* no account yet */ }
-    return names.some((n) => /^[1-9][0-9]{0,15}$/.test(n) && Number(n) !== accountId && this.boundProfileId(Number(n)) === profileId);
+    return names.some((n) => ACCOUNT_DIR.test(n) && Number(n) !== accountId && this.boundProfileId(Number(n)) === profileId);
   }
 
   private held(accountId: number, name: MigrationItem): Held | null {
@@ -176,7 +210,10 @@ export class MigrationDesk {
     if (!m) throw new MigrationError('invalid');
     const dir = this.accountDir(accountId);
     const bound = this.boundProfileId(accountId);
-    if (this.moved(accountId) && bound) return { state: 'done', profileId: bound };
+    if (this.moved(accountId) && bound) {
+      this.complete(accountId);
+      return { state: 'done', profileId: bound };
+    }
     if ((bound !== null && bound !== m.profile.id) || this.heldElsewhere(accountId, m.profile.id)) return { state: 'refused', reason: 'other-profile' };
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeSynced(path.join(dir, 'profile.json'), JSON.stringify(m.profile));
@@ -187,7 +224,10 @@ export class MigrationDesk {
     };
   }
 
-  /** Streams the item to disk while hashing it; never holds it whole, except a small secret, which is sealed at once. */
+  /**
+   * Streams the item to disk while hashing it and never holds it whole. A secret (at most 64 KiB) is the exception: it is kept in memory
+   * only and sealed from there, so its clear text never touches the disk.
+   */
   async putItem(accountId: number, name: string, body: NodeJS.ReadableStream, sha256: string): Promise<'ok' | 'hash' | 'unknown' | 'closed'> {
     if (!isItem(name)) return 'unknown';
     if (this.moved(accountId) || this.boundProfileId(accountId) === null) return 'closed';
@@ -196,37 +236,54 @@ export class MigrationDesk {
     const max = label ? MAX_SECRET_BYTES : MAX_ITEM_BYTES;
     const dir = this.incoming(accountId);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const part = path.join(dir, `.${name}.${randomBytes(6).toString('hex')}.part`);
     const hash = createHash('sha256');
     let bytes = 0;
-    const meter = new Transform({
-      transform(chunk: Buffer, _enc, done) {
+    const target = path.join(dir, name);
+    const metaFile = path.join(dir, `${name}.meta.json`);
+    /** Reads the body chunk by chunk, counting and hashing, into `take`. Past the limit it stops at once. */
+    const drain = async (take: (chunk: Buffer) => Promise<void> | void): Promise<void> => {
+      for await (const raw of body as AsyncIterable<Buffer | string>) {
+        const chunk = typeof raw === 'string' ? Buffer.from(raw) : raw;
         bytes += chunk.length;
-        if (bytes > max) { done(new MigrationError('too-large')); return; }
+        if (bytes > max) throw new MigrationError('too-large');
         hash.update(chunk);
-        done(null, chunk);
-      },
-    });
-    try {
-      await pipeline(body, meter, fs.createWriteStream(part, { mode: 0o600 }));
-      if (hash.digest('hex') !== sha256) return 'hash';
-      const target = path.join(dir, name);
-      const metaFile = path.join(dir, `${name}.meta.json`);
-      // The old meta goes first: a crash before the new one leaves an item that counts as not there, never one with a stale hash.
-      fs.rmSync(metaFile, { force: true });
-      if (label) {
-        const sealed = sealedCodec(this.opts.secretKey, `${accountId}:${label}`).seal(fs.readFileSync(part, 'utf8'));
-        writeSynced(target, sealed);
-      } else {
-        fsyncFile(part);
-        fs.renameSync(part, target);
+        await take(chunk);
       }
-      writeSynced(metaFile, JSON.stringify({ sha256, bytes }));
-      return 'ok';
-    } finally {
-      // A refused, failed or sealed upload leaves nothing of its own; a secret's clear text is gone.
-      fs.rmSync(part, { force: true });
+    };
+    if (label) {
+      const chunks: Buffer[] = [];
+      await drain((chunk) => { chunks.push(chunk); });
+      const clear = Buffer.concat(chunks);
+      try {
+        if (hash.digest('hex') !== sha256) return 'hash';
+        const sealed = sealedCodec(this.opts.secretKey, `${accountId}:${label}`).seal(clear.toString('utf8'));
+        // The old meta goes first: a crash before the new one leaves an item that counts as not there, never one with a stale hash.
+        fs.rmSync(metaFile, { force: true });
+        writeSynced(target, sealed);
+      } finally {
+        // Our own copy only; the chunks belong to the stream.
+        clear.fill(0);
+      }
+    } else {
+      const part = path.join(dir, `.${name}.${randomBytes(6).toString('hex')}.part`);
+      const out = fs.createWriteStream(part, { mode: 0o600 });
+      try {
+        await drain(async (chunk) => { if (!out.write(chunk)) await once(out, 'drain'); });
+        out.end();
+        await finished(out);
+        if (hash.digest('hex') !== sha256) return 'hash';
+        fsyncFile(part);
+        fs.rmSync(metaFile, { force: true });
+        fs.renameSync(part, target);
+      } finally {
+        // Closed before the part goes, so a stream still opening cannot create it again afterwards.
+        if (!out.closed) { const closed = once(out, 'close'); out.destroy(); await closed; }
+        // A refused or failed upload leaves nothing of its own.
+        fs.rmSync(part, { force: true });
+      }
     }
+    writeSynced(metaFile, JSON.stringify({ sha256, bytes }));
+    return 'ok';
   }
 
   finish(accountId: number, manifest: Manifest): FinishResult {
@@ -237,6 +294,7 @@ export class MigrationDesk {
     if (bound === null || bound !== m.profile.id) throw new MigrationError('not-begun');
     const movedFile = path.join(dir, 'moved.json');
     if (this.moved(accountId)) {
+      this.complete(accountId);
       const was = readJson(movedFile);
       const counts = isObj(was) && isObj(was.counts) ? was.counts as { rides: number; items: number } : { rides: m.rides.length, items: m.items.length };
       return { state: 'done', counts };
@@ -258,11 +316,18 @@ export class MigrationDesk {
     const p = m.profile.id;
     writeSynced(path.join(dir, 'profile.json'), JSON.stringify(m.profile));
     // Copies, not moves: until the marker is written, a retry finds every item still waiting.
-    for (const i of m.items) copySynced(path.join(incoming, i.name), path.join(dir, ...INSTALL[i.name](p)));
+    const folders = new Set([dir]);
+    for (const i of m.items) {
+      const target = path.join(dir, ...INSTALL[i.name](p));
+      copySynced(path.join(incoming, i.name), target);
+      folders.add(path.dirname(target));
+    }
+    // Every rename above is durable before the marker says the move is done.
+    for (const f of folders) fsyncDir(f);
     const counts = { rides: m.rides.length, items: m.items.length };
-    writeSynced(movedFile, JSON.stringify({ atMs: Date.now(), profileId: p, counts }));
-    fs.rmSync(path.join(dir, 'migrate'), { recursive: true, force: true });
-    this.opts.onMoved(accountId);
+    writeSynced(movedFile, JSON.stringify({ atMs: this.nowMs(), profileId: p, counts }));
+    fsyncDir(dir);
+    this.complete(accountId);
     return { state: 'done', counts };
   }
 

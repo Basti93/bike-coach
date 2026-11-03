@@ -2,7 +2,7 @@ import type { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseProfile, type Profile } from '../../shared/profiles';
-import { MealCoach } from '../meals/meal-coach';
+import { cleanSettings, MealCoach } from '../meals/meal-coach';
 import { createCoachRuntime, type CoachRuntime } from '../runtime';
 import { sealedTokens } from '../secrets/garmin-tokens';
 import { sealedCodec } from '../secrets/secret-box';
@@ -46,6 +46,7 @@ export type AccountCoach = {
 };
 
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
+const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const ACCOUNT_DIR = /^[1-9][0-9]{0,15}$/;
 
 const readProfile = (file: string): Profile | null => {
@@ -190,7 +191,7 @@ export class Household {
   /** The desk that takes a profile over from the Mac. One per household; a finished move starts the account's coach. */
   migrationDesk(): MigrationDesk {
     this.desk ??= new MigrationDesk({
-      root: this.opts.root, secretKey: this.opts.secretKey,
+      root: this.opts.root, secretKey: this.opts.secretKey, nowMs: this.nowMs,
       onMoved: (accountId) => { this.tryStart(accountId); this.settleMeals(); },
       meals: (profileId, upload) => this.importMeals(profileId, upload),
     });
@@ -203,8 +204,7 @@ export class Household {
    */
   importMeals(profileId: string, upload: Record<string, unknown>): void {
     const settings = upload.settings;
-    const own = typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.prototype.hasOwnProperty.call(settings, profileId)
-      ? (settings as Record<string, unknown>)[profileId] : undefined;
+    const own = isRecord(settings) && Object.prototype.hasOwnProperty.call(settings, profileId) ? settings[profileId] : undefined;
     const open = this.openMeals();
     if (open) {
       if (own !== undefined) open.adoptSettings(profileId, own);
@@ -215,14 +215,16 @@ export class Household {
       let current: unknown = null;
       try { current = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none yet */ }
       if (typeof current !== 'object' || current === null || Array.isArray(current)) {
-        writeJson(file, upload);
+        // Every person's settings cut to the known shape, as the open meal plan would; the rest of the file as it came.
+        const cleaned = isRecord(settings) ? Object.fromEntries(Object.entries(settings).map(([id, raw]) => [id, cleanSettings(raw)])) : {};
+        writeJson(file, { ...upload, settings: cleaned });
         // The stamps of the shared items belong to the file they were made on; a new file starts a new clock.
         this.clock = null;
         fs.rmSync(path.join(this.mealsDir(), 'clock.json'), { force: true });
       } else if (own !== undefined) {
         const d = current as Record<string, unknown>;
-        const have = typeof d.settings === 'object' && d.settings !== null && !Array.isArray(d.settings) ? d.settings as Record<string, unknown> : {};
-        if (!Object.prototype.hasOwnProperty.call(have, profileId)) writeJson(file, { ...d, settings: { ...have, [profileId]: own } });
+        const have = isRecord(d.settings) ? d.settings : {};
+        if (!Object.prototype.hasOwnProperty.call(have, profileId)) writeJson(file, { ...d, settings: { ...have, [profileId]: cleanSettings(own) } });
       }
     }
     this.settleMeals();
@@ -235,7 +237,9 @@ export class Household {
     let d: unknown;
     try { d = JSON.parse(fs.readFileSync(path.join(dir, 'household.json'), 'utf8')); } catch { return; }
     const settings = (d as { settings?: unknown } | null)?.settings;
-    const people = typeof settings === 'object' && settings !== null && !Array.isArray(settings) ? Object.keys(settings) : [];
+    const people = isRecord(settings) ? Object.keys(settings) : [];
+    // A file with nobody in it counts as everyone moved: the meal plan opens empty, and people join later only through
+    // `adoptSettings` (a later upload) or their own settings change, both through the open meal plan.
     const moved = new Set(this.movedAccounts().map((a) => a.profileId));
     if (people.every((id) => moved.has(id))) writeJson(path.join(dir, 'moved.json'), { atMs: this.nowMs() });
   }

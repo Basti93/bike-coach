@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Readable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { cleanSettings } from '../../../src/coach/meals/meal-coach';
 import { MEAL_SYSTEM_PROMPT } from '../../../src/coach/meals/prompt';
 import { rideHash, type RideFiles, type RideUpload } from '../../../src/coach/ride-upload-format';
 import { openText } from '../../../src/coach/secrets/secret-box';
@@ -69,8 +70,8 @@ beforeEach(() => {
 });
 afterEach(async () => { await app?.close(); app = null; vi.unstubAllGlobals(); });
 
-const make = (o: { nowMs?: number; ask?: (input: { systemPrompt: string }) => Promise<unknown> } = {}) => {
-  const root = temp();
+const make = (o: { root?: string; nowMs?: number; ask?: (input: { systemPrompt: string }) => Promise<unknown> } = {}) => {
+  const root = o.root ?? temp();
   const ask = vi.fn(o.ask ?? (async (): Promise<unknown> => { throw new Error('no Claude in tests'); }));
   const household = new Household({
     root, secretKey: KEY, runDir: temp(), python: process.execPath, garminScripts: path.join(root, 'scripts'),
@@ -393,4 +394,124 @@ test('routes: an invalid manifest is a 400, another profile a 409, and a finish 
   expect(other.json()).toEqual({ state: 'refused', reason: 'other-profile' });
   // A ride for an account that has neither moved nor begun is a 404.
   expect((await t.json('PUT', '/rides/ride-1', rideUpload('ride-1', 'pb'), 3)).statusCode).toBe(404);
+});
+
+// ---- Fix round 1 ----
+
+/** Every file under the folder whose bytes hold the text. */
+const holding = (dir: string, text: string) => tree(dir).filter((f) => fs.readFileSync(path.join(dir, f)).includes(Buffer.from(text)));
+
+test('a secret never touches the disk in clear, not even while it arrives', async () => {
+  const t = make();
+  t.desk.begin(1, manifestOf(P1, {}, []));
+  const body = new PassThrough();
+  const done = t.desk.putItem(1, 'hevy-key', body, sha(HEVY_KEY));
+  body.write(HEVY_KEY);
+  // The upload is still open: its bytes have arrived, but nothing under the account may hold them.
+  await new Promise((r) => setTimeout(r, 30));
+  expect(holding(t.acc(1), HEVY_KEY)).toEqual([]);
+  body.end();
+  expect(await done).toBe('ok');
+  expect(holding(t.acc(1), HEVY_KEY)).toEqual([]);
+});
+
+test('the desk sweeps leftover upload parts when it starts', () => {
+  const root = temp();
+  const incoming = path.join(root, 'accounts', '1', 'migrate', 'incoming');
+  fs.mkdirSync(incoming, { recursive: true });
+  fs.writeFileSync(path.join(incoming, '.hevy-key.0a1b2c.part'), HEVY_KEY);
+  fs.writeFileSync(path.join(incoming, '.garmin-db.0a1b2c.part'), 'half a database');
+  fs.writeFileSync(path.join(incoming, 'coach-state'), '{}');
+  make({ root });
+  expect(fs.readdirSync(incoming)).toEqual(['coach-state']);
+});
+
+test('moved.json carries the household clock', async () => {
+  const t = make({ nowMs: NOON + 5 });
+  const m = manifestOf(P1, {}, []);
+  t.desk.begin(1, m);
+  t.desk.finish(1, m);
+  expect(JSON.parse(fs.readFileSync(path.join(t.acc(1), 'moved.json'), 'utf8')).atMs).toBe(NOON + 5);
+});
+
+test('every install folder is synced before the moved marker is written', async () => {
+  const t = make();
+  const items = fullItems(temp());
+  const m = manifestOf(P1, items, []);
+  t.desk.begin(1, m);
+  await t.putAll(1, items);
+  const fdPath = new Map<number, string>();
+  const log: string[] = [];
+  const open = fs.openSync;
+  const openSpy = vi.spyOn(fs, 'openSync').mockImplementation(((p: fs.PathLike, ...rest: unknown[]) => { const fd = (open as (...a: unknown[]) => number)(p, ...rest); fdPath.set(fd, String(p)); return fd; }) as typeof fs.openSync);
+  const fsync = fs.fsyncSync;
+  const syncSpy = vi.spyOn(fs, 'fsyncSync').mockImplementation((fd) => { log.push(`sync ${fdPath.get(fd as number)}`); fsync(fd); });
+  const rename = fs.renameSync;
+  const renameSpy = vi.spyOn(fs, 'renameSync').mockImplementation((a, b) => { log.push(`rename ${String(b)}`); rename(a, b); });
+  try { expect(t.desk.finish(1, m).state).toBe('done'); } finally { openSpy.mockRestore(); syncSpy.mockRestore(); renameSpy.mockRestore(); }
+  const marker = log.indexOf(`rename ${path.join(t.acc(1), 'moved.json')}`);
+  expect(marker).toBeGreaterThan(0);
+  for (const dir of [['coach'], ['coach', 'gym'], ['garmin', 'data', 'pa'], ['hevy', 'pa'], ['garmin', 'tokens', 'pa']]) {
+    const at = log.indexOf(`sync ${path.join(t.acc(1), ...dir)}`);
+    expect(at, dir.join('/')).toBeGreaterThanOrEqual(0);
+    expect(at, dir.join('/')).toBeLessThan(marker);
+  }
+});
+
+test('after a crash past the moved marker, finish and begin redo the cleanup and the meal plan\'s move', async () => {
+  const t = make();
+  const mealsDir = path.join(t.root, 'household', 'meals');
+  const on = { ...DEFAULT_MEAL_SETTINGS, on: true };
+  const m = manifestOf(P1, {}, []);
+  t.desk.begin(1, m);
+  // The meal file lists pa only, so pa's move completes the household.
+  fs.mkdirSync(mealsDir, { recursive: true });
+  fs.writeFileSync(path.join(mealsDir, 'household.json'), JSON.stringify({ settings: { pa: on } }));
+  // The crash: moved.json is written, migrate/ and the meal plan's move are not.
+  fs.mkdirSync(path.join(t.acc(1), 'migrate', 'incoming'), { recursive: true });
+  fs.writeFileSync(path.join(t.acc(1), 'migrate', 'incoming', 'coach-state'), '{}');
+  fs.writeFileSync(path.join(t.acc(1), 'moved.json'), JSON.stringify({ atMs: 1, profileId: 'pa', counts: { rides: 0, items: 0 } }));
+
+  expect(t.desk.begin(1, m)).toEqual({ state: 'done', profileId: 'pa' });
+  expect(fs.existsSync(path.join(t.acc(1), 'migrate'))).toBe(false);
+  expect(fs.existsSync(path.join(mealsDir, 'moved.json'))).toBe(true);
+
+  // The same through finish.
+  fs.rmSync(path.join(mealsDir, 'moved.json'));
+  fs.mkdirSync(path.join(t.acc(1), 'migrate', 'incoming'), { recursive: true });
+  expect(t.desk.finish(1, m)).toEqual({ state: 'done', counts: { rides: 0, items: 0 } });
+  expect(fs.existsSync(path.join(t.acc(1), 'migrate'))).toBe(false);
+  expect(fs.existsSync(path.join(mealsDir, 'moved.json'))).toBe(true);
+  expect(t.household.account(1)).not.toBeNull();
+});
+
+test('meals: before the meal plan opens, settings are cleaned as the open plan would clean them', async () => {
+  const t = make();
+  const mealsDir = path.join(t.root, 'household', 'meals');
+  const items: Items = {};
+  for (const [id, p] of [[1, P1], [2, P2]] as const) { const m = manifestOf(p, items, []); t.desk.begin(id, m); t.desk.finish(id, m); }
+  const raw = { on: true, diet: 'bogus', dislikes: ['  Pilze  ', 7], extra: 'x' };
+  // A third person keeps the meal plan closed: pc has not moved.
+  expect(t.desk.meals(1, Buffer.from(JSON.stringify({ settings: { pa: raw, pc: raw }, plans: {} })))).toBe('ok');
+  expect(fs.existsSync(path.join(mealsDir, 'moved.json'))).toBe(false);
+  expect(t.desk.meals(2, Buffer.from(JSON.stringify({ settings: { pb: raw } })))).toBe('ok');
+  const file = JSON.parse(fs.readFileSync(path.join(mealsDir, 'household.json'), 'utf8')) as { settings: Record<string, unknown> };
+  expect(file.settings.pa).toEqual(cleanSettings(raw));
+  expect(file.settings.pc).toEqual(cleanSettings(raw));
+  expect(file.settings.pb).toEqual(cleanSettings(raw));
+});
+
+test('routes: a secret past its size is a 413 and leaves no part behind; a meals body that is no object is a 400', async () => {
+  const t = startHttp();
+  await t.json('POST', '/migrate/begin', manifestOf(P1, {}, []));
+  const big = Buffer.alloc(65 * 1024, 0x61);
+  const res = await t.item('hevy-key', big);
+  expect(res.statusCode).toBe(413);
+  expect(tree(path.join(t.acc(1), 'migrate'))).toEqual([]);
+  const m = manifestOf(P1, {}, []);
+  await t.json('POST', '/migrate/finish', m);
+  for (const body of ['[1,2]', '"text"', 'not json']) {
+    const r = await app!.inject({ method: 'POST', url: '/migrate/meals', payload: body, headers: { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '1', 'content-type': 'application/json' } });
+    expect(r.statusCode, body).toBe(400);
+  }
 });
