@@ -34,3 +34,25 @@ test('lastDates on a Wednesday starts on a Monday and ends today', () => {
   expect(new Date(2027, 3, 19).getDay()).toBe(1);
   expect(d[d.length - 1]).toBe('2027-06-16');
 });
+
+test('one bad value does not sink the record: minutes per sport and per day stay within 0 to 1440', () => {
+  const days = statsDays({
+    ...empty,
+    rides: [{ startedAtMs: at(14), durationS: -3600 }, { startedAtMs: at(15), durationS: Number.NaN }, { startedAtMs: at(15, 12), durationS: 1800 }],
+    runs: [{ startMs: at(16), durationS: Number.POSITIVE_INFINITY }],
+    mobility: [{ doneMs: at(17), minutes: 10 }, { doneMs: at(17, 12), minutes: Number.NaN }],
+    // A multi-day Garmin activity, three days long, and a long day on top of it.
+    other: [{ startMs: at(18, 1), durationS: 3 * 86_400, sport: 'hiking' }],
+    strength: [{ startMs: at(18, 2), durationS: 3600 }],
+  }, DATES);
+  expect(days[0]!.minutes.bike).toBe(0);
+  expect(days[1]!.minutes.bike).toBe(30);
+  expect(days[2]!.minutes.run).toBe(0);
+  expect(days[3]!.minutes.mobility).toBe(10);
+  for (const d of days) {
+    const total = Object.values(d.minutes).reduce((a, b) => a + b, 0);
+    expect(total).toBeLessThanOrEqual(1440);
+    for (const m of Object.values(d.minutes)) { expect(Number.isFinite(m)).toBe(true); expect(m).toBeGreaterThanOrEqual(0); expect(m).toBeLessThanOrEqual(1440); }
+  }
+  expect(days[4]!.minutes.other + days[4]!.minutes.strength).toBe(1440);
+});

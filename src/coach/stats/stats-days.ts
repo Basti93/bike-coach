@@ -10,10 +10,14 @@ export type StatsInput = {
   ratings: Record<string, DayRating>;
 };
 
+const DAY_MINUTES = 1440;
+
 /** Minutes per sport per date, hardness and legs from the ratings. Removing doubles across sources is the caller's job. */
 export function statsDays(input: StatsInput, dates: string[]): StatsDay[] {
   const days = new Map<string, Record<Sport, number>>(dates.map((d) => [d, Object.fromEntries(SPORTS.map((s) => [s, 0])) as Record<Sport, number>]));
   const add = (ms: number, sport: Sport, minutes: number): void => {
+    // A broken value is left out, so one bad entry cannot make the whole record invalid.
+    if (!Number.isFinite(ms) || !Number.isFinite(minutes) || minutes <= 0) return;
     const day = days.get(dateKey(ms));
     if (day) day[sport] += minutes;
   };
@@ -24,7 +28,12 @@ export function statsDays(input: StatsInput, dates: string[]): StatsDay[] {
   for (const o of input.other) add(o.startMs, 'other', o.durationS / 60);
   return dates.map((date) => {
     const minutes = days.get(date)!;
-    for (const s of SPORTS) minutes[s] = Math.round(minutes[s]);
+    // Each sport and the day as a whole stay within a day: a multi-day activity counts as one full day.
+    let left = DAY_MINUTES;
+    for (const s of SPORTS) {
+      minutes[s] = Math.min(Math.round(minutes[s]), left);
+      left -= minutes[s];
+    }
     const rating = input.ratings[date];
     return { date, minutes, hardness: rating?.hardness ?? null, legs: rating?.legs ?? false };
   });
