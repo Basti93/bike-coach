@@ -169,3 +169,10 @@ describe('idbStore resilience', () => {
     expect(n).toBe(1);
   });
 });
+
+describe('openIdb timeout', () => {
+  it('gives up when the browser never answers the open', async () => {
+    const factory = { open: () => ({}) } as unknown as IDBFactory;
+    await expect(openIdb('anna', factory, { timeoutMs: 30 })).rejects.toThrow(/timeout/);
+  });
+});

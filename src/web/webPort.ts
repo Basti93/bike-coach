@@ -12,6 +12,8 @@ export type WebPort = TrackingPort & {
   onStatus(fn: () => void): () => void;
   /** Stops syncing and waits for a run in progress, so a request never goes out under another login. */
   pause(): Promise<void>;
+  /** Resolves when no local write is in flight. */
+  idle(): Promise<void>;
   resume(): void;
   /** The server's login belongs to another account than this database. */
   mismatch(): boolean;
@@ -21,6 +23,8 @@ export type WebPort = TrackingPort & {
 };
 
 class Unauthorized extends Error {}
+class Mismatch extends Error {}
+class Stopped extends Error {}
 const TIMEOUT_MS = 15_000;
 const PAGE = 200;
 const EVERY_MS = 60_000;
@@ -34,6 +38,7 @@ export function createWebPort(o: {
   /** Where `online` and visibility events come from. Default: window. */
   events?: EventTarget;
   intervalMs?: number;
+  meTimeoutMs?: number;
 }): WebPort {
   const { store } = o;
   const now = o.now ?? Date.now;
@@ -45,6 +50,7 @@ export function createWebPort(o: {
   let again = false;
   let disposed = false;
   let paused = false;
+  let writes = 0;
   let mismatched = false;
   let soon: ReturnType<typeof setTimeout> | null = null;
   const statusSubs = new Set<() => void>();
@@ -60,16 +66,22 @@ export function createWebPort(o: {
     return res.json();
   };
 
+  /** The server's login must be this database's account. Checked right before every request that moves records. */
+  const verify = async (): Promise<void> => {
+    const me = await call('GET', '/me', undefined, o.meTimeoutMs ?? 5000);
+    if (paused || disposed) throw new Stopped(); // paused while we waited: nothing moves under whatever login is coming
+    mismatched = !(isObj(me) && typeof me.name === 'string' && me.name.toLowerCase() === o.account);
+    if (mismatched) throw new Mismatch();
+  };
+
   async function run(): Promise<SyncResult> {
     try {
       if (paused) return 'login';
-      const me = await call('GET', '/me', undefined, 5000);
-      mismatched = !(isObj(me) && typeof me.name === 'string' && me.name.toLowerCase() === o.account);
-      if (mismatched) { setStatus('login'); return 'login'; }
       await syncRecords({
         cursors: store.cursors,
         local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs) },
         send: async (records) => {
+          await verify();
           const out = await call('POST', '/records', { records });
           const refused = isObj(out) && Array.isArray(out.refused)
             ? out.refused.flatMap((x) => (isObj(x) && typeof x.id === 'string' ? [{ id: x.id, reason: typeof x.reason === 'string' ? x.reason : '' }] : []))
@@ -81,6 +93,7 @@ export function createWebPort(o: {
           return { refused };
         },
         fetchSince: async (cursor) => {
+          await verify();
           const out = await call('GET', `/records?since=${cursor}&limit=${PAGE}`);
           if (!isObj(out) || !Array.isArray(out.records) || typeof out.cursor !== 'number') throw new Error('unexpected answer');
           return { records: out.records.filter(valid), cursor: out.cursor, more: out.more === true, reset: out.reset === true };
@@ -91,7 +104,8 @@ export function createWebPort(o: {
       setStatus('ok');
       return 'ok';
     } catch (e) {
-      const r: SyncResult = e instanceof Unauthorized ? 'login' : 'offline';
+      if (e instanceof Stopped) return 'login';
+      const r: SyncResult = e instanceof Unauthorized || e instanceof Mismatch ? 'login' : 'offline';
       setStatus(r);
       return r;
     }
@@ -119,7 +133,8 @@ export function createWebPort(o: {
 
   return {
     list: (kind: RecordKind) => store.list(kind),
-    async put(r) { await store.put(r); schedule(); },
+    async put(r) { writes++; try { await store.put(r); } finally { writes--; } schedule(); },
+    async idle() { while (writes > 0) await new Promise((res) => setTimeout(res, 5)); },
     subscribe: (fn) => store.subscribe(fn),
     syncState: () => { const c = store.counts(); return { pending: c.pending, lastOkMs, refused: c.refused }; },
     sync,

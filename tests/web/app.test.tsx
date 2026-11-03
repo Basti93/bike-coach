@@ -19,7 +19,7 @@ const plan = (atMs: number, mobility: unknown = null): TrackedRecord => ({
 });
 const session = (triggerMs: number) => ({ id: `mobility-bike-${triggerMs}`, forSession: 'bike', minutes: 8, exercises: [{ id: 'm1', title: 'Hüftbeuger dehnen', howTo: 'Ausfallschritt, ruhig atmen.', area: 'hueftbeuger' }], reason: 'Nach der Radfahrt tut das gut.' });
 
-type Opts = { me?: number; hangMe?: boolean; noIdb?: 'null' | 'throws'; flags?: Record<string, string>; logoutFails?: boolean; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
+type Opts = { logoutStatus?: number; hold?: { me: Promise<void> | null }; flaky?: { fail: boolean }; me?: number; hangMe?: boolean; noIdb?: 'null' | 'throws'; flags?: Record<string, string>; logoutFails?: boolean; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
 async function boot(o: Opts = {}) {
   const factory = new IDBFactory();
   if (o.seed) { const s = await openIdb('anna', factory); for (const r of o.seed) await s.put(r); s.close(); }
@@ -29,6 +29,8 @@ async function boot(o: Opts = {}) {
     calls.push(`${init.method ?? 'GET'} ${url}`);
     if (o.offline) throw new TypeError('offline');
     if (url === '/me' && o.hangMe) return new Promise<Response>(() => {});
+    if (url === '/me' && o.hold?.me) await o.hold.me;
+    if (url === '/logout' && o.logoutStatus) return json(o.logoutStatus, {});
     if (url === '/logout' && o.logoutFails) throw new TypeError('offline');
     if (url === '/me') return o.me === 401 ? json(401, {}) : json(200, { name: 'anna' });
     if (url === '/login') return json(o.loginStatus ?? 200, { ok: true });
@@ -40,7 +42,7 @@ async function boot(o: Opts = {}) {
   const persist = vi.fn(async () => o.persist ?? true);
   const onWorkoutOpen = vi.fn();
   const ui = render(<App env={{
-    fetchFn, idbFactory: o.noIdb === 'null' ? null : o.noIdb === 'throws' ? ({ open: () => { throw new Error('denied'); } } as unknown as IDBFactory) : factory, now: () => NOW, newId: () => `id-${Math.random().toString(36).slice(2)}`,
+    fetchFn, idbFactory: o.flaky ? ({ open: (n: string, v?: number) => { if (o.flaky!.fail) throw new Error('denied'); return factory.open(n, v); } } as unknown as IDBFactory) : o.noIdb === 'null' ? null : o.noIdb === 'throws' ? ({ open: () => { throw new Error('denied'); } } as unknown as IDBFactory) : factory, now: () => NOW, newId: () => `id-${Math.random().toString(36).slice(2)}`,
     storage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, v); }, removeItem: (k: string) => { storage.delete(k); } },
     persist, ua: o.ua ?? 'Mozilla/5.0 Android', standalone: o.standalone ?? false, onWorkoutOpen,
   }} />);
@@ -241,7 +243,7 @@ describe('web app', () => {
     if (screen.queryByRole('button', { name: 'Trotzdem abmelden' })) fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
     expect(await screen.findByLabelText('Name')).toBeTruthy();
     expect(a.storage.get('pandafit.account')).toBeUndefined();
-    expect(a.storage.get('pandafit.loggedOut')).toBe('1');
+    await waitFor(() => expect(a.storage.get('pandafit.loggedOut')).toBe('1'));
     cleanup();
     const b = await boot({ flags: { 'pandafit.loggedOut': '1' }, seed: [plan(NOW - 1000)] });
     expect(await screen.findByLabelText('Name')).toBeTruthy();
@@ -256,12 +258,7 @@ describe('web app', () => {
     expect(screen.queryByText(/Keine Verbindung/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
     cleanup();
-    await boot({ noIdb: 'throws', me: 401 });
-    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'anna' } });
-    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
-    expect(await screen.findByText(/nicht gespeichert werden/)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Leeres Training starten' })).toBeNull();
+    expect(screen.queryByText(/privat/i)).toBeNull(); // private mode is never claimed
   });
 
   it('the persistence notice shows only once', async () => {
@@ -299,5 +296,80 @@ describe('web app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Zum Training' }));
     expect(went).toBe(1);
     spy.mockRestore();
+  });
+
+  it('a logout answered with an error status keeps the flag and blocks entry; only 2xx or 401 count as done', async () => {
+    const a = await boot({ account: 'anna', seed: [plan(NOW - 1000)], logoutStatus: 502 });
+    await screen.findByText('Beine A');
+    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    if (screen.queryByRole('button', { name: 'Trotzdem abmelden' })) fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
+    expect(await screen.findByLabelText('Name')).toBeTruthy();
+    await waitFor(() => expect(a.storage.get('pandafit.loggedOut')).toBe('1'));
+    cleanup();
+    const b = await boot({ flags: { 'pandafit.loggedOut': '1' }, logoutStatus: 500 });
+    expect(await screen.findByLabelText('Name')).toBeTruthy();
+    await waitFor(() => expect(b.calls).toContain('POST /logout'));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(b.storage.get('pandafit.loggedOut')).toBe('1');
+    cleanup();
+    const c = await boot({ flags: { 'pandafit.loggedOut': '1' }, logoutStatus: 401 });
+    await screen.findByLabelText('Name');
+    await waitFor(() => expect(c.storage.get('pandafit.loggedOut')).toBeUndefined());
+  });
+
+  it('a transient IndexedDB failure says entries are not lost and a button retries without a restart', async () => {
+    const flaky = { fail: true };
+    await boot({ account: 'anna', seed: [plan(NOW - 1000)], flaky });
+    expect(await screen.findByText(/nicht verloren/)).toBeTruthy();
+    expect(screen.queryByText(/privat/i)).toBeNull();
+    flaky.fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Nochmal versuchen' }));
+    expect(await screen.findByText('Beine A')).toBeTruthy();
+  });
+
+  const knee = { id: 'w-open', title: 'Beine', startMs: NOW - 120_000, endMs: null, source: 'pandafit', exercises: [{ exerciseId: 'e1', title: 'Kniebeuge', supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: 40, reps: 8, durationS: null, doneMs: null }] }] };
+  const openRec = (ageMs: number): TrackedRecord => ({ kind: 'workout', id: 'w-open', updatedMs: NOW - ageMs, deleted: false, body: knee });
+
+  it('a note typed in the last 400 ms survives logging out (the real store and port are flushed before the port stops)', async () => {
+    const a = await boot({ account: 'anna', seed: [openRec(60_000)] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Training' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
+    const note = await screen.findByLabelText('Notiz zu Kniebeuge');
+    fireEvent.focus(note);
+    fireEvent.change(note, { target: { value: 'Rechtes Knie ziept' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    const confirm = screen.queryByRole('button', { name: 'Trotzdem abmelden' });
+    if (confirm) fireEvent.click(confirm);
+    await screen.findByLabelText('Name');
+    await waitFor(async () => {
+      const st = await openIdb('anna', a.factory);
+      const w = (await st.list('workout')).find((r) => r.id === 'w-open')!;
+      st.close();
+      expect((w.body as typeof knee).exercises[0]!.notes).toBe('Rechtes Knie ziept');
+    });
+  });
+
+  it('the login form waits for a running sync before it posts the login (pause is wired)', async () => {
+    let release!: () => void;
+    const hold = { me: null as Promise<void> | null };
+    const a = await boot({ account: 'anna', seed: [plan(NOW - 1000)], me: 401, syncStatus: 401, hold });
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'anna' } });
+    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
+    hold.me = new Promise<void>((r) => { release = r; });
+    window.dispatchEvent(new Event('online')); // a sync starts and hangs on /me
+    await waitFor(() => expect(a.calls.filter((c) => c === 'GET /me').length).toBeGreaterThan(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
+    await new Promise((r) => setTimeout(r, 80));
+    expect(a.calls).not.toContain('POST /login');
+    hold.me = null; release();
+    await waitFor(() => expect(a.calls).toContain('POST /login'));
+  });
+
+  it('a resumed workout older than 12 hours still counts as open while its screen is open', async () => {
+    const a = await boot({ account: 'anna', seed: [openRec(13 * 3600_000)] });
+    await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith('none'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Training' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
+    await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenLastCalledWith('open'));
   });
 });

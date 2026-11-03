@@ -30,7 +30,11 @@ const LOGGED_OUT_KEY = 'pandafit.loggedOut';
 const OPEN_MAX_AGE_MS = 12 * 3600_000;
 const ME_TIMEOUT_MS = 5000;
 const LOGIN_TIMEOUT_MS = 15_000;
-const NO_STORAGE = 'In diesem Browser können Einträge gerade nicht gespeichert werden, zum Beispiel im privaten Modus. Darum ist das Training hier nicht verfügbar. Öffne Pandafit in einem normalen Fenster oder vom Home-Bildschirm aus.';
+const NO_STORAGE = 'In diesem Browser können Einträge nicht gespeichert werden. Darum ist das Training hier nicht verfügbar. Versuch es in einem anderen Browser oder vom Home-Bildschirm aus.';
+const STORAGE_FAILED = 'Der Speicher auf diesem Gerät antwortet gerade nicht. Deine Einträge sind nicht verloren. Versuch es gleich nochmal.';
+/** Only an answer from the server ends the session: 2xx, or 401 (already gone). Errors and 5xx leave it open. */
+const loggedOut = (res: Response): boolean => res.ok || res.status === 401;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 const post = (env: Env, path: string, body?: unknown, timeoutMs = LOGIN_TIMEOUT_MS) => env.fetchFn(path, {
   method: 'POST', credentials: 'same-origin', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
@@ -77,7 +81,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onTraining: 
     return (
       <div className="tk-screen">
         <p role="status" className="tk-note">Diese Seite lässt sich gerade nicht anzeigen. Deine Einträge sind nicht verloren.</p>
-        <button type="button" onClick={this.props.onTraining}>Zum Training</button>
+        <button type="button" onClick={() => { this.setState({ failed: false }); this.props.onTraining(); }}>Zum Training</button>
       </div>
     );
   }
@@ -216,7 +220,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         ))}
         <button type="button" className="ghost" onClick={tryLogout}>Abmelden</button>
       </nav>
-      <main className="web-main">
+      <main className="web-main" onClick={() => setTimeout(() => tick((n) => n + 1), 50)}>
         {status === 'login' && (
           <div className="tk-screen">
             <LoginForm env={env}
@@ -244,9 +248,17 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   );
 }
 
-type Phase = { kind: 'loading' } | { kind: 'login' } | { kind: 'offline' } | { kind: 'nostorage' } | { kind: 'in'; account: string };
+type Phase = { kind: 'loading' } | { kind: 'login' } | { kind: 'offline' } | { kind: 'nostorage' } | { kind: 'storagefail' } | { kind: 'in'; account: string };
 
 const factoryOf = (env: Env): IDBFactory | null => (env.idbFactory === undefined ? (typeof indexedDB === 'undefined' ? null : indexedDB) : env.idbFactory);
+
+/** Lets the unmounted screens flush their last write, waits for it, then stops and closes the port. */
+async function retire(p: WebPort): Promise<void> {
+  await sleep(0); await sleep(0);
+  await p.idle();
+  await p.pause();
+  p.dispose();
+}
 
 export function App({ env }: { env: Env }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
@@ -258,19 +270,20 @@ export function App({ env }: { env: Env }) {
   const enter = useCallback(async (account: string): Promise<boolean> => {
     const factory = factoryOf(env);
     if (!factory) { setPhase({ kind: 'nostorage' }); return false; }
+    env.storage.setItem(ACCOUNT_KEY, account); // so a retry after a failed open still finds the account
     let store;
-    try { store = await openIdb(account, factory); } catch { setPhase({ kind: 'nostorage' }); return false; }
-    portRef.current?.dispose();
+    try { store = await openIdb(account, factory); } catch { setPhase({ kind: 'storagefail' }); return false; } // may pass; not the same as unavailable
+    const old = portRef.current;
     const p = createWebPort({ store, account, fetchFn: env.fetchFn, now: env.now });
-    env.storage.setItem(ACCOUNT_KEY, account);
     setPort({ account, port: p });
+    if (old) void retire(old); // after its screens have unmounted and flushed
     setPhase({ kind: 'in', account });
     return true;
   }, [env]);
 
   /** Tell the server about a logout that could not be sent while offline. */
   const retryLogout = useCallback(() => {
-    void post(env, '/logout', undefined, ME_TIMEOUT_MS).then(() => env.storage.removeItem(LOGGED_OUT_KEY), () => {});
+    void post(env, '/logout', undefined, ME_TIMEOUT_MS).then((res) => { if (loggedOut(res)) env.storage.removeItem(LOGGED_OUT_KEY); }, () => {});
   }, [env]);
 
   const boot = useCallback(async () => {
@@ -279,7 +292,7 @@ export function App({ env }: { env: Env }) {
     if (env.storage.getItem(LOGGED_OUT_KEY) === '1') { retryLogout(); setPhase({ kind: 'login' }); return; }
     // The last account on this device opens at once from its local data; its login is checked in the background.
     const last = env.storage.getItem(ACCOUNT_KEY);
-    if (last) { await enter(last); return; } // a failure to open is the "no storage" message
+    if (last) { await enter(last); return; } // a failure to open is the storage message
     try {
       const res = await get(env, '/me');
       if (res.ok) {
@@ -306,16 +319,16 @@ export function App({ env }: { env: Env }) {
   };
   const logout = async () => {
     const p = portRef.current;
-    if (p) await p.pause();
-    p?.dispose();
-    setPort(null);
-    env.storage.removeItem(ACCOUNT_KEY); // the data stays on the device; the login does not
-    try { await post(env, '/logout', undefined, ME_TIMEOUT_MS); } catch { env.storage.setItem(LOGGED_OUT_KEY, '1'); } // offline: asked again at the next start
+    setPort(null); // the screens unmount first and flush what is still typed
     setPhase({ kind: 'login' });
+    env.storage.removeItem(ACCOUNT_KEY); // the data stays on the device; the login does not
+    if (p) await retire(p);
+    try { if (!loggedOut(await post(env, '/logout', undefined, ME_TIMEOUT_MS))) env.storage.setItem(LOGGED_OUT_KEY, '1'); } catch { env.storage.setItem(LOGGED_OUT_KEY, '1'); } // not answered: asked again at the next start
   };
 
   if (phase.kind === 'loading') return <main className="web-main"><p className="muted tk-screen">Einen Moment …</p></main>;
   if (phase.kind === 'nostorage') return <main className="web-main tk-screen"><p role="status" className="tk-note">{NO_STORAGE}</p></main>;
+  if (phase.kind === 'storagefail') return <main className="web-main tk-screen"><p role="status" className="tk-note">{STORAGE_FAILED}</p><button type="button" onClick={() => void boot()}>Nochmal versuchen</button></main>;
   if (phase.kind === 'offline') return <main className="web-main tk-screen"><p role="status" className="tk-note">Keine Verbindung. Zum ersten Anmelden braucht Pandafit kurz Internet.</p><button type="button" onClick={() => void boot()}>Nochmal versuchen</button></main>;
   if (phase.kind === 'login' || !port) return <main className="web-main"><LoginForm env={env} onDone={(n) => void afterLogin(n)} /></main>;
   return <Shell key={port.account} account={port.account} env={env} port={port.port} onLogout={() => void logout()} onRelogin={(n) => void afterLogin(n)} />;

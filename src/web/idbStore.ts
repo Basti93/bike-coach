@@ -34,8 +34,11 @@ const req = <T>(r: IDBRequest<T>): Promise<T> => new Promise((resolve, reject) =
 const isStale = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { name?: string }).name === 'InvalidStateError';
 
 /** One IndexedDB database per account, so two people on one phone never see each other's data. */
-export async function openIdb(account: string, factory: IDBFactory = indexedDB): Promise<IdbStore> {
+export async function openIdb(account: string, factory: IDBFactory = indexedDB, opts: { timeoutMs?: number } = {}): Promise<IdbStore> {
+  const timeoutMs = opts.timeoutMs ?? 10_000;
   const connect = () => new Promise<IDBDatabase>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => { settled = true; reject(new Error('timeout opening the database')); }, timeoutMs);
     const open = factory.open(`pandafit-${account}`, 1);
     open.onupgradeneeded = () => {
       const d = open.result;
@@ -43,9 +46,10 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB):
       d.createObjectStore('meta');
       d.createObjectStore('refused', { keyPath: 'id' });
     };
-    open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error);
-    open.onblocked = () => reject(new Error('blocked'));
+    // A late answer after the timeout is closed again, so no handle leaks.
+    open.onsuccess = () => { clearTimeout(timer); if (settled) open.result.close(); else resolve(open.result); };
+    open.onerror = () => { clearTimeout(timer); reject(open.error); };
+    open.onblocked = () => { clearTimeout(timer); settled = true; reject(new Error('blocked')); };
   });
   let db: IDBDatabase | null = await connect();
   let closed = false;

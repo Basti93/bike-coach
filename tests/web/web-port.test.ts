@@ -162,4 +162,63 @@ describe('webPort', () => {
     port.dispose();
     await expect(store.list('workout')).rejects.toThrow();
   });
+
+  it('pause really waits for a run in flight, and nothing is sent after it returned', async () => {
+    const { s, fetchFn } = server();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let onMe = false;
+    const slow = (async (url: string, init?: RequestInit) => { if (url === '/me') { onMe = true; await gate; } return fetchFn(url, init); }) as unknown as typeof fetch;
+    const { port } = await mk(slow);
+    await port.put(rec('w1'));
+    const running = port.sync();
+    while (!onMe) await new Promise((r) => setTimeout(r, 2));
+    let paused = false;
+    const p = port.pause().then(() => { paused = true; });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(paused).toBe(false); // the run is still on /me
+    release();
+    await p;
+    await running;
+    expect(paused).toBe(true);
+    expect(s.posted).toEqual([]); // the run was stopped by the pause before it sent anything
+  });
+
+  it('the /me check has its own timeout and a hung answer ends the run as offline', async () => {
+    const { fetchFn } = server();
+    let signal: AbortSignal | undefined;
+    const hang = (async (url: string, init?: RequestInit) => {
+      if (url === '/me') { signal = init?.signal ?? undefined; return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('t', 'TimeoutError')))); }
+      return fetchFn(url, init);
+    }) as unknown as typeof fetch;
+    const store = await openIdb('anna', new IDBFactory());
+    const port = createWebPort({ store, fetchFn: hang, account: 'anna', now: () => 1, meTimeoutMs: 40 });
+    expect(await port.sync()).toBe('offline');
+    expect(signal).toBeInstanceOf(AbortSignal);
+    port.dispose();
+  });
+
+  it('checks /me right before each batch and each page, so a login change in another tab stops the run', async () => {
+    const { s, fetchFn } = server();
+    s.remote = [rec('remote')];
+    let meCalls = 0;
+    const switching = (async (url: string, init?: RequestInit) => {
+      if (url === '/me') { meCalls++; return json(200, { name: meCalls >= 2 ? 'ben' : 'anna' }); } // the cookie changes after the page was fetched
+      return fetchFn(url, init);
+    }) as unknown as typeof fetch;
+    const { port } = await mk(switching);
+    await port.put(rec('w1'));
+    expect(await port.sync()).toBe('login');
+    expect(s.posted).toEqual([]);
+    expect(port.mismatch()).toBe(true);
+  });
+
+  it('idle resolves when no write is in flight', async () => {
+    const { fetchFn } = server();
+    const { port } = await mk(fetchFn);
+    const w = port.put(rec('w1'));
+    await port.idle();
+    await w;
+    expect((await port.list('workout')).length).toBe(1);
+  });
 });
