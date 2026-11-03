@@ -367,6 +367,35 @@ test('ride detail reads real samples, only for the own rides', () => {
 
 
 describe('motivation and complaints', () => {
+  /** A state file as it was before complaints were read from notes. */
+  const oldState = (notes: { atMs: number; text: string }[]) => {
+    make().scanRides([A]);
+    const f = path.join(coachDir, 'pa.json');
+    const st = JSON.parse(fs.readFileSync(f, 'utf8'));
+    delete st.complaints; delete st.complaintsFromNotes;
+    fs.writeFileSync(f, JSON.stringify({ ...st, notes }));
+  };
+  test('notes written before complaints existed become complaints once, with the note time', () => {
+    oldState([
+      { atMs: NOW - 30 * DAY, text: 'Sitzbeinhöcker gebrochen, sollte verheilt sein, langsam einsteigen' },
+      { atMs: NOW - 20 * DAY, text: 'Morgens lieber kurz' },
+    ]);
+    const c = make(); c.scanRides([A]);
+    const list = c.state('pa').complaints ?? [];
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ status: 'healing', startedMs: NOW - 30 * DAY });
+    c.scanRides([A]);
+    const again = make(); again.scanRides([A]);
+    expect(again.state('pa').complaints).toHaveLength(1);
+  });
+  test('a complaint closed after the scan stays closed and is not found again', () => {
+    oldState([{ atMs: NOW - 30 * DAY, text: 'Knie zwickt' }]);
+    const c = make(); c.scanRides([A]);
+    const id = c.state('pa').complaints![0].id;
+    c.updateComplaint('pa', id, 'over');
+    const again = make(); again.scanRides([A]);
+    expect(again.state('pa').complaints).toEqual([expect.objectContaining({ id, status: 'over' })]);
+  });
   test('a complaint survives more than ten later notes and reaches every plan', async () => {
     const ask = vi.fn(async (_: { prompt: string }) => answer());
     const c = make(ask); c.scanRides([A]);

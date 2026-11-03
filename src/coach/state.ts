@@ -28,6 +28,8 @@ export type CoachState = {
   changes: { atMs: number; text: string }[];
   notes: { atMs: number; text: string; reply?: string }[];
   complaints?: Complaint[];
+  /** Old notes were read once for complaints. */
+  complaintsFromNotes?: true;
   motives?: Motive[];
   lastQuestionMs?: number;
   encouragement?: string;

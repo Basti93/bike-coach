@@ -13,6 +13,16 @@ describe('complaints from a note', () => {
   test('recognises one that is healing but still uncertain', () => {
     expect(complaintFromNote('Knie verletzt und verheilt, aber noch unsicher')).toBe('healing');
   });
+  test('recognises a broken bone and an operation', () => {
+    expect(complaintFromNote('Ich habe mir den Sitzbeinhöcker gebrochen, nach 4 Monaten sollte er verheilt sein. Langsam einsteigen.')).toBe('healing');
+    expect(complaintFromNote('Bruch am Handgelenk')).toBe('active');
+    expect(complaintFromNote('Nach der Operation am Fuß noch vorsichtig')).toBe('active');
+    expect(complaintFromNote('Bandscheibe meldet sich')).toBe('active');
+  });
+  test('a word that only contains a body word is not a complaint', () => {
+    expect(complaintFromNote('Abbruch wegen Regen')).toBeNull();
+    expect(complaintFromNote('Hand aufs Herz, das war schön')).toBeNull();
+  });
   test('ignores notes that are not about the body or say it is fine', () => {
     expect(complaintFromNote('Morgens lieber kurze Einheiten')).toBeNull();
     expect(complaintFromNote('Knie ist wieder gut')).toBeNull();

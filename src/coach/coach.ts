@@ -188,7 +188,10 @@ export class Coach {
 
   scanRides(profiles: Profile[]): void {
     for (const p of profiles) {
-      if (!this.states.has(p.id)) this.states.set(p.id, loadState(this.deps.coachDir, p.id, p.ftpW, this.deps.nowMs()));
+      if (!this.states.has(p.id)) {
+        this.states.set(p.id, loadState(this.deps.coachDir, p.id, p.ftpW, this.deps.nowMs()));
+        if (!this.states.get(p.id)!.complaintsFromNotes) this.complaintsFromOldNotes(p.id);
+      }
       this.states.get(p.id)!.ftpCapW = p.ftpCapW;
     }
     if (!fs.existsSync(this.deps.ridesDir)) return;
@@ -252,6 +255,16 @@ export class Coach {
       // A plan already running knows nothing of this and would overwrite the safe session.
       const rerun = this.pendingRerun.get(profileId);
       if (rerun) rerun.requested = true;
+    });
+  }
+  /** Notes written before complaints existed, or before a body word was known, are read once. Each keeps its note's time. */
+  private complaintsFromOldNotes(profileId: string): void {
+    this.update(profileId, (s) => {
+      for (const n of s.notes) {
+        if ((s.complaints ?? []).some((c) => c.startedMs === n.atMs)) continue;
+        this.addComplaint(s, n.text, n.atMs);
+      }
+      s.complaintsFromNotes = true;
     });
   }
   private addComplaint(s: CoachState, text: string, now: number): boolean {
