@@ -36,7 +36,7 @@ describe('parallel logins', () => {
     expect((await login(app, 'anna', PW_A)).res.statusCode).toBe(200);
     const par = await Promise.all([1, 2, 3, 4].map(() => login(app, 'ben', PW_B, '10.2.0.1')));
     expect(par.map((p) => p.res.statusCode)).toEqual([200, 200, 200, 200]);
-  });
+  }, 30_000); // 26 logins, each with a deliberately slow password hash: under full-suite load 5 s is not enough
 });
 
 describe('body handling', () => {
