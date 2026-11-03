@@ -2,7 +2,8 @@
 :root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; color-scheme: dark light; }
 @media (prefers-color-scheme: light) {
   :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; }
-  .tk-screen button.secondary, .tk-picker button.secondary, .tk-check, .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
+  .tk-screen button.secondary, .tk-picker button.secondary, .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
+  .tk-chip-warm { color: #9a6a00; } .tk-chip-fail { color: #b23a2a; } .tk-chip-drop { color: #2a6aa0; }
 }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }

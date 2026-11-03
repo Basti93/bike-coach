@@ -31,7 +31,7 @@ test('reopening with an open workout offers to continue it', async () => {
   expect(await screen.findByText('Bankdrücken')).toBeTruthy();
 });
 
-test('shows 62,5 kg, and accepts comma or dot, with "nach Gefühl" as placeholder only', async () => {
+test('shows 62,5 kg, and accepts comma or dot, with a short placeholder only', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
@@ -39,7 +39,7 @@ test('shows 62,5 kg, and accepts comma or dot, with "nach Gefühl" as placeholde
   expect(w1.value).toBe('62,5');
   const w2 = screen.getByLabelText('Gewicht Satz 2') as HTMLInputElement;
   expect(w2.value).toBe('');
-  expect(w2.placeholder).toBe('nach Gefühl');
+  expect(w2.placeholder).toBe('–');
   fireEvent.change(w2, { target: { value: '40.5' } });
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets[1].weightKg).toBe(40.5));
   fireEvent.change(w2, { target: { value: '41,5' } });
@@ -112,6 +112,7 @@ test('an exercise can be swapped from the workout screen', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
   fireEvent.click(await screen.findByRole('button', { name: /Brustpresse/ }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.exerciseId)).toEqual(['pf-chest-press-machine']));
@@ -212,6 +213,7 @@ test('a double tap on remove never removes the next row', async () => {
   const btn = (await screen.findAllByRole('button', { name: 'Satz 1 entfernen' }))[0];
   fireEvent.click(btn); fireEvent.click(btn);
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
+  fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   const ex = await screen.findByRole('button', { name: 'Bankdrücken entfernen' });
   fireEvent.click(ex); fireEvent.click(ex);
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.title)).toEqual(['Kniebeuge']));
@@ -528,4 +530,42 @@ test('a double tap on saving a routine makes one routine with one id per draft',
   fireEvent.click(save); fireEvent.click(save);
   await screen.findByRole('button', { name: 'Push starten' });
   expect(state.puts.filter((p) => p.kind === 'routine').map((p) => p.id)).toEqual(['r1']);
+});
+
+test('the workout rows: headers, chips, one grid, a clear done box and last time as a hint', async () => {
+  const w = open({ exercises: [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [{ ...set(20, 10, null), type: 'warmup' }, set(40, 8, null), { ...set(40, 6, null), type: 'failure' }] }] });
+  const { port } = fakePort([rec(w), rec(finished())]);
+  const { container } = render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  await screen.findByLabelText('Gewicht Satz 1');
+  const head = container.querySelector('.tk-head')!;
+  expect(head.textContent).toBe('SatzkgWdh');
+  const rows = [...container.querySelectorAll('.tk-set:not(.tk-head)')];
+  expect(rows.map((r) => r.querySelector('.tk-chip')!.textContent)).toEqual(['A', '1', 'F']);
+  // every row and the header have the same five cells, whatever the set type
+  for (const r of [head, ...rows]) expect([...r.children].filter((c) => !c.matches('.tk-hint, .tk-wide')).length).toBe(5);
+  // full names in the choice
+  expect([...(screen.getByLabelText('Satztyp Satz 1') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Aufwärmen', 'Normaler Satz', 'Bis zum Versagen', 'Dropset']);
+  // last time: the finished session had 80 × 5 and 85 × 5 as working sets
+  expect(screen.getByText('zuletzt 80 kg × 5')).toBeTruthy();
+  expect(screen.getByText('zuletzt 85 kg × 5')).toBeTruthy();
+  const check = screen.getByRole('button', { name: 'Satz 2 erledigt' });
+  expect(check.textContent).toBe('✓');
+  expect(check.getAttribute('aria-pressed')).toBe('false');
+  // swap and remove live behind one menu
+  expect(screen.queryByRole('button', { name: 'Kniebeuge tauschen' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+  expect(screen.getByRole('button', { name: 'Kniebeuge tauschen' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Kniebeuge entfernen' })).toBeTruthy();
+  // the note is a growing text field
+  expect(screen.getByLabelText('Notiz zu Kniebeuge').tagName).toBe('TEXTAREA');
+});
+
+test('a plan without weights says "Gewicht nach Gefühl" once, under the title', async () => {
+  const plan: GymWorkout = { name: 'Plan', exercises: [{ templateId: 'pf-leg-press', title: 'Beinpresse', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: 10 }, { type: 'normal', weightKg: null, reps: 10 }] }] };
+  const { port } = fakePort();
+  render(<WorkoutScreen port={port} plan={plan} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Plan starten/ }));
+  expect(await screen.findAllByText('Gewicht nach Gefühl')).toHaveLength(1);
+  expect((screen.getByLabelText('Gewicht Satz 1') as HTMLInputElement).placeholder).toBe('–');
 });
