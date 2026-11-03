@@ -64,5 +64,7 @@ export const PLAIN_CODEC: SecretCodec = { seal: (plain) => plain, open: (stored)
 
 export const sealedCodec = (key: Buffer, label: string): SecretCodec => {
   checkKey(key);
+  // The label binds a secret to its account and kind; an empty one would bind it to nothing.
+  if (typeof label !== 'string' || label === '') throw new Error('Leeres Label');
   return { seal: (plain) => sealText(key, label, plain), open: (stored) => openText(key, label, stored) };
 };

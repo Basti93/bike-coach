@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
+import { plainTokens, TokensUnopenable, type GarminTokens, type TokenCheckout } from './secrets/garmin-tokens';
 
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 const TIMEOUT_MS = 120_000;
@@ -26,7 +26,7 @@ const parse = (out: string): UploadResult => {
 
 /** Runs the upload program, one per profile. None starts during a ride or without a Garmin login. */
 export class GarminUploader {
-  private running = new Set<string>();
+  private running = new Map<string, { child: ReturnType<typeof spawn>; handle: TokenCheckout }>();
   private tokens: GarminTokens;
 
   constructor(private opts: Options) {
@@ -36,22 +36,23 @@ export class GarminUploader {
   upload(profileId: string, rideId: string, name: string, startMs: number, description?: string): boolean {
     const hasTokens = this.opts.hasTokens ?? ((id: string) => this.tokens.has(id));
     if (!SAFE_ID.test(profileId) || !SAFE_ID.test(rideId) || this.opts.rideOpen() || !hasTokens(profileId) || this.running.has(profileId)) return false;
-    let tokenDir: string;
-    try { tokenDir = this.tokens.checkout(profileId); } catch { return false; }
-    let checkedIn = false;
-    const checkin = (): void => {
-      if (checkedIn) return;
-      checkedIn = true;
-      try { this.tokens.checkin(profileId); } catch { /* the folder is wiped either way */ }
-    };
+    let handle: TokenCheckout;
+    try { handle = this.tokens.checkout(profileId); } catch (e) {
+      // Tokens that do not open need a new login: said so, nothing starts.
+      if (e instanceof TokensUnopenable) this.opts.onResult(profileId, rideId, { status: 'failed', reason: 'reauth' });
+      return false;
+    }
+    // Safe to repeat: a second checkin of the same handle only wipes what a late write left in its own folder.
+    const checkin = (): void => { try { this.tokens.checkin(handle); } catch { /* the folder is wiped either way */ } };
     let child: ReturnType<typeof spawn>;
     try {
       child = (this.opts.spawnFn ?? spawn)(this.opts.python, [
-        this.opts.script, '--tokens', tokenDir, '--file', path.join(this.opts.exportsDir, `${rideId}.fit`), '--name', name, '--start-ms', String(startMs),
+        this.opts.script, '--tokens', handle.dir, '--file', path.join(this.opts.exportsDir, `${rideId}.fit`), '--name', name, '--start-ms', String(startMs),
         ...(description ? ['--description', description] : []),
       ], { stdio: ['ignore', 'pipe', 'ignore'] });
     } catch { checkin(); return false; }
-    this.running.add(profileId);
+    const run = { child, handle };
+    this.running.set(profileId, run);
     let out = '';
     let ended = false;
     // A run that hangs loses its tokens folder at once, not only when it finally exits.
@@ -62,12 +63,21 @@ export class GarminUploader {
       ended = true;
       clearTimeout(timer);
       checkin();
-      this.running.delete(profileId);
+      if (this.running.get(profileId) === run) this.running.delete(profileId);
       this.opts.onResult(profileId, rideId, result);
     };
     child.stdout?.on('data', (b: Buffer) => { out += String(b); });
     child.on('error', () => end(FAILED));
     child.on('close', () => end(parse(out)));
     return true;
+  }
+
+  /** For a disconnect: ends the upload at once and keeps nothing it wrote. Its result still arrives, as a failure. */
+  stop(profileId: string): void {
+    const run = this.running.get(profileId);
+    if (!run) return;
+    this.running.delete(profileId);
+    try { this.tokens.checkin(run.handle, { discard: true }); } catch { /* wiped either way */ }
+    run.child.kill();
   }
 }

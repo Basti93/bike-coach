@@ -2,14 +2,13 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { GarminStatus } from '../shared/coach-protocol';
-import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
+import { plainTokens, TokensUnopenable, type GarminTokens, type TokenCheckout } from './secrets/garmin-tokens';
 
 const TIMEOUT_MS = 5 * 60_000; // Also long enough to fetch the two-factor code.
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 
 type Options = { baseDir: string; python: string; script: string; onUpdate: () => void; spawnFn?: typeof spawn; timeoutMs?: number; tokens?: GarminTokens };
-/** release: ends the token checkout once the helper program has exited. A disconnect drops it instead. */
-type Running = { child: ReturnType<typeof spawn>; timer: ReturnType<typeof setTimeout>; release: { done: boolean } };
+type Running = { child: ReturnType<typeof spawn>; timer: ReturnType<typeof setTimeout>; handle: TokenCheckout };
 
 /** Holds the Garmin login per profile. The password goes to the helper program only over stdin and is not kept anywhere here. */
 export class GarminLink {
@@ -32,18 +31,22 @@ export class GarminLink {
     this.opts.onUpdate();
   }
 
+  /** Tokens that do not open are of no use to anyone: they go, and the login starts fresh from the password. */
+  private checkoutForLogin(profileId: string): TokenCheckout {
+    try { return this.tokens.checkout(profileId); } catch (e) {
+      if (!(e instanceof TokensUnopenable)) throw e;
+      this.tokens.remove(profileId);
+      return this.tokens.checkout(profileId);
+    }
+  }
+
   login(profileId: string, email: string, password: string): void {
     if (!SAFE_ID.test(profileId) || this.running.has(profileId)) return;
     if (!fs.existsSync(this.opts.python)) { this.set(profileId, { state: 'failed', reason: 'setup' }); return; }
-    let tokenDir: string;
-    try { tokenDir = this.tokens.checkout(profileId); } catch { this.set(profileId, { state: 'failed', reason: 'failed' }); return; }
-    const release = { done: false };
-    // Only once the program has exited: it may still write the tokens after reporting.
-    const checkin = (): void => {
-      if (release.done) return;
-      release.done = true;
-      try { this.tokens.checkin(profileId); } catch { /* the folder is wiped either way */ }
-    };
+    let handle: TokenCheckout;
+    try { handle = this.checkoutForLogin(profileId); } catch { this.set(profileId, { state: 'failed', reason: 'failed' }); return; }
+    // Only once the program has exited: it may still write the tokens after reporting. Safe to repeat.
+    const checkin = (): void => { try { this.tokens.checkin(handle); } catch { /* the folder is wiped either way */ } };
     let child: ReturnType<typeof spawn>;
     try {
       child = (this.opts.spawnFn ?? spawn)(this.opts.python, [this.opts.script], { stdio: ['pipe', 'pipe', 'ignore'] });
@@ -56,7 +59,7 @@ export class GarminLink {
       this.set(profileId, status);
     };
     const timer = setTimeout(() => { child.kill(); checkin(); finish({ state: 'failed', reason: 'failed' }); }, this.opts.timeoutMs ?? TIMEOUT_MS);
-    this.running.set(profileId, { child, timer, release });
+    this.running.set(profileId, { child, timer, handle });
     this.set(profileId, { state: 'connecting' });
 
     let buffer = '';
@@ -80,7 +83,7 @@ export class GarminLink {
     child.on('close', () => { checkin(); finish({ state: 'failed', reason: 'failed' }); });
     child.stdin?.on('error', () => { /* process already ended, close reports the error */ });
     child.stdin?.write(`${JSON.stringify({
-      tokens: tokenDir,
+      tokens: handle.dir,
       check: path.join(this.opts.baseDir, `login-check-${profileId}.json`),
       email, password,
     })}\n`);
@@ -96,7 +99,12 @@ export class GarminLink {
   disconnect(profileId: string): void {
     if (!SAFE_ID.test(profileId)) return;
     const run = this.running.get(profileId);
-    if (run) { run.release.done = true; clearTimeout(run.timer); run.child.kill(); this.running.delete(profileId); }
+    if (run) {
+      clearTimeout(run.timer);
+      this.running.delete(profileId);
+      try { this.tokens.checkin(run.handle, { discard: true }); } catch { /* wiped either way */ }
+      run.child.kill();
+    }
     this.tokens.remove(profileId);
     this.states.delete(profileId);
     this.opts.onUpdate();

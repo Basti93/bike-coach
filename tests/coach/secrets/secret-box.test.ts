@@ -84,3 +84,7 @@ test('a sealed codec seals with its label and the plain codec changes nothing', 
 test('a key of the wrong length is refused when sealing', () => {
   expect(() => sealText(Buffer.alloc(16), 'acc1:hevy', TEXT)).toThrow();
 });
+
+test('a sealed codec refuses an empty label', () => {
+  expect(() => sealedCodec(KEY, '')).toThrow();
+});

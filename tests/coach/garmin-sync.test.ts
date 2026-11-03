@@ -140,8 +140,8 @@ test('unsafe profile ids are ignored', () => {
 const recordingTokens = (log: string[], mtime: number | null = 5): GarminTokens => ({
   has: () => mtime !== null,
   mtimeMs: () => mtime,
-  checkout: (id) => { log.push(`checkout ${id}`); return `/run/secrets/${id}`; },
-  checkin: (id) => { log.push(`checkin ${id}`); },
+  checkout: (id) => { log.push(`checkout ${id}`); return { id, dir: `/run/secrets/${id}`, gen: 1 }; },
+  checkin: (h, how) => { log.push(`checkin ${h.id}${how?.discard ? ' discard' : ''}`); },
   remove: (id) => { log.push(`remove ${id}`); },
 });
 test('a sync run checks out before the spawn and checks in after the child exits, also when it fails', async () => {

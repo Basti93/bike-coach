@@ -1,12 +1,16 @@
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { vi } from 'vitest';
 import { createCoachRuntime, type RuntimeOptions } from '../../src/coach/runtime';
 import { AccountLinks } from '../../src/coach/tracking/link';
 import { rampTest } from '../../src/coach/rules';
 import type { Profile } from '../../src/shared/profiles';
 import type { CoachServerMessage } from '../../src/shared/coach-protocol';
+import { sealedTokens } from '../../src/coach/secrets/garmin-tokens';
+import { sealedCodec } from '../../src/coach/secrets/secret-box';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'));
 const good = { id: 'ki', name: 'KI', steps: [
@@ -126,4 +130,65 @@ test('onChange tells about a change and stops after unsubscribing', () => {
   const n = seen.length;
   subscribe(runtime);
   expect(seen.length).toBe(n);
+});
+
+test('a disconnect and a new login while a sync runs: the new tokens are sealed and stay, nothing of the old account comes back, no plain text is left', () => {
+  const root = temp(); seed(root);
+  const runDir = temp();
+  const garminDir = path.join(root, 'garmin');
+  const tokens = sealedTokens({ garminDir, runDir, codec: (id) => sealedCodec(Buffer.alloc(32, 5), `acc:${id}:garmin`) });
+  const old = tokens.checkout('pa');
+  fs.writeFileSync(path.join(old.dir, 'garmin_tokens.json'), '{"konto":"alt"}');
+  tokens.checkin(old);
+  const children: any[] = [];
+  const spawnFn = vi.fn((_bin: string, args: string[]) => {
+    const child: any = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stdin = new PassThrough();
+    child.args = args;
+    // A real child reports its exit later, not inside kill().
+    child.kill = vi.fn();
+    children.push(child);
+    return child;
+  });
+  const python = path.join(root, 'python');
+  fs.writeFileSync(python, '');
+  const runtime = createCoachRuntime({
+    root, profiles: () => PROFILES, noOpenRide: () => true, ask: vi.fn(async () => answer),
+    python, garminScripts: path.join(root, 'scripts'),
+    links: new AccountLinks({ dir: path.join(root, 'accounts') }),
+    meals: null, together: () => ({ summits: [] }) as never,
+    spawnFn: spawnFn as never, fetchFn: vi.fn(async () => new Response('', { status: 401 })) as never, waitMs: 0,
+    garminTokens: tokens,
+  });
+  runtime.scan();
+  const sync = children.find((c) => String(c.args[0]).endsWith('garmin_sync.py'));
+  expect(sync).toBeDefined();
+  const syncDir: string = sync.args[sync.args.indexOf('--tokens') + 1];
+  fs.writeFileSync(path.join(syncDir, 'garmin_tokens.json'), '{"konto":"alt-refreshed"}');
+
+  runtime.handle({ type: 'garmin-disconnect', profileId: 'pa' }, () => {});
+  expect(sync.kill).toHaveBeenCalled();
+  runtime.handle({ type: 'garmin-login', profileId: 'pa', email: 'a@b.c', password: 'pw' }, () => {});
+  const bridge = children.find((c) => String(c.args[0]).endsWith('bridge.py'));
+  const request = JSON.parse(String(bridge.stdin.read()).split('\n')[0]);
+  expect(fs.readdirSync(request.tokens)).toEqual([]);
+
+  // The old sync writes its refreshed token once more on the way out, then exits after the new login began.
+  fs.mkdirSync(syncDir, { recursive: true });
+  fs.writeFileSync(path.join(syncDir, 'garmin_tokens.json'), '{"konto":"alt-refreshed"}');
+  sync.emit('close', null, 'SIGTERM');
+  expect(fs.existsSync(request.tokens)).toBe(true);
+
+  fs.writeFileSync(path.join(request.tokens, 'garmin_tokens.json'), '{"konto":"neu"}');
+  bridge.stdout.write(`${JSON.stringify({ status: 'connected' })}\n`);
+  bridge.emit('close', 0, null);
+
+  expect(runtime.view('pa')?.garmin).toEqual({ state: 'connected' });
+  const check = tokens.checkout('pa');
+  expect(fs.readFileSync(path.join(check.dir, 'garmin_tokens.json'), 'utf8')).toBe('{"konto":"neu"}');
+  tokens.checkin(check);
+  const left = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? left(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+  expect(left(runDir)).toEqual([]);
+  for (const f of left(garminDir)) expect(fs.readFileSync(f, 'utf8')).not.toContain('konto');
 });

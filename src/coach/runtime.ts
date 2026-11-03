@@ -312,7 +312,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (m.type === 'hevy-disconnect') { hevy.disconnect(m.profileId); publish(); return; }
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
-      if (m.type === 'garmin-disconnect') { garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
+      // The profile's sync and upload stop first and keep nothing, so no token of the old login comes back.
+      if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { send({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) }); return; }
       if (m.type.startsWith('gym-')) { handleGym(m, send); return; }
       if (m.type.startsWith('meals-')) { handleMeals(m); return; }
