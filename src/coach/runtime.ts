@@ -226,7 +226,12 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     });
   };
   // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
-  const chat = new ChatCoach({ store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null });
+  const chat = new ChatCoach({
+    store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null,
+    complaints: (id) => (coach.state(id).complaints ?? []).map((c) => ({ id: c.id, text: c.text, status: c.status })),
+    addComplaint: (id, text) => coach.addComplaintFromText(id, text),
+    endComplaint: (id, cid) => coach.updateComplaint(id, cid, 'over', nowMs()),
+  });
   /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */
   const statsMade = new Map<string, { atMs: number; date: string }>();
   const statsDue = (id: string): Omit<StatsBody, 'atMs'> | null => {

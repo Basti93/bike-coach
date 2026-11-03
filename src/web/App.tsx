@@ -5,11 +5,12 @@ import { openStoreCount } from '../tracking/registry';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
+import { TodayCard, todayPlan } from '../tracking/ui/TodayCard';
 import { runView } from '../tracking/ui/run-view';
 import { MobilityOffer } from '../tracking/ui/MobilityOffer';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { openIdb } from './idbStore';
-import { mobilityToShow, openComplaints, planDateText, planIsStale, readPlan, shouldShowInstallHint } from './logic';
+import { mobilityToShow, planDateText, planIsStale, readPlan, shouldShowInstallHint } from './logic';
 import type { OpenState } from './register';
 import { createWebPort, type WebPort } from './webPort';
 import { MealsScreen, mealWeeks } from './MealsScreen';
@@ -100,73 +101,59 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onTraining: 
   }
 }
 
-function Heute({ port, env, account, goTraining }: { port: WebPort; env: Env; account: string; goTraining: () => void }) {
+function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: () => void; goRun?: () => void; goCoach: () => void }) {
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
-  const complaints = usePortRecords(port, 'complaint').records;
+  const weekplans = usePortRecords(port, 'weekplan').records;
+  const runs = usePortRecords(port, 'run').records;
   // Only when the Mac sent one for this account: without a link Heute stays as it was.
   const together = togetherOf(usePortRecords(port, 'together').records);
   const [showTogether, setShowTogether] = useState(false);
-  const [text, setText] = useState('');
   const plan = (plans ?? []).find((r) => r.id === 'current');
   const p = readPlan(plan);
   const now = env.now();
   const session = useMemo(() => mobilityToShow(plan, mobility ?? [], now), [plan, mobility, now]);
-  const open = openComplaints(complaints ?? []);
-  const all = complaints ?? [];
+  const today = todayPlan(weekplans, now);
 
   const markDone = async () => {
     if (!session) return;
     try { await port.put({ kind: 'mobility', id: session.id, updatedMs: env.now(), deleted: false, body: { doneMs: env.now(), forSession: session.forSession } }); } catch { /* shown again next time */ }
   };
-  const close = async (id: string) => {
-    const r = all.find((x) => x.id === id);
-    if (!r) return;
-    try { await port.put({ ...r, updatedMs: Math.max(env.now(), r.updatedMs + 1), body: { ...(r.body as object), status: 'over' } }); } catch { /* still open */ }
-  };
-  const add = async () => {
-    const t = text.trim();
-    if (!t) return;
-    try { await port.put({ kind: 'complaint', id: `phone-${env.newId()}`, updatedMs: env.now(), deleted: false, body: { text: t, status: 'active', atMs: env.now() } }); setText(''); } catch { /* text stays */ }
-  };
+
+  // The strength plan: on a strength day inside the week plan's card, without a week plan as its own card.
+  const gym = p ? (
+    <>
+      <p className="muted">{planDateText(p.atMs)}</p>
+      {planIsStale(p.atMs, now) && <p className="muted">Der Plan ist schon etwas älter. Der Coach macht einen neuen, sobald er dazu kommt.</p>}
+      {p.workout && <h2>{p.workout.name}</h2>}
+      {p.reason && <p>{p.reason}</p>}
+      {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
+      {p.note && <p>{p.note}</p>}
+      {p.questions.length > 0 && <ul>{p.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>}
+      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
+    </>
+  ) : (
+    <>
+      <p>Noch kein Krafttraining geplant. Du kannst trotzdem jederzeit trainieren.</p>
+      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
+    </>
+  );
 
   if (together && showTogether) return <TogetherPage t={together} now={now} onBack={() => setShowTogether(false)} />;
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Heute</h1>
       {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
-      {p ? (
-        <section className="card">
-          <p className="muted">{planDateText(p.atMs)}</p>
-          {planIsStale(p.atMs, now) && <p className="muted">Der Plan ist schon etwas älter. Der Mac macht einen neuen, sobald er an ist.</p>}
-          {p.workout && <h2>{p.workout.name}</h2>}
-          {p.reason && <p>{p.reason}</p>}
-          {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
-          {p.note && <p>{p.note}</p>}
-          {p.questions.length > 0 && <ul>{p.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>}
-          <button type="button" onClick={goTraining}>Zum Training</button>
-        </section>
-      ) : (
-        <section className="card">
-          <p>Noch kein Plan da. Der Mac macht einen, sobald er an ist. Du kannst trotzdem jederzeit trainieren.</p>
-          <button type="button" onClick={goTraining}>Zum Training</button>
-        </section>
+      {today ? <TodayCard weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} /> : (
+        <>
+          <section className="card">{gym}</section>
+          <section className="card">
+            <p className="muted">Noch kein Wochenplan für heute. Mit dem Coach plant ihr die Woche über alle Sportarten.</p>
+            <button type="button" className="secondary" onClick={goCoach}>Woche planen</button>
+          </section>
+        </>
       )}
       {session && <MobilityOffer key={session.id} session={session} hideKey={`pandafit.mobility.notToday.${account}`} storage={env.storage} now={env.now} onDone={() => void markDone()} />}
-      <section className="card">
-        <h2>Beschwerden</h2>
-        {open.length === 0 && <p className="muted">Nichts offen.</p>}
-        {open.map((c) => (
-          <div key={c.id} className="tk-row">
-            <span>{c.text}</span><span className="spacer" />
-            <button type="button" className="secondary" aria-label={`Erledigt: ${c.text}`} onClick={() => void close(c.id)}>Erledigt</button>
-          </div>
-        ))}
-        <div className="tk-row">
-          <input aria-label="Neue Beschwerde" placeholder="Was zwickt?" value={text} onChange={(e) => setText(e.target.value)} />
-          <button type="button" className="secondary" onClick={() => void add()} disabled={!text.trim()}>Hinzufügen</button>
-        </div>
-      </section>
     </div>
   );
 }
@@ -401,7 +388,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
         {persistRefused && <div className="tk-screen"><p role="status" className="tk-note">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
-          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} />}
+          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
           {tab === 'training' && <Training port={port} env={env} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}

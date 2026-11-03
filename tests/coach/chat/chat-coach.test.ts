@@ -85,3 +85,21 @@ test('messages older than 90 days are deleted', async () => {
   await coach(s, async () => ({ text: 'x', proposal: null, riderAskedForMore: false })).tick('p');
   expect(s.recs.get('chat:old')!.deleted).toBe(true);
 });
+
+test('a complaint told in the chat is started, one said to be over is ended, and the coach turns careful at once', async () => {
+  const s = store([rider('r1', 'Mein Knie zwickt, und die Schulter ist wieder gut')]);
+  const list = [{ id: 'k1', text: 'Schulter', status: 'active' }];
+  const added: string[] = [], ended: string[] = [];
+  const c = new ChatCoach({
+    store: s as never, nowMs: () => NOW, newId: () => `c${++n}`,
+    complaints: () => list,
+    addComplaint: (_id, text) => { added.push(text); list.push({ id: 'k2', text, status: 'active' }); },
+    endComplaint: (_id, cid) => { ended.push(cid); list.find((x) => x.id === cid)!.status = 'over'; },
+    ask: (async () => ({ text: 'Gute Besserung.', proposal: { weekStart: '2026-11-02', days: days('2026-11-02', [0, 2, 4]) }, riderAskedForMore: true, newComplaint: 'Knie zwickt', complaintsOver: ['k1', 'unknown'] })) as never,
+  });
+  await c.tick('p');
+  expect(added).toEqual(['Knie zwickt']);
+  expect(ended).toEqual(['k1']);
+  // The new complaint makes it careful: the broken proposal stays out even though the rider asked for more.
+  expect(replies(s)[0]!.proposal).toBeUndefined();
+});

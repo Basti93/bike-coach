@@ -105,15 +105,15 @@ describe('web app', () => {
   it('the plan shows its date and says calmly when it is older than a week', async () => {
     await boot({ seed: [plan(NOW - 2 * DAY)] });
     expect(await screen.findByText(/^Plan vom /)).toBeTruthy();
-    expect(screen.queryByText(/Mac macht einen neuen/)).toBeNull();
+    expect(screen.queryByText(/Coach macht einen neuen/)).toBeNull();
     cleanup();
     await boot({ seed: [plan(NOW - 9 * DAY)] });
-    expect(await screen.findByText(/Mac macht einen neuen/)).toBeTruthy();
+    expect(await screen.findByText(/Coach macht einen neuen/)).toBeTruthy();
   });
 
   it('without a plan there is a calm note and a workout can still be started', async () => {
     await boot({ seed: [] });
-    expect(await screen.findByText(/Noch kein Plan/)).toBeTruthy();
+    expect(await screen.findByText(/Noch kein Krafttraining geplant/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Training' }));
     expect(await screen.findByRole('button', { name: 'Leeres Training starten' })).toBeTruthy();
   });
@@ -162,7 +162,8 @@ describe('web app', () => {
 
   it('the tab bar steps aside while a field has focus, so the keyboard never pushes it over an input', async () => {
     await boot({ seed: [] });
-    const field = await screen.findByLabelText('Neue Beschwerde');
+    fireEvent.click(await screen.findByRole('button', { name: 'Coach' }));
+    const field = await screen.findByLabelText('Nachricht an den Coach');
     const nav = screen.getByRole('navigation', { name: 'Seiten' });
     fireEvent.focusIn(field);
     expect(nav.className).toContain('web-nav-away');
@@ -170,20 +171,11 @@ describe('web app', () => {
     expect(nav.className).not.toContain('web-nav-away');
   });
 
-  it('open complaints can be added and closed', async () => {
-    const a = await boot({ seed: [{ kind: 'complaint', id: 'c1', updatedMs: 5, deleted: false, body: { text: 'Knie links', status: 'active', atMs: 5 } }] });
-    expect(await screen.findByText('Knie links')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Erledigt: Knie links' }));
-    await waitFor(() => expect(screen.queryByText('Knie links')).toBeNull());
-    fireEvent.change(screen.getByLabelText('Neue Beschwerde'), { target: { value: 'Schulter rechts' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }));
-    expect(await screen.findByText('Schulter rechts')).toBeTruthy();
-    const st = await openIdb('anna', a.factory);
-    const all = await st.list('complaint');
-    expect(all.find((r) => r.id === 'c1')!.body).toMatchObject({ status: 'over' });
-    expect(all.find((r) => r.id === 'c1')!.updatedMs).toBeGreaterThan(5);
-    expect(all.length).toBe(2);
-    st.close();
+  it('Heute has no complaints box any more: complaints go through the coach chat', async () => {
+    await boot({ seed: [{ kind: 'complaint', id: 'c1', updatedMs: 5, deleted: false, body: { text: 'Knie links', status: 'active', atMs: 5 } }] });
+    await screen.findByRole('heading', { name: 'Heute' });
+    expect(screen.queryByText('Knie links')).toBeNull();
+    expect(screen.queryByLabelText('Neue Beschwerde')).toBeNull();
   });
 
   it('logging out asks when unsent records exist and keeps local data', async () => {
@@ -258,7 +250,7 @@ describe('web app', () => {
   it('B logging in inside A\'s shell never lets A\'s records go out under B, nor B\'s into A\'s database', async () => {
     const factory = new IDBFactory();
     const sa = await openIdb('anna', factory);
-    await sa.put({ kind: 'complaint', id: 'a-only', updatedMs: 5, deleted: false, body: { text: 'Nur Anna', status: 'active', atMs: 5 } });
+    await sa.put({ kind: 'chat', id: 'a-only', updatedMs: 5, deleted: false, body: { role: 'rider', text: 'Nur Anna', atMs: 5 } });
     sa.close();
     let user: string | null = null; // whose cookie the "browser" currently holds
     const posts: { user: string | null; ids: string[] }[] = [];
@@ -267,7 +259,7 @@ describe('web app', () => {
       if (url === '/me') return user ? json(200, { name: user }) : json(401, {});
       if (init.method === 'POST' && url === '/records') { posts.push({ user, ids: (JSON.parse(String(init.body)) as { records: { id: string }[] }).records.map((r) => r.id) }); return json(200, { accepted: 1, refused: [] }); }
       if (!user) return json(401, {});
-      return json(200, { records: user === 'ben' ? [{ kind: 'complaint', id: 'b-only', updatedMs: 6, deleted: false, body: { text: 'Nur Ben', status: 'active', atMs: 6 } }] : [], cursor: 1, more: false, reset: false });
+      return json(200, { records: user === 'ben' ? [{ kind: 'chat', id: 'b-only', updatedMs: 6, deleted: false, body: { role: 'rider', text: 'Nur Ben', atMs: 6 } }] : [], cursor: 1, more: false, reset: false });
     }) as unknown as typeof fetch;
     const storage = new Map<string, string>([['pandafit.account', 'anna']]);
     render(<App env={{ fetchFn, idbFactory: factory, now: () => NOW, newId: () => 'x', storage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, v); }, removeItem: (k) => { storage.delete(k); } }, persist: async () => true, ua: '', standalone: false }} />);
@@ -275,10 +267,11 @@ describe('web app', () => {
     fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
     await waitFor(() => expect(storage.get('pandafit.account')).toBe('ben'));
-    expect(await screen.findByText('Nur Ben')).toBeTruthy();
+    // The shell rebuilds after the login: open the chat until Ben's record shows there.
+    await waitFor(() => { fireEvent.click(screen.getByRole('button', { name: 'Coach' })); expect(screen.getByText('Nur Ben')).toBeTruthy(); });
     expect(posts.filter((p) => p.user === 'ben' && p.ids.includes('a-only'))).toEqual([]);
     const a = await openIdb('anna', factory);
-    expect((await a.list('complaint')).map((r) => r.id)).toEqual(['a-only']);
+    expect((await a.list('chat')).map((r) => r.id)).toEqual(['a-only']);
     a.close();
   });
 
@@ -332,7 +325,7 @@ describe('web app', () => {
 
   it('a malformed plan record does not white-screen the page', async () => {
     await boot({ seed: [{ kind: 'plan', id: 'current', updatedMs: 1, deleted: false, body: { workout: { name: 'X', exercises: [{ title: 'Ohne Sätze' }] } } }, { kind: 'complaint', id: 'c', updatedMs: 1, deleted: false, body: null }] });
-    expect(await screen.findByText(/Noch kein Plan/)).toBeTruthy();
+    expect(await screen.findByText(/Noch kein Krafttraining geplant/)).toBeTruthy();
   });
 
   it('an error boundary shows a calm message and still offers the workout page', () => {

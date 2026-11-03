@@ -15,6 +15,12 @@ type Deps = {
   newId: () => string;
   /** The gym coach's goal ("muscle" …), or null. */
   goal?: (profileId: string) => string | null;
+  /** The profile's complaints (the bike coach keeps them; every coach reads them). Without: the complaint records. */
+  complaints?: (profileId: string) => { id: string; text: string; status: string }[];
+  /** Starts a complaint the rider told the chat about. */
+  addComplaint?: (profileId: string, text: string) => void;
+  /** Ends a complaint the rider said is over. */
+  endComplaint?: (profileId: string, complaintId: string) => void;
 };
 
 /** A rider message older than this gets no late answer. */
@@ -29,12 +35,15 @@ Ein Vorschlag (proposal) ist immer eine ganze Woche von Montag bis Sonntag (sieb
 Regeln, die der Code prüft: höchstens zwei harte Tage pro Woche; kein harter Rad- oder Lauftag am Tag nach einem harten Beintag; die lange Einheit nicht am Tag nach einem Beintag; eine Sportart pro Tag.
 Will die Person ausdrücklich mehr als die Regeln erlauben, sag einmal klar und ohne Drama, was du davon hältst, und setze riderAskedForMore auf true; sonst ist es false. Bei offenen Beschwerden (beschwerden) bleibst du vorsichtig, das gilt immer.
 Plane nur Sportarten, die die Person macht oder ausdrücklich will (siehe letzteTage). Hevy und Garmin sind optional; erwähne sie nicht.
+Beschwerden kommen jetzt über diesen Chat: Erzählt die Person von einem neuen Schmerz oder Zwicken (etwa "Knie zwickt"), setze newComplaint auf einen kurzen Text in ihren Worten und plane vorsichtig; sonst ist newComplaint null. Sagt sie, dass eine Beschwerde aus beschwerden vorbei ist, nenne deren id in complaintsOver; sonst ist complaintsOver leer. Frag nicht nach, ob du sie eintragen sollst.
 Antworte in text in ein bis vier Sätzen. Medizinische Ratschläge gibst du nicht.`;
 
 const answerSchema = {
-  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore'],
+  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore', 'newComplaint', 'complaintsOver'],
   properties: {
     text: { type: 'string' },
+    newComplaint: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+    complaintsOver: { type: 'array', items: { type: 'string' } },
     riderAskedForMore: { type: 'boolean' },
     proposal: {
       anyOf: [{ type: 'null' }, {
@@ -92,10 +101,18 @@ export class ChatCoach {
     const ask = async (p: string) => {
       const raw = await this.deps.ask({ prompt: p, systemPrompt: CHAT_SYSTEM_PROMPT, schema: answerSchema });
       if (!isObj(raw) || typeof raw.text !== 'string') throw new ClaudeError('invalid', 'Keine Antwort.');
-      return { text: raw.text.trim().slice(0, 1500), proposal: this.proposalOf(raw.proposal, now), more: raw.riderAskedForMore === true };
+      return {
+        text: raw.text.trim().slice(0, 1500), proposal: this.proposalOf(raw.proposal, now), more: raw.riderAskedForMore === true,
+        complaint: typeof raw.newComplaint === 'string' && raw.newComplaint.trim() ? raw.newComplaint.trim().slice(0, 200) : null,
+        over: Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : [],
+      };
     };
     let a = await ask(prompt);
-    const careful = this.openComplaints(id).length > 0;
+    // Complaints apply at once, from the first answer: they only ever make the coaches more careful.
+    const open = this.complaintList(id);
+    if (a.complaint && !open.some((c) => c.text.toLowerCase() === a.complaint!.toLowerCase())) { try { this.deps.addComplaint?.(id, a.complaint); } catch { /* the rider can say it again */ } }
+    for (const cid of a.over) if (open.some((c) => c.id === cid)) { try { this.deps.endComplaint?.(id, cid); } catch { /* stays open */ } }
+    const careful = this.complaintList(id).length > 0;
     let broken = a.proposal ? checkWeekPlan(a.proposal.days) : [];
     if (broken.length && (!a.more || careful)) {
       try { a = await ask(`${prompt}\nDein Vorschlag bricht diese Regeln: ${broken.join(' ')} Korrigiere ihn.`); } catch { /* the first answer decides */ }
@@ -115,8 +132,11 @@ export class ChatCoach {
     return p && (p.weekStart === monday || p.weekStart === addDays(monday, 7)) ? p : null;
   }
 
-  private openComplaints(id: string): string[] {
-    return this.deps.store.all(id, 'complaint').filter((r) => !r.deleted && isObj(r.body) && r.body.status !== 'over' && typeof r.body.text === 'string').map((r) => (r.body as { text: string }).text);
+  /** The open complaints with their ids. */
+  private complaintList(id: string): { id: string; text: string; status: string }[] {
+    if (this.deps.complaints) return this.deps.complaints(id).filter((c) => c.status !== 'over');
+    return this.deps.store.all(id, 'complaint').filter((r) => !r.deleted && isObj(r.body) && r.body.status !== 'over' && typeof r.body.text === 'string')
+      .map((r) => ({ id: r.id, text: (r.body as { text: string }).text, status: String((r.body as { status: unknown }).status) }));
   }
 
   private prompt(id: string, thread: ReturnType<typeof chatThread>, now: number): string {
@@ -135,7 +155,7 @@ export class ChatCoach {
       dataBlock('wocheNaechste', { montag: addDays(monday, 7), plan: week(addDays(monday, 7)) }),
       dataBlock('letzteTage', days),
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
-      dataBlock('beschwerden', this.openComplaints(id)),
+      dataBlock('beschwerden', this.complaintList(id)),
       dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}) }))),
       'Antworte auf die letzte Nachricht der Person im Verlauf.',
     ].join('\n');

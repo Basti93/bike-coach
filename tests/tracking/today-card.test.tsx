@@ -1,0 +1,36 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react';
+import { TodayCard } from '../../src/tracking/ui/TodayCard';
+import type { TrackedRecord } from '../../src/shared/records';
+import { weekDates } from '../../src/shared/week-plan';
+import { runFp } from '../../src/shared/run';
+
+afterEach(cleanup);
+const NOW = new Date(2026, 10, 4, 9).getTime(); // Wednesday
+const plan = (sports: string[]): TrackedRecord => ({ kind: 'weekplan', id: '2026-11-02', updatedMs: 1, deleted: false,
+  body: { weekStart: '2026-11-02', fromMessage: 'm', acceptedMs: 1, days: weekDates('2026-11-02').map((date, i) => ({ date, sport: sports[i] ?? 'rest', hardness: 'moderate', fixed: false })) } });
+const run = { date: '2026-11-04', kind: 'easy' as const, minutes: 35, hrCap: 150, counts: 'Zeit zählt.', note: null };
+const runWeek: TrackedRecord = { kind: 'run', id: 'week-2026-11-02', updatedMs: 1, deleted: false, body: {
+  type: 'week', week: '2026-11-02', announce: true, atMs: 1, phase: 1, source: 'rules', reason: 'Ruhig.', note: null, runs: [{ ...run, fp: runFp(run), done: null }], garmin: null,
+} };
+
+test('nothing without a plan for today', () => {
+  const { container } = render(<TodayCard weekplans={[]} runs={[]} nowMs={NOW} gym={<p>Gym</p>} />);
+  expect(container.textContent).toBe('');
+});
+test('a strength day shows the strength plan, and tomorrow in a line', () => {
+  render(<TodayCard weekplans={[plan(['rest', 'rest', 'gym', 'bike'])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
+  expect(screen.getByRole('heading').textContent).toBe('Heute: Kraft, mittel');
+  expect(screen.getByText('Oberkörper A')).toBeTruthy();
+  expect(screen.getByText('Morgen: Rad, mittel')).toBeTruthy();
+});
+test('a rest day hides the strength plan', () => {
+  render(<TodayCard weekplans={[plan([])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
+  expect(screen.getByRole('heading').textContent).toBe('Heute: Ruhetag');
+  expect(screen.queryByText('Oberkörper A')).toBeNull();
+});
+test('a run day names the planned run when the run coach has one', () => {
+  render(<TodayCard weekplans={[plan(['rest', 'rest', 'run'])]} runs={[runWeek]} nowMs={NOW} gym={null} onRun={() => {}} />);
+  expect(screen.getByText("Lauf: 35 Minuten locker")).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Zum Laufen' })).toBeTruthy();
+});

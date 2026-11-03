@@ -64,7 +64,7 @@ describe('Gemeinsam on the phone', () => {
     expect(c.getByText(/Stand: Mittwoch, 4\. November/)).toBeTruthy();
     expect(card.textContent).not.toMatch(NO_RANKING);
     // The card sits before the plan on Heute.
-    expect(card.compareDocumentPosition(screen.getAllByRole('button', { name: 'Zum Training' })[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(screen.getAllByRole('button', { name: 'Zum Krafttraining' })[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('navigation').querySelectorAll('button')).toHaveLength(5); // Heute, Coach, Training, Verlauf, Profil: Essen only with a meal plan; never a tab for this
   });
 
@@ -106,11 +106,11 @@ describe('Gemeinsam on the phone', () => {
 
   it('no record, a deleted one or a broken one: Heute is as before', async () => {
     await boot([{ ...rec(body()), body: { people: 'kaputt' } }]);
-    await screen.findAllByRole('button', { name: 'Zum Training' });
+    await screen.findAllByRole('button', { name: 'Zum Krafttraining' });
     expect(screen.queryByRole('button', { name: /Gemeinsam/ })).toBeNull();
     cleanup();
     await boot([]);
-    await screen.findAllByRole('button', { name: 'Zum Training' });
+    await screen.findAllByRole('button', { name: 'Zum Krafttraining' });
     expect(screen.queryByRole('button', { name: /Gemeinsam/ })).toBeNull();
   });
 });
