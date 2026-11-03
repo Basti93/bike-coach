@@ -300,14 +300,20 @@ describe('test runs and restarts', () => {
 
   test('a test is offered 28 days after switch-on', async () => {
     garmin = history(-1, 3);
-    now = at(0, 8);
+    // Switched on on Sunday evening; the coach ticks every Monday morning and every Sunday evening, as the runtime would.
+    now = at(-1, 20);
     settings({ weekdays: [0, 2, 4, 6] });
     const coach = make();
     await coach.tick('pa');
-    expect(tests(W0)).toEqual([]);
-    now = at(21, 8);
-    await coach.tick('pa');
-    expect(tests(weekKey(3))).toEqual([]);
+    for (let w = 0; w < 4; w++) {
+      now = at(7 * w, 8);
+      await coach.tick('pa');
+      now = at(7 * w + 6, 18);
+      await coach.tick('pa');
+    }
+    for (let w = 0; w < 4; w++) expect(tests(weekKey(w))).toEqual([]);
+    // The 28 days end before week 4 starts: its Sunday plan has the test, and Monday keeps it.
+    expect(tests(weekKey(4))).toHaveLength(1);
     now = at(28, 8);
     await coach.tick('pa');
     expect(tests(weekKey(4))).toHaveLength(1);
@@ -372,5 +378,107 @@ describe('the run cache', () => {
     settings({ weekdays: [0, 2, 4] });
     await coach.tick('pa');
     expect(loadRunCache(path.join(dir, 'run'), 'pa').onSinceMs).toBe(at(2));
+  });
+});
+
+describe('fix round 1', () => {
+  test('a record whose id and body type disagree is ignored', async () => {
+    now = at(0);
+    settings({ weekdays: [0, 2, 4] });
+    // A week body under a manual-run id must not count as a plan for Tuesday.
+    store.put('pa', { kind: 'run', id: 'manual-x', updatedMs: now, deleted: false, body: { type: 'week', week: W0, announce: false, atMs: now, phase: 1, source: 'rules', reason: 'x', note: null,
+      runs: [{ date: '2026-11-03', kind: 'long', minutes: 50, hrCap: null, counts: 'x', note: null, fp: 'f', done: null }], garmin: null } });
+    // A settings body under the status id is no settings record.
+    store.put('pa', { kind: 'run', id: 'status', updatedMs: 1, deleted: false, body: { type: 'settings', on: true, weekdays: [1], answers: null } });
+    const coach = make();
+    await coach.tick('pa');
+    garmin = [run('g-tue', at(1, 18), 40, 6)];
+    now = at(2, 8);
+    await coach.tick('pa');
+    const s = status()!;
+    expect(s.card).toMatchObject({ runId: 'g-tue', kind: 'unplanned' });
+    expect(s.numbers.weeks.at(-1)!.plannedMinutes).toBe(week(W0)!.runs.reduce((a, r) => a + r.minutes, 0));
+    expect(rec('manual-x')!.body).toMatchObject({ type: 'week' });
+  });
+
+  test('with running off or never on, Garmin runs give the coach no runs for mobility', async () => {
+    garmin = [run('g1', at(1, 18))];
+    const coach = make();
+    await coach.tick('pa');
+    expect(coach.runs('pa')).toEqual([]);
+    settings({ on: false });
+    await coach.tick('pa');
+    expect(coach.runs('pa')).toEqual([]);
+    settings({ on: true }, now + 1);
+    await coach.tick('pa');
+    expect(coach.runs('pa').map((r) => r.id)).toEqual(['g1']);
+  });
+
+  test('the switch-on time is when the settings say, not when the coach first sees them', async () => {
+    settings({ weekdays: [0, 2, 4] }, at(0, 7));
+    now = at(3);
+    await make().tick('pa');
+    expect(loadRunCache(path.join(dir, 'run'), 'pa').onSinceMs).toBe(at(0, 7));
+  });
+
+  test('a suggest status is removed once Garmin is gone and no settings exist', async () => {
+    garmin = [run('g1', at(-10))];
+    const coach = make();
+    await coach.tick('pa');
+    expect(status()).toMatchObject({ suggest: true });
+    garmin = null;
+    now += HOUR;
+    await coach.tick('pa');
+    expect(rec('status')!.deleted).toBe(true);
+  });
+
+  test("a ride opened while Claude thinks: nothing is written, and Claude's answer is written after the ride", async () => {
+    settings({ weekdays: [0, 2, 4, 6] });
+    const answer = echo('Nach der Fahrt.');
+    ask = vi.fn(async (input: { prompt: string }) => { open = false; return answer(input); });
+    const coach = make();
+    await coach.tick('pa');
+    expect(week(W0)).toMatchObject({ source: 'rules' });
+    expect(rec('status')).toBeUndefined();
+    open = true;
+    now += 30 * 60_000;
+    await coach.tick('pa');
+    expect(week(W0)).toMatchObject({ source: 'claude', reason: 'Nach der Fahrt.' });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(status()).not.toBeNull();
+  });
+
+  test('two profiles side by side keep their own plans and runs', async () => {
+    const runsOf: Record<string, GarminRun[]> = { pa: [run('a1', at(1, 18))], pb: [run('b1', at(1, 7), 50, 8)] };
+    const coach = make({
+      profile: (id) => ({ id, name: id, ftpW: 200 }) as Profile,
+      garminDb: (id) => ({ runs: (fromMs: number) => runsOf[id]!.filter((r) => r.startMs >= fromMs), activityFile: () => null, body: () => null }),
+    });
+    store.put('pa', { kind: 'run', id: 'settings', updatedMs: now, deleted: false, body: { type: 'settings', on: true, weekdays: [2, 4], answers: null } });
+    store.put('pb', { kind: 'run', id: 'settings', updatedMs: now, deleted: false, body: { type: 'settings', on: true, weekdays: [3, 5], answers: null } });
+    await Promise.all([coach.tick('pa'), coach.tick('pb')]);
+    const weekOf = (p: string) => readRunBody(store.all(p, 'run').find((r) => r.id === `week-${W0}`)!.body) as RunWeekBody;
+    const statusOf = (p: string) => readRunBody(store.all(p, 'run').find((r) => r.id === 'status')!.body) as RunStatusBody;
+    expect(weekOf('pa').runs.map((r) => r.date)).toEqual(['2026-11-04', '2026-11-06']);
+    expect(weekOf('pb').runs.map((r) => r.date)).toEqual(['2026-11-05', '2026-11-07']);
+    expect(statusOf('pa').card!.runId).toBe('a1');
+    expect(statusOf('pb').card!.runId).toBe('b1');
+    expect(coach.runs('pa').map((r) => r.id)).toEqual(['a1']);
+    expect(coach.runs('pb').map((r) => r.id)).toEqual(['b1']);
+  });
+
+  test('every finished week since the last review gets its review, up to 4 weeks back', async () => {
+    now = at(0);
+    settings({ weekdays: [0, 2, 4] });
+    const coach = make();
+    await coach.tick('pa');
+    now = at(6, 18);
+    await coach.tick('pa');
+    expect(week(W1)).not.toBeNull();
+    // Offline for the whole of week 1.
+    now = at(14, 9);
+    await coach.tick('pa');
+    expect(rec(`review-${W0}`)).toBeDefined();
+    expect(rec(`review-${W1}`)).toBeDefined();
   });
 });

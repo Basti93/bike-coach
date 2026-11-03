@@ -14,7 +14,7 @@ import {
 import { runCard } from './card';
 import { RUN_REGION, runComplaintMode, type ComplaintMode } from './complaints';
 import { garminRuns, type Run } from './garmin-runs';
-import { checkRunWeek } from './guardrails';
+import { checkRunWeek, type RunCheck } from './guardrails';
 import { RESTART_DAYS } from './limits';
 import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from './numbers';
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
@@ -31,6 +31,8 @@ const WINDOW_DAYS = 120;
 const SUGGEST_DAYS = 56;
 /** The card shows the newest run of the last week. */
 const CARD_DAYS = 7;
+/** Reviews are caught up for at most this many finished weeks. */
+const REVIEW_WEEKS = 4;
 /** On Sunday from this hour the coming week is planned. */
 const ANNOUNCE_HOUR = 18;
 
@@ -70,6 +72,8 @@ export class RunCoach {
   private caches = new Map<string, RunCache>();
   private running = new Map<string, Promise<void>>();
   private lastRuns = new Map<string, Run[]>();
+  /** Checked answers that came back while a ride opened, per profile and week. */
+  private held = new Map<string, { key: string; checked: RunCheck; retried: boolean }>();
 
   constructor(private deps: RunDeps) {}
 
@@ -164,8 +168,12 @@ export class RunCoach {
       if (dayIndex(now) === 6 && d.getHours() >= ANNOUNCE_HOUR) targets.push({ week: addWeeks(current, 1), fromDate: addWeeks(current, 1), announce: true });
       // The week before only gets its runs matched (a Sunday-night run is read on Monday).
       this.matchDone(ctx, addWeeks(current, -1));
-      for (const t of targets) await this.planWeek(ctx, t);
-      this.review(ctx, addWeeks(current, -1));
+      for (const t of targets) {
+        await this.planWeek(ctx, t);
+        // Nothing more is written once a ride opened during the Claude call.
+        if (!this.deps.noOpenRide()) return;
+      }
+      for (let k = REVIEW_WEEKS; k >= 1; k--) this.review(ctx, addWeeks(current, -k));
     }
 
     const recentGarmin = fromGarmin.some((r) => r.startMs > now - SUGGEST_DAYS * DAY && r.startMs <= now);
@@ -222,7 +230,7 @@ export class RunCoach {
     const rule = ruleWeek({
       nowMs: now, week: t.week, fromDate: t.fromDate, runs: ctx.runs, weekdays: ctx.weekdays, answers: ctx.settings.answers, maxHr: ctx.maxHr,
       complaint: ctx.mode, days, crossCut: (m) => crossSportCut(this.deps.weeks(id), m),
-      lastTestMs: this.lastTestMs(ctx, t.fromDate), phase: phaseOf(ctx.runs, this.complaintWeeks(ctx), now), restartSince: this.restartSince(ctx),
+      lastTestMs: this.lastTestMs(ctx, t.fromDate), dueAtMs: Math.max(now, startMsOf(t.fromDate)), phase: phaseOf(ctx.runs, this.complaintWeeks(ctx), now), restartSince: this.restartSince(ctx),
     });
     const save = (planned: PlannedRun[], source: 'rules' | 'claude', reason: string, note: string | null): void => {
       const body = this.weekBody(ctx, t, existing, rule, planned, source, reason, note);
@@ -233,23 +241,37 @@ export class RunCoach {
 
     // The rule plan stands first, so a missing or slow Claude never leaves the week empty.
     save(rule.runs, 'rules', rule.reason, null);
+    const heldKey = `${id}|${t.week}`;
+    const held = this.held.get(heldKey);
+    this.held.delete(heldKey);
     if (rule.runs.length === 0) { settle(); return; }
-    if (cache.attempts >= MAX_ATTEMPTS) { settle(); return; }
-    if (cache.attempts > 0 && cache.lastAttemptMs !== null && now - cache.lastAttemptMs < RETRY_MS) return;
-    cache.attempts += 1;
-    cache.lastAttemptMs = now;
-    this.saveCache(id);
+    const resumed = held && held.key === key ? held : null;
+    if (!resumed) {
+      if (cache.attempts >= MAX_ATTEMPTS) { settle(); return; }
+      if (cache.attempts > 0 && cache.lastAttemptMs !== null && now - cache.lastAttemptMs < RETRY_MS) return;
+      cache.attempts += 1;
+      cache.lastAttemptMs = now;
+      this.saveCache(id);
+    }
 
     const numbers = runNumbers(ctx.runs, [...ctx.weeks.values()], now);
     const ask = (rejection?: string) => this.deps.ask({
       prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }),
       systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
     });
+    // A ride that opened while Claude was thinking: the answer is held and written after the ride, without asking again.
+    const rideOpened = (checked: RunCheck, retried: boolean): boolean => {
+      if (this.deps.noOpenRide()) return false;
+      this.held.set(heldKey, { key, checked, retried });
+      return true;
+    };
     try {
-      let checked = checkRunWeek(await ask(), rule, allowedDates, days);
-      if (!checked.ok) {
+      let checked = resumed ? resumed.checked : checkRunWeek(await ask(), rule, allowedDates, days);
+      if (!resumed && rideOpened(checked, false)) return;
+      if (!checked.ok && !resumed?.retried) {
         // Exactly one second attempt with the reason; after that the rule plan stands.
         try { checked = checkRunWeek(await ask(checked.reason), rule, allowedDates, days); } catch { /* the first answer decides */ }
+        if (rideOpened(checked, true)) return;
       }
       if (checked.ok) save(checked.runs, 'claude', checked.reason, checked.note);
       cache.lastError = checked.ok ? null : 'invalid';
@@ -303,7 +325,7 @@ export class RunCoach {
     return out;
   }
 
-  /** Once per past week that had a plan: what happened, and the focus of the coming week. */
+  /** Once per finished week that had a plan: what happened, and the focus of the coming week. */
   private review(ctx: Ctx, week: string): void {
     const cache = this.cache(ctx.id);
     const plan = ctx.weeks.get(week);

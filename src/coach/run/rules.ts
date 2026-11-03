@@ -23,6 +23,8 @@ export type RuleInput = {
   phase: Phase;
   /** The date a closed run complaint restarted the plan; later weeks ramp from that week on. */
   restartSince: string | null;
+  /** When a test counts as due; defaults to nowMs. A week planned ahead passes the start of its first open day. */
+  dueAtMs?: number;
 };
 export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null;
   /** The week's heart-rate cap for easy runs (null without a max heart rate), and whether the counts text mentions the trend. */
@@ -174,7 +176,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   // with a complaint or pain; on a fresh day that is neither the long-run day nor the day before; with room for one more run.
   const anchor = input.lastTestMs === null ? null
     : Math.max(input.lastTestMs, startMsOf(input.phase.since), input.restartSince !== null ? startMsOf(input.restartSince) : 0);
-  const due = anchor !== null && input.nowMs - anchor >= TEST_EVERY_DAYS * DAY;
+  const due = anchor !== null && (input.dueAtMs ?? input.nowMs) - anchor >= TEST_EVERY_DAYS * DAY;
   const fresh = (d: string): boolean => {
     const own = input.days[d]?.hardness ?? null;
     const before = input.days[shift(d, -1)];
