@@ -369,3 +369,10 @@ test('the number of runs grows by at most one over last week', () => {
   const three = [0, 2, 4].map((i) => run(at(2027, 6, 7 + i), 30));
   expect(ruleWeek(input({ runs: three, weekdays: [0, 1, 2, 3, 4, 5, 6] })).runs).toHaveLength(4);
 });
+
+test('the rule week carries the heart-rate cap and whether the trend is mentioned', () => {
+  const w = ruleWeek(input());
+  expect(w.hrCap).toBe(143);
+  expect(w.hasTrend).toBe(true);
+  expect(ruleWeek(input({ maxHr: null })).hrCap).toBeNull();
+});

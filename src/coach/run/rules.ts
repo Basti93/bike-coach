@@ -24,7 +24,9 @@ export type RuleInput = {
   /** The date a closed run complaint restarted the plan; later weeks ramp from that week on. */
   restartSince: string | null;
 };
-export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null };
+export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null;
+  /** The week's heart-rate cap for easy runs (null without a max heart rate), and whether the counts text mentions the trend. */
+  hrCap: number | null; hasTrend: boolean };
 
 /** The seven local dates of a week, Monday first. Built from noon, so a daylight-saving change cannot skip or repeat a date. */
 export const weekDates = (week: string): string[] => Array.from({ length: 7 }, (_, i) => dateKey(dateOf(week, i)));
@@ -222,6 +224,8 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     totalMinutes: runs.reduce((s, r) => s + r.minutes * (r.kind === 'test' ? TEST_LOAD : 1), 0),
     maxRunMinutes: runs.reduce((m, r) => Math.max(m, r.minutes), 0),
     testDate,
+    hrCap,
+    hasTrend,
   };
 };
 

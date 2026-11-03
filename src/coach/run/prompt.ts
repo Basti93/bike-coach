@@ -41,8 +41,8 @@ export type RunPromptInput = {
   rule: RuleWeek; runs: Run[]; numbers: RunNumbers; complaint: ComplaintMode; days: Record<string, DayRating>; rejection?: string;
   /** The prompt's "now" for the recent runs; defaults to the newest run. */
   nowMs?: number;
-  /** The dates a run may stand on; defaults to the dates of `days`. */
-  allowedDates?: string[];
+  /** The dates a run may stand on: the chosen weekdays, never before fromDate. */
+  allowedDates: string[];
 };
 
 export function buildRunPrompt(i: RunPromptInput): string {
@@ -54,7 +54,7 @@ export function buildRunPrompt(i: RunPromptInput): string {
       phase: i.rule.phase, totalMinutes: i.rule.totalMinutes, maxRunMinutes: i.rule.maxRunMinutes, testDate: i.rule.testDate,
       runs: i.rule.runs.map((r) => ({ date: r.date, kind: r.kind, minutes: r.minutes })), reason: i.rule.reason,
     }),
-    dataBlock('erlaubteTage', [...(i.allowedDates ?? Object.keys(i.days))].sort()),
+    dataBlock('erlaubteTage', [...i.allowedDates].sort()),
     dataBlock('tage', Object.values(i.days).map((d) => ({ date: d.date, hardness: d.hardness, legs: d.legs }))),
     dataBlock('laeufe', recent),
     dataBlock('zahlen', i.numbers),
