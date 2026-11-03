@@ -74,3 +74,15 @@ test('the ratings decide hardness and legs', () => {
   const c = statsContent(base({ ratings: (dates) => ({ [dates[0]]: { date: dates[0], hardness: 'hard', legs: true, minutes: 0 } }) }));
   expect(c!.days[0]).toMatchObject({ date: '2027-04-19', hardness: 'hard', legs: true });
 });
+
+test('muscles come from the known templates first, the guess by title only after that', () => {
+  const c = statsContent(base({
+    history: [{ startMs: at(14), durationS: 3600, exercises: [
+      { templateId: 'CUSTOM-1', title: 'Seitheben Maschine Stehend' },
+      { templateId: 'HEVY-2', title: 'Fliegende (Maschine)' },
+      { templateId: 'HEVY-3', title: 'Bicep Curl (Barbell)' },
+    ] }],
+    templateMuscle: (id) => ({ 'CUSTOM-1': 'shoulders', 'HEVY-2': 'chest' } as Record<string, string>)[id] ?? null,
+  }));
+  expect(c?.muscles).toEqual({ 'CUSTOM-1': 'shoulders', 'HEVY-2': 'chest', 'HEVY-3': 'biceps' });
+});

@@ -22,6 +22,8 @@ export type StatsContentInput = {
   /** How hard each date was, from what was done. */
   ratings: (dates: string[]) => Record<string, DayRating>;
   goal: string | null;
+  /** The primary muscle of a Hevy or own template as the gym coach knows it (also custom ones); null when unknown. */
+  templateMuscle?: (templateId: string) => string | null;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -54,7 +56,7 @@ export function statsContent(i: StatsContentInput): Omit<StatsBody, 'atMs'> | nu
   for (const w of i.history) {
     if (!inDates.has(dateKey(w.startMs))) continue;
     for (const e of w.exercises) {
-      const m = muscleOf(e.templateId, e.title);
+      const m = i.templateMuscle?.(e.templateId) ?? muscleOf(e.templateId, e.title);
       if (m) found.set(e.templateId, m);
     }
   }

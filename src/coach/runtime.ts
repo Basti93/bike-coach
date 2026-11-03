@@ -215,6 +215,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
       ratings: (dates) => ratingsOf(id, dates, runs), goal: gym.state(id).goal ?? null,
+      templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
     });
   };
   /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */

@@ -173,7 +173,15 @@ export class GymCoach {
     // With Hevy the plan stays with Hevy's list; an own exercise joins it once it is linked or has been done in the app.
     const used = new Set(this.logged(id).filter((w) => w.source !== 'hevy').flatMap((w) => w.exercises.map((e) => e.exerciseId)));
     const own: ExerciseTemplate[] = EXERCISES.filter((e) => !this.isHevy(id) || used.has(e.id) || Object.values(this.state(id).links).includes(e.id)).map((e) => ({ id: e.id, title: e.title, type: e.type, primaryMuscle: e.primaryMuscle, equipment: e.equipment }));
-    return [...own, ...this.ownExercises(id), ...hevy.filter((t) => !linked.has(t.id))];
+    const list = [...own, ...this.ownExercises(id), ...hevy.filter((t) => !linked.has(t.id))];
+    // Remembered with the unlinked Hevy templates too, so a linked id still finds its muscle.
+    this.known.set(id, new Map([...hevy, ...list].map((t) => [t.id, t.primaryMuscle])));
+    return list;
+  }
+  private known = new Map<string, Map<string, string>>();
+  /** The primary muscle of a template from the last template list of this profile; null before the first one or when unknown. */
+  templateMuscle(id: string, templateId: string): string | null {
+    return this.known.get(id)?.get(templateId) || null;
   }
   private ownExercises(id: string): ExerciseTemplate[] {
     if (!this.deps.store) return [];

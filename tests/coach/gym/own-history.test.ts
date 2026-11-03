@@ -120,6 +120,10 @@ describe('own history', () => {
     const list = await h.coach.templateList(ID);
     expect(list.filter((t) => t.id === BENCH || t.id === 'hevy-bench-1')).toHaveLength(1);
     expect(list.find((t) => t.id === 'hevy-other-1')?.title).toBe('Some Odd Machine');
+    // The muscles of the list are remembered, also for a Hevy id that is linked to an own exercise.
+    expect(h.coach.templateMuscle(ID, 'hevy-other-1')).toBe(list.find((t) => t.id === 'hevy-other-1')?.primaryMuscle);
+    expect(h.coach.templateMuscle(ID, BENCH)).toBe('chest');
+    expect(h.coach.templateMuscle(ID, 'unknown-id')).toBeNull();
   });
 
   it('"Nach Hevy" is not offered without Hevy', async () => {
