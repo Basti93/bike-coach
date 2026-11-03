@@ -5,9 +5,10 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { Household, type HouseholdOptions } from '../../../src/coach/server/household';
 import { internalLinks } from '../../../src/coach/server/internal-links';
 import { MEAL_SYSTEM_PROMPT } from '../../../src/coach/meals/prompt';
+import { CHAT_SYSTEM_PROMPT } from '../../../src/coach/meals/chat';
 import { sealedCodec } from '../../../src/coach/secrets/secret-box';
 import { rampTest } from '../../../src/coach/rules';
-import { DEFAULT_MEAL_SETTINGS } from '../../../src/shared/meals';
+import { DEFAULT_MEAL_SETTINGS, readMealChat } from '../../../src/shared/meals';
 import type { Profile } from '../../../src/shared/profiles';
 
 const KEY = Buffer.alloc(32, 7);
@@ -233,6 +234,43 @@ test('the meal plan waits until the household\'s meals moved, then plans for bot
   expect(a2.runtime.records.all('pa')).toEqual([]);
   expect(fs.existsSync(path.join(accountDir(root, 1), 'coach', 'tracking', 'pb.json'))).toBe(false);
   expect(a1.runtime.view('pa')!.meals?.weeks.length).toBeGreaterThan(0);
+});
+
+test('quiet hours: a meal chat message from the phone is answered, the weekly plan waits until 06:00', async () => {
+  const root = temp();
+  seedAccount(root, 1, P1);
+  const meals = path.join(root, 'household', 'meals');
+  fs.mkdirSync(meals, { recursive: true });
+  fs.writeFileSync(path.join(meals, 'household.json'), JSON.stringify({ settings: { pa: { ...DEFAULT_MEAL_SETTINGS, on: true } }, plans: {}, states: {}, notices: {}, lastAuto: null }));
+  fs.writeFileSync(path.join(meals, 'moved.json'), JSON.stringify({ atMs: 2 }));
+  // Sunday 03:00: the plan for the coming week is due, but it is night.
+  let now = new Date(2026, 10, 8, 3, 0).getTime();
+  const ask = vi.fn(async (input: { systemPrompt: string }): Promise<unknown> => {
+    if (input.systemPrompt === MEAL_SYSTEM_PROMPT) throw new Error('rules will do');
+    if (input.systemPrompt === CHAT_SYSTEM_PROMPT) return { antwort: 'Gern, passt so.', aenderungen: [], abneigungenMerken: [] };
+    return answer;
+  });
+  const { household } = make({ root, ask: ask as never, nowMs: () => now });
+  const a1 = household.account(1)!;
+  const weekRecords = () => a1.runtime.records.all('pa', 'mealplan').filter((r) => r.id.startsWith('week-') && !r.deleted);
+  household.scan();
+  await settle(150);
+  expect(weekRecords()).toEqual([]);
+
+  // 06:00: the scheduled plan comes.
+  now = new Date(2026, 10, 8, 6, 0).getTime();
+  household.scan();
+  await vi.waitFor(() => expect(weekRecords().length).toBeGreaterThan(0), { timeout: 3000 });
+
+  // Monday 03:00: a message typed on the phone for this week's plan is answered at night.
+  now = new Date(2026, 10, 9, 3, 0).getTime();
+  a1.runtime.records.putMany('pa', [{ kind: 'mealplan', id: 'chat-mob1x2y3z', updatedMs: now, deleted: false, body: { week: '2026-11-09', text: 'Passt das so?', atMs: now, reply: null, answeredMs: null, changed: [] } }], 'remote');
+  household.scan();
+  await vi.waitFor(() => {
+    const rec = a1.runtime.records.all('pa', 'mealplan').find((r) => r.id === 'chat-mob1x2y3z')!;
+    expect(readMealChat(rec.id, rec.body)?.reply).toBe('Gern, passt so.');
+  }, { timeout: 3000 });
+  expect(ask.mock.calls.some(([i]) => i.systemPrompt === CHAT_SYSTEM_PROMPT)).toBe(true);
 });
 
 test('not there: an account without Hevy and Garmin coaches with no fetch and no spawn', async () => {

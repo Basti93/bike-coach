@@ -30,7 +30,7 @@ const PAGE = 200;
 const EVERY_MS = 60_000;
 const SOON_MS = 1500;
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
-const KINDS: readonly string[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
+const KINDS: readonly string[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
 const valid = (x: unknown): x is TrackedRecord => isObj(x) && KINDS.includes(x.kind as string) && typeof x.id === 'string' && typeof x.updatedMs === 'number' && typeof x.deleted === 'boolean' && x.body !== undefined;
 
 export function createWebPort(o: {

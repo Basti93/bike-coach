@@ -91,3 +91,34 @@ test('the menu shows Essen only when the plan is on for this profile', async () 
   fireEvent.click(screen.getByRole('button', { name: 'Essen' }));
   expect(screen.getByRole('heading', { name: 'Essen' })).toBeTruthy();
 });
+
+test('the chat: a message goes to the coach, the last answer shows, older ones are folded, a changed dish says who asked', async () => {
+  const base = await sample();
+  const at = new Date(2026, 10, 10, 9).getTime();
+  const chat = [
+    { id: 'chat-aaaa1111', week: '2026-11-09', text: 'Feta durch Mozzarella ersetzen', atMs: at - 7_200_000, reply: 'Erledigt, am Donnerstag gibt es Mozzarella.', answeredMs: at - 7_100_000, changed: ['3-abend'] },
+    { id: 'chat-bbbb2222', week: '2026-11-09', text: 'Mittwoch lieber was mit Nudeln', atMs: at - 60_000, reply: null, answeredMs: null, changed: [] },
+  ];
+  const week = base.weeks[0]!;
+  const meals = { ...base, planning: 'chat', chat, weeks: [{ ...week, plan: { ...week.plan, meals: week.plan.meals.map((m) => (m.day === 3 && m.slot === 'abend' ? { ...m, askedBy: 'lena' } : m)) } }] };
+  const send = vi.fn();
+  render(<MealsView profileId="max" meals={meals} send={send} />);
+  const box = screen.getByRole('region', { name: 'Mit dem Coach über den Plan sprechen' });
+  expect(within(box).getByText('Mittwoch lieber was mit Nudeln')).toBeTruthy();
+  expect(within(box).getByText('Der Coach überlegt …')).toBeTruthy();
+  const older = box.querySelector('details')!;
+  expect(older.open).toBe(false);
+  expect(older.textContent).toContain('Bisheriges Gespräch (1)');
+  expect(older.textContent).toContain('Erledigt, am Donnerstag gibt es Mozzarella.');
+  fireEvent.change(within(box).getByLabelText('Nachricht an den Coach'), { target: { value: '  das Rezept am Freitag ist zu aufwendig ' } });
+  fireEvent.click(within(box).getByRole('button', { name: 'Senden' }));
+  expect(send).toHaveBeenCalledWith({ type: 'meals-chat', profileId: 'max', week: '2026-11-09', text: 'das Rezept am Freitag ist zu aufwendig' });
+  expect(screen.getByRole('button', { name: /Donnerstag, Abendessen/ }).textContent).toContain('auf Wunsch von Lena');
+});
+
+test('with a ride open, an unanswered message waits for the end of the ride', async () => {
+  const at = new Date(2026, 10, 10, 9).getTime();
+  const meals = { ...(await sample()), canPlan: false, chat: [{ id: 'chat-cccc3333', week: '2026-11-09', text: 'ohne Tofu bitte', atMs: at, reply: null, answeredMs: null, changed: [] }] };
+  render(<MealsView profileId="max" meals={meals} send={() => {}} />);
+  expect(screen.getByText('Der Coach antwortet nach der Fahrt.')).toBeTruthy();
+});

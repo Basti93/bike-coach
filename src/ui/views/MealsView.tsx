@@ -3,7 +3,7 @@ import type { MealsView as MealsData, MealWeek } from '../../coach/meals/meal-co
 import type { CoachClientMessage } from '../../shared/coach-protocol';
 import {
   cookPortions, DAY_LONG, DAY_SHORT, dayDate, eatersOf, initialOf, mealKey, recipeAmount, shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS,
-  weekRangeText, type ItemState, type Meal, type Person, type ShopItem, type Slot,
+  weekRangeText, CHAT_MAX_CHARS, type ItemState, type Meal, type MealChat, type Person, type ShopItem, type Slot,
 } from '../../shared/meals';
 
 type Props = { profileId: string; meals: MealsData; send: (m: CoachClientMessage) => void };
@@ -28,6 +28,41 @@ export const firstWeek = (m: MealsData): string | null => {
   return m.weeks.find((w) => w.plan.week === m.currentWeek)?.plan.week ?? next?.plan.week ?? null;
 };
 
+const askedName = (people: Person[], id: string | undefined): string | null => (id ? people.find((p) => p.id === id)?.name ?? null : null);
+
+const chatDate = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+const ChatRow = ({ c, pending }: { c: MealChat; pending: string }) => (
+  <li>
+    <span className="log-who you">Du</span>
+    <span className="log-text">{c.text}<span className={c.reply ? 'reply' : 'reply pending'}>{c.reply ?? pending}</span></span>
+    <span className="muted log-date">{chatDate(c.atMs)}</span>
+  </li>
+);
+
+/** "Sag dem Coach, was du ändern willst": the last exchange open, the ones before folded like the bike coach's. */
+export const MealChatBox = ({ chat, answering, canPlan, onSend }: { chat: MealChat[]; answering: boolean; canPlan: boolean; onSend: (text: string) => void }) => {
+  const [text, setText] = useState('');
+  const submit = () => { const t = text.trim(); if (!t) return; onSend(t); setText(''); };
+  const pending = answering ? 'Der Coach überlegt …' : canPlan ? 'Der Coach antwortet gleich.' : 'Der Coach antwortet nach der Fahrt.';
+  const newest = [...chat].reverse();
+  const [last, ...before] = newest;
+  return (
+    <section className="card meal-chat" aria-label="Mit dem Coach über den Plan sprechen">
+      <form className="note-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <input aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="Sag dem Coach, was du ändern willst, z. B. Mittwoch lieber was mit Nudeln" value={text} onChange={(e) => setText(e.target.value)} />
+        <button type="submit" className="secondary" disabled={!text.trim()}>Senden</button>
+      </form>
+      {last && <ul className="meal-chat-last coach-log"><ChatRow c={last} pending={pending} /></ul>}
+      {before.length > 0 && (
+        <details className="coach-log">
+          <summary className="muted">Bisheriges Gespräch ({before.length})</summary>
+          <ul>{before.map((c) => <ChatRow key={c.id} c={c} pending={pending} />)}</ul>
+        </details>
+      )}
+    </section>
+  );
+};
+
 const MealCard = ({ week, meal, today, onOpen }: { week: MealWeek; meal: Meal; today: boolean; onOpen: () => void }) => {
   const k = keyOf(meal);
   const eaters = eatersOf(week.plan, week.state, k);
@@ -37,6 +72,7 @@ const MealCard = ({ week, meal, today, onOpen }: { week: MealWeek; meal: Meal; t
       aria-label={`${DAY_LONG[meal.day]}, ${SLOT_LABEL[meal.slot]}: ${meal.dish.title}`}>
       {meal.reuseOf && <span className="meal-badge rest">Rest von {short(meal.reuseOf)}</span>}
       <span className="meal-title">{meal.dish.title}</span>
+      {askedName(week.plan.people, meal.askedBy) && <span className="meal-asked">auf Wunsch von {askedName(week.plan.people, meal.askedBy)}</span>}
       <span className="meal-meta">
         {!meal.reuseOf && <span>{meal.dish.minutes} Min</span>}
         <span><b>{meal.dish.proteinG} g</b> Eiweiß</span>
@@ -68,6 +104,7 @@ const RecipePanel = ({ profileId, week, meal, canPlan, planning, send, onClose }
           <button type="button" className="ghost meal-close" aria-label="Schließen" onClick={onClose}>×</button>
         </div>
         <h2>{meal.dish.title}</h2>
+        {askedName(week.plan.people, meal.askedBy) && <p className="muted meal-asked-note">Im Gespräch mit dem Coach geändert, auf Wunsch von {askedName(week.plan.people, meal.askedBy)}.</p>}
         <dl className="facts">
           {!meal.reuseOf && <div><dt>Zeit</dt><dd>{meal.dish.minutes} Min</dd></div>}
           <div><dt>Eiweiß pro Portion</dt><dd>etwa {meal.dish.proteinG} g</dd></div>
@@ -204,6 +241,7 @@ export const MealsView = ({ profileId, meals, send }: Props) => {
         </div>
       </div>
       {week.notice && <p className="notice meals-notice" role="status">{week.notice}</p>}
+      <MealChatBox chat={meals.chat ?? []} answering={planning === 'chat'} canPlan={meals.canPlan} onSend={(text) => send({ type: 'meals-chat', profileId, week: week.plan.week, text })} />
       {tab === 'woche' ? (
         <div className="meal-grid" role="grid" aria-label={`Wochenplan ${weekRangeText(week.plan.week)}`}>
           <div className="meal-corner" />

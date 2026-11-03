@@ -68,6 +68,7 @@ export type CoachClientMessage =
   | { type: 'meals-settings'; profileId: string; settings: unknown }
   | { type: 'meals-replan'; profileId: string; week: string }
   | { type: 'meals-swap'; profileId: string; week: string; meal: string; ai: boolean }
+  | { type: 'meals-chat'; profileId: string; week: string; text: string }
   | { type: 'meals-eater'; profileId: string; week: string; meal: string; person: string; on: boolean }
   | { type: 'meals-item'; profileId: string; week: string; item: string; state: ItemState }
   | { type: 'records-put'; requestId: string; profileId: string; record: TrackedRecord; seenMs?: number }

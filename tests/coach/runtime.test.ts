@@ -11,6 +11,9 @@ import type { Profile } from '../../src/shared/profiles';
 import type { CoachServerMessage } from '../../src/shared/coach-protocol';
 import { sealedTokens } from '../../src/coach/secrets/garmin-tokens';
 import { sealedCodec } from '../../src/coach/secrets/secret-box';
+import { CHAT_SYSTEM_PROMPT } from '../../src/coach/meals/chat';
+import { computeTogether } from '../../src/coach/together';
+import { TOGETHER_ID } from '../../src/shared/together';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'));
 const good = { id: 'ki', name: 'KI', steps: [
@@ -191,4 +194,27 @@ test('a disconnect and a new login while a sync runs: the new tokens are sealed 
   const left = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? left(path.join(dir, e.name)) : [path.join(dir, e.name)]));
   expect(left(runDir)).toEqual([]);
   for (const f of left(garminDir)) expect(fs.readFileSync(f, 'utf8')).not.toContain('konto');
+});
+
+test('a meal chat message from the Mac reaches the meal plan and gets its answer', async () => {
+  const { runtime, ask } = make();
+  subscribe(runtime);
+  const week = runtime.view('pa')!.meals!.currentWeek;
+  runtime.handle({ type: 'meals-settings', profileId: 'pa', settings: { on: true } }, () => {});
+  runtime.handle({ type: 'meals-replan', profileId: 'pa', week }, () => {});
+  await vi.waitFor(() => expect(runtime.view('pa')!.meals!.weeks.length).toBeGreaterThan(0));
+  runtime.handle({ type: 'meals-chat', profileId: 'pa', week, text: 'Passt das so?' }, () => {});
+  await vi.waitFor(() => expect(runtime.view('pa')!.meals!.chat[0]?.reply).toBeTruthy());
+  expect((ask.mock.calls as unknown as [{ systemPrompt: string }][]).some(([i]) => i.systemPrompt === CHAT_SYSTEM_PROMPT)).toBe(true);
+});
+
+test('the scan writes the together page to a linked profile, and not with a ride open', () => {
+  const linked = { ...new AccountLinks({ dir: temp() }), link: async () => { throw new Error('no'); }, unlink: () => {}, status: () => ({ state: 'linked', name: null }), token: () => null, url: () => null, reject: () => {}, cursors: () => new AccountLinks({ dir: temp() }).cursors('pa') } as never;
+  const together = () => computeTogether(PROFILES, [], Date.now());
+  const open = make({ links: linked, together, noOpenRide: () => false });
+  open.runtime.scan();
+  expect(open.runtime.records.all('pa', 'together')).toEqual([]);
+  const free = make({ links: linked, together });
+  free.runtime.scan();
+  expect(free.runtime.records.all('pa', 'together').map((r) => r.id)).toEqual([TOGETHER_ID]);
 });

@@ -10,6 +10,7 @@ import { mobilityToShow, openComplaints, planDateText, planIsStale, readPlan, sh
 import type { OpenState } from './register';
 import { createWebPort, type WebPort } from './webPort';
 import { MealsScreen, mealWeeks } from './MealsScreen';
+import { TogetherCard, TogetherPage, togetherOf } from './TogetherScreen';
 import type { PushEnv, SubJson } from './push';
 
 export type Env = {
@@ -100,6 +101,9 @@ function Heute({ port, env, account, goTraining }: { port: WebPort; env: Env; ac
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
   const complaints = usePortRecords(port, 'complaint').records;
+  // Only when the Mac sent one for this account: without a link Heute stays as it was.
+  const together = togetherOf(usePortRecords(port, 'together').records);
+  const [showTogether, setShowTogether] = useState(false);
   const [text, setText] = useState('');
   const plan = (plans ?? []).find((r) => r.id === 'current');
   const p = readPlan(plan);
@@ -123,9 +127,11 @@ function Heute({ port, env, account, goTraining }: { port: WebPort; env: Env; ac
     try { await port.put({ kind: 'complaint', id: `phone-${env.newId()}`, updatedMs: env.now(), deleted: false, body: { text: t, status: 'active', atMs: env.now() } }); setText(''); } catch { /* text stays */ }
   };
 
+  if (together && showTogether) return <TogetherPage t={together} now={now} onBack={() => setShowTogether(false)} />;
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Heute</h1>
+      {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
       {p ? (
         <section className="card">
           <p className="muted">{planDateText(p.atMs)}</p>

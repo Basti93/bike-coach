@@ -158,9 +158,10 @@ export class Household {
     try { names = fs.readdirSync(path.join(this.opts.root, 'accounts')); } catch { /* no account yet */ }
     for (const name of names) if (ACCOUNT_DIR.test(name)) { try { this.start(Number(name)); } catch { /* try again on the next scan */ } }
     for (const a of this.accounts.values()) a.runtime.scan();
-    // Separate safeguard: the meal plan must never disturb the coaches. It plans only once moved, and not at night.
+    // Separate safeguard: the meal plan must never disturb the coaches. It runs only once moved. At night it answers a person's
+    // chat message but does not make the scheduled weekly plan.
     const mc = this.openMeals();
-    if (mc && !this.quiet()) void mc.tick().catch(() => {});
+    if (mc) void mc.tick({ plan: !this.quiet() }).catch(() => {});
   }
 
   /** Both accounts' derived values only: no note, complaint, ride id or health value. */

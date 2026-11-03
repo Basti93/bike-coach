@@ -23,6 +23,7 @@ import { handleRecords } from './tracking/records-api';
 import { MobilityCoach } from './mobility/mobility';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
+import { exportTogether } from './tracking/together-export';
 import { mergedHealth, mergedStrength } from './tracking/strength-source';
 import { MealCoach, usualTrainingDays } from './meals/meal-coach';
 import type { SecretCodec } from './secrets/secret-box';
@@ -282,6 +283,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     if (m.type === 'meals-item') meals.setItem(m.profileId, m.week, m.item, m.state);
     if (m.type === 'meals-replan') { void meals.replan(m.profileId, m.week).catch(() => {}).finally(sync); }
     if (m.type === 'meals-swap') { void meals.swap(m.profileId, m.week, m.meal, m.ai === true).catch(() => {}).finally(sync); }
+    if (m.type === 'meals-chat') { void meals.chat(m.profileId, m.week, m.text).catch(() => {}).finally(sync); }
     sync();
   };
 
@@ -379,6 +381,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
       if (ownMeals && meals && scheduled()) void meals.tick().catch(() => {}).finally(publish);
+      // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
+      if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
       for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the fetch must never disturb the coach run.

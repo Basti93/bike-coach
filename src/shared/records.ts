@@ -1,4 +1,4 @@
-export type RecordKind = 'workout' | 'routine' | 'exercise' | 'mobility' | 'complaint' | 'plan' | 'mealplan';
+export type RecordKind = 'workout' | 'routine' | 'exercise' | 'mobility' | 'complaint' | 'plan' | 'mealplan' | 'together';
 export type TrackedRecord = { kind: RecordKind; id: string; updatedMs: number; deleted: boolean; body: unknown };
 
 export type LoggedSet = { type: 'warmup' | 'normal' | 'failure' | 'dropset'; weightKg: number | null; reps: number | null; durationS: number | null; doneMs: number | null };

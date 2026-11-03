@@ -48,6 +48,26 @@ Fallback: Pandafit's own list of 31 vegetarian recipes (German, simple, protein-
 
 "Tauschen" takes another fitting recipe from the list at once. "Coach fragen" asks the AI for one dish and checks it the same way, with the list as fallback. A rest follows its new dish when that keeps long enough, otherwise it gets its own.
 
+## Chat with the coach [Decided]
+
+Asked for by the users: "eine Feedback-Funktion, damit man einfach die Rezepte austauschen oder Zutaten abändern kann". On the meal page, on the Mac and on the phone: "Sag dem Coach, was du ändern willst" ("Mittwoch lieber was mit Nudeln", "ohne Tofu bitte", "Feta durch Mozzarella ersetzen", "das Rezept am Freitag ist zu aufwendig"). The last exchange shows open, the ones before are folded as "Bisheriges Gespräch", like the bike coach's.
+
+The AI (one call, strict JSON schema) answers with a short calm reply and up to three changes: a new dish for a meal (the dish shape of the plan), or one ingredient replaced or left out with the steps and the title adjusted, and `abneigungenMerken` when the asking person clearly never wants something. The message goes in as a `nachricht-nur-daten` block, the week and the people as data blocks, people as letters only.
+
+- Every changed dish passes the same checks as a planned one (diet, dislikes and intolerances of everyone eating it and its rests, tone). A failing change is not applied, and the reply then comes from the app: what was changed, what was not and why, in plain words. The AI's own reply is shown only when everything it asked for landed and its text passes the tone check.
+- A remembered dislike goes into that person's meal settings before the checks run, and the app adds "Ich lasse Tofu künftig weg." to the reply.
+- Past days of the current week are not changed.
+- [Builder's call] Rests: an ingredient change always lands on the dish where it is cooked and on all its rests, so they stay the same dish. A new dish at the source is the rest too when it keeps long enough and fits its eaters; otherwise the rest keeps the old dish and is cooked on its own, and the reply says so. A new dish for a rest takes it out of the link; the source stays.
+- A changed meal carries `askedBy` (a profile id), shown as "auf Wunsch von Lena" on both persons' plans. "Tauschen" and "Neu planen" clear it.
+- Without the AI (no login, limit, error, an answer that does not fit the schema): a message naming exactly one day and one meal plus "tauschen", "anders" or "wechseln" swaps from the recipe list, the same way as "Tauschen"; anything else gets "Das kann ich gerade nicht ändern. Versuch es mit „Tauschen“ beim Gericht."
+- Never with a ride open, and only one AI call at a time: a message waits (Mac: "Der Coach antwortet nach der Fahrt.") and is answered at the first tick with no ride open, oldest first.
+
+[Builder's call] Messages travel as records of the existing kind `mealplan` with the id `chat-<time><random>`, one record per message, in the asking person's account only. Neither a new kind nor entries in the state record:
+- No new kind means no server or phone kind list to change and no deploy order: the server already stores `mealplan`, and push only reads `week-…` ids.
+- One record per message keeps them per person (the state record is copied to every linked profile) and makes "newer wins" safe: the phone writes it once, the Mac writes it once more with `reply`, `answeredMs` and `changed`.
+- The Mac takes new `chat-` records in before every export, so none is removed unread. It keeps the last ten messages per person and tombstones older ones; a profile with the plan off or unlinked gets all its meal records tombstoned as before. Messages typed on the Mac go to that person's phone too.
+- The phone shows "Der Coach antwortet, sobald der Mac wieder da ist" until the reply arrives with the next sync.
+
 ## Shopping list [Decided]
 
 Built from the week, summed over the portions really eaten, rounded to what a shop sells (packs for common items such as quark, tofu, oats; 50 g steps; whole pieces, tins and bunches; garlic bulbs; loaves). Grouped by Obst und Gemüse, Kühlregal, Brot und Backwaren, Vorrat, Tiefkühl, Sonstiges. Tick boxes and "schon da" on Mac and phone.
@@ -66,6 +86,6 @@ Phone: "Essen" in the bottom tab bar, only when a plan arrived for the account. 
 
 ## Left out
 
-- No editing of single ingredients or own recipes.
-- No planning or swapping from the phone; it shows the plan and sends ticks and who eats.
+- No own recipes. Single ingredients change only through the chat with the coach.
+- No planning or swapping from the phone; it shows the plan and sends ticks, who eats and messages to the coach.
 - No push or reminder for the Saturday plan.

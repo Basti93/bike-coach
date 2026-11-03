@@ -2,7 +2,7 @@ import type { CoachClientMessage, CoachServerMessage } from '../../shared/coach-
 import type { RecordKind, TrackedRecord } from '../../shared/records';
 import type { RecordStore } from './store';
 
-export const RECORD_KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
+export const RECORD_KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
 export const MAX_BODY_BYTES = 1_000_000;
 
 /** A record as the store may keep it. Extra body fields stay, everything else is cut to the known shape. */
