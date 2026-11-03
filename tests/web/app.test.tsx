@@ -7,6 +7,7 @@ import type { TrackedRecord } from '../../src/shared/records';
 import { App, ErrorBoundary } from '../../src/web/App';
 import { openIdb } from '../../src/web/idbStore';
 import { mobilityToShow, shouldShowInstallHint } from '../../src/web/logic';
+import { dayIndex, itemKey, weekOf } from '../../src/shared/meals';
 
 afterEach(cleanup);
 
@@ -413,5 +414,42 @@ describe('web app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Training' }));
     fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenLastCalledWith('open'));
+  });
+});
+
+describe('Essen on the phone', () => {
+  const week = weekOf(NOW);
+  const dish = (title: string) => ({ title, ingredients: [{ name: 'Skyr', amount: 150, unit: 'g', section: 'Kühlregal' }], steps: ['Verrühren.'], minutes: 5, proteinG: 27, keepsDays: 2, source: 'liste' });
+  const today = dayIndex(NOW);
+  const mealPlan: TrackedRecord = { kind: 'mealplan', id: `week-${week}`, updatedMs: NOW - 1000, deleted: false, body: {
+    week, createdMs: NOW - 1000, source: 'liste', trainingDays: [], you: 'pb', people: [{ id: 'pa', name: 'Max' }, { id: 'pb', name: 'Lena' }],
+    meals: [
+      { day: today, slot: 'fruehstueck', dish: dish('Skyr mit Beeren'), reuseOf: null, eaters: ['pa', 'pb'], takeAlong: false },
+      { day: today, slot: 'mittag', dish: dish('Linsen-Bolognese'), reuseOf: null, eaters: ['pa', 'pb'], takeAlong: true },
+      { day: (today + 1) % 7, slot: 'abend', dish: dish('Tomatensuppe'), reuseOf: null, eaters: ['pa'], takeAlong: false },
+    ] } };
+
+  it('no Essen tab without a plan: the meal plan is off by default', async () => {
+    await boot({ account: 'anna', seed: [] });
+    await screen.findByRole('navigation');
+    expect(screen.queryByRole('button', { name: 'Essen' })).toBeNull();
+  });
+
+  it('today first with its meals, and a tick or a person off goes into the state record', async () => {
+    const a = await boot({ account: 'anna', seed: [mealPlan] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
+    expect(await screen.findByRole('heading', { name: 'Heute' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Skyr mit Beeren' })).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Lena isst mit' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: /^Einkauf/ }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Skyr gekauft' }));
+    await waitFor(async () => {
+      const s = await openIdb('anna', a.factory);
+      const rec = (await s.list('mealplan')).find((r) => r.id === `state-${week}`);
+      s.close();
+      const body = rec?.body as { items?: Record<string, { state: string }>; eaters?: Record<string, Record<string, { on: boolean }>> } | undefined;
+      expect(body?.items?.[itemKey('Skyr', 'g')]?.state).toBe('gekauft');
+      expect(body?.eaters?.[`${today}-fruehstueck`]?.pb?.on).toBe(false);
+    });
   });
 });

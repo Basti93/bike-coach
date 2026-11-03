@@ -14,6 +14,8 @@ const SOON_GAP_MS = 5_000;
 const TIMEOUT_MS = 15_000;
 const PAGE = 200;
 const STATUSES: readonly string[] = ['active', 'healing', 'over'];
+/** A server that does not know a newer record kind yet (it is deployed separately) is asked again after this. */
+const UNKNOWN_KIND_RETRY_MS = 6 * 3_600_000;
 
 type Deps = {
   links: AccountLinks; store: RecordStore; nowMs: () => number;
@@ -31,6 +33,8 @@ class Rejected extends Error {}
 type Per = {
   lastStartMs: number | null; dirty: boolean; running: Promise<void> | null; offline: boolean; lastSyncMs: number | null;
   refused: Set<string>; linking: boolean; failure: LinkFailure | null;
+  /** Records an older server refused as an unknown kind: not a problem to show, sent again later. */
+  later: Map<string, number>;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -45,7 +49,7 @@ export class AccountSync {
 
   private st(id: string): Per {
     let s = this.per.get(id);
-    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null }; this.per.set(id, s); }
+    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map() }; this.per.set(id, s); }
     return s;
   }
 
@@ -107,6 +111,7 @@ export class AccountSync {
       return res.json();
     };
     try {
+      try { this.retryUnknownKinds(id); } catch { /* the next run tries again */ }
       try { this.exportPlan(id); } catch { /* the next run tries again */ }
       try { this.exportComplaints(id); } catch { /* the next run tries again */ }
       await syncRecords({
@@ -131,12 +136,27 @@ export class AccountSync {
           const records = out.records.flatMap((x) => { const r = validRecord(x); return r ? [r] : []; });
           return { records, cursor: out.cursor, more: out.more === true, reset: out.reset === true, generation: typeof out.generation === 'string' ? out.generation : undefined };
         },
-        refused: (list) => { for (const r of list) s.refused.add(r.id); },
+        refused: (list) => {
+          for (const r of list) {
+            if (r.reason === 'unknown kind') { if (!s.later.has(r.id)) s.later.set(r.id, this.deps.nowMs()); } else s.refused.add(r.id);
+          }
+        },
       });
       s.offline = false; s.lastSyncMs = this.deps.nowMs();
     } catch (e) {
       if (e instanceof Rejected) { links.reject(id); s.offline = false; } else s.offline = true;
     }
+  }
+
+  /** Writes held records once more, so the next send offers them again to a server that may know their kind by now. */
+  private retryUnknownKinds(id: string): void {
+    const s = this.st(id);
+    const now = this.deps.nowMs();
+    const due = [...s.later].filter(([, at]) => now - at >= UNKNOWN_KIND_RETRY_MS).map(([rid]) => rid);
+    if (due.length === 0) return;
+    const again = this.deps.store.all(id).filter((r) => due.includes(r.id)).map((r) => ({ ...r, updatedMs: Math.max(now, r.updatedMs + 1) }));
+    for (const rid of due) s.later.delete(rid);
+    if (again.length > 0) this.deps.store.putMany(id, again);
   }
 
   /** Remote page into the store, then what follows from it. Whatever follows must never undo a kept record. */

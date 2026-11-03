@@ -29,6 +29,7 @@ import { MobilityCoach } from './mobility/mobility';
 import { AccountLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { mergedHealth, mergedStrength } from './tracking/strength-source';
+import { MealCoach, usualTrainingDays } from './meals/meal-coach';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -107,6 +108,18 @@ const accountSync = new AccountSync({
   links: accounts, store: records, nowMs: () => Date.now(), coach, gym, mobility, noOpenRide: () => noOpenRide(),
   onChange: (profileId) => notifyRecords(profileId),
 });
+// Optional and per profile, off by default: with no one in, nothing is read, asked or sent.
+const meals = new MealCoach({
+  dir: path.join(coachDir, 'meals'), nowMs: () => Date.now(),
+  profiles: () => profiles().map(({ id, name, avatar }) => ({ id, name, ...(avatar ? { avatar } : {}) })),
+  noOpenRide: () => noOpenRide(),
+  ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
+  trainingDays: (id) => usualTrainingDays([...coach.state(id).summaries.map((r) => r.startedAtMs), ...gym.history(id).map((w) => w.startMs)], Date.now()),
+  store: records, linked: (id) => accounts.status(id).state === 'linked',
+  onExport: (touched) => mealsChanged(touched),
+});
+const mealsOf = (profileId: string) => { try { return meals.view(profileId); } catch { return null; } };
+function mealsChanged(touched: string[]): void { for (const id of touched) { accountSync.touch(id); notifyRecords(id); } }
 const notifyRecords = (profileId: string): void => {
   const note = JSON.stringify({ type: 'records-changed', profileId } satisfies CoachServerMessage);
   for (const [other, id] of subs) if (id === profileId) { try { other.send(note); } catch { /* connection gone */ } }
@@ -198,7 +211,7 @@ const healthOf = (profileId: string, rangeDays: number | null) => {
 const publish = (): void => {
   for (const [socket, profileId] of subs) {
     try {
-      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId), account: accountSync.status(profileId) });
+      const body = JSON.stringify({ type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId), account: accountSync.status(profileId), meals: mealsOf(profileId) });
       if (lastSent.get(socket) !== body) { socket.send(body); lastSent.set(socket, body); }
     } catch { /* profile or connection gone */ }
   }
@@ -251,6 +264,17 @@ const handleGym = (socket: WebSocket, m: CoachClientMessage): void => {
   publish();
 };
 
+/** Settings, ticks and who eats are local writes and fine with a ride open. Planning and swapping wait for no ride (the coach checks). */
+const handleMeals = (m: CoachClientMessage): void => {
+  const sync = () => publish();
+  if (m.type === 'meals-settings') meals.setSettings(m.profileId, m.settings);
+  if (m.type === 'meals-eater') meals.setEater(m.profileId, m.week, m.meal, m.person, m.on === true);
+  if (m.type === 'meals-item') meals.setItem(m.profileId, m.week, m.item, m.state);
+  if (m.type === 'meals-replan') { void meals.replan(m.profileId, m.week).catch(() => {}).finally(sync); }
+  if (m.type === 'meals-swap') { void meals.swap(m.profileId, m.week, m.meal, m.ai === true).catch(() => {}).finally(sync); }
+  sync();
+};
+
 wss.on('connection', (socket) => {
   socket.on('message', (raw) => {
     try {
@@ -277,6 +301,7 @@ wss.on('connection', (socket) => {
         return;
       }
       if (m.type.startsWith('gym-')) { handleGym(socket, m); return; }
+      if (m.type.startsWith('meals-')) { handleMeals(m); return; }
       // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
       if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }
       if (m.type === 'mobility-feel') { mobility.feel(m.profileId, m.text); publish(); return; }
@@ -333,6 +358,8 @@ const scan = (): void => {
     if (free) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
     // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
     if (free) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+    // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
+    void meals.tick().catch(() => {}).finally(publish);
     // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
     for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
     // Separate safeguard: the fetch must never disturb the coach run.

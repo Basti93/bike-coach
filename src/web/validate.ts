@@ -1,4 +1,5 @@
 import type { RecordKind, TrackedRecord } from '../shared/records';
+import { readMealPlan } from '../shared/meals';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): boolean => typeof x === 'number' && Number.isFinite(x);
@@ -19,6 +20,8 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
       && (body.mobility === null || body.mobility === undefined || (isObj(body.mobility) && typeof body.mobility.id === 'string' && Array.isArray(body.mobility.exercises) && body.mobility.exercises.every((e) => isObj(e) && typeof e.id === 'string' && typeof e.title === 'string')));
     case 'complaint': return typeof body.text === 'string' && typeof body.status === 'string' && num(body.atMs);
     case 'mobility': return true;
+    // The plan must be drawable; the state is read entry by entry and anything odd in it is skipped.
+    case 'mealplan': return 'meals' in body ? readMealPlan(body) !== null : true;
   }
 }
 

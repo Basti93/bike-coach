@@ -1,4 +1,5 @@
 import type { MobilityView } from '../coach/mobility/mobility';
+import type { MealsView } from '../coach/meals/meal-coach';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createTrackingPorts } from './coachTrackingPort';
 import type { CoachState } from '../coach/state';
@@ -27,6 +28,7 @@ export const useCoach = (profileId: string | null) => {
   const [garminHealth, setGarminHealth] = useState<GarminHealth | null>(null);
   const [gym, setGym] = useState<GymPublic | null>(null);
   const [mobility, setMobility] = useState<MobilityView | null>(null);
+  const [meals, setMeals] = useState<MealsView | null>(null);
   const [statusArrived, setStatusArrived] = useState(false);
   const [strengthHealth, setStrengthHealth] = useState<StrengthHealth | null>(null);
   const [gymPreview, setGymPreview] = useState<{ workout: GymWorkout; edited: boolean; leftOut?: string[] } | null>(null);
@@ -46,6 +48,7 @@ export const useCoach = (profileId: string | null) => {
     setGarminHealth(null);
     setGym(null);
     setMobility(null);
+    setMeals(null);
     setHevy({ state: 'idle' });
     setStrengthHealth(null);
     setStatusArrived(false);
@@ -70,7 +73,7 @@ export const useCoach = (profileId: string | null) => {
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
-        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setAccount(m.account ?? IDLE_ACCOUNT); }
+        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setMeals(m.meals ?? null); setAccount(m.account ?? IDLE_ACCOUNT); }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -89,5 +92,5 @@ export const useCoach = (profileId: string | null) => {
     if (what !== 'result') { setGymPreview(null); setGymPreviewFailed(false); }
     if (what !== 'preview') setGymConfirmResult(null);
   };
-  return { account, tracking, mobility, gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
+  return { account, tracking, mobility, meals, gym, strengthHealth, statusArrived, gymPreview, gymPreviewFailed, clearGym, setGymPreview, gymConfirmResult, setGymConfirmResult, debriefing, hevy, detail, garmin, garminHealth, garminReadiness, garminSuggestion, garminSync, state, together, thinking, connected, send };
 };

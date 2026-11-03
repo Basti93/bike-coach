@@ -19,3 +19,60 @@ body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemF
 /* Sticky pieces sit below the notch; the tab bar is at the bottom now. */
 .tk-rest { top: calc(env(safe-area-inset-top) + .4rem) !important; }
 .tk-picker { padding-top: calc(1rem + env(safe-area-inset-top)); padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+
+/* Meal plan: one day at a time, the three meals as cards with a color per meal. */
+:root { --slot-fruehstueck: #f2bd55; --slot-mittag: #9ccb68; --slot-abend: #7fb4e8; --pc0: #e8964a; --pc1: #c9a0e8; --pc2: #9ccb68; --pc3: #7fb4e8; }
+@media (prefers-color-scheme: light) {
+  :root { --slot-fruehstueck: #c98a12; --slot-mittag: #4f8a2a; --slot-abend: #2f78bf; --pc0: #e8964a; --pc1: #b98ad8; --pc2: #8cc05a; --pc3: #6aa6e0; }
+  .tk-screen.pm button.pm-person.on, .tk-screen.pm .pm-seg button[aria-pressed='true'] { background: #dcd5bd; color: var(--text); }
+  .tk-screen.pm .pm-seg { background: #ece6d4; }
+}
+.pm .slot-fruehstueck { --slot: var(--slot-fruehstueck); } .pm .slot-mittag { --slot: var(--slot-mittag); } .pm .slot-abend { --slot: var(--slot-abend); }
+.pm-head { display: flex; flex-direction: column; gap: .15rem; }
+.pm-seg { display: flex; background: var(--card); border-radius: 999px; padding: 3px; }
+.tk-screen .pm-seg button { flex: 1; background: transparent; color: var(--muted); min-height: 40px; padding: .3rem .6rem; }
+.tk-screen .pm-seg button[aria-pressed='true'] { background: #2d4638; color: var(--text); }
+.pm-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+.tk-screen .pm-days button { display: flex; flex-direction: column; align-items: center; gap: .05rem; min-width: 0; min-height: 56px; padding: .35rem 0; border-radius: .9rem; background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; }
+.pm-days button b { color: var(--text); font-size: .95rem; }
+.pm-days button span { font-size: .8rem; }
+.tk-screen .pm-days button.past { opacity: .55; }
+.tk-screen .pm-days button.today { border-color: var(--accent); }
+.tk-screen .pm-days button[aria-selected='true'] { background: var(--accent); border-color: var(--accent); color: var(--ink); opacity: 1; }
+.tk-screen .pm-days button[aria-selected='true'] b { color: var(--ink); }
+.tk-screen h2.pm-dayname { font-size: 1.3rem; margin-top: .2rem; }
+.pm-dayname small { color: var(--muted); font-size: .85rem; font-weight: 600; }
+.tk-screen .pm-meal { border-top: 4px solid var(--slot); gap: .45rem; }
+.tk-screen .pm-meal h2 { font-size: 1.2rem; line-height: 1.25; }
+.pm-empty { opacity: .6; }
+.pm-slot { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pm-slot b { color: var(--slot); }
+.pm-badge { align-self: flex-start; font-size: .8rem; font-weight: 700; color: var(--slot); border: 1px dashed var(--slot); border-radius: 999px; padding: .1rem .6rem; }
+.pm-meta { margin: 0; color: var(--muted); font-size: .9rem; }
+.pm-meta b { color: var(--text); }
+.pm-people { gap: .4rem; }
+.tk-screen button.pm-person { display: inline-flex; align-items: center; gap: .4rem; min-height: 40px; padding: .25rem .8rem .25rem .3rem; background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 600; text-decoration: line-through; }
+.tk-screen button.pm-person.on { background: #2d4638; color: var(--text); border-color: transparent; text-decoration: none; }
+.pm-avatar { display: inline-flex; align-items: center; justify-content: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; font-size: .8rem; font-weight: 800; color: #1f1408; }
+.pm-avatar.pc0 { background: var(--pc0); } .pm-avatar.pc1 { background: var(--pc1); } .pm-avatar.pc2 { background: var(--pc2); } .pm-avatar.pc3 { background: var(--pc3); }
+button.pm-person:not(.on) .pm-avatar { opacity: .45; }
+.pm-recipe summary { font-weight: 600; color: var(--accent); padding: .3rem 0; }
+.pm-ingredients { list-style: none; margin: .4rem 0; padding: 0; }
+.pm-ingredients li { padding: .35rem 0; border-top: 1px solid var(--line); }
+.pm-ingredients b { display: inline-block; min-width: 5rem; }
+.pm-steps { margin: .5rem 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .4rem; line-height: 1.45; }
+.pm-keeps { font-size: .85rem; margin: 0; }
+.pm-summary { margin: 0; color: var(--muted); }
+.pm-summary b { color: var(--text); font-size: 1.2rem; }
+.tk-screen .pm-shop { gap: 0; padding: .8rem 1rem; }
+.pm-shop h3 { margin: 0 0 .3rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pm-shop ul { list-style: none; margin: 0; padding: 0; }
+.pm-item { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; padding: .15rem 0; border-top: 1px solid var(--line); }
+.pm-item:first-child { border-top: 0; }
+.tk-screen button.pm-check { width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: .7rem; background: transparent; border: 2px solid var(--muted); color: var(--ink); font-size: 1.2rem; }
+.pm-item.gekauft button.pm-check { background: var(--good); border-color: var(--good); }
+.pm-name { display: flex; flex-direction: column; font-weight: 600; }
+.pm-name small { font-weight: 400; color: var(--muted); font-size: .85rem; }
+.pm-item.gekauft .pm-name, .pm-item.da .pm-name { text-decoration: line-through; color: var(--muted); }
+.tk-screen button.pm-have { background: transparent; color: var(--muted); font-weight: 500; font-size: .8rem; padding: .3rem .5rem; min-width: 0; }
+.pm-have-list { opacity: .75; }

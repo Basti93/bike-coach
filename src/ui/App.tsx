@@ -22,6 +22,8 @@ import { usePortRecords } from '../tracking/ui/hooks';
 import type { LoggedWorkout } from '../shared/records';
 import { activeItem, HOME, menuItems, open, showMenu, type MenuItem, type TrackScreen, type Views } from './nav';
 import { MenuBar } from './views/MenuBar';
+import { MealsView } from './views/MealsView';
+import { MealSettingsCard } from './views/MealSettingsCard';
 import { ProfileExtras } from './views/ProfileExtras';
 import { homeScreen, OverviewView } from './views/OverviewView';
 import { HistoryView } from './views/HistoryView';
@@ -53,6 +55,9 @@ const StrengthPage = ({ port, ...props }: Omit<ComponentProps<typeof GymView>, '
   return <GymView {...props} openWorkout={(workouts ?? []).some((r) => (r.body as LoggedWorkout).endMs === null)} />;
 };
 
+/** The meal status has arrived: a missing one in an old coach counts as off. */
+const arrivedMeals = (coach: { statusArrived?: boolean }): boolean => coach.statusArrived ?? true;
+
 const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const { click, state, offer, clearOffer, connected, send, error } = ride;
   const [picked, setPicked] = useState<Profile | null>(null);
@@ -66,6 +71,8 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mealsOn = coach.meals?.settings.on === true;
+  useEffect(() => { if (v.meals && !mealsOn && arrivedMeals(coach)) patch({ meals: false }); }, [v.meals, mealsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.trackFor && (!coach.gym || v.trackFor.profileId !== profile?.id)) patch({ trackFor: null }); }, [coach.gym, v.trackFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The bike page chosen from the overview belongs to one profile and needs the overview to exist.
   // Test mocks without the field count as arrived.
@@ -121,7 +128,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const waiting = !arrived && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach';
   const menu = showMenu({ profile: true, riding: false, film: false, waiting }) && (
     <MenuBar
-      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together })}
+      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn })}
       active={activeItem(v, profile.id, home)} name={profile.name} avatar={profile.avatar}
       onGo={go} onSwitch={() => setProfile(null)} />
   );
@@ -135,11 +142,13 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
       </>
     );
     return page(<ProfileSettingsView profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} coachConnected={coach.connected && coach.state !== null} sendRide={send} sendCoach={coach.send} onBack={() => setV(HOME)} onDeleted={() => setProfile(null)}
-      extra={<ProfileExtras profileId={profile.id} coachConnected={coach.connected} send={coach.send} garmin={coach.garmin ?? { state: 'idle' }} garminSync={coach.garminSync} upload={coach.state?.garminUpload} hevy={coach.hevy} account={coach.account} settings={settings} settingsNote={!coach.gym && coach.connected ? 'Mit „Krafttraining starten“ plant Pandafit auch dein Krafttraining, mit oder ohne Hevy. Danach findest du es oben unter Kraft.' : undefined} />} />);
+      extra={<ProfileExtras profileId={profile.id} coachConnected={coach.connected} send={coach.send} garmin={coach.garmin ?? { state: 'idle' }} garminSync={coach.garminSync} upload={coach.state?.garminUpload} hevy={coach.hevy} account={coach.account} settings={settings} settingsNote={!coach.gym && coach.connected ? 'Mit „Krafttraining starten“ plant Pandafit auch dein Krafttraining, mit oder ohne Hevy. Danach findest du es oben unter Kraft.' : undefined}
+        meals={coach.connected ? <MealSettingsCard profileId={profile.id} settings={coach.meals?.settings} coachConnected={coach.connected && coach.meals != null} send={coach.send} /> : undefined} />} />);
   }
   if (v.health !== undefined) return page(<HealthView data={coach.garminHealth} range={v.health} onRange={(range) => { patch({ health: range }); requestHealth(range); }} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} />);
   if (v.review && coach.garminSuggestion) return page(<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => patch({ review: false })} />);
   if (v.together && coach.together) return page(<TogetherView together={coach.together} />);
+  if (v.meals && mealsOn && coach.meals) return page(<MealsView key={profile.id} profileId={profile.id} meals={coach.meals} send={coach.send} />);
   if (v.trackFor && v.trackFor.profileId === profile.id && coach.gym && coach.tracking) {
     const port = coach.tracking;
     const track = v.trackFor;

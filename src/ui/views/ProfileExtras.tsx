@@ -15,10 +15,12 @@ type Props = {
   settings?: ReactNode;
   /** A calm line under the settings, for example what "Krafttraining starten" does. */
   settingsNote?: string;
+  /** The meal plan section, between the settings and the connections. */
+  meals?: ReactNode;
 };
 
 /** The profile page's own sections: small settings, then every connection, each optional and shown whether connected or not. */
-export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, settings, settingsNote }: Props) => (
+export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminSync, upload, hevy, account, settings, settingsNote, meals }: Props) => (
   <>
     {settings && (
       <section className="card profile-settings">
@@ -27,6 +29,7 @@ export const ProfileExtras = ({ profileId, coachConnected, send, garmin, garminS
         {settingsNote && <p className="muted">{settingsNote}</p>}
       </section>
     )}
+    {meals}
     <section className="connections" aria-label="Verbindungen">
       <h2>Verbindungen</h2>
       <p className="muted">Alles hier ist freiwillig. Pandafit läuft auch ganz ohne, und du kannst jederzeit verbinden oder trennen.</p>
