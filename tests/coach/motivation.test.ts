@@ -19,6 +19,13 @@ describe('complaints from a note', () => {
     expect(complaintFromNote('Nach der Operation am Fuß noch vorsichtig')).toBe('active');
     expect(complaintFromNote('Bandscheibe meldet sich')).toBe('active');
   });
+  test('the foot alone carries a complaint, with ß or ss, but Fußball does not', () => {
+    expect(complaintFromNote('Mein Fuß schmerzt')).toBe('active');
+    expect(complaintFromNote('Mein Fuß ist geschwollen')).toBe('active');
+    expect(complaintFromNote('Nach dem Eingriff am Fuß noch vorsichtig')).toBe('active');
+    expect(complaintFromNote('mein Fuss')).toBe('active');
+    expect(complaintFromNote('Fußball am Samstag')).toBeNull();
+  });
   test('a word that only contains a body word is not a complaint', () => {
     expect(complaintFromNote('Abbruch wegen Regen')).toBeNull();
     expect(complaintFromNote('Hand aufs Herz, das war schön')).toBeNull();
