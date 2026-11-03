@@ -37,9 +37,10 @@ for (const t of ['accounts', 'devices', 'records']) console.log(t + ' ' + db.pre
 
 echo "Backup: $base, throwaway volume: $vol"
 docker volume create "$vol" >/dev/null
-# Unpack into the throwaway volume as user node (no network, backup folder read-only).
-expected="$(docker run --rm --network none --memory 128m --pids-limit 64 -v "$vol:/data" -v "$dir:/backup:ro" --entrypoint sh "$IMAGE" -c "
-  umask 077 && gunzip -c '/backup/$base' > /data/pandafit.db && node -e \"\$0\" /data/pandafit.db" "$COUNT_JS")"
+# Unpack into the throwaway volume as user node (no network). The backup is streamed in on stdin,
+# because the file is 0600 and owned by the host user, which the container's node user cannot read.
+expected="$(gunzip -c "$dir/$base" | docker run -i --rm --network none --memory 128m --pids-limit 64 -v "$vol:/data" --entrypoint sh "$IMAGE" -c "
+  umask 077 && cat > /data/pandafit.db && node -e \"\$0\" /data/pandafit.db" "$COUNT_JS")"
 echo "Counts in the backup:"; echo "$expected" | sed 's/^/  /'
 case "$expected" in "accounts 0"*) echo "Backup has 0 accounts; refusing to call this a good backup." >&2; exit 1;; esac
 
