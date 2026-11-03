@@ -5,7 +5,6 @@ import type { GymPublic } from '../../src/coach/gym/public';
 import { initialGymState } from '../../src/coach/gym/state';
 import type { GymWorkout } from '../../src/coach/gym/types';
 import { HevyCard } from '../../src/ui/views/HevyCard';
-import { CoachView } from '../../src/ui/views/CoachView';
 import { GymView } from '../../src/ui/views/GymView';
 import type { GymConfirmResult } from '../../src/shared/coach-protocol';
 
@@ -32,20 +31,10 @@ type Over = { gym?: GymPublic; preview?: { workout: GymWorkout; edited: boolean;
 const show = (o: Over = {}) => {
   const send = vi.fn();
   const clear = vi.fn();
-  const view = (p: Over) => <GymView profileId="p" gym={p.gym ?? gymOf()} preview={p.preview ?? null} previewFailed={p.previewFailed ?? false} result={p.result ?? null} send={send} clear={clear} onBack={() => {}} />;
+  const view = (p: Over) => <GymView profileId="p" gym={p.gym ?? gymOf()} preview={p.preview ?? null} previewFailed={p.previewFailed ?? false} result={p.result ?? null} send={send} clear={clear} />;
   const r = render(view(o));
   return { send, clear, rerender: (p: Over) => r.rerender(view(p)) };
 };
-
-test('the home page shows a Kraft button only with a Hevy connection', () => {
-  const props = { profile: { id: 'p', name: 'Mia', ftpW: 200 } as never, state: null, thinking: false, coachConnected: true, sendRide: () => {}, sendCoach: () => {}, onBack: () => {} };
-  const { rerender } = render(<CoachView {...props} gym={null} onGym={() => {}} />);
-  expect(screen.queryByRole('button', { name: 'Kraft' })).toBeNull();
-  const onGym = vi.fn();
-  rerender(<CoachView {...props} gym={gymOf()} onGym={onGym} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
-  expect(onGym).toHaveBeenCalled();
-});
 
 test('shows exercises, sets, reps, weights, set types and the reason', () => {
   show();
@@ -60,7 +49,7 @@ test('shows exercises, sets, reps, weights, set types and the reason', () => {
 });
 
 test('no weight shows as "nach Gefühl", not as null or 0', () => {
-  const { container } = render(<GymView profileId="p" gym={gymOf()} preview={null} previewFailed={false} result={null} send={() => {}} clear={() => {}} onBack={() => {}} />);
+  const { container } = render(<GymView profileId="p" gym={gymOf()} preview={null} previewFailed={false} result={null} send={() => {}} clear={() => {}} />);
   expect(screen.getAllByText(/nach Gefühl/).length).toBe(2);
   expect(container.textContent).not.toMatch(/null|\b0 kg|undefined/);
 });
@@ -204,7 +193,7 @@ test('after disconnecting the Hevy card offers to delete the coach\'s memory', (
 test('a decimal weight uses a comma', () => {
   const w = workout();
   w.exercises[0].sets[1].weightKg = 62.5;
-  const { container } = render(<GymView profileId="p" gym={gymOf({ next: { workout: w, reason: 'x', source: 'rules' } })} preview={{ workout: w, edited: false }} previewFailed={false} result={null} send={() => {}} clear={() => {}} onBack={() => {}} />);
+  const { container } = render(<GymView profileId="p" gym={gymOf({ next: { workout: w, reason: 'x', source: 'rules' } })} preview={{ workout: w, edited: false }} previewFailed={false} result={null} send={() => {}} clear={() => {}} />);
   expect(container.textContent).toContain('62,5 kg');
   expect(container.textContent).not.toContain('62.5');
 });
@@ -212,7 +201,7 @@ test('a decimal weight uses a comma', () => {
 test('an adjustment closes the preview and clears the old result', () => {
   const clear = vi.fn();
   const send = vi.fn();
-  render(<GymView profileId="p" gym={gymOf()} preview={{ workout: workout(), edited: false }} previewFailed={false} result="failed" send={send} clear={clear} onBack={() => {}} />);
+  render(<GymView profileId="p" gym={gymOf()} preview={{ workout: workout(), edited: false }} previewFailed={false} result="failed" send={send} clear={clear} />);
   fireEvent.click(screen.getByRole('button', { name: 'Härter' }));
   expect(clear).toHaveBeenCalledWith('all');
   expect(send).toHaveBeenCalledWith({ type: 'gym-adjust', profileId: 'p', how: 'harder' });
@@ -221,7 +210,7 @@ test('an adjustment closes the preview and clears the old result', () => {
 test('after an adjustment the preview is gone', () => {
   const Host = () => {
     const [preview, setPreview] = React.useState<{ workout: GymWorkout; edited: boolean } | null>({ workout: workout(), edited: false });
-    return <GymView profileId="p" gym={gymOf()} preview={preview} previewFailed={false} result={null} send={() => {}} clear={() => setPreview(null)} onBack={() => {}} />;
+    return <GymView profileId="p" gym={gymOf()} preview={preview} previewFailed={false} result={null} send={() => {}} clear={() => setPreview(null)} />;
   };
   render(<Host />);
   expect(screen.getByRole('button', { name: 'Jetzt anlegen' })).toBeTruthy();
@@ -264,15 +253,16 @@ test('"Entfernen" on a rule stays a rule action', () => {
   expect(send).toHaveBeenCalledWith({ type: 'gym-remove-rule', profileId: 'p', atMs: 5 });
 });
 
-test('without Hevy there is no "Nach Hevy", and the bike page offers "Krafttraining starten"', () => {
+test('without Hevy there is no "Nach Hevy"', () => {
   show({ gym: { ...gymOf(), hevy: false } });
   expect(screen.queryByRole('button', { name: 'Nach Hevy' })).toBeNull();
-  cleanup();
-  const props = { profile: { id: 'p', name: 'Mia', ftpW: 200 } as never, state: null, thinking: false, coachConnected: true, sendRide: () => {}, sendCoach: () => {}, onBack: () => {} };
-  const onStartGym = vi.fn();
-  render(<CoachView {...props} gym={null} onStartGym={onStartGym} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Krafttraining starten' }));
-  expect(onStartGym).toHaveBeenCalled();
+});
+
+test('an open workout is one click away: the start button continues it', () => {
+  const onTrack = vi.fn();
+  render(<GymView profileId="p" gym={gymOf()} preview={null} previewFailed={false} result={null} send={() => {}} clear={() => {}} onTrack={onTrack} openWorkout />);
+  fireEvent.click(screen.getByRole('button', { name: 'Training fortsetzen' }));
+  expect(onTrack).toHaveBeenCalledWith('workout');
 });
 
 test('the preview names exercises left out of the Hevy export', () => {

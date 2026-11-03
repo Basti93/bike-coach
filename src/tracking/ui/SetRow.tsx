@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDecimal, parseDecimal, type TrackedSet } from '../session';
 import { useDraft } from './hooks';
+import { TYPE_NAMES } from './setGrid';
 
 const invalidOf = (text: string, integer: boolean): boolean => {
   const n = parseDecimal(text);
@@ -29,10 +30,23 @@ function NumField({ label, value, placeholder, integer, onCommit, onValidity }: 
   );
 }
 
-const TYPE_LABEL = { normal: 'Satz', warmup: 'Aufwärmen', failure: 'Bis zum Versagen', dropset: 'Dropset' } as const;
+/** Column headers above the sets of one exercise. Same grid as the rows, so everything lines up. */
+export function SetHead({ timed }: { timed: boolean }) {
+  return (
+    <div className="tk-set tk-head" aria-hidden="true">
+      <span /><span>Satz</span><span>{timed ? '' : 'kg'}</span><span>{timed ? 'Sek.' : 'Wdh'}</span><span />
+    </div>
+  );
+}
 
-export function SetRow({ index, set, timed, confirmedNow, onEdit, onToggle, onRemove }: {
+const CHIP_CLASS: Record<TrackedSet['type'], string> = { warmup: ' tk-chip-warm', normal: '', failure: ' tk-chip-fail', dropset: ' tk-chip-drop' };
+
+export function SetRow({ index, set, timed, label, hint, confirmedNow, onEdit, onToggle, onRemove }: {
   index: number; set: TrackedSet; timed: boolean;
+  /** The short chip: A, F, D or the set's number. Defaults to the row number. */
+  label?: string;
+  /** A muted line under the values: target range and last time. */
+  hint?: string | null;
   /** Is this set confirmed in the newest state? The display can lag behind a pending save. */
   confirmedNow?: () => boolean;
   onEdit: (patch: Partial<Pick<TrackedSet, 'weightKg' | 'reps' | 'durationS' | 'type'>>) => void;
@@ -45,16 +59,23 @@ export function SetRow({ index, set, timed, confirmedNow, onEdit, onToggle, onRe
   const blocked = bad.w || bad.r;
   return (
     <div className={`tk-set${done ? ' tk-done' : ''}`}>
-      <select className="tk-type" aria-label={`Satztyp Satz ${n}`} value={set.type} onChange={(e) => onEdit({ type: e.target.value as TrackedSet['type'] })}>
-        {Object.entries(TYPE_LABEL).map(([v, l]) => <option key={v} value={v}>{v === 'normal' ? String(n) : l}</option>)}
-      </select>
-      {!timed && <NumField label={`Gewicht Satz ${n}`} value={set.weightKg} placeholder="nach Gefühl" onValidity={(w) => setBad((b) => ({ ...b, w }))} onCommit={(weightKg) => onEdit({ weightKg })} />}
+      <button type="button" className="tk-del" aria-label={`Satz ${n} entfernen`} onClick={() => ((confirmedNow ? confirmedNow() : done) ? setAsking(true) : onRemove())}>×</button>
+      <span className="tk-chip-wrap">
+        <span className={`tk-chip${CHIP_CLASS[set.type]}`} aria-hidden="true">{label ?? String(n)}</span>
+        <select className="tk-type" aria-label={`Satztyp Satz ${n}`} value={set.type} onChange={(e) => onEdit({ type: e.target.value as TrackedSet['type'] })}>
+          {Object.entries(TYPE_NAMES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </span>
       {timed
-        ? <NumField label={`Sekunden Satz ${n}`} value={set.durationS} placeholder="Sek." integer onValidity={(r) => setBad((b) => ({ ...b, r }))} onCommit={(durationS) => onEdit({ durationS })} />
-        : <NumField label={`Wiederholungen Satz ${n}`} value={set.reps} placeholder="Wdh." integer onValidity={(r) => setBad((b) => ({ ...b, r }))} onCommit={(reps) => onEdit({ reps })} />}
-      {set.repRange && <span className="tk-range muted">{set.repRange.start}–{set.repRange.end}</span>}
-      {onToggle && <button type="button" className={`tk-check${done ? ' on' : ''}`} aria-label={`Satz ${n} erledigt`} aria-pressed={done} disabled={blocked && !done} onClick={onToggle}>{done ? '✓' : ''}</button>}
-      <button type="button" className="tk-icon ghost" aria-label={`Satz ${n} entfernen`} onClick={() => ((confirmedNow ? confirmedNow() : done) ? setAsking(true) : onRemove())}>×</button>
+        ? <span />
+        : <NumField label={`Gewicht Satz ${n}`} value={set.weightKg} placeholder="–" onValidity={(w) => setBad((b) => ({ ...b, w }))} onCommit={(weightKg) => onEdit({ weightKg })} />}
+      {timed
+        ? <NumField label={`Sekunden Satz ${n}`} value={set.durationS} placeholder="–" integer onValidity={(r) => setBad((b) => ({ ...b, r }))} onCommit={(durationS) => onEdit({ durationS })} />
+        : <NumField label={`Wiederholungen Satz ${n}`} value={set.reps} placeholder="–" integer onValidity={(r) => setBad((b) => ({ ...b, r }))} onCommit={(reps) => onEdit({ reps })} />}
+      {onToggle
+        ? <button type="button" className={`tk-check${done ? ' on' : ''}`} aria-label={`Satz ${n} erledigt`} aria-pressed={done} disabled={blocked && !done} onClick={onToggle}><span aria-hidden="true">✓</span></button>
+        : <span />}
+      {hint && <small className="tk-hint muted">{hint}</small>}
       {asking && (
         <p className="tk-note tk-wide">
           Dieser erledigte Satz geht dabei weg. Wirklich entfernen?{' '}

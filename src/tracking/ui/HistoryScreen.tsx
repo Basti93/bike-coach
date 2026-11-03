@@ -7,7 +7,8 @@ import { acquireStore, releaseStore } from '../registry';
 import { useEffect } from 'react';
 import { usePortRecords, useStoreView, type WorkoutStore } from './hooks';
 import { dateLabel } from './labels';
-import { SetRow } from './SetRow';
+import { SetHead, SetRow } from './SetRow';
+import { setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
 
 const best = (sets: TrackedSet[], timed: boolean): TrackedSet | null =>
@@ -54,8 +55,9 @@ function Detail({ port, store, history, onBack, onDeleted }: { port: TrackingPor
             <button type="button" className="ghost" aria-label={`Verlauf ${e.title}`} onClick={() => setProgress(progress === e.exerciseId ? null : e.exerciseId)}>Verlauf</button>
           </div>
           {progress === e.exerciseId && <Progress exerciseId={e.exerciseId} history={history} />}
+          {e.sets.length > 0 && <SetHead timed={!!e.timed} />}
           {e.sets.map((s, si) => (
-            <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
+            <SetRow key={s.rid} index={si} set={s} timed={!!e.timed} label={setLabels(e.sets)[si]}
               confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
               onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))} onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
           ))}

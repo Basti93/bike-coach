@@ -4,7 +4,7 @@ import type { Exercise } from '../../shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
+  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
   swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -13,7 +13,8 @@ import { ExercisePicker } from './ExercisePicker';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
 import { NotesField } from './NotesField';
-import { SetRow } from './SetRow';
+import { SetHead, SetRow } from './SetRow';
+import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
 
 type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
@@ -26,6 +27,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const [picker, setPicker] = useState<Picker>(null);
   const [ask, setAsk] = useState<Ask>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [menu, setMenu] = useState<string | null>(null);
   const ending = useRef(false);
   const leaving = useRef(false);
   const remote = usePortRecords(port, 'workout').all;
@@ -102,39 +104,50 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       {w.rest && remaining > 0 && (
         <div role="timer" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
-          <button type="button" className="ghost" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
+          <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
-      {w.exercises.map((e) => (
-        <section key={e.rid} className="tk-ex card" aria-label={e.title}>
-          <div className="tk-row">
-            <h2>{e.title}</h2>
-            {e.supersetId !== null && <span className="muted">Superset</span>}
-            <span className="spacer" />
-            <button type="button" className="ghost" aria-label={`${e.title} tauschen`} onClick={() => setPicker({ mode: 'swap', ex: e.rid })}>Tauschen</button>
-            <button type="button" className="ghost" aria-label={`${e.title} entfernen`}
-              onClick={() => (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null) ? setRemoving(e.rid) : act((x) => removeExercise(x, e.rid)))}>Entfernen</button>
-          </div>
-          {removing === e.rid && (
-            <p className="tk-note">
-              Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?{' '}
-              <button type="button" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
-              <button type="button" className="ghost" onClick={() => setRemoving(null)}>Behalten</button>
-            </p>
-          )}
-          {e.sets.map((s, si) => (
-            <SetRow key={s.rid} index={si} set={s} timed={!!e.timed}
-              confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
-              onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
-              onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
-              onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
-          ))}
-          <div className="tk-row">
-            <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
+      {w.exercises.map((e) => {
+        const labels = setLabels(e.sets);
+        const before = previousSets(e.sets, lastValues(e.exerciseId, history));
+        const timed = !!e.timed;
+        return (
+          <section key={e.rid} className="tk-ex card" aria-label={e.title}>
+            <div className="tk-ex-head">
+              <h2>{e.title}</h2>
+              {e.supersetId !== null && <span className="muted">Superset</span>}
+              <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
+            </div>
+            {menu === e.rid && (
+              <div className="tk-row tk-menu">
+                <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
+                <button type="button" className="secondary" aria-label={`${e.title} entfernen`}
+                  onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
+              </div>
+            )}
+            {exerciseHasNoWeight(e) && <p className="muted tk-sub">Gewicht nach Gefühl</p>}
+            {removing === e.rid && (
+              <p className="tk-note">
+                Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?{' '}
+                <button type="button" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
+                <button type="button" className="ghost" onClick={() => setRemoving(null)}>Behalten</button>
+              </p>
+            )}
+            {e.sets.length > 0 && <SetHead timed={timed} />}
+            {e.sets.map((s, si) => (
+              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed)}
+                confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
+                onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
+                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
+                onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
+            ))}
+            <div className="tk-row">
+              <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
+            </div>
             <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
-          </div>
-        </section>
-      ))}
+          </section>
+        );
+      })}
       <div className="tk-row">
         <button type="button" className="secondary" onClick={() => setPicker({ mode: 'add' })}>Übung hinzufügen</button>
         <span className="spacer" />

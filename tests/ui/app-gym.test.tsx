@@ -17,9 +17,8 @@ test('the next profile starts at home, not on the strength page', () => {
   h.gym = gym();
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Mia' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Kraft.+/ }));
   expect(screen.getByRole('heading', { name: 'Kraft' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Zurück' }));
   fireEvent.click(screen.getByRole('button', { name: 'Profil wechseln' }));
   fireEvent.click(screen.getByRole('button', { name: 'Jo' }));
   expect(screen.queryByRole('heading', { name: 'Kraft' })).toBeNull();
@@ -29,7 +28,7 @@ test('switching profile from the strength page ends it; losing gym ends it too',
   h.gym = gym();
   const { rerender } = render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Mia' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Kraft.+/ }));
   h.gym = null;
   rerender(<App />);
   h.gym = gym();

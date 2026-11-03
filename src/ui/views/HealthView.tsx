@@ -88,7 +88,7 @@ const Trend = ({ measure, points }: { measure: Measure; points: HealthPoint[] })
   );
 };
 
-type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack: () => void; strength?: StrengthHealth | null; garmin?: boolean; rides?: RideSummary[] | null };
+type Props = { data: GarminHealth | null; range: HealthRange; onRange: (r: HealthRange) => void; readiness: GarminReadiness | null | undefined; sync: GarminSyncInfo | null | undefined; onBack?: () => void; strength?: StrengthHealth | null; garmin?: boolean; rides?: RideSummary[] | null };
 
 const kg = (n: number): string => `${n.toLocaleString('de-DE')} kg`;
 const dayText = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
@@ -168,7 +168,7 @@ export const HealthView = ({ data, range, onRange, readiness, sync, onBack, stre
     <main>
       <div className="top">
         <h1>Gesundheit</h1>
-        <div className="row"><button className="ghost" onClick={onBack}>Zurück</button></div>
+        {onBack && <div className="row"><button className="ghost" onClick={onBack}>Zurück</button></div>}
       </div>
       <AllTrainingSection rides={rides} strength={strength} data={garmin ? data : null} />
       {!garmin ? (

@@ -1,5 +1,5 @@
 import { ZoneChip } from '../hr-zone-style';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { CoachClientMessage } from '../../shared/coach-protocol';
 import type { ClientMessage } from '../../shared/protocol';
 import { hrMaxFor, zoneBounds, ZONES } from '../../shared/hr-zones';
@@ -14,10 +14,12 @@ const text = (n: number | undefined): string => (n === undefined ? '' : String(n
 type Props = {
   profile: Profile; ftpW: number; coachConnected: boolean;
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onDeleted?: () => void;
+  /** Further sections of the profile page: settings and connections. */
+  extra?: ReactNode;
 };
 
 /** What you enter applies here: Garmin never overwrites these values on its own. */
-export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted }: Props) => {
+export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted, extra }: Props) => {
   const [name, setName] = useState(profile.name);
   const [ftp, setFtp] = useState(String(ftpW));
   const [maxHr, setMaxHr] = useState(text(profile.maxHrBpm));
@@ -63,7 +65,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
   };
 
   return (
-    <main>
+    <main className="profile-page">
       <div className="top"><h1>Dein Profil</h1></div>
       <form className="card form" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <label>Name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
@@ -103,6 +105,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
           <button type="button" className="secondary" onClick={onBack}>Abbrechen</button>
         </div>
       </form>
+      {extra}
       <section className="card">
         {deleting ? (
           <>

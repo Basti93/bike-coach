@@ -1,4 +1,3 @@
-import type { GymPublic } from '../../coach/gym/public';
 import { useState, type ReactNode } from 'react';
 import { hrMaxFor } from '../../shared/hr-zones';
 import { CoachLog } from './CoachLog';
@@ -11,7 +10,6 @@ import type { ClientMessage } from '../../shared/protocol';
 import type { Session } from '../../shared/session';
 import { STARTER_SESSIONS } from '../../shared/starter-sessions';
 import { rampTest } from '../../coach/rules';
-import { GarminCard } from './GarminCard';
 import { GarminProfileBanner } from './GarminProfileReview';
 import type { GarminSuggestion } from '../../shared/garmin-profile';
 import { ReadinessNote } from './ReadinessNote';
@@ -46,15 +44,18 @@ type Choice = { session: Session; why: string; tag: string };
 type Props = {
   together?: Together | null;
   profile: Profile; state: CoachState | null; thinking: boolean; coachConnected: boolean;
-  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onHistory?: () => void; onTogether?: () => void; tools?: ReactNode; passCard?: ReactNode; hevyCard?: ReactNode; accountCard?: ReactNode; onStartGym?: () => void; onEdit?: () => void; onHealth?: () => void; garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; gym?: GymPublic | null; onGym?: () => void; onOverview?: () => void; healthLink?: boolean; mobility?: MobilityView | null;
+  sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; passCard?: ReactNode;
+  /** Only for a Garmin login that has run out: the connections themselves live on the profile page. */
+  garmin?: GarminStatus; garminSync?: GarminSyncInfo | null; onProfile?: () => void;
+  garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; onReviewGarmin?: () => void; mobility?: MobilityView | null;
 };
 
-export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, onBack, onHistory, onTogether, tools, passCard, hevyCard, accountCard, onEdit, onHealth, garmin, garminSync, garminReadiness, garminSuggestion, onReviewGarmin, gym, onGym, onStartGym, onOverview, healthLink, mobility }: Props) => {
+export const CoachView = ({ together, profile, state, thinking, coachConnected, sendRide, sendCoach, passCard, garmin, garminSync, onProfile, garminReadiness, garminSuggestion, onReviewGarmin, mobility }: Props) => {
   const [note, setNote] = useState('');
   const [picked, setPicked] = useState<Choice | null>(null);
   const ftpW = state?.ftpW ?? profile.ftpW;
   const hrMax = hrMaxFor(profile, Date.now());
-  const garminAside = garmin?.state === 'connected' && garminSync?.problem !== 'reauth';
+  const reauth = garmin?.state === 'connected' && garminSync?.problem === 'reauth';
   const start = (session: Session) => sendRide({ type: 'start', profileId: profile.id, session, ftpW, ...(profile.maxHrBpm ? { maxHrBpm: profile.maxHrBpm } : {}), ...(hrMax ? { hrMaxBpm: hrMax.bpm } : {}) });
   const next = state?.next;
   const isRamp = next?.session.id === 'ramp-test';
@@ -75,17 +76,6 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
     <main className="home">
       <div className="top">
         <h1>{profile.avatar && <span aria-hidden="true">{profile.avatar} </span>}{greeting()}, {profile.name}<span className="leaf" aria-hidden="true">🍁</span></h1>
-        <div className="row">
-          {tools}
-          {onTogether && together && <button className="ghost" onClick={onTogether}>Zusammen</button>}
-          {onHistory && state && <button className="ghost" onClick={onHistory}>Verlauf</button>}
-          {gym && onGym && <button className="ghost" onClick={onGym}>Kraft</button>}
-          {!gym && onStartGym && <button className="ghost" onClick={onStartGym}>Krafttraining starten</button>}
-          {onOverview && <button className="ghost" onClick={onOverview}>Übersicht</button>}
-          {onHealth && (garmin?.state === 'connected' || healthLink) && <button className="ghost" onClick={onHealth}>Gesundheit</button>}
-          {onEdit && <button className="ghost" onClick={onEdit}>Profil bearbeiten</button>}
-          <button className="ghost" onClick={onBack}>Profil wechseln</button>
-        </div>
       </div>
       {!state && <p className="notice" role="status">{coachConnected ? 'Coach lädt…' : 'Der Coach ist gerade nicht erreichbar. Du kannst trotzdem fahren.'}</p>}
       {state && (
@@ -97,9 +87,13 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
           <CoachLog notes={state.notes} changes={state.changes} />
         </Encouragement>
       )}
-      <MobilityCard profileId={profile.id} mobility={mobility} send={sendCoach} />
       <ReadinessNote readiness={garminReadiness} />
-      {garmin && coachConnected && !garminAside && garmin.state !== 'idle' && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />}
+      {reauth && coachConnected && (
+        <p className="notice row" role="status">
+          <span>Die Garmin-Anmeldung ist abgelaufen. Unter Profil kannst du dich in Ruhe neu anmelden.</span>
+          {onProfile && <button className="ghost" onClick={onProfile}>Zum Profil</button>}
+        </p>
+      )}
       {onReviewGarmin && <GarminProfileBanner profile={profile} ftpW={ftpW} suggestion={garminSuggestion} onReview={onReviewGarmin} />}
       <div className="coach">
         <div className="stack">
@@ -128,6 +122,7 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </div>
             </section>
           )}
+          <MobilityCard profileId={profile.id} mobility={mobility} send={sendCoach} />
           <section className="library">
             <h3>Andere Trainings</h3>
             <div className="trainings">
@@ -158,15 +153,6 @@ export const CoachView = ({ together, profile, state, thinking, coachConnected, 
               </section>
             )}
             {coachConnected && passCard}
-            {garmin && coachConnected && garminAside && <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />}
-            {garmin && coachConnected && garmin.state === 'idle' && (
-              <details className="card garmin-later">
-                <summary>Garmin verbinden</summary>
-                <GarminCard profileId={profile.id} status={garmin} sync={garminSync} send={sendCoach} upload={state?.garminUpload} />
-              </details>
-            )}
-            {coachConnected && hevyCard}
-            {coachConnected && accountCard}
           </div>
         )}
       </div>

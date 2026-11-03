@@ -113,6 +113,8 @@ describe('web app', () => {
   it('the mobility card comes from the plan and Gemacht writes the done record', async () => {
     const s = session(NOW - 3600_000);
     const a = await boot({ seed: [plan(NOW - 1000, s)] });
+    expect(await screen.findByText(/etwa 8 Minuten, 1 Übungen/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }));
     expect(await screen.findByText('Hüftbeuger dehnen')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Gemacht' }));
     await waitFor(async () => {
@@ -122,6 +124,42 @@ describe('web app', () => {
       st.close();
     });
     await waitFor(() => expect(screen.queryByText('Hüftbeuger dehnen')).toBeNull());
+  });
+
+  it('the plan comes first, mobility below it, collapsed; "Heute nicht" hides it for today only, without writing anything', async () => {
+    const s = session(NOW - 3600_000);
+    const a = await boot({ seed: [plan(NOW - 1000, s)] });
+    const mob = await screen.findByText(/Beweglichkeit, wenn du magst/);
+    expect(screen.getByText('Beine A').compareDocumentPosition(mob) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('Hüftbeuger dehnen')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Heute nicht' }));
+    expect(screen.queryByText(/Beweglichkeit, wenn du magst/)).toBeNull();
+    expect([...a.storage.keys()].some((k) => k.startsWith('pandafit.mobility.notToday'))).toBe(true);
+    const st = await openIdb('anna', a.factory);
+    expect(await st.list('mobility')).toEqual([]);
+    st.close();
+  });
+
+  it('the tab bar has Heute, Training, Verlauf and Profil; the profile shows the account and the sync state', async () => {
+    await boot({ seed: [plan(NOW - 1000)] });
+    await screen.findByText('Beine A');
+    const nav = screen.getByRole('navigation', { name: 'Seiten' });
+    expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Training', 'Verlauf', 'Profil']);
+    expect(screen.queryByRole('button', { name: 'Abmelden' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    expect(await screen.findByRole('heading', { name: 'anna' })).toBeTruthy();
+    expect(screen.getByText(/abgeglichen|Abgleich|Senden|Verbindung/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Abmelden' })).toBeTruthy();
+  });
+
+  it('the tab bar steps aside while a field has focus, so the keyboard never pushes it over an input', async () => {
+    await boot({ seed: [] });
+    const field = await screen.findByLabelText('Neue Beschwerde');
+    const nav = screen.getByRole('navigation', { name: 'Seiten' });
+    fireEvent.focusIn(field);
+    expect(nav.className).toContain('web-nav-away');
+    fireEvent.focusOut(field);
+    expect(nav.className).not.toContain('web-nav-away');
   });
 
   it('open complaints can be added and closed', async () => {
@@ -143,7 +181,8 @@ describe('web app', () => {
   it('logging out asks when unsent records exist and keeps local data', async () => {
     const a = await boot({ offline: true, account: 'anna', seed: [plan(NOW - 1000)] });
     await screen.findByText('Beine A');
-    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abmelden' }));
     expect(await screen.findByText(/noch nicht gesendet/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
     expect(await screen.findByLabelText('Name')).toBeTruthy();
@@ -239,7 +278,8 @@ describe('web app', () => {
     const a = await boot({ account: 'anna', seed: [plan(NOW - 1000)], logoutFails: true });
     await screen.findByText('Beine A');
     await waitFor(() => expect(a.calls).toContain('GET /me'));
-    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abmelden' }));
     if (screen.queryByRole('button', { name: 'Trotzdem abmelden' })) fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
     expect(await screen.findByLabelText('Name')).toBeTruthy();
     expect(a.storage.get('pandafit.account')).toBeUndefined();
@@ -301,7 +341,8 @@ describe('web app', () => {
   it('a logout answered with an error status keeps the flag and blocks entry; only 2xx or 401 count as done', async () => {
     const a = await boot({ account: 'anna', seed: [plan(NOW - 1000)], logoutStatus: 502 });
     await screen.findByText('Beine A');
-    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abmelden' }));
     if (screen.queryByRole('button', { name: 'Trotzdem abmelden' })) fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
     expect(await screen.findByLabelText('Name')).toBeTruthy();
     await waitFor(() => expect(a.storage.get('pandafit.loggedOut')).toBe('1'));
@@ -337,7 +378,8 @@ describe('web app', () => {
     const note = await screen.findByLabelText('Notiz zu Kniebeuge');
     fireEvent.focus(note);
     fireEvent.change(note, { target: { value: 'Rechtes Knie ziept' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abmelden' }));
     const confirm = screen.queryByRole('button', { name: 'Trotzdem abmelden' });
     if (confirm) fireEvent.click(confirm);
     await screen.findByLabelText('Name');

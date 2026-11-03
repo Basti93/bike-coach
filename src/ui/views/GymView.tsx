@@ -14,9 +14,9 @@ type Props = {
   send: (m: CoachClientMessage) => void;
   /** Forgets an old preview and/or result, so neither stays visible. */
   clear: (what: 'preview' | 'result' | 'all') => void;
-  onBack: () => void;
-  onHealth?: () => void;
   mobility?: MobilityView | null;
+  /** A workout is still open on this Mac: the start button then continues it. */
+  openWorkout?: boolean;
   /** Opens one of the shared tracking screens. Without it the page shows no tracking buttons. */
   onTrack?: (screen: 'workout' | 'routines' | 'history') => void;
 };
@@ -58,7 +58,7 @@ const Question = ({ q, profileId, send }: { q: string; profileId: string; send: 
   );
 };
 
-export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, onBack, onHealth, mobility, onTrack }: Props) => {
+export const GymView = ({ profileId, gym, preview, previewFailed, result, send, clear, mobility, onTrack, openWorkout = false }: Props) => {
   const { state, ready, thinking } = gym;
   const next = state.next;
   const [note, setNote] = useState('');
@@ -92,16 +92,14 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
     <main className="home gym">
       <div className="top">
         <h1>Kraft</h1>
-        <div className="row">{onHealth && <button className="ghost" onClick={onHealth}>Gesundheit</button>}<button className="ghost" onClick={onBack}>Zurück</button></div>
       </div>
       {onTrack && (
         <div className="row">
-          <button className="go" onClick={() => onTrack('workout')}>Training starten</button>
+          <button className="go" onClick={() => onTrack('workout')}>{openWorkout ? 'Training fortsetzen' : 'Training starten'}</button>
           <button className="secondary" onClick={() => onTrack('routines')}>Routinen</button>
-          <button className="secondary" onClick={() => onTrack('history')}>Verlauf</button>
+          <button className="secondary" onClick={() => onTrack('history')}>Bisherige Trainings</button>
         </div>
       )}
-      <MobilityCard profileId={profileId} mobility={mobility} send={send} />
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}
       {ready && !next && state.emptyReason && <p className="notice" role="status">{state.emptyReason}</p>}
       {ready && !next && !state.emptyReason && <p className="notice" role="status">{thinking ? 'Der Coach plant gerade dein Training.' : gym.hasHistory ? 'Der Coach konnte dein Training noch nicht planen. Er versucht es gleich noch einmal.' : gym.hevy ? 'Sobald du in Hevy trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.' : 'Sobald du trainiert hast, plant der Coach dein nächstes Training. Bis dahin gibt es nichts zu tun.'}</p>}
@@ -141,6 +139,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
           )}
           {result === 'written' && <p className="notice" role="status">Fertig, das Training ist jetzt in Hevy angelegt. Viel Freude damit.</p>}
           {result === 'stale' && <p className="notice" role="status">Das Training hat sich inzwischen geändert. Bitte schau es dir noch einmal an und lege es dann neu an.</p>}
+          <MobilityCard profileId={profileId} mobility={mobility} send={send} />
         </div>
         <div className="stack">
           {state.lastNote && (
