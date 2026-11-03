@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { EXERCISES } from '../../shared/exercises';
 import { LEG_COMPLAINT } from '../gym/gym-coach';
 import type { StrengthWorkout } from '../hevy';
@@ -69,9 +70,9 @@ export type MobilityInput = {
 /**
  * Rules only. `lastRideMs` and `lastStrengthMs` are the times the sessions ended. A session is offered if one ended within
  * 24 hours and no mobility was done within 2 days. Its id depends on the triggering session alone, so it stays the same until
- * a new session ends.
+ * a new session ends. `rideKey` turns a ride's end into what the id shows.
  */
-export function suggestMobility(input: MobilityInput): MobilitySession | null {
+export function suggestMobility(input: MobilityInput, rideKey: (endMs: number) => string = String): MobilitySession | null {
   const { nowMs } = input;
   const recent = (ms: number | null): ms is number => ms !== null && ms <= nowMs && nowMs - ms <= OFFER_WINDOW_MS;
   const bike = recent(input.lastRideMs) ? input.lastRideMs : null;
@@ -106,7 +107,7 @@ export function suggestMobility(input: MobilityInput): MobilitySession | null {
     ? `Nach dem Radfahren eine kurze, ruhige Beweglichkeitseinheit, nur wenn du magst.${left}`
     : `Nach dem Krafttraining eine kurze, ruhige Beweglichkeitseinheit für die Muskeln, die du genutzt hast, nur wenn du magst.${left}`;
   return {
-    id: `mobility-${forSession}-${triggerMs}`, forSession,
+    id: `mobility-${forSession}-${forSession === 'bike' ? rideKey(triggerMs) : triggerMs}`, forSession,
     minutes: Math.max(6, Math.min(10, picked.length * 2)),
     exercises: picked.map(({ id, title, howTo, area }) => ({ id, title, howTo, area })), reason,
   };
@@ -154,7 +155,12 @@ export class MobilityCoach {
       lastMobilityMs: doneMs.length ? Math.max(...doneMs) : null,
       complaints: this.deps.complaints(id),
       usedMuscles: lastStrength ? lastStrength.exercises.flatMap((e) => { const m = muscleOf(e.templateId, e.title); return m ? [m] : []; }) : [],
-    });
+    }, (endMs) => this.rideKey(id, endMs));
+  }
+
+  /** Stands for one ride and says nothing about it: session ids go to the server with the plan, ride times must not. */
+  private rideKey(id: string, endMs: number): string {
+    return createHmac('sha256', this.deps.store.localSecret(id)).update(String(endMs)).digest('hex').slice(0, 16);
   }
 
   private askFeel(id: string): boolean {
@@ -172,19 +178,22 @@ export class MobilityCoach {
    */
   markDone(id: string, sessionId: string): void {
     const now = this.deps.nowMs();
-    const m = /^mobility-(bike|strength)-(\d+)$/.exec(sessionId);
+    const m = /^mobility-(bike|strength)-([0-9a-f]+)$/.exec(sessionId);
     if (!m) return;
     const forSession = m[1] as 'bike' | 'strength';
-    const endMs = Number(m[2]);
     const ends = forSession === 'bike'
       ? this.deps.rides(id).filter((r) => r.status === 'finished' && r.durationS >= MIN_COUNTED_S).map((r) => r.startedAtMs + r.durationS * 1000)
       : this.deps.strength(id).filter((w) => w.durationS > 0).map((w) => w.startMs + w.durationS * 1000);
-    if (!ends.includes(endMs) || endMs > now || now - endMs > OFFER_WINDOW_MS + TAP_GRACE_MS) return;
-    if (this.deps.store.all(id, 'mobility').some((r) => r.id === sessionId)) return;
+    // A card from before ride keys may still carry the plain end time.
+    const endMs = ends.find((e) => m[2] === String(e) || (forSession === 'bike' && m[2] === this.rideKey(id, e)));
+    if (endMs === undefined || endMs > now || now - endMs > OFFER_WINDOW_MS + TAP_GRACE_MS) return;
+    const storedId = forSession === 'bike' ? `mobility-bike-${this.rideKey(id, endMs)}` : sessionId;
+    const have = this.deps.store.all(id, 'mobility');
+    if (have.some((r) => r.id === storedId || r.id === `mobility-${forSession}-${endMs}`)) return;
     // The same 2 day rule as for the offer, so a second session's card cannot add a second entry.
     const doneMs = this.done(id).map((r) => bodyOf(r).doneMs as number);
     if (doneMs.length && now - Math.max(...doneMs) < PAUSE_MS) return;
-    this.deps.store.put(id, { kind: 'mobility', id: sessionId, updatedMs: now, deleted: false, body: { doneMs: now, forSession } });
+    this.deps.store.put(id, { kind: 'mobility', id: storedId, updatedMs: now, deleted: false, body: { doneMs: now, forSession } });
   }
 
   /** An empty text is a skip: it stores the skip, so nothing asks again before the next 6 weeks. */

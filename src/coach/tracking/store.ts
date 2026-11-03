@@ -88,6 +88,16 @@ export class RecordStore {
     return { records, cursor: data.seq };
   }
 
+  /** A random value of this profile on this Mac. Lives apart from the records, so it never reaches the server. */
+  localSecret(profileId: string): string {
+    const f = `${this.file(profileId)}.secret`;
+    if (fs.existsSync(f)) return fs.readFileSync(f, 'utf8');
+    fs.mkdirSync(this.dir, { recursive: true });
+    const secret = randomBytes(32).toString('hex');
+    fs.writeFileSync(f, secret, { mode: 0o600 });
+    return secret;
+  }
+
   /** Copies that lost to a newer one, newest last, at most 200 per profile. */
   overwritten(profileId: string): TrackedRecord[] { return this.load(profileId).overwritten; }
 }

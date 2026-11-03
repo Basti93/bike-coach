@@ -189,6 +189,38 @@ describe('MobilityCoach', () => {
     make().markDone('p', 'mobility-bike-1');
     expect(done()).toHaveLength(0);
   });
+  it('the offer after a ride carries no time of the ride, stays the same, and differs per ride', () => {
+    rides = [ride()];
+    const end = rides[0].startedAtMs + rides[0].durationS * 1000;
+    const id = make().view('p')!.session!.id;
+    expect(id).toMatch(/^mobility-bike-[0-9a-f]{16}$/);
+    expect(JSON.stringify(make().view('p'))).not.toContain(String(end));
+    expect(make().view('p')!.session!.id).toBe(id);
+    rides = [ride({ rideId: 'r2', startedAtMs: rides[0].startedAtMs + HOUR })];
+    expect(make().view('p')!.session!.id).not.toBe(id);
+    make().markDone('p', make().view('p')!.session!.id);
+    expect(done()).toHaveLength(1);
+    expect(store.changedSince('p', 0).records.map((r) => JSON.stringify(r)).join()).not.toContain(String(rides[0].startedAtMs + rides[0].durationS * 1000));
+  });
+  it('an offer from before this change can still be marked, and is stored without the time', () => {
+    rides = [ride()];
+    const end = rides[0].startedAtMs + rides[0].durationS * 1000;
+    const c = make();
+    c.markDone('p', `mobility-bike-${end}`);
+    expect(done()).toHaveLength(1);
+    expect(done()[0]!.id).not.toContain(String(end));
+  });
+  it('a stored mark under the old id still counts as done', () => {
+    rides = [ride()];
+    const end = rides[0].startedAtMs + rides[0].durationS * 1000;
+    store.put('p', { kind: 'mobility', id: `mobility-bike-${end}`, updatedMs: now, deleted: false, body: { doneMs: now - 3 * DAY, forSession: 'bike' } });
+    const c = make();
+    c.markDone('p', c.view('p')!.session!.id);
+    expect(done()).toHaveLength(1);
+  });
+  it('the offer after strength keeps its id, the workout itself is on the server anyway', () => {
+    expect(suggestMobility({ ...base, lastStrengthMs: NOW - HOUR, usedMuscles: ['chest'] })!.id).toBe(`mobility-strength-${NOW - HOUR}`);
+  });
   it('skipping leaves no debt', () => {
     rides = [ride()];
     const c = make();
