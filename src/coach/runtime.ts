@@ -301,6 +301,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const handle = (m: CoachClientMessage, reply: (msg: CoachServerMessage) => void): void => {
     const send = (msg: CoachServerMessage) => { try { reply(msg); } catch { /* connection gone */ } };
     try {
+      // The server coach handles a profile update and a queued change itself, before they reach a runtime.
+      if (m.type === 'queued' || m.type === 'profile-update') return;
       // Records check the profile themselves and always answer the request.
       if (m.type === 'records-put' || m.type === 'records-list') {
         if (m.type === 'records-put' && known(m.profileId)) accountSync.touch(m.profileId);

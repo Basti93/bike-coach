@@ -1,0 +1,185 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import fs from 'node:fs';
+import type { IncomingMessage } from 'node:http';
+import path from 'node:path';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { WebSocketServer, type RawData, type WebSocket } from 'ws';
+import { QUEUEABLE, type CoachClientMessage, type CoachServerMessage, type CoachStateMessage } from '../../shared/coach-protocol';
+import { ChangeClock, changeKey } from './change-clock';
+import type { AccountCoach, Household } from './household';
+
+export type CoachServerOptions = { household: Household; internalToken: string; nowMs?: () => number };
+
+const MAX_PAYLOAD = 256 * 1024;
+const ACCOUNT = /^[1-9][0-9]{0,15}$/;
+
+type Conn = { ws: WebSocket; subscribed: boolean; lastSent: string | null };
+
+const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
+/** Compares digests, so neither the length nor the content of the token leaks through the time taken. */
+const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
+
+/** Per account: what the restore drill compares. Counts only, never content. */
+const accountCounts = (a: AccountCoach) => {
+  const count = (dir: string, test: (name: string) => boolean): number => { try { return fs.readdirSync(dir).filter(test).length; } catch { return 0; } };
+  const rides = count(path.join(a.dir, 'rides'), (name) => fs.existsSync(path.join(a.dir, 'rides', name, 'meta.json')));
+  let records = 0;
+  try { records = a.runtime.records.all(a.profileId).length; } catch { /* no records yet */ }
+  return {
+    profileId: a.profileId, rides, records,
+    coach: fs.existsSync(path.join(a.dir, 'coach', `${encodeURIComponent(a.profileId)}.json`)),
+    garminDb: fs.existsSync(path.join(a.dir, 'garmin', 'data', a.profileId, 'garmin.db')),
+    hevyKey: fs.existsSync(path.join(a.dir, 'hevy', a.profileId, 'api-key')),
+  };
+};
+
+/**
+ * The household coach on the internal network. Only the api reaches it, and the api names the account in a header with the
+ * internal token, so the account always comes from a login and never from a client. Every message must carry that account's
+ * profile id. Message bodies are never logged.
+ */
+export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
+  const { household } = opts;
+  const nowMs = opts.nowMs ?? (() => Date.now());
+  const app = Fastify({ logger: false, bodyLimit: 64 * 1024, requestTimeout: 30_000 });
+  const tokenDigest = digest(opts.internalToken);
+
+  const tokenOk = (h: unknown): boolean => typeof h === 'string' && h.length > 0 && timingSafeEqual(digest(h), tokenDigest);
+  const accountOf = (h: unknown): number | null => {
+    if (typeof h !== 'string' || !ACCOUNT.test(h)) return null;
+    const id = Number(h);
+    return Number.isSafeInteger(id) ? id : null;
+  };
+  const authorised = (req: IncomingMessage): number | null => (tokenOk(req.headers['x-pandafit-internal']) ? accountOf(req.headers['x-pandafit-account']) : null);
+
+  app.addHook('onRequest', async (req, reply) => {
+    const url = req.url.split('?')[0];
+    if (url === '/healthz') {
+      const counts = new URLSearchParams(req.url.split('?')[1] ?? '').get('counts') === '1';
+      if (counts && !tokenOk(req.headers['x-pandafit-internal'])) return reply.code(401).send({ error: 'unauthorized' });
+      return;
+    }
+    if (authorised(req.raw) === null) return reply.code(401).send({ error: 'unauthorized' });
+  });
+
+  app.get('/healthz', async (req) => {
+    if ((req.query as Record<string, unknown>).counts !== '1') return { ok: true };
+    const accounts: Record<string, ReturnType<typeof accountCounts>> = {};
+    for (const a of household.startAll()) accounts[String(a.accountId)] = accountCounts(a);
+    return { ok: true, accounts };
+  });
+
+  app.get('/status', async (req) => {
+    const a = household.account(authorised(req.raw)!);
+    return { profileId: a?.profileId ?? null, moved: a !== null };
+  });
+
+  // ---- The coach socket ----
+
+  const conns = new Map<number, Set<Conn>>();
+  const clocks = new Map<number, ChangeClock>();
+  const unlisten = new Map<number, () => void>();
+  const clockOf = (a: AccountCoach): ChangeClock => {
+    let c = clocks.get(a.accountId);
+    if (!c) { c = new ChangeClock(path.join(a.dir, 'clock.json')); clocks.set(a.accountId, c); }
+    return c;
+  };
+
+  /** The runtime's view plus the account's profile, whose FTP is the coach's. */
+  const viewOf = (a: AccountCoach): CoachStateMessage | null => {
+    const v = a.runtime.view(a.profileId);
+    if (!v) return null;
+    return { ...v, profile: { ...a.profile(), ftpW: v.state.ftpW } };
+  };
+  const send = (c: Conn, m: CoachServerMessage): void => { try { c.ws.send(JSON.stringify(m)); } catch { /* connection gone */ } };
+  /** A view goes out only when it changed since the last one on this connection. */
+  const sendView = (c: Conn, a: AccountCoach): void => {
+    const v = viewOf(a);
+    if (!v) return;
+    try {
+      const body = JSON.stringify(v);
+      if (c.lastSent !== body) { c.ws.send(body); c.lastSent = body; }
+    } catch { /* connection gone */ }
+  };
+  const publish = (a: AccountCoach): void => { for (const c of conns.get(a.accountId) ?? []) if (c.subscribed) sendView(c, a); };
+
+  const listen = (a: AccountCoach): void => {
+    if (unlisten.has(a.accountId)) return;
+    unlisten.set(a.accountId, a.runtime.onChange((profileId) => {
+      if (profileId === a.profileId) for (const c of conns.get(a.accountId) ?? []) if (c.subscribed) send(c, { type: 'records-changed', profileId });
+      publish(a);
+    }));
+  };
+
+  /** One message for this account, live or from a client's queue. Anything for another profile id is refused without an answer. */
+  const apply = (c: Conn, a: AccountCoach, m: Record<string, unknown>, atMs: number, queued: boolean): void => {
+    if (typeof m.type !== 'string' || m.profileId !== a.profileId) return;
+    const msg = m as CoachClientMessage;
+    const key = changeKey(msg);
+    // A live change is the newest by definition and stamps now; a queued one older than the item's last change is skipped.
+    if (key !== null && !clockOf(a).admit(key, atMs) && queued) return;
+    if (msg.type === 'profile-update') {
+      try { a.setProfile(msg.profile); } catch { return; }
+      publish(a);
+      return;
+    }
+    if (msg.type === 'subscribe') {
+      c.subscribed = true;
+      // The runtime reads new rides on subscribe; its own view is replaced by the one with the profile.
+      a.runtime.handle(msg, () => {});
+      sendView(c, a);
+      return;
+    }
+    a.runtime.handle(msg, (reply) => {
+      if (reply.type === 'coach-state') sendView(c, a);
+      else send(c, reply);
+    });
+  };
+
+  const onMessage = (c: Conn, a: AccountCoach, data: RawData, isBinary: boolean): void => {
+    if (isBinary) return;
+    let m: unknown;
+    try { m = JSON.parse(String(data)); } catch { return; }
+    if (!isObj(m)) return;
+    const now = nowMs();
+    try {
+      if (m.type === 'queued') {
+        const inner = m.message;
+        if (typeof m.atMs !== 'number' || !Number.isFinite(m.atMs) || !isObj(inner)) return;
+        if (typeof inner.type !== 'string' || !QUEUEABLE.has(inner.type as CoachClientMessage['type'])) return;
+        // A clock running ahead on the client never makes a change newer than now.
+        apply(c, a, inner, Math.min(m.atMs, now), true);
+        return;
+      }
+      apply(c, a, m, now, false);
+    } catch { /* an invalid message changes nothing */ }
+  };
+
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
+  app.server.on('upgrade', (req: IncomingMessage, socket, head) => {
+    if ((req.url ?? '').split('?')[0] !== '/ws') { socket.destroy(); return; }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      ws.on('error', () => {});
+      const accountId = authorised(req);
+      if (accountId === null) { ws.close(4401, 'unauthorized'); return; }
+      const a = household.account(accountId);
+      if (!a) { ws.close(4404, 'not moved'); return; }
+      listen(a);
+      const c: Conn = { ws, subscribed: false, lastSent: null };
+      let set = conns.get(accountId);
+      if (!set) { set = new Set(); conns.set(accountId, set); }
+      set.add(c);
+      ws.on('message', (data, isBinary) => onMessage(c, a, data, isBinary));
+      ws.on('close', () => { set.delete(c); });
+    });
+  });
+
+  app.addHook('onClose', async () => {
+    for (const ws of wss.clients) ws.terminate();
+    wss.close();
+    for (const off of unlisten.values()) off();
+    unlisten.clear();
+  });
+
+  return app;
+};

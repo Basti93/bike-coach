@@ -35,6 +35,8 @@ export type HouseholdOptions = {
 export type AccountCoach = {
   accountId: number;
   profileId: string;
+  /** `<root>/accounts/<id>`: everything of this account and nothing else. */
+  dir: string;
   runtime: CoachRuntime;
   profile(): Profile;
   /** Keeps `profile.json`. The profile id stays the one bound to the account. */
@@ -72,6 +74,8 @@ export class Household {
   private readonly nowMs: () => number;
   private readonly ask: Ask;
   private mealCoach: MealCoach | null = null;
+  /** Accounts whose start failed, so the log says it once. */
+  private readonly failed = new Set<number>();
 
   constructor(private readonly opts: HouseholdOptions) {
     this.nowMs = opts.nowMs ?? (() => Date.now());
@@ -86,8 +90,19 @@ export class Household {
   account(accountId: number): AccountCoach | null {
     const known = this.accounts.get(accountId);
     if (known) return known;
-    this.start(accountId);
+    this.tryStart(accountId);
     return this.accounts.get(accountId) ?? null;
+  }
+
+  /** start() that never throws: a broken account is logged once, without content, and tried again on the next call. */
+  private tryStart(accountId: number): void {
+    try {
+      this.start(accountId);
+      this.failed.delete(accountId);
+    } catch (e) {
+      if (!this.failed.has(accountId)) console.error(`Konto ${accountId}: Coach startet nicht`, e instanceof Error ? e.message.slice(0, 200) : 'Fehler');
+      this.failed.add(accountId);
+    }
   }
 
   /** Starts the account's coach when it moved and has a valid profile. Safe to repeat. */
@@ -129,7 +144,7 @@ export class Household {
       ...(this.opts.waitMs !== undefined ? { waitMs: this.opts.waitMs } : {}),
     });
     this.accounts.set(accountId, {
-      accountId, profileId, runtime,
+      accountId, profileId, dir, runtime,
       profile: () => current,
       setProfile: (p) => {
         const next = parseProfile(p);
@@ -140,12 +155,17 @@ export class Household {
     });
   }
 
-  /** Starts every moved account, then runs each coach's scan and the shared meal plan. */
-  scan(): void {
+  /** Starts every moved account that is not running yet, and returns all running ones. Starts no run of its own. */
+  startAll(): AccountCoach[] {
     let names: string[] = [];
     try { names = fs.readdirSync(path.join(this.opts.root, 'accounts')); } catch { /* no account yet */ }
-    for (const name of names) if (ACCOUNT_DIR.test(name)) { try { this.start(Number(name)); } catch { /* try again on the next scan */ } }
-    for (const a of this.accounts.values()) a.runtime.scan();
+    for (const name of names) if (ACCOUNT_DIR.test(name)) this.tryStart(Number(name));
+    return [...this.accounts.values()];
+  }
+
+  /** Starts every moved account, then runs each coach's scan and the shared meal plan. */
+  scan(): void {
+    for (const a of this.startAll()) a.runtime.scan();
     // Separate safeguard: the meal plan must never disturb the coaches. It runs only once moved. At night it answers a person's
     // chat message but does not make the scheduled weekly plan.
     const mc = this.openMeals();
