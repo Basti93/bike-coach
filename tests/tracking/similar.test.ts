@@ -55,3 +55,16 @@ describe('describeExercise', () => {
     expect(describeExercise({ exerciseId: 'x', title: 'Seitheben Maschine Stehend' }, EXERCISES)).toBeNull();
   });
 });
+
+describe('similarExercises puts the same muscle on top', () => {
+  it('finds biceps curls for an unknown Hevy curl, never a leg curl', () => {
+    const got = similarExercises({ title: 'Behind the Back Curl (Cable)', exerciseId: 'hevy-x' }, EXERCISES);
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.every((e) => e.primaryMuscle === 'biceps')).toBe(true);
+  });
+
+  it('lists chest exercises before presses for other muscles', () => {
+    const got = similarExercises({ title: 'Incline Bench Press (Smith Machine)', exerciseId: 'hevy-y' }, EXERCISES);
+    expect(got.every((e) => e.primaryMuscle === 'chest')).toBe(true);
+  });
+});

@@ -215,3 +215,19 @@ describe('supersets', () => {
     expect(confirmSet(s, s.exercises[0].rid, s.exercises[0].sets[0].rid, 5000).rest).toEqual({ startMs: 5000, durationS: 90 });
   });
 });
+
+describe('last values across Hevy and own ids', () => {
+  const hevyPreacher = (title: string, endMs: number) => past(`h-${title}`, endMs, 'HEVY-TPL-1', [done(30, 10), done(30, 9)]);
+  it('a swapped-in own exercise takes the last sets logged under its Hevy title', () => {
+    const hist = [{ ...hevyPreacher('a', 5000), exercises: [{ exerciseId: 'HEVY-TPL-1', title: 'Preacher Curl (Barbell)', supersetId: null, notes: '', sets: [done(30, 10), done(30, 9)] }] }];
+    const w = startFromPlan(plan, [], 10, 'w1');
+    const preacher = { id: 'pf-preacher-curl', title: 'Scott-Curl', type: 'weight_reps', primaryMuscle: 'biceps', equipment: 'barbell', hevyTitle: 'Preacher Curl (Barbell)' };
+    const s = swapExercise(w, ex0(w), preacher, hist);
+    expect(s.exercises[0].sets.map((x) => [x.weightKg, x.reps])).toEqual([[30, 10], [30, 9]]);
+  });
+
+  it('also under the German Hevy title', () => {
+    const hist = [{ ...hevyPreacher('b', 5000), exercises: [{ exerciseId: 'HEVY-TPL-2', title: 'Preacher Curl (Langhantel)', supersetId: null, notes: '', sets: [done(25, 12)] }] }];
+    expect(lastValues('pf-preacher-curl', hist).map((x) => x.weightKg)).toEqual([25]);
+  });
+});

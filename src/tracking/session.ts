@@ -1,5 +1,4 @@
-import type { Exercise } from '../shared/exercises';
-import { EXERCISES } from '../shared/exercises';
+import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
@@ -42,9 +41,12 @@ export function parseDecimal(text: string): number | null | undefined {
 export const formatDecimal = (n: number | null): string => (n === null ? '' : String(n).replace('.', ','));
 
 /** Confirmed sets of the newest performed session containing the exercise. A session known twice (own and Hevy) counts once. */
+/** The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. */
 export function lastValues(exerciseId: string, history: LoggedWorkout[]): LoggedSet[] {
+  const own = EXERCISES.find((e) => e.id === exerciseId);
+  const titles = own ? exerciseTitles(own) : [];
   for (const w of onePerSession(dedupeSessions(history))) {
-    const sets = w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter(isDone));
+    const sets = w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
     if (sets.length) return sets;
   }
   return [];
