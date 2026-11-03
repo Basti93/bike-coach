@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrackedRecord } from '../../src/shared/records';
-import { App } from '../../src/web/App';
+import { App, ErrorBoundary } from '../../src/web/App';
 import { openIdb } from '../../src/web/idbStore';
 import { mobilityToShow, shouldShowInstallHint } from '../../src/web/logic';
 
@@ -19,15 +19,17 @@ const plan = (atMs: number, mobility: unknown = null): TrackedRecord => ({
 });
 const session = (triggerMs: number) => ({ id: `mobility-bike-${triggerMs}`, forSession: 'bike', minutes: 8, exercises: [{ id: 'm1', title: 'Hüftbeuger dehnen', howTo: 'Ausfallschritt, ruhig atmen.', area: 'hueftbeuger' }], reason: 'Nach der Radfahrt tut das gut.' });
 
-type Opts = { me?: number; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
+type Opts = { me?: number; hangMe?: boolean; noIdb?: 'null' | 'throws'; flags?: Record<string, string>; logoutFails?: boolean; loginStatus?: number; offline?: boolean; syncStatus?: number; seed?: TrackedRecord[]; account?: string; ua?: string; standalone?: boolean; persist?: boolean };
 async function boot(o: Opts = {}) {
   const factory = new IDBFactory();
   if (o.seed) { const s = await openIdb('anna', factory); for (const r of o.seed) await s.put(r); s.close(); }
-  const storage = new Map<string, string>(o.account ? [['pandafit.account', o.account]] : []);
+  const storage = new Map<string, string>([...(o.account ? [['pandafit.account', o.account] as [string, string]] : []), ...Object.entries(o.flags ?? {})]);
   const calls: string[] = [];
   const fetchFn = (async (url: string, init: RequestInit = {}) => {
     calls.push(`${init.method ?? 'GET'} ${url}`);
     if (o.offline) throw new TypeError('offline');
+    if (url === '/me' && o.hangMe) return new Promise<Response>(() => {});
+    if (url === '/logout' && o.logoutFails) throw new TypeError('offline');
     if (url === '/me') return o.me === 401 ? json(401, {}) : json(200, { name: 'anna' });
     if (url === '/login') return json(o.loginStatus ?? 200, { ok: true });
     if (url === '/logout') return json(200, { ok: true });
@@ -38,9 +40,9 @@ async function boot(o: Opts = {}) {
   const persist = vi.fn(async () => o.persist ?? true);
   const onWorkoutOpen = vi.fn();
   const ui = render(<App env={{
-    fetchFn, idbFactory: factory, now: () => NOW, newId: () => `id-${Math.random().toString(36).slice(2)}`,
-    storage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, v); } },
-    persist, ua: o.ua ?? 'Mozilla/5.0 Android', standalone: o.standalone ?? false, onWorkoutOpen, confirmLogout: undefined,
+    fetchFn, idbFactory: o.noIdb === 'null' ? null : o.noIdb === 'throws' ? ({ open: () => { throw new Error('denied'); } } as unknown as IDBFactory) : factory, now: () => NOW, newId: () => `id-${Math.random().toString(36).slice(2)}`,
+    storage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => { storage.set(k, v); }, removeItem: (k: string) => { storage.delete(k); } },
+    persist, ua: o.ua ?? 'Mozilla/5.0 Android', standalone: o.standalone ?? false, onWorkoutOpen,
   }} />);
   return { ...ui, factory, storage, calls, persist, onWorkoutOpen };
 }
@@ -80,7 +82,7 @@ describe('web app', () => {
       expect((await s.list('workout')).length).toBe(1);
       s.close();
     });
-    await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith('open'));
   });
 
   it('an expired login keeps unsent data and asks to log in again', async () => {
@@ -189,5 +191,113 @@ describe('web app', () => {
     walk(resolve('src/web/main.tsx'));
     expect(bad).toEqual([]);
     expect(seen.size).toBeGreaterThan(5);
+  });
+
+  it('opens the last account at once; a 401 from /me keeps the app open with a login prompt and the open workout reachable', async () => {
+    const open: TrackedRecord = { kind: 'workout', id: 'w-open', updatedMs: NOW - 60_000, deleted: false, body: { id: 'w-open', title: 'Offenes Training', startMs: NOW - 120_000, endMs: null, source: 'pandafit', exercises: [] } };
+    await boot({ me: 401, account: 'anna', seed: [open], syncStatus: 401 });
+    expect(await screen.findByText(/Bitte melde dich neu an/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Training' }));
+    expect(await screen.findByText(/Training fortsetzen/)).toBeTruthy();
+  });
+
+  it('a hanging /me never blocks the UI', async () => {
+    await boot({ hangMe: true, account: 'anna', seed: [plan(NOW - 1000)] });
+    expect(await screen.findByText('Beine A')).toBeTruthy();
+  });
+
+  it('B logging in inside A\'s shell never lets A\'s records go out under B, nor B\'s into A\'s database', async () => {
+    const factory = new IDBFactory();
+    const sa = await openIdb('anna', factory);
+    await sa.put({ kind: 'complaint', id: 'a-only', updatedMs: 5, deleted: false, body: { text: 'Nur Anna', status: 'active', atMs: 5 } });
+    sa.close();
+    let user: string | null = null; // whose cookie the "browser" currently holds
+    const posts: { user: string | null; ids: string[] }[] = [];
+    const fetchFn = (async (url: string, init: RequestInit = {}) => {
+      if (url === '/login') { user = (JSON.parse(String(init.body)) as { name: string }).name; return json(200, { ok: true }); }
+      if (url === '/me') return user ? json(200, { name: user }) : json(401, {});
+      if (init.method === 'POST' && url === '/records') { posts.push({ user, ids: (JSON.parse(String(init.body)) as { records: { id: string }[] }).records.map((r) => r.id) }); return json(200, { accepted: 1, refused: [] }); }
+      if (!user) return json(401, {});
+      return json(200, { records: user === 'ben' ? [{ kind: 'complaint', id: 'b-only', updatedMs: 6, deleted: false, body: { text: 'Nur Ben', status: 'active', atMs: 6 } }] : [], cursor: 1, more: false, reset: false });
+    }) as unknown as typeof fetch;
+    const storage = new Map<string, string>([['pandafit.account', 'anna']]);
+    render(<App env={{ fetchFn, idbFactory: factory, now: () => NOW, newId: () => 'x', storage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, v); }, removeItem: (k) => { storage.delete(k); } }, persist: async () => true, ua: '', standalone: false }} />);
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'ben' } });
+    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
+    await waitFor(() => expect(storage.get('pandafit.account')).toBe('ben'));
+    expect(await screen.findByText('Nur Ben')).toBeTruthy();
+    expect(posts.filter((p) => p.user === 'ben' && p.ids.includes('a-only'))).toEqual([]);
+    const a = await openIdb('anna', factory);
+    expect((await a.list('complaint')).map((r) => r.id)).toEqual(['a-only']);
+    a.close();
+  });
+
+  it('logging out clears the last account; offline it leaves a flag that blocks entry and retries /logout at the next start', async () => {
+    const a = await boot({ account: 'anna', seed: [plan(NOW - 1000)], logoutFails: true });
+    await screen.findByText('Beine A');
+    await waitFor(() => expect(a.calls).toContain('GET /me'));
+    fireEvent.click(screen.getByRole('button', { name: 'Abmelden' }));
+    if (screen.queryByRole('button', { name: 'Trotzdem abmelden' })) fireEvent.click(screen.getByRole('button', { name: 'Trotzdem abmelden' }));
+    expect(await screen.findByLabelText('Name')).toBeTruthy();
+    expect(a.storage.get('pandafit.account')).toBeUndefined();
+    expect(a.storage.get('pandafit.loggedOut')).toBe('1');
+    cleanup();
+    const b = await boot({ flags: { 'pandafit.loggedOut': '1' }, seed: [plan(NOW - 1000)] });
+    expect(await screen.findByLabelText('Name')).toBeTruthy();
+    expect(screen.queryByText('Beine A')).toBeNull();
+    await waitFor(() => expect(b.calls).toContain('POST /logout'));
+    await waitFor(() => expect(b.storage.get('pandafit.loggedOut')).toBeUndefined());
+  });
+
+  it('IndexedDB unavailable says so plainly, at startup and after login, and offers no workout screen', async () => {
+    await boot({ noIdb: 'null', account: 'anna' });
+    expect(await screen.findByText(/nicht gespeichert werden/)).toBeTruthy();
+    expect(screen.queryByText(/Keine Verbindung/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
+    cleanup();
+    await boot({ noIdb: 'throws', me: 401 });
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'anna' } });
+    fireEvent.change(screen.getByLabelText('Passwort'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
+    expect(await screen.findByText(/nicht gespeichert werden/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Leeres Training starten' })).toBeNull();
+  });
+
+  it('the persistence notice shows only once', async () => {
+    await boot({ persist: false, seed: [] });
+    expect(await screen.findByText(/dauerhaften Speicher/)).toBeTruthy();
+    cleanup();
+    const again = await boot({ persist: false, seed: [], flags: { 'pandafit.persistNote': '1' } });
+    await screen.findByRole('navigation');
+    await waitFor(() => expect(again.persist).toHaveBeenCalled());
+    expect(screen.queryByText(/dauerhaften Speicher/)).toBeNull();
+  });
+
+  it('the workout state is unknown until read, open for a fresh open workout, and none for a stale one', async () => {
+    const mk = (age: number): TrackedRecord => ({ kind: 'workout', id: 'w', updatedMs: NOW - age, deleted: false, body: { id: 'w', title: 'T', startMs: NOW - age, endMs: null, source: 'pandafit', exercises: [] } });
+    const fresh = await boot({ seed: [mk(60_000)] });
+    await waitFor(() => expect(fresh.onWorkoutOpen).toHaveBeenCalledWith('open'));
+    expect(fresh.onWorkoutOpen).not.toHaveBeenCalledWith('none');
+    cleanup();
+    const stale = await boot({ seed: [mk(13 * 3600_000)] });
+    await waitFor(() => expect(stale.onWorkoutOpen).toHaveBeenCalledWith('none'));
+    expect(stale.onWorkoutOpen).not.toHaveBeenCalledWith('open');
+  });
+
+  it('a malformed plan record does not white-screen the page', async () => {
+    await boot({ seed: [{ kind: 'plan', id: 'current', updatedMs: 1, deleted: false, body: { workout: { name: 'X', exercises: [{ title: 'Ohne Sätze' }] } } }, { kind: 'complaint', id: 'c', updatedMs: 1, deleted: false, body: null }] });
+    expect(await screen.findByText(/Noch kein Plan/)).toBeTruthy();
+  });
+
+  it('an error boundary shows a calm message and still offers the workout page', () => {
+    const Boom = () => { throw new Error('boom'); };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let went = 0;
+    render(<ErrorBoundary onTraining={() => { went++; }}><Boom /></ErrorBoundary>);
+    expect(screen.getByText(/lässt sich gerade nicht anzeigen/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Zum Training' }));
+    expect(went).toBe(1);
+    spy.mockRestore();
   });
 });

@@ -1,9 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { App, type Env } from './App';
-import { setupServiceWorker } from './register';
+import { setupServiceWorker, type OpenState } from './register';
 import './web.css';
 
-let workoutOpen = false;
+let workoutOpen: OpenState = 'unknown'; // blocks an update until the app has looked at its data
 let sw: { check(): void } | null = null;
 
 const env: Env = {
@@ -14,7 +14,7 @@ const env: Env = {
   persist: async () => (await navigator.storage?.persist?.()) ?? false,
   ua: navigator.userAgent,
   standalone: (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches,
-  onWorkoutOpen: (open) => { workoutOpen = open; if (!open) sw?.check(); },
+  onWorkoutOpen: (state) => { workoutOpen = state; if (state === 'none') sw?.check(); },
 };
 
 createRoot(document.getElementById('root')!).render(<App env={env} />);

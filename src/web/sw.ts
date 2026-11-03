@@ -7,10 +7,11 @@ declare const self: ServiceWorkerGlobalScope;
 const PRECACHE = '__PRECACHE_LIST__' as unknown as string[];
 const BUILD_ID = '__BUILD_ID__';
 const NAME = precacheName(BUILD_ID);
+const ALLOW: ReadonlySet<string> = new Set(PRECACHE);
 
 // No skipWaiting here: a new worker waits until the page, with no workout open, asks for it.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(NAME).then((c) => c.addAll(PRECACHE)));
+  e.waitUntil(caches.open(NAME).then((c) => c.addAll(PRECACHE.map((u) => new Request(u, { cache: 'reload' })))));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
@@ -24,10 +25,10 @@ self.addEventListener('message', (e) => {
 self.addEventListener('fetch', (e) => {
   const r = e.request;
   const req = { method: r.method, url: r.url, mode: r.mode };
-  if (routeFor(req, self.location.origin) === 'bypass') return; // API calls and everything else go straight to the network
+  if (routeFor(req, self.location.origin, ALLOW) === 'bypass') return; // API calls and everything else go straight to the network
   e.respondWith(
     caches.open(NAME)
-      .then((cache) => handleFetch(req, self.location.origin, { cache, fetch: (u) => fetch(u) }))
+      .then((cache) => handleFetch(req, self.location.origin, ALLOW, { cache, fetch: (u) => fetch(u) }))
       .then((res) => res ?? fetch(r)),
   );
 });

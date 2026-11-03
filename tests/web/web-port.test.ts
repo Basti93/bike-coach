@@ -5,15 +5,16 @@ import type { TrackedRecord } from '../../src/shared/records';
 import { openIdb } from '../../src/web/idbStore';
 import { createWebPort } from '../../src/web/webPort';
 
-const rec = (id: string, updatedMs = 10): TrackedRecord => ({ kind: 'workout', id, updatedMs, deleted: false, body: { id } });
+const rec = (id: string, updatedMs = 10): TrackedRecord => ({ kind: 'workout', id, updatedMs, deleted: false, body: { id, title: 'T', startMs: 1, endMs: null, exercises: [] } });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 function server() {
-  const s = { status: 200, posted: [] as TrackedRecord[], refuse: [] as string[], down: false, calls: [] as { url: string; init: RequestInit }[], remote: [] as TrackedRecord[] };
+  const s = { status: 200, posted: [] as TrackedRecord[], refuse: [] as string[], down: false, calls: [] as { url: string; init: RequestInit }[], remote: [] as TrackedRecord[], me: 'anna' };
   const fetchFn = (async (url: string, init: RequestInit = {}) => {
     s.calls.push({ url, init });
     if (s.down) throw new TypeError('offline');
     if (s.status !== 200) return json(s.status, { error: 'x' });
+    if (url === '/me') return json(200, { name: s.me });
     if (init.method === 'POST') {
       const rs = (JSON.parse(String(init.body)) as { records: TrackedRecord[] }).records;
       s.posted.push(...rs);
@@ -27,7 +28,7 @@ function server() {
 
 const mk = async (fetchFn: typeof fetch) => {
   const store = await openIdb('anna', new IDBFactory());
-  return { store, port: createWebPort({ store, fetchFn, now: () => 1000 }) };
+  return { store, port: createWebPort({ store, fetchFn, account: 'anna', now: () => 1000 }) };
 };
 
 describe('webPort', () => {
@@ -71,7 +72,7 @@ describe('webPort', () => {
     const { s, fetchFn } = server();
     const target = new EventTarget();
     const store = await openIdb('anna', new IDBFactory());
-    const port = createWebPort({ store, fetchFn, now: () => 1, events: target });
+    const port = createWebPort({ store, fetchFn, account: 'anna', now: () => 1, events: target });
     await port.put(rec('w1'));
     s.down = true;
     await port.sync();
@@ -104,5 +105,61 @@ describe('webPort', () => {
     await port.sync();
     expect(afterLocal).toBeGreaterThan(0);
     expect(n).toBeGreaterThan(afterLocal);
+  });
+
+  it('checks /me before each run and never syncs under another account', async () => {
+    const { s, fetchFn } = server();
+    const { port } = await mk(fetchFn);
+    await port.put(rec('w1'));
+    s.me = 'ben';
+    expect(await port.sync()).toBe('login');
+    expect(s.posted).toEqual([]);
+    expect(s.calls.filter((c) => c.url.startsWith('/records'))).toEqual([]);
+    expect(port.mismatch()).toBe(true);
+    s.me = 'anna';
+    expect(await port.sync()).toBe('ok');
+    expect(port.mismatch()).toBe(false);
+  });
+
+  it('pause waits for a running sync and stops further ones until resume', async () => {
+    const { s, fetchFn } = server();
+    const { port } = await mk(fetchFn);
+    await port.put(rec('w1'));
+    const running = port.sync();
+    await port.pause();
+    await running;
+    const before = s.calls.length;
+    expect(await port.sync()).toBe('login');
+    expect(s.calls.length).toBe(before);
+    port.resume();
+    expect(await port.sync()).toBe('ok');
+  });
+
+  it('markLogin shows the login without a request', async () => {
+    const { s, fetchFn } = server();
+    const { port } = await mk(fetchFn);
+    port.markLogin();
+    expect(port.status()).toBe('login');
+    expect(s.calls).toEqual([]);
+  });
+
+  it('a record refused once and accepted after an edit leaves the refused count', async () => {
+    const { s, fetchFn } = server();
+    s.refuse = ['w1'];
+    const { port } = await mk(fetchFn);
+    await port.put(rec('w1'));
+    await port.sync();
+    expect(port.syncState().refused).toBe(1);
+    s.refuse = [];
+    await port.put(rec('w1', 20));
+    await port.sync();
+    expect(port.syncState().refused).toBe(0);
+  });
+
+  it('dispose closes the database', async () => {
+    const { fetchFn } = server();
+    const { port, store } = await mk(fetchFn);
+    port.dispose();
+    await expect(store.list('workout')).rejects.toThrow();
   });
 });

@@ -10,6 +10,13 @@ export type WebPort = TrackingPort & {
   status(): 'ok' | 'login' | 'offline';
   /** Fires when the login state changes. */
   onStatus(fn: () => void): () => void;
+  /** Stops syncing and waits for a run in progress, so a request never goes out under another login. */
+  pause(): Promise<void>;
+  resume(): void;
+  /** The server's login belongs to another account than this database. */
+  mismatch(): boolean;
+  /** Shows the login without a request (the session is known to be gone). */
+  markLogin(): void;
   dispose(): void;
 };
 
@@ -23,7 +30,7 @@ const KINDS: readonly string[] = ['workout', 'routine', 'exercise', 'mobility', 
 const valid = (x: unknown): x is TrackedRecord => isObj(x) && KINDS.includes(x.kind as string) && typeof x.id === 'string' && typeof x.updatedMs === 'number' && typeof x.deleted === 'boolean' && x.body !== undefined;
 
 export function createWebPort(o: {
-  store: IdbStore; fetchFn?: typeof fetch; now?: () => number;
+  store: IdbStore; /** The account this database belongs to; the server's login must match it before anything is sent. */ account: string; fetchFn?: typeof fetch; now?: () => number;
   /** Where `online` and visibility events come from. Default: window. */
   events?: EventTarget;
   intervalMs?: number;
@@ -37,13 +44,15 @@ export function createWebPort(o: {
   let running: Promise<SyncResult> | null = null;
   let again = false;
   let disposed = false;
+  let paused = false;
+  let mismatched = false;
   let soon: ReturnType<typeof setTimeout> | null = null;
   const statusSubs = new Set<() => void>();
   const setStatus = (s: typeof status) => { if (s !== status) { status = s; statusSubs.forEach((f) => f()); } };
 
-  const call = async (method: 'GET' | 'POST', path: string, body?: unknown): Promise<unknown> => {
+  const call = async (method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<unknown> => {
     const res = await fetchFn(path, {
-      method, credentials: 'same-origin', redirect: 'error', signal: AbortSignal.timeout(TIMEOUT_MS),
+      method, credentials: 'same-origin', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
       ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
     });
     if (res.status === 401) throw new Unauthorized();
@@ -52,8 +61,11 @@ export function createWebPort(o: {
   };
 
   async function run(): Promise<SyncResult> {
-    const refusedWrites: Promise<void>[] = [];
     try {
+      if (paused) return 'login';
+      const me = await call('GET', '/me', undefined, 5000);
+      mismatched = !(isObj(me) && typeof me.name === 'string' && me.name.toLowerCase() === o.account);
+      if (mismatched) { setStatus('login'); return 'login'; }
       await syncRecords({
         cursors: store.cursors,
         local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs) },
@@ -62,6 +74,10 @@ export function createWebPort(o: {
           const refused = isObj(out) && Array.isArray(out.refused)
             ? out.refused.flatMap((x) => (isObj(x) && typeof x.id === 'string' ? [{ id: x.id, reason: typeof x.reason === 'string' ? x.reason : '' }] : []))
             : [];
+          // Accepted records leave the refused list, refused ones join it.
+          const no = new Set(refused.map((x) => x.id));
+          await store.clearRefused(records.filter((r) => !no.has(r.id)).map((r) => r.id));
+          await store.addRefused(refused);
           return { refused };
         },
         fetchSince: async (cursor) => {
@@ -69,10 +85,8 @@ export function createWebPort(o: {
           if (!isObj(out) || !Array.isArray(out.records) || typeof out.cursor !== 'number') throw new Error('unexpected answer');
           return { records: out.records.filter(valid), cursor: out.cursor, more: out.more === true, reset: out.reset === true };
         },
-        refused: (list) => { refusedWrites.push(store.addRefused(list)); },
-        mayContinue: () => !disposed,
+        mayContinue: () => !disposed && !paused,
       });
-      await Promise.all(refusedWrites);
       lastOkMs = now();
       setStatus('ok');
       return 'ok';
@@ -111,8 +125,13 @@ export function createWebPort(o: {
     sync,
     status: () => status,
     onStatus(fn) { statusSubs.add(fn); return () => { statusSubs.delete(fn); }; },
+    async pause() { paused = true; if (running) await running.catch(() => {}); },
+    resume() { paused = false; },
+    mismatch: () => mismatched,
+    markLogin() { setStatus('login'); },
     dispose() {
       disposed = true;
+      store.close();
       if (soon) clearTimeout(soon);
       clearInterval(timer);
       events?.removeEventListener('online', onOnline);

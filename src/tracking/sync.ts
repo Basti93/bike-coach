@@ -21,7 +21,9 @@ export type SyncOptions = {
   refused?: (r: Refusal[]) => void;
 };
 
-const bytes = (r: TrackedRecord): number => Buffer.byteLength(JSON.stringify(r)) + 1;
+const encoder = new TextEncoder();
+/** TextEncoder, not Buffer: this also runs in the browser. */
+const bytes = (r: TrackedRecord): number => encoder.encode(JSON.stringify(r)).length + 1;
 
 /** Splits into requests of at most 200 records and below about 5 MB. */
 function batches(records: TrackedRecord[]): TrackedRecord[][] {
