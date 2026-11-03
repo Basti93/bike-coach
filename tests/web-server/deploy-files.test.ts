@@ -157,7 +157,7 @@ test('the coach image runs as node, pins the Claude CLI and finds Claude and Pyt
   expect(d).toMatch(/^USER node$/m);
   expect(d).toMatch(/@anthropic-ai\/claude-code@\d+\.\d+\.\d+/);
   expect(d).toContain('--ignore-scripts');
-  expect(d).toContain('garminconnect==0.3.20');
+  expect(d).toContain("'garminconnect[workout]==0.3.20'"); // the workout extra brings pydantic, which running workouts need
   expect(d).toContain('COPY src/tracking ./src/tracking');
   expect(d).toContain('HOME=/data/home');
   expect(d).toContain('BIKE_CLAUDE_BIN=/usr/local/bin/claude');
