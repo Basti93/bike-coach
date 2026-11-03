@@ -255,7 +255,7 @@ function PushCard({ push }: { push: PushState }) {
           </>
         ) : (
           <>
-            <p>Pandafit sagt dir Bescheid, wenn eine neue Version da ist und wenn dein Essensplan für die Woche kommt. Sonst nichts.</p>
+            <p>Pandafit sagt dir Bescheid, wenn eine neue Version da ist, wenn dein Essensplan für die Woche kommt und wenn dein Laufplan da ist. Sonst nichts.</p>
             <div className="tk-row">
               <button type="button" disabled={push.busy} onClick={() => void push.enable()}>Einschalten</button>
               <button type="button" className="ghost" onClick={push.closeCard}>Nicht jetzt</button>
@@ -277,7 +277,7 @@ function PushSettings({ push }: { push: PushState }) {
       {p.support === 'none' && <p className="muted">In diesem Browser gibt es keine Benachrichtigungen.</p>}
       {p.support === 'ok' && (
         <>
-          <p className="muted">Nur zwei: wenn eine neue Version da ist und wenn dein Essensplan für die Woche kommt.</p>
+          <p className="muted">Nur drei: wenn eine neue Version da ist, wenn dein Essensplan für die Woche kommt und wenn dein Laufplan da ist.</p>
           <label className="tk-row">
             <input type="checkbox" role="switch" checked={push.on && granted} disabled={push.busy}
               onChange={(e) => void (e.target.checked ? push.enable() : push.disable())} />

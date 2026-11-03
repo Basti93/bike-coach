@@ -140,4 +140,11 @@ describe('push notifications on the phone', () => {
     expect(pushSupport({ ua: iphone, standalone: true, hasPush: false })).toBe('none');
     expect(pushSupport({ ua: 'Mozilla/5.0 Android', standalone: false, hasPush: true })).toBe('ok');
   });
+
+  it('the settings text names the three notices', async () => {
+    const push = fakePush();
+    await boot({ push, loggedIn: true });
+    fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
+    expect(await screen.findByText('Nur drei: wenn eine neue Version da ist, wenn dein Essensplan für die Woche kommt und wenn dein Laufplan da ist.')).toBeTruthy();
+  });
 });

@@ -5,12 +5,13 @@ import type { DatabaseSync } from 'node:sqlite';
 
 /**
  * Web Push with Node's own crypto: VAPID (RFC 8292, ES256 JWT) and aes128gcm payload encryption (RFC 8291).
- * Only two messages exist, both short and without health details, because they pass through the browser vendor's push service.
+ * Only three messages exist, both short and without health details, because they pass through the browser vendor's push service.
  */
-export type PushType = 'version' | 'meal';
+export type PushType = 'version' | 'meal' | 'run';
 export const MESSAGES: Record<PushType, { title: string; body: string }> = {
   version: { title: 'Pandafit', body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.' },
   meal: { title: 'Pandafit', body: 'Dein Essensplan für die Woche ist da.' },
+  run: { title: 'Pandafit', body: 'Dein Laufplan für die Woche ist da.' },
 };
 export const MAX_SUBSCRIPTIONS = 10;
 export const SEND_TIMEOUT_MS = 10_000;
@@ -184,6 +185,16 @@ export function announceVersion(db: DatabaseSync, push: Push, version: string): 
 /** The plan record of a week (`week-YYYY-MM-DD` with that key in its body) that is not over yet. Nothing else of the meal plan is read. */
 export function mealWeekOf(r: { kind: string; id: string; deleted: boolean; body: unknown }, nowMs: number): string | null {
   if (r.kind !== 'mealplan' || r.deleted) return null;
+  const m = /^week-(\d{4}-\d{2}-\d{2})$/.exec(r.id);
+  const week = (r.body as { week?: unknown } | null)?.week;
+  if (!m || week !== m[1]) return null;
+  const start = Date.parse(`${m[1]}T00:00:00Z`);
+  return Number.isFinite(start) && start + 8 * 86_400_000 > nowMs ? m[1]! : null;
+}
+
+/** The run plan of a week (`run` record `week-YYYY-MM-DD`) that the coach announces and that is not over yet. Nothing else of it is read. */
+export function runWeekOf(r: { kind: string; id: string; deleted: boolean; body: unknown }, nowMs: number): string | null {
+  if (r.kind !== 'run' || r.deleted || (r.body as { announce?: unknown } | null)?.announce !== true) return null;
   const m = /^week-(\d{4}-\d{2}-\d{2})$/.exec(r.id);
   const week = (r.body as { week?: unknown } | null)?.week;
   if (!m || week !== m[1]) return null;
