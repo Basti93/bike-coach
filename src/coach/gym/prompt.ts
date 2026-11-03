@@ -86,7 +86,9 @@ export function buildGymPrompt(i: PromptInput): string {
     dataBlock('muskelvolumen', volume.map((g) => ({
       gruppe: g.label, saetze7Tage: g.last7Days, saetzeProWocheLetzte4Wochen: g.perWeek4Weeks, zielSaetzeProWoche: g.target, wiederholungen: g.reps,
     }))),
-    dataBlock('muskelpaare', pairVerdicts(sums).map((p) => ({ paar: p.label, seiteA: p.a, seiteB: p.b, zuKurz: p.short ? MUSCLE_TARGETS[p.short].label : null }))),
+    // The coach looks at a rolling 28 days of Hevy and own workouts; the statistics page at 4 complete weeks.
+    // The same rule (pairVerdicts), a slightly different window.
+    dataBlock('muskelpaare',pairVerdicts(sums).map((p) => ({ paar: p.label, seiteA: p.a, seiteB: p.b, zuKurz: p.short ? MUSCLE_TARGETS[p.short].label : null }))),
     dataBlock('fahrten', i.summaries.filter((r) => i.nowMs - r.startedAtMs <= PROMPT_DAYS * DAY_MS)
       .map((r) => ({ tageHer: days(r.startedAtMs), minuten: Math.round(r.durationS / 60), avgPowerW: r.avgPowerW, tss: r.tss, name: r.sessionName ?? null }))),
     dataBlock('beschwerden', i.complaints.filter((c) => c.status !== 'over').map((c) => ({ text: c.text, status: c.status }))),
