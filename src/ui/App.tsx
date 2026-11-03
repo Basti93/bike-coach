@@ -60,7 +60,7 @@ const StrengthPage = ({ port, ...props }: Omit<ComponentProps<typeof GymView>, '
 const arrivedMeals = (coach: { statusArrived?: boolean }): boolean => coach.statusArrived ?? true;
 
 const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
-  const { click, state, offer, clearOffer, connected, send, error } = ride;
+  const { click, state, offer, clearOffer, connected, fresh, send, error } = ride;
   const [picked, setPicked] = useState<Profile | null>(null);
   // Always the saved state, otherwise changes would be lost on the next save or start.
   const profile = state?.profiles.find((p) => p.id === picked?.id) ?? picked;
@@ -69,7 +69,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const patch = (p: Partial<Views>) => setV((x) => (Object.entries(p).every(([k, val]) => x[k as keyof Views] === val) ? x : { ...x, ...p }));
   const setProfile = (p: Profile | null) => { setPicked(p); setV(HOME); };
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
-  useServerProfile(profile ?? null, coach.serverProfile, !!state?.engine || !!state?.ride, send, connected && state !== null);
+  useServerProfile(profile ?? null, coach.serverProfile, !!state?.engine || !!state?.ride, send, connected && fresh && state !== null);
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps

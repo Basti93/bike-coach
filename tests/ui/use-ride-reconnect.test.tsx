@@ -16,8 +16,9 @@ test('the ride state is unknown again after the socket closes, until a fresh one
   vi.stubGlobal('WebSocket', FakeSocket);
   const { result } = renderHook(() => useRide());
   act(() => { FakeSocket.last.onopen?.(); FakeSocket.last.onmessage?.({ data: JSON.stringify({ type: 'state', profiles: [], engine: null, ride: null }) }); });
-  expect(result.current.state).not.toBeNull();
+  expect(result.current.fresh).toBe(true);
   act(() => { FakeSocket.last.onclose?.(); });
-  expect(result.current.state).toBeNull();
+  expect(result.current.fresh).toBe(false);
+  expect(result.current.state).not.toBeNull(); // the ride screen keeps showing the last values
   vi.unstubAllGlobals();
 });

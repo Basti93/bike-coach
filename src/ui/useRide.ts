@@ -6,6 +6,8 @@ export const useRide = () => {
   const [click, setClick] = useState<{ dir: 'up' | 'down'; n: number } | null>(null);
   const [offer, setOffer] = useState<RecoveryOffer | null>(null);
   const [connected, setConnected] = useState(false);
+  /** True once a state arrived on the current socket; a restarted service may have recovered a ride. */
+  const [fresh, setFresh] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportPath, setReportPath] = useState<string | null>(null);
   const socket = useRef<WebSocket | null>(null);
@@ -19,7 +21,7 @@ export const useRide = () => {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const m = JSON.parse(String(e.data));
-        if (m.type === 'state') setState(m);
+        if (m.type === 'state') { setState(m); setFresh(true); }
         if (m.type === 'click') setClick((c) => ({ dir: m.dir, n: (c?.n ?? 0) + 1 }));
         if (m.type === 'recovery-offer') setOffer(m);
         if (m.type === 'error') setError(m.message);
@@ -27,8 +29,8 @@ export const useRide = () => {
       };
       ws.onclose = () => {
         setConnected(false);
-        // A restarted service may have recovered an open ride: the old state says nothing until a fresh one arrives.
-        setState(null);
+        // Keep the last state on screen during a ride, but it no longer counts as known.
+        setFresh(false);
         if (!closed) timer = setTimeout(open, 500);
       };
     };
@@ -43,5 +45,5 @@ export const useRide = () => {
     socket.current.send(JSON.stringify(m));
     return true;
   };
-  return { click, state, offer, clearOffer: () => setOffer(null), connected, send, error, reportPath };
+  return { click, state, offer, clearOffer: () => setOffer(null), connected, fresh, send, error, reportPath };
 };
