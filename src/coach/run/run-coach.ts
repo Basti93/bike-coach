@@ -8,14 +8,15 @@ import type { Profile } from '../../shared/profiles';
 import type { TrackedRecord } from '../../shared/records';
 import { addWeeks, dateKey, dateOf, dayIndex, weekOf } from '../../shared/meals';
 import {
-  readRunBody, runFp, runIdType, runReviewId, runWeekId, RUN_SETTINGS_ID, RUN_STATUS_ID,
+  readRunBody, runFp, runIdType, runReviewId, runSendId, runWeekId, weekFp, RUN_SETTINGS_ID, RUN_STATUS_ID,
   type PlannedRun, type RunBody, type RunGarmin, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody,
 } from '../../shared/run';
 import { runCard } from './card';
 import { RUN_REGION, runComplaintMode, type ComplaintMode } from './complaints';
 import { garminRuns, type Run } from './garmin-runs';
 import { checkRunWeek, type RunCheck } from './guardrails';
-import { RESTART_DAYS } from './limits';
+import type { WorkoutOps, WorkoutResult } from './garmin-workouts';
+import { RESTART_DAYS, TEST_MAIN_MIN, TEST_WARM_MIN } from './limits';
 import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from './numbers';
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
 import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
@@ -35,6 +36,10 @@ const CARD_DAYS = 7;
 const REVIEW_WEEKS = 4;
 /** On Sunday from this hour the coming week is planned. */
 const ANNOUNCE_HOUR = 18;
+/** Warm-up and cool-down of an easy or long run: a sixth of it each, at most 5 minutes. */
+const EDGE_MAX_S = 300;
+const WORKOUT_NAMES: Record<PlannedRun['kind'], string> = { easy: 'Lauf ruhig', long: 'Langer Lauf', test: 'Testlauf 30 Minuten' };
+const NO_GARMIN_SENT: RunGarmin = { status: 'none', reason: null, confirmedMs: null, sent: {} };
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 export type RunDeps = {
@@ -46,6 +51,8 @@ export type RunDeps = {
   complaints: (id: string) => Complaint[];
   sleepS?: (id: string, date: string) => number | null;
   garmin: (id: string) => { connected: boolean; capable: boolean };
+  /** Starts sending to Garmin; false when it cannot start now (ride open, busy). The result comes back through `sendResult`. */
+  sendWorkouts?: (id: string, week: string, ops: WorkoutOps) => boolean;
   /** Records were written for this profile. */
   onExport?: (id: string) => void;
 };
@@ -74,6 +81,8 @@ export class RunCoach {
   private lastRuns = new Map<string, Run[]>();
   /** Checked answers that came back while a ride opened, per profile and week. */
   private held = new Map<string, { key: string; checked: RunCheck; retried: boolean }>();
+  /** Sends under way, per profile and week: the fingerprint of each date as it was sent. */
+  private pending = new Map<string, { atMs: number; fps: Record<string, string> }>();
 
   constructor(private deps: RunDeps) {}
 
@@ -172,6 +181,7 @@ export class RunCoach {
         await this.planWeek(ctx, t);
         // Nothing more is written once a ride opened during the Claude call.
         if (!this.deps.noOpenRide()) return;
+        this.syncGarmin(ctx, t.week);
       }
       for (let k = REVIEW_WEEKS; k >= 1; k--) this.review(ctx, addWeeks(current, -k));
     }
@@ -211,7 +221,7 @@ export class RunCoach {
   private matchDone(ctx: Ctx, week: string): void {
     const w = ctx.weeks.get(week);
     if (!w) return;
-    const body: RunWeekBody = { ...w, runs: w.runs.map((r) => ({ ...r, done: this.doneOn(ctx.runs, r.date) })) };
+    const body: RunWeekBody = { ...w, runs: w.runs.map((r) => ({ ...r, done: this.doneOn(ctx.runs, r.date) })), garmin: this.garminOf(ctx.id, week, w.garmin) };
     this.write(ctx.id, runWeekId(week), body, ctx.now);
     ctx.weeks.set(week, body);
   }
@@ -289,7 +299,7 @@ export class RunCoach {
     const runs = [...past, ...fresh].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     return {
       type: 'week', week: t.week, announce: existing?.announce ?? t.announce, atMs: ctx.now, phase: rule.phase, source, reason, note, runs,
-      garmin: this.garminAfter(existing?.garmin ?? null, runs),
+      garmin: this.garminAfter(this.garminOf(ctx.id, t.week, existing?.garmin ?? null), runs),
     };
   }
 
@@ -298,6 +308,110 @@ export class RunCoach {
     if (!g) return null;
     const changed = Object.entries(g.sent).some(([date, s]) => runs.find((r) => r.date === date)?.fp !== s.fp);
     return changed ? { ...g, status: 'changed' } : g;
+  }
+
+  /** The Garmin part as stored now: a send result may have arrived while a plan was being made. */
+  private garminOf(id: string, week: string, fallback: RunGarmin | null): RunGarmin | null {
+    const rec = this.stored(id, runWeekId(week));
+    const body = rec && !rec.deleted ? readRunBody(rec.body) : null;
+    return body?.type === 'week' ? body.garmin : fallback;
+  }
+
+  /**
+   * Offers sending only with a Garmin login and a library that can do it. A `send-<week>` record newer than the last one handled
+   * sends once, and only when its fingerprint is the current plan's. Called with no ride open only.
+   */
+  private syncGarmin(ctx: Ctx, week: string): void {
+    const w = ctx.weeks.get(week);
+    if (!w) return;
+    const { id } = ctx;
+    const key = `${id}|${week}`;
+    const { connected, capable } = this.deps.garmin(id);
+    let g = this.garminAfter(this.garminOf(id, week, w.garmin), w.runs);
+    if (!connected || !capable || !this.deps.sendWorkouts) {
+      // Nothing is offered. Ids already sent stay, so a later send can still remove them.
+      g = g && Object.keys(g.sent).length > 0 ? g : null;
+    } else {
+      g = g ?? NO_GARMIN_SENT;
+      // A send cut off by a restart never reports back.
+      if (g.status === 'sending' && !this.pending.has(key)) g = { ...g, status: 'failed', reason: 'failed' };
+      const send = this.own(id).get(runSendId(week))?.body;
+      if (send?.type === 'send' && send.week === week && send.atMs > (g.confirmedMs ?? -1) && !this.pending.has(key)) {
+        if (send.fp !== weekFp(w.runs)) {
+          g = { ...g, status: 'stale', reason: null, confirmedMs: send.atMs };
+        } else {
+          const ops = this.opsFor(ctx, w, g);
+          if (ops.delete.length + ops.create.length === 0) {
+            g = { ...g, status: 'sent', reason: null, confirmedMs: send.atMs };
+          } else {
+            this.pending.set(key, { atMs: send.atMs, fps: Object.fromEntries(w.runs.map((r) => [r.date, r.fp])) });
+            const started = this.deps.sendWorkouts(id, week, ops);
+            if (!this.pending.has(key)) {
+              // The result came at once (a login that does not open) and is written already.
+              const fresh = this.garminOf(id, week, null);
+              ctx.weeks.set(week, { ...w, garmin: fresh });
+              return;
+            }
+            // Not started (a ride opened, or still busy): the confirmation stays for the next tick.
+            if (started) g = { ...g, status: 'sending', reason: null, confirmedMs: send.atMs };
+            else this.pending.delete(key);
+          }
+        }
+      }
+    }
+    const body: RunWeekBody = { ...w, garmin: g };
+    this.write(id, runWeekId(week), body, ctx.now);
+    ctx.weeks.set(week, body);
+  }
+
+  /** From today on: new dates are created, changed ones deleted and created again, dates no longer planned deleted. */
+  private opsFor(ctx: Ctx, w: RunWeekBody, g: RunGarmin): WorkoutOps {
+    const band = bandFor(ctx.maxHr);
+    const planned = w.runs.filter((r) => r.date >= ctx.today);
+    const del: WorkoutOps['delete'] = [];
+    for (const [date, s] of Object.entries(g.sent)) {
+      if (date < ctx.today) continue;
+      if (planned.find((r) => r.date === date)?.fp !== s.fp) del.push({ workoutId: s.workoutId, scheduleId: s.scheduleId });
+    }
+    const create: WorkoutOps['create'] = [];
+    for (const r of planned) {
+      if (g.sent[r.date]?.fp === r.fp) continue;
+      const total = r.minutes * 60;
+      let warmupS: number;
+      let mainS: number;
+      let cooldownS: number;
+      if (r.kind === 'test') {
+        warmupS = TEST_WARM_MIN * 60;
+        mainS = TEST_MAIN_MIN * 60;
+        cooldownS = Math.max(0, total - warmupS - mainS);
+      } else {
+        warmupS = cooldownS = Math.min(EDGE_MAX_S, Math.round(total / 6));
+        mainS = total - warmupS - cooldownS;
+      }
+      // A heart-rate range only with a known max heart rate, and never for a test run.
+      const hr = r.kind !== 'test' && band !== null && r.hrCap !== null && r.hrCap >= band.fromBpm;
+      create.push({ date: r.date, name: WORKOUT_NAMES[r.kind], warmupS, mainS, cooldownS, hrLow: hr ? band!.fromBpm : null, hrHigh: hr ? r.hrCap : null });
+    }
+    return { delete: del, create };
+  }
+
+  /** What the bridge did: deleted ids leave `sent`, created ones join it, also after a failure part way. */
+  sendResult(id: string, week: string, r: WorkoutResult): void {
+    const key = `${id}|${week}`;
+    const p = this.pending.get(key);
+    this.pending.delete(key);
+    const rec = this.stored(id, runWeekId(week));
+    const body = rec && !rec.deleted ? readRunBody(rec.body) : null;
+    if (body?.type !== 'week') return;
+    const g0 = body.garmin ?? NO_GARMIN_SENT;
+    const sent = Object.fromEntries(Object.entries(g0.sent).filter(([, s]) => !r.deleted.includes(s.workoutId)));
+    for (const c of r.created) {
+      sent[c.date] = { workoutId: c.workoutId, scheduleId: c.scheduleId, fp: p?.fps[c.date] ?? body.runs.find((x) => x.date === c.date)?.fp ?? '' };
+    }
+    const g = this.garminAfter({
+      status: r.status === 'ok' ? 'sent' : 'failed', reason: r.status === 'ok' ? null : r.reason ?? 'failed', confirmedMs: p?.atMs ?? g0.confirmedMs, sent,
+    }, body.runs);
+    this.write(id, runWeekId(week), { ...body, garmin: g }, this.deps.nowMs());
   }
 
   /** The later of the last planned test date before `fromDate` (done or skipped) and the switch-on time. */

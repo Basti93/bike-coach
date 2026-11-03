@@ -8,8 +8,9 @@ import type { GarminRun } from '../../../src/coach/garmin-db';
 import type { Complaint } from '../../../src/coach/motivation';
 import type { DayRating } from '../../../src/coach/day-load';
 import type { Profile } from '../../../src/shared/profiles';
-import { readRunBody, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody } from '../../../src/shared/run';
+import { readRunBody, weekFp, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody } from '../../../src/shared/run';
 import type { TrackedRecord } from '../../../src/shared/records';
+import type { WorkoutOps, WorkoutResult } from '../../../src/coach/run/garmin-workouts';
 import { initialRunCache, loadRunCache, saveRunCache } from '../../../src/coach/run/state';
 
 const HOUR = 3_600_000;
@@ -480,5 +481,222 @@ describe('fix round 1', () => {
     await coach.tick('pa');
     expect(rec(`review-${W0}`)).toBeDefined();
     expect(rec(`review-${W1}`)).toBeDefined();
+  });
+});
+
+describe('sending to Garmin after confirmation', () => {
+  type Sent = { id: string; week: string; ops: WorkoutOps };
+  let sends: Sent[];
+  let link: { connected: boolean; capable: boolean };
+  const garminCoach = (over: Partial<RunDeps> = {}) => make({
+    garmin: () => link,
+    sendWorkouts: (id, w, ops) => { sends.push({ id, week: w, ops }); return true; },
+    profile: (id) => (id === 'pa' ? ({ id: 'pa', name: 'A', ftpW: 200, hrMaxBpm: 190 } as Profile) : null),
+    ...over,
+  });
+  const confirm = (fp: string, atMs = now, updatedMs = now): void => {
+    store.put('pa', { kind: 'run', id: `send-${W0}`, updatedMs, deleted: false, body: { type: 'send', week: W0, fp, atMs } });
+  };
+  const fpNow = (): string => weekFp(week(W0)!.runs);
+  /** Every create comes back with ids made from its date. */
+  const okFor = (ops: WorkoutOps): WorkoutResult => ({
+    status: 'ok', reason: null, deleted: ops.delete.map((d) => d.workoutId),
+    created: ops.create.map((c) => ({ date: c.date, workoutId: `w${c.date}`, scheduleId: `s${c.date}` })),
+  });
+
+  beforeEach(() => {
+    sends = [];
+    link = { connected: true, capable: true };
+    settings({ weekdays: [0, 2, 4, 6] });
+  });
+
+  test('no Garmin login: week.garmin is null and a send record starts nothing', async () => {
+    link = { connected: false, capable: true };
+    const coach = garminCoach();
+    await coach.tick('pa');
+    expect(week(W0)!.garmin).toBeNull();
+    confirm(fpNow());
+    now += HOUR;
+    await coach.tick('pa');
+    expect(sends).toEqual([]);
+    expect(week(W0)!.garmin).toBeNull();
+  });
+
+  test('a library without workout support: week.garmin is null', async () => {
+    link = { connected: true, capable: false };
+    await garminCoach().tick('pa');
+    expect(week(W0)!.garmin).toBeNull();
+  });
+
+  test('with login and support the week offers sending, and nothing goes without a send record', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    expect(week(W0)!.garmin).toEqual({ status: 'none', reason: null, confirmedMs: null, sent: {} });
+    now += HOUR;
+    await coach.tick('pa');
+    expect(sends).toEqual([]);
+  });
+
+  test('a send record with the current fingerprint starts one run with deletes before creates', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    const runs = week(W0)!.runs;
+    expect(sends[0]!.ops).toEqual({
+      delete: [],
+      create: runs.map((r) => expect.objectContaining({ date: r.date, hrLow: 114, hrHigh: r.hrCap })),
+    });
+    expect(week(W0)!.garmin).toMatchObject({ status: 'sending', confirmedMs: now });
+    const easy = sends[0]!.ops.create.find((c) => runs.find((r) => r.date === c.date)!.kind === 'easy')!;
+    expect(easy.name).toBe('Lauf ruhig');
+    expect(easy.warmupS + easy.mainS + easy.cooldownS).toBe(runs.find((r) => r.date === easy.date)!.minutes * 60);
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    const firstDates = runs.map((r) => r.date);
+
+    // The plan changes: the sent runs are marked changed and nothing goes until a new confirmation.
+    now += HOUR;
+    settings({ weekdays: [1, 3, 5] });
+    await coach.tick('pa');
+    expect(week(W0)!.garmin!.status).toBe('changed');
+    expect(sends).toHaveLength(1);
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(2);
+    const ops = sends[1]!.ops;
+    // Old dates that are no longer planned are deleted; the new ones created.
+    expect(ops.delete.map((d) => d.workoutId).sort()).toEqual(firstDates.map((d) => `w${d}`));
+    expect(firstDates.some((d) => week(W0)!.runs.some((r) => r.date === d))).toBe(false);
+    expect(ops.delete[0]!.scheduleId).toMatch(/^s/);
+    expect(ops.create.map((c) => c.date)).toEqual(week(W0)!.runs.map((r) => r.date));
+    coach.sendResult('pa', W0, okFor(ops));
+    expect(Object.keys(week(W0)!.garmin!.sent).sort()).toEqual(week(W0)!.runs.map((r) => r.date));
+    expect(week(W0)!.garmin!.status).toBe('sent');
+  });
+
+  test('an unchanged sent run stays, a changed one is deleted and then created again', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    // One sent run's fingerprint no longer matches (as after a replan of that day).
+    const r = rec(`week-${W0}`)!;
+    const body = r.body as RunWeekBody;
+    const first = body.runs[0]!;
+    store.put('pa', { ...r, updatedMs: r.updatedMs + 1, body: { ...body, garmin: { ...body.garmin!, sent: { ...body.garmin!.sent, [first.date]: { ...body.garmin!.sent[first.date]!, fp: 'alt' } } } } });
+    now += HOUR;
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(2);
+    expect(sends[1]!.ops.delete).toEqual([{ workoutId: `w${first.date}`, scheduleId: `s${first.date}` }]);
+    expect(sends[1]!.ops.create.map((c) => c.date)).toEqual([first.date]);
+  });
+
+  test('an old fingerprint marks stale and sends nothing', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm('alt');
+    await coach.tick('pa');
+    expect(sends).toEqual([]);
+    expect(week(W0)!.garmin).toMatchObject({ status: 'stale', confirmedMs: now });
+    // A stale confirmation is used up: it never sends later either.
+    now += HOUR;
+    await coach.tick('pa');
+    expect(sends).toEqual([]);
+  });
+
+  test('a ride open waits: nothing is sent, and it goes once the ride is closed', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    open = false;
+    await coach.tick('pa');
+    expect(sends).toEqual([]);
+    expect(week(W0)!.garmin!.status).toBe('none');
+    // The bridge itself refuses during a ride too: the confirmation is kept for later.
+    open = true;
+    const refusing = garminCoach({ sendWorkouts: () => false });
+    await refusing.tick('pa');
+    expect(week(W0)!.garmin).toMatchObject({ status: 'none', confirmedMs: null });
+    now += HOUR;
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+  });
+
+  test('a send record is handled once, also when written by two devices with the same atMs', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    const atMs = now;
+    confirm(fpNow(), atMs);
+    await coach.tick('pa');
+    // Still sending: another tick starts nothing.
+    now += 60_000;
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    // The second device's record: same atMs, written later.
+    confirm(fpNow(), atMs, now + 5);
+    now += HOUR;
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    expect(week(W0)!.garmin!.status).toBe('sent');
+  });
+
+  test('the result keeps workout and schedule ids in the week record', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    const w = week(W0)!;
+    expect(w.garmin!.status).toBe('sent');
+    expect(w.garmin!.reason).toBeNull();
+    for (const r of w.runs) expect(w.garmin!.sent[r.date]).toEqual({ workoutId: `w${r.date}`, scheduleId: `s${r.date}`, fp: r.fp });
+  });
+
+  test('a partial failure keeps the ids that were created and says failed', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    const [first] = sends[0]!.ops.create;
+    coach.sendResult('pa', W0, { status: 'failed', reason: 'reauth', deleted: [], created: [{ date: first!.date, workoutId: 'w1', scheduleId: null }] });
+    const g = week(W0)!.garmin!;
+    expect(g).toMatchObject({ status: 'failed', reason: 'reauth' });
+    expect(g.sent).toEqual({ [first!.date]: { workoutId: 'w1', scheduleId: null, fp: week(W0)!.runs.find((r) => r.date === first!.date)!.fp } });
+    // A new confirmation sends only what is missing.
+    now += HOUR;
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends[1]!.ops.create.map((c) => c.date)).not.toContain(first!.date);
+    expect(sends[1]!.ops.delete).toEqual([]);
+  });
+
+  test('a send cut off by a restart counts as failed and can be confirmed again', async () => {
+    await garminCoach().tick('pa');
+    confirm(fpNow());
+    await garminCoach().tick('pa');
+    expect(week(W0)!.garmin!.status).toBe('sending');
+    // A new coach (process) never gets that result.
+    now += HOUR;
+    await garminCoach().tick('pa');
+    expect(week(W0)!.garmin).toMatchObject({ status: 'failed', reason: 'failed' });
+  });
+
+  test('a test run is named so and its main step has no target', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    // A planned test run in the week record.
+    const r = rec(`week-${W0}`)!;
+    const body = r.body as RunWeekBody;
+    const test = { ...body.runs[0]!, kind: 'test' as const, minutes: 45, hrCap: null };
+    const runs = [{ ...test, fp: JSON.stringify([test.date, test.kind, test.minutes, test.hrCap]) }, ...body.runs.slice(1)];
+    store.put('pa', { ...r, updatedMs: r.updatedMs + 1, body: { ...body, runs } });
+    confirm(weekFp(runs));
+    await coach.tick('pa');
+    const c = sends[0]!.ops.create.find((x) => x.date === test.date)!;
+    expect(c).toEqual({ date: test.date, name: 'Testlauf 30 Minuten', warmupS: 600, mainS: 1800, cooldownS: 300, hrLow: null, hrHigh: null });
   });
 });

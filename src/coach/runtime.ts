@@ -23,6 +23,7 @@ import { RecordStore } from './tracking/store';
 import { handleRecords } from './tracking/records-api';
 import { errorKind } from './error-kind';
 import { MobilityCoach, muscleOf } from './mobility/mobility';
+import { GarminWorkouts } from './run/garmin-workouts';
 import { RunCoach } from './run/run-coach';
 import { dayRatings } from './day-load';
 import { allTraining } from './all-training';
@@ -46,7 +47,7 @@ export type RuntimeOptions = {
   heavyBusy?: () => boolean;
   ask: (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
   python: string;
-  /** Folder with `bridge.py`, `garmin_sync.py` and `garmin_upload.py`. */
+  /** Folder with `bridge.py`, `garmin_sync.py`, `garmin_upload.py` and `garmin_workout.py`. */
   garminScripts: string;
   links: RecordLinks;
   /**
@@ -208,8 +209,21 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     },
     weeks: (id) => allTraining({ rides: coach.state(id).summaries, workouts: gym.history(id), activities: garminData(id)?.activities }, nowMs())?.weeks ?? [],
     complaints: (id) => coach.state(id).complaints ?? [],
-    garmin: (id) => ({ connected: garmin.status(id).state === 'connected', capable: false }),
+    garmin: (id) => {
+      const connected = garmin.status(id).state === 'connected';
+      // Once per process, and only with a login: can the library send running workouts?
+      if (connected) workouts.check(id);
+      return { connected, capable: workouts.capable(id) };
+    },
+    sendWorkouts: (id, week, ops) => workouts.send(id, week, ops),
     onExport: (id) => { accountSync.touch(id); notifyRecords(id); },
+  });
+  // Planned runs go to Garmin only after a confirmation record, never during a ride and never without a login.
+  const workouts = new GarminWorkouts({
+    baseDir: garminDir, python: opts.python, script: path.join(opts.garminScripts, 'garmin_workout.py'),
+    tokens: garminTokens, rideOpen: () => !noOpenRide(),
+    onResult: (id, week, r) => { try { run.sendResult(id, week, r); } catch { /* the week stays as it was */ } publish(); },
+    ...spawnOpt,
   });
   // Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
   const accountSync = new AccountSync({
@@ -387,7 +401,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (m.type === 'garmin-login') { garmin.login(m.profileId, m.email, m.password); return; }
       if (m.type === 'garmin-mfa') { garmin.mfa(m.profileId, m.code); return; }
       // The profile's sync and upload stop first and keep nothing, so no token of the old login comes back.
-      if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
+      if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); workouts.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { send({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) }); return; }
       if (m.type.startsWith('gym-')) { handleGym(m, send); return; }
       if (m.type.startsWith('meals-')) { handleMeals(m, atMs); return; }
