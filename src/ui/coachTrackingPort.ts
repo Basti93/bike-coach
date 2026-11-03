@@ -99,6 +99,12 @@ export function createCoachTrackingPort(o: {
         let a: Answer | null;
         try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: head.record }); } finally { inflight--; }
         if (!a || a.type !== 'records-put-result') break;
+        if (a.ok && a.kept === false) {
+          // A newer record stayed on the Mac. What waited here is the rider's latest word: it goes above that one.
+          const raised = { ...head.record, updatedMs: (a.updatedMs ?? head.record.updatedMs) + 1 };
+          writeQueue(readQueue().map((e) => (sameRecord(e.record, head.record) ? { record: raised } : e)));
+          continue;
+        }
         if (a.ok) { lastOkMs = now(); remember(head.record); dequeue(head.record); notify(); continue; }
         // A refusal never turns into a yes and must not block the rest. It is kept, apart from the queue, never deleted.
         if (a.refused) {
@@ -134,7 +140,7 @@ export function createCoachTrackingPort(o: {
         enqueue(r);
         notify();
         void flush();
-        return;
+        return { kept: true, updatedMs: r.updatedMs };
       }
       inflight++;
       let a: Answer | null;
@@ -144,12 +150,13 @@ export function createCoachTrackingPort(o: {
         lastOkMs = now();
         remember(r);
         notify();
-        return;
+        return { kept: a.kept !== false, updatedMs: a.updatedMs ?? r.updatedMs };
       }
       // No answer: kept on this device, it goes out when the Mac answers again.
       enqueue(r);
       remember(r);
       notify();
+      return { kept: true, updatedMs: r.updatedMs };
     },
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
     syncState: () => ({ pending: readQueue().length + (inflight > 0 && readQueue().length === 0 ? inflight : 0), lastOkMs, refused: readList(refusedKey).length }),

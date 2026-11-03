@@ -133,7 +133,13 @@ export function createWebPort(o: {
 
   return {
     list: (kind: RecordKind) => store.list(kind),
-    async put(r) { writes++; try { await store.put(r); } finally { writes--; } schedule(); },
+    async put(r) {
+      writes++;
+      let res;
+      try { res = await store.put(r); } finally { writes--; }
+      schedule();
+      return res;
+    },
     async idle() { while (writes > 0) await new Promise((res) => setTimeout(res, 5)); },
     subscribe: (fn) => store.subscribe(fn),
     syncState: () => { const c = store.counts(); return { pending: c.pending, lastOkMs, refused: c.refused }; },

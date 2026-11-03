@@ -1,4 +1,5 @@
 import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
+import type { PutResult } from '../tracking/ports';
 import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
@@ -8,8 +9,8 @@ const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobilit
 export type IdbStore = {
   /** Records the screens can draw. Unreadable ones stay stored (and are still synced) but are not listed. */
   list(kind: RecordKind): Promise<TrackedRecord[]>;
-  /** Resolves only after the transaction completed, so the data is durable. `applyRecord` decides; nothing is overwritten blindly. */
-  put(r: TrackedRecord): Promise<void>;
+  /** Resolves only after the transaction completed, so the data is durable. `applyRecord` decides; nothing is overwritten blindly. Reports what was kept. */
+  put(r: TrackedRecord): Promise<PutResult>;
   /** One transaction for a whole page. */
   applyMany(rs: TrackedRecord[]): Promise<void>;
   changedSince(cursor: number): Promise<{ records: TrackedRecord[]; cursor: number }>;
@@ -92,29 +93,32 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
     return changed;
   }
 
-  async function apply(rs: TrackedRecord[], remote: boolean): Promise<void> {
-    if (rs.length === 0) return;
-    const changed = await run(async (d) => {
+  async function apply(rs: TrackedRecord[], remote: boolean): Promise<PutResult[]> {
+    if (rs.length === 0) return [];
+    const { any: changed, results } = await run(async (d) => {
       // Local writes ask for a durable commit where the browser supports the option.
       const tx = d.transaction(['records', 'meta'], 'readwrite', { durability: remote ? 'default' : 'strict' });
       const finished = done(tx);
       const records = tx.objectStore('records'), meta = tx.objectStore('meta');
       let seq = ((await req(meta.get('seq'))) as number | undefined) ?? 0;
       let any = false;
+      const results: PutResult[] = [];
       for (const r of rs) {
         const key = `${r.kind}:${r.id}`;
         const have = (await req(records.get(key))) as Row | undefined;
         const { keep } = applyRecord(have?.rec, r);
+        results.push({ kept: !have || keep !== have.rec || JSON.stringify(have.rec) === JSON.stringify(r), updatedMs: keep.updatedMs });
         if (have && keep === have.rec) continue;
         seq += 1; any = true;
         records.put({ key, seq, rec: keep, remote } satisfies Row);
       }
       if (any) meta.put(seq, 'seq');
       await finished;
-      return any;
+      return { any, results };
     });
     await refreshCounts();
     if (changed) notify();
+    return results;
   }
 
   await refreshCounts();
@@ -124,8 +128,8 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
       const rows = (await req(tx.objectStore('records').getAll(IDBKeyRange.bound(`${kind}:`, `${kind}:￿`)))) as Row[];
       return rows.map((r) => r.rec).filter(readable);
     }),
-    put: (r) => apply([r], false),
-    applyMany: (rs) => apply(rs, true),
+    put: async (r) => (await apply([r], false))[0]!,
+    applyMany: async (rs) => { await apply(rs, true); },
     changedSince: (cursor) => run(async (d) => {
       const tx = d.transaction('records', 'readonly');
       const rows = (await req(tx.objectStore('records').index('seq').getAll(IDBKeyRange.lowerBound(cursor, true)))) as Row[];

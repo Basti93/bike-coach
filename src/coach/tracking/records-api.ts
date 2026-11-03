@@ -49,7 +49,7 @@ export function handleRecords(deps: Deps, m: Extract<CoachClientMessage, { type:
   try {
     before = record.kind === 'workout' ? deps.store.all(m.profileId, 'workout').find((r) => r.id === record.id) : undefined;
     deps.store.put(m.profileId, record);
-    after = record.kind === 'workout' ? deps.store.all(m.profileId, 'workout').find((r) => r.id === record.id) : undefined;
+    after = deps.store.all(m.profileId, record.kind).find((r) => r.id === record.id);
   } catch { return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false } }; }
   // Stored, so the answer may go out. What follows is bookkeeping and must not turn a kept record into a failure.
   try {
@@ -57,5 +57,6 @@ export function handleRecords(deps: Deps, m: Extract<CoachClientMessage, { type:
     const finished = finishedOwnWorkout(after);
     if (finished !== null) { deps.gym.start(m.profileId); if (finished && finishedOwnWorkout(before) !== true) deps.gym.workoutFinished(m.profileId); }
   } catch { /* the next scan sees the stored workout anyway */ }
-  return { reply: { type: 'records-put-result', requestId: m.requestId, ok: true }, changed: m.profileId };
+  const kept = !after || JSON.stringify(after) === JSON.stringify(record);
+  return { reply: { type: 'records-put-result', requestId: m.requestId, ok: true, kept, updatedMs: after?.updatedMs ?? record.updatedMs }, changed: m.profileId };
 }

@@ -1,5 +1,5 @@
 import type { TrackedRecord } from '../shared/records';
-import type { TrackingPort } from './ports';
+import type { PutResult, TrackingPort } from './ports';
 import { ensureIds, finish, type FinishChoice, type FinishResult, type TrackedWorkout } from './session';
 
 export type SaveState = 'saved' | 'unsaved';
@@ -10,6 +10,7 @@ export type Draft = { pending: () => boolean; flush: () => void };
 
 export const PUT_TIMEOUT_MS = 10_000;
 export const RETRY_MS = 15_000;
+const MAX_LOST_WRITES = 3;
 
 const isRecord = (s: TrackedWorkout | TrackedRecord): s is TrackedRecord => 'kind' in s;
 
@@ -36,9 +37,9 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((l) => l());
 
-  const putWithTimeout = (r: TrackedRecord): Promise<void> => new Promise<void>((resolve, reject) => {
+  const putWithTimeout = (r: TrackedRecord): Promise<PutResult> => new Promise<PutResult>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('timeout')), PUT_TIMEOUT_MS);
-    port.put(r).then(() => { clearTimeout(t); resolve(); }, (e) => { clearTimeout(t); reject(e); });
+    port.put(r).then((res) => { clearTimeout(t); resolve(res); }, (e) => { clearTimeout(t); reject(e); });
   });
 
   /** Runs on the chain: writes the newest state. */
@@ -46,8 +47,15 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
     if (timer) { clearTimeout(timer); timer = null; }
     const w = current;
     last = Math.max(now(), last + 1);
-    let ok = true;
-    try { await putWithTimeout({ kind: 'workout', id: w.id, updatedMs: last, deleted, body: w }); } catch { ok = false; }
+    let ok = false;
+    try {
+      // A newer record stayed (the other device's clock runs ahead): the rider's state goes above it, never "saved" before that.
+      for (let i = 0; i < MAX_LOST_WRITES && !ok; i++) {
+        const res = await putWithTimeout({ kind: 'workout', id: w.id, updatedMs: last, deleted, body: w });
+        ok = res.kept;
+        if (!ok) last = Math.max(now(), res.updatedMs + 1, last + 1);
+      }
+    } catch { ok = false; }
     if (ok) everSaved = true;
     snapshot = { workout: w, save: ok ? 'saved' : 'unsaved' };
     if (!ok && !disposed && !closed) timer = setTimeout(() => { timer = null; enqueue(writeNow); }, RETRY_MS);
@@ -113,6 +121,8 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
       if (closed) return;
       // A write already on its way was stamped below the remote copy: write again above it.
       if (isDirty()) { if (raised) void enqueue(writeNow); return; }
+      // Older than what was written here (a list read that started before our last write): nothing to take over.
+      if (record.updatedMs < last) return;
       current = ensureIds(record.body as TrackedWorkout);
       snapshot = { workout: current, save: 'saved' };
       notify();

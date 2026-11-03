@@ -46,7 +46,7 @@ describe('server side', () => {
     const out = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
     order.push('answered');
     expect(order).toEqual(['stored', 'answered']);
-    expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q1', ok: true });
+    expect(out.reply).toEqual({ type: 'records-put-result', requestId: 'q1', ok: true, kept: true, updatedMs: wk().updatedMs });
     expect(store.all('a', 'workout')[0].body).toMatchObject({ extra: 'bleibt' });
     expect(out.changed).toBe('a');
   });

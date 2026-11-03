@@ -19,6 +19,7 @@ export function fakePort(seed: TrackedRecord[] = []) {
       if (overwritten) state.overwritten.push(overwritten);
       map.set(key, keep);
       subs.forEach((s) => s());
+      return { kept: JSON.stringify(keep) === JSON.stringify(r), updatedMs: keep.updatedMs };
     },
     subscribe: (fn) => { subs.add(fn); return () => { subs.delete(fn); }; },
     syncState: () => ({ pending: state.pending, lastOkMs: null }),
