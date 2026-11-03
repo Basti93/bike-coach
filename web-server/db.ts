@@ -15,7 +15,10 @@ export const openDb = (path: string): DatabaseSync => {
     CREATE TABLE IF NOT EXISTS devices (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, revoked INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS records (account_id INTEGER NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, updated_ms REAL NOT NULL, deleted INTEGER NOT NULL, body TEXT NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (account_id, kind, id));
     CREATE INDEX IF NOT EXISTS records_seq ON records (account_id, seq);
-    CREATE TABLE IF NOT EXISTS overwritten (n INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, updated_ms REAL NOT NULL, body TEXT NOT NULL, at_ms INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS overwritten (n INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, updated_ms REAL NOT NULL, body TEXT NOT NULL, at_ms INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, stale INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS login_attempts (at_ms INTEGER NOT NULL, ip TEXT NOT NULL, account_key TEXT NOT NULL);`);
+  // A database from before these columns gets them here.
+  const columns = (db.prepare('PRAGMA table_info(overwritten)').all() as { name: string }[]).map((c) => c.name);
+  for (const c of ['deleted', 'stale']) if (!columns.includes(c)) db.exec(`ALTER TABLE overwritten ADD COLUMN ${c} INTEGER NOT NULL DEFAULT 0`);
   return db;
 };

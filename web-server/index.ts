@@ -15,6 +15,7 @@ const LOGIN_BODY_LIMIT = 8192;
 const MAX_AHEAD_MS = 7 * 24 * 3600 * 1000;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
 const KEEP_OVERWRITTEN = 500;
+const KEEP_PER_RECORD = 3;
 const COOKIE = 'pf_session';
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
 const TYPES: Record<string, string> = {
@@ -144,7 +145,11 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     const putStmt = db.prepare(`INSERT INTO records (account_id, kind, id, updated_ms, deleted, body, seq)
       VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM records WHERE account_id = ?))
       ON CONFLICT (account_id, kind, id) DO UPDATE SET updated_ms = excluded.updated_ms, deleted = excluded.deleted, body = excluded.body, seq = excluded.seq`);
-    const lostStmt = db.prepare('INSERT INTO overwritten (account_id, kind, id, updated_ms, body, at_ms) VALUES (?, ?, ?, ?, ?, ?)');
+    const lostStmt = db.prepare('INSERT INTO overwritten (account_id, kind, id, updated_ms, body, at_ms, deleted, stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const haveLostStmt = db.prepare('SELECT 1 FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND updated_ms = ? AND deleted = ? AND body = ?');
+    // Forward edits leave a short trail per record. The loser of a stale send was never based on what stayed: it is not part of that trail.
+    const trimStmt = db.prepare(`DELETE FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND stale = 0 AND n NOT IN
+      (SELECT n FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND stale = 0 ORDER BY updated_ms DESC, n DESC LIMIT ?)`);
     db.exec('BEGIN');
     try {
       for (const raw of list as unknown[]) {
@@ -164,11 +169,15 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
         const incoming: TrackedRecord = { kind: r.kind as RecordKind, id: r.id as string, updatedMs: r.updatedMs as number, deleted: r.deleted as boolean, body: r.body };
         const cur = getStmt.get(account, incoming.kind, incoming.id) as Row | undefined;
         const { keep, overwritten } = applyRecord(cur ? toRecord(cur) : undefined, incoming);
-        if (overwritten) lostStmt.run(account, overwritten.kind, overwritten.id, overwritten.updatedMs, JSON.stringify(overwritten.body), t);
+        if (overwritten) {
+          const body = JSON.stringify(overwritten.body), del = overwritten.deleted ? 1 : 0;
+          if (!haveLostStmt.get(account, overwritten.kind, overwritten.id, overwritten.updatedMs, del, body)) lostStmt.run(account, overwritten.kind, overwritten.id, overwritten.updatedMs, body, t, del, overwritten === incoming ? 1 : 0);
+          if (keep === incoming) trimStmt.run(account, keep.kind, keep.id, account, keep.kind, keep.id, KEEP_PER_RECORD);
+        }
         if (keep === incoming) putStmt.run(account, keep.kind, keep.id, keep.updatedMs, keep.deleted ? 1 : 0, JSON.stringify(keep.body), account);
         accepted++;
       }
-      db.prepare('DELETE FROM overwritten WHERE account_id = ? AND n NOT IN (SELECT n FROM overwritten WHERE account_id = ? ORDER BY n DESC LIMIT ?)').run(account, account, KEEP_OVERWRITTEN);
+      db.prepare('DELETE FROM overwritten WHERE account_id = ? AND n NOT IN (SELECT n FROM overwritten WHERE account_id = ? ORDER BY stale DESC, n DESC LIMIT ?)').run(account, account, KEEP_OVERWRITTEN);
       db.exec('COMMIT');
     } catch (e) {
       db.exec('ROLLBACK');
