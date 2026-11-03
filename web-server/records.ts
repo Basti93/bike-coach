@@ -1,10 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
+import { applyRecord, RECORD_KINDS, type RecordKind, type TrackedRecord } from '../src/shared/records';
 import { generationOf } from './db';
 import { mealWeekOf } from './push';
 
 /** The records of one account, shared by the public routes (login) and the internal ones (the coach). */
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
+const KINDS: readonly RecordKind[] = RECORD_KINDS;
 const RECORD_BODY_LIMIT = 1024 * 1024;
 export const MAX_RECORDS_PER_POST = 1000;
 const MAX_PAGE = 500;

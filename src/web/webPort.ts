@@ -1,4 +1,4 @@
-import type { RecordKind, TrackedRecord } from '../shared/records';
+import { RECORD_KINDS, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { TrackingPort } from '../tracking/ports';
 import { syncRecords } from '../tracking/sync';
 import type { IdbStore } from './idbStore';
@@ -30,7 +30,7 @@ const PAGE = 200;
 const EVERY_MS = 60_000;
 const SOON_MS = 1500;
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
-const KINDS: readonly string[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
+const KINDS: readonly string[] = RECORD_KINDS;
 const valid = (x: unknown): x is TrackedRecord => isObj(x) && KINDS.includes(x.kind as string) && typeof x.id === 'string' && typeof x.updatedMs === 'number' && typeof x.deleted === 'boolean' && x.body !== undefined;
 
 export function createWebPort(o: {
