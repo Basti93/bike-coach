@@ -27,6 +27,11 @@ type Deps = {
   fetchFn?: typeof fetch;
   /** Records from the server were applied. */
   onChange?: (profileId: string) => void;
+  /**
+   * False for a profile coached by the server: only records sync then. No plan or complaint record is written from the
+   * local coach, and nothing from the records (complaints, finished workouts) reaches the local coach. Default: always.
+   */
+  coachHere?: (profileId: string) => boolean;
 };
 
 class Rejected extends Error {}
@@ -46,6 +51,8 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 export class AccountSync {
   private per = new Map<string, Per>();
   constructor(private deps: Deps) {}
+
+  private coachHere(id: string): boolean { try { return this.deps.coachHere?.(id) ?? true; } catch { return false; } }
 
   private st(id: string): Per {
     let s = this.per.get(id);
@@ -112,8 +119,10 @@ export class AccountSync {
     };
     try {
       try { this.retryUnknownKinds(id); } catch { /* the next run tries again */ }
-      try { this.exportPlan(id); } catch { /* the next run tries again */ }
-      try { this.exportComplaints(id); } catch { /* the next run tries again */ }
+      if (this.coachHere(id)) {
+        try { this.exportPlan(id); } catch { /* the next run tries again */ }
+        try { this.exportComplaints(id); } catch { /* the next run tries again */ }
+      }
       await syncRecords({
         cursors: links.cursors(id),
         mayContinue: () => this.deps.noOpenRide() && links.token(id) !== null,
@@ -172,6 +181,8 @@ export class AccountSync {
     }
     const copies = store.putMany(id, recs, 'remote');
     for (const c of copies) before.set(c.id, null);
+    // The server coaches a moved profile: the records are kept, the local coach is not told.
+    if (!this.coachHere(id)) { try { this.deps.onChange?.(id); } catch { /* a listener never matters here */ } return; }
     try {
       if (before.size > 0) {
         const all = store.all(id, 'workout');

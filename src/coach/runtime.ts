@@ -25,7 +25,7 @@ import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
 import { mergedHealth, mergedStrength } from './tracking/strength-source';
-import { MealCoach, usualTrainingDays } from './meals/meal-coach';
+import { MealCoach, usualTrainingDays, type MealsView } from './meals/meal-coach';
 import type { SecretCodec } from './secrets/secret-box';
 import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
 
@@ -50,6 +50,13 @@ export type RuntimeOptions = {
    */
   meals: 'own' | (() => MealCoach | null) | null;
   together: () => Together;
+  /**
+   * False for a profile coached by the server (moved): here only its records sync and, while the meal plan is local, its
+   * meals. No planning, no debrief, no Hevy, Garmin or gym runs and no answer to its coach messages. Default: always.
+   */
+  coachHere?: (profileId: string) => boolean;
+  /** False once the meal plan is the server's: the own meal plan is not ticked here any more. Default: always. */
+  mealsHere?: () => boolean;
   /** The old push of the coach state to the home server, called on every scan. */
   legacyPush?: (s: CoachState) => void;
   nowMs?: () => number;
@@ -75,6 +82,8 @@ export type CoachRuntime = {
   /** Tells the listeners that the profile's records changed, e.g. when a shared meal plan wrote them outside this runtime. */
   notify(profileId: string): void;
   coachState(profileId: string): CoachState | null;
+  /** The meal plan as this runtime shows it to a profile, also to one coached by the server. */
+  mealsView(profileId: string): MealsView | null;
   profileIds(): string[];
   /** Weekdays (Monday 0) the profile usually trains on, from rides and workouts. For a meal plan shared by several runtimes. */
   trainingDays(profileId: string): number[];
@@ -106,6 +115,10 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const publish = (): void => emit(null);
   const notifyRecords = (profileId: string): void => emit(profileId);
   const known = (profileId: string): boolean => profiles().some((p) => p.id === profileId);
+  const coachHere = (profileId: string): boolean => opts.coachHere?.(profileId) ?? true;
+  /** The profiles this runtime coaches: all of profiles() but the ones the server coaches. */
+  const coached = (): Profile[] => profiles().filter((p) => coachHere(p.id));
+  const mealsHere = opts.mealsHere ?? (() => true);
 
   const garminCache = new Map<string, { atMs: number; data: GarminCoachData | null }>();
   const garminData = (profileId: string): GarminCoachData | null => {
@@ -167,7 +180,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   });
   // Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
   const accountSync = new AccountSync({
-    links: opts.links, store: records, nowMs, coach, gym, mobility, noOpenRide: () => noOpenRide(),
+    links: opts.links, store: records, nowMs, coach, gym, mobility, noOpenRide: () => noOpenRide(), coachHere,
     onChange: (profileId) => notifyRecords(profileId),
   });
   const trainingDays = (id: string): number[] => usualTrainingDays([...coach.state(id).summaries.map((r) => r.startedAtMs), ...gym.history(id).map((w) => w.startMs)], nowMs());
@@ -228,7 +241,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     if (!/^[A-Za-z0-9-]+$/.test(profileId)) throw new Error('Ungültiges Profil');
     const now = nowMs();
     const db = new GarminDb(path.join(garminDir, 'data', profileId, 'garmin.db'));
-    coach.scanRides(profiles());
+    coach.scanRides(coached());
     const state = coach.state(profileId);
     const rated = state.summaries.flatMap((r) => { const rating = state.feedback[r.rideId]; return rating ? [{ startedAtMs: r.startedAtMs, rating }] : []; });
     const from = rangeDays === null ? '0000-01-01' : new Date(now - rangeDays * 86_400_000).toISOString().slice(0, 10);
@@ -236,7 +249,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
 
   const view = (profileId: string): CoachStateMessage | null => {
-    if (!known(profileId)) return null;
+    if (!known(profileId) || !coachHere(profileId)) return null;
     try {
       return { type: 'coach-state', state: coach.state(profileId), thinking: coach.isThinking(profileId), hevy: hevy.status(profileId), debriefing: coach.isDebriefing(profileId), together: opts.together(), garmin: garmin.status(profileId), garminSync: garminSync.info(profileId), garminReadiness: readinessOf(profileId), garminSuggestion: suggestionOf(profileId), gym: gymOf(profileId), strengthHealth: strengthHealthOf(profileId), mobility: mobilityOf(profileId), account: accountSync.status(profileId), meals: mealsOf(profileId) };
     } catch { return null; }
@@ -308,7 +321,9 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // Records check the profile themselves and always answer the request.
       if (m.type === 'records-put' || m.type === 'records-list') {
         if (m.type === 'records-put' && known(m.profileId)) accountSync.touch(m.profileId);
-        const out = handleRecords({ store: records, gym, profiles: () => profiles().map((p) => p.id) }, m);
+        // A finished workout plans the gym here only for a profile coached here; the server plans for a moved one.
+        const recordsGym = { start: (id: string) => { if (coachHere(id)) gym.start(id); }, workoutFinished: (id: string) => { if (coachHere(id)) gym.workoutFinished(id); } };
+        const out = handleRecords({ store: records, gym: recordsGym, profiles: () => profiles().map((p) => p.id) }, m);
         send(out.reply);
         if (out.changed) {
           notifyRecords(out.changed);
@@ -325,6 +340,12 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // The password is only passed on to the server once, never stored, logged or sent back.
       if (m.type === 'account-link') { void accountSync.link(m.profileId, m.url, m.name, m.password).catch(() => {}).finally(publish); publish(); return; }
       if (m.type === 'account-unlink') { accountSync.unlink(m.profileId); publish(); return; }
+      // The server coaches a moved profile; only its meals stay here while the meal plan is local.
+      if (!coachHere(m.profileId) && !m.type.startsWith('meals-')) {
+        if (m.type === 'gym-preview') send({ type: 'gym-preview', preview: null });
+        if (m.type === 'gym-confirm') send({ type: 'gym-confirm-result', result: 'failed' });
+        return;
+      }
       if (!READ_ONLY.has(m.type)) accountSync.touch(m.profileId);
       // Login credentials are only passed on, never stored or sent back.
       // The key is only passed on and stored privately, never sent back.
@@ -340,7 +361,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
       if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }
       if (m.type === 'mobility-feel') { mobility.feel(m.profileId, m.text); publish(); return; }
-      coach.scanRides(profiles());
+      coach.scanRides(coached());
       if (m.type === 'subscribe') { const v = view(m.profileId); if (v) send(v); }
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-feedback') { coach.skipFeedback(m.profileId); if (noOpenRide()) refresh(m.profileId); }
@@ -372,7 +393,9 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
 
   const scan = (): void => {
     try {
-      const list = profiles();
+      const all = profiles();
+      // Coach runs only for the profiles coached here; records sync for all.
+      const list = all.filter((p) => coachHere(p.id));
       coach.scanRides(list);
       const free = noOpenRide();
       // Scan-driven runs only: a message still gets its answer when they pause.
@@ -395,11 +418,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
-      if (ownCoach && scheduled()) void ownCoach.tick().catch(() => {}).finally(publish);
+      if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
-      for (const p of list) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
+      for (const p of all) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the fetch must never disturb the coach run.
       if (scheduled() && !heavyBusy()) for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
       publish();
@@ -412,13 +435,15 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     handle, view, scan,
     rideReplaced: (profileId, rideId) => {
       try {
-        coach.scanRides(profiles()); // loads the profile's state
+        if (!coachHere(profileId)) return;
+        coach.scanRides(coached()); // loads the profile's state
         coach.reprocessRide(profileId, rideId);
       } catch { /* the next scan reads what it can */ }
     },
     onChange: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
     notify: (profileId) => notifyRecords(profileId),
-    coachState: (profileId) => { if (!known(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
+    coachState: (profileId) => { if (!known(profileId) || !coachHere(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
+    mealsView: (profileId) => (known(profileId) ? mealsOf(profileId) : null),
     profileIds: () => profiles().map((p) => p.id),
     trainingDays: (profileId) => (known(profileId) ? trainingDays(profileId) : []),
     records, accountSync,
