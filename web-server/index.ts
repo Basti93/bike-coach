@@ -155,7 +155,11 @@ export const buildServer = (opts: {
     return id;
   };
 
-  app.get('/healthz', async () => ({ ok: true }));
+  // With a coach: whether it answers its own health route, for the home-server overview. The api stays healthy either way.
+  const coachAnswers = async (url: string): Promise<boolean> => {
+    try { return (await fetch(`${url}/healthz`, { signal: AbortSignal.timeout(2000) })).ok; } catch { return false; }
+  };
+  app.get('/healthz', async () => (opts.coach ? { ok: true, coach: await coachAnswers(opts.coach.url) } : { ok: true }));
 
   app.post('/login', { bodyLimit: LOGIN_BODY_LIMIT }, async (req, reply) => {
     const id = await checkCredentials(req, reply, req.body);

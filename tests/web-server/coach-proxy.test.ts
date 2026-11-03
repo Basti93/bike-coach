@@ -394,3 +394,17 @@ describe('coach proxy', () => {
     expect(await connect(host, own(a))).toEqual({ refused: 404 });
   });
 });
+
+describe('healthz names whether the coach answers', () => {
+  it('coach: true while the coach answers its health route', async () => {
+    const { app, coach } = await world();
+    expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toEqual({ ok: true, coach: true });
+    expect(coach.seen.some((s) => s.url === '/healthz')).toBe(true);
+  });
+  it('coach: false when the coach cannot be reached, and the api itself stays healthy', async () => {
+    const { app } = await world({ coachUrl: 'http://127.0.0.1:1' });
+    const h = await app.inject({ method: 'GET', url: '/healthz' });
+    expect(h.statusCode).toBe(200);
+    expect(h.json()).toEqual({ ok: true, coach: false });
+  });
+});
