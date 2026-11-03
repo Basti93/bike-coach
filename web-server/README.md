@@ -43,10 +43,10 @@ Zeile anhängen (Crontab nie ersetzen):
 
 **Echte Wiederherstellung** (Daten kaputt oder Volume verloren), mit der Datei `~/pandafit/backups/pandafit-<zeit>.db.gz`:
 1. `cd ~/pandafit/web-server && docker compose stop api`
-2. Vorsichtshalber den jetzigen Stand sichern, falls noch lesbar: `docker compose run --rm --no-deps -v ~/pandafit/backups:/backup --entrypoint sh api -c 'cp /data/pandafit.db /backup/pre-restore.db'` (Fehler hier ignorieren, wenn die Datei fehlt).
-3. Einspielen als Benutzer `node` (richtiger Besitzer, Modus 0600), alte `-wal`/`-shm`-Dateien entfernen: `docker compose run --rm --no-deps -v ~/pandafit/backups:/backup:ro --entrypoint sh api -c 'umask 077 && rm -f /data/pandafit.db /data/pandafit.db-wal /data/pandafit.db-shm && gunzip -c /backup/pandafit-<zeit>.db.gz > /data/pandafit.db'`
-4. `docker compose up -d api`, dann `curl -s http://127.0.0.1:7003/healthz`, im Browser einloggen. Sitzungen und Gerätetoken aus der Sicherung gelten wieder; was nach der Sicherung entstand, fehlt (die Geräte gleichen es beim nächsten Abgleich aus ihrem lokalen Bestand nach).
-5. Ein Volume, das vor diesem Image angelegt wurde, kann `root` gehören: dann einmal `docker compose run --rm --no-deps --user root --entrypoint chown api -R node:node /data`.
+2. Besitzer des Volumes richtigstellen (ein Volume, das vor diesem Image angelegt wurde, kann `root` gehören; harmlos, wenn schon richtig): `docker compose run --rm --no-deps --user root --entrypoint chown api -R node:node /data`
+3. Sicherheitskopie des jetzigen Stands, **muss gelingen, bevor irgendetwas gelöscht wird** (ein Stopp checkpointet das WAL nicht, die Daten stecken teils in `-wal`). Sie landet in `~/pandafit/backups/pre-restore-<zeit>/` und enthält `pandafit.db` sowie `pandafit.db-wal` und `pandafit.db-shm`, soweit vorhanden: `d=pre-restore-$(date +%Y%m%d-%H%M%S) && docker compose run --rm --no-deps --user root -v ~/pandafit/backups:/backup --entrypoint sh api -ec "mkdir -p /backup/$d; for f in pandafit.db pandafit.db-wal pandafit.db-shm; do if [ -e /data/\$f ]; then cp -p /data/\$f /backup/$d/\$f; fi; done; ls -l /backup/$d"`. Bricht der Befehl ab oder fehlt die Kopie, **hier stoppen** und erst klären (Platz, Rechte); weiter nur, wenn das Volume wirklich leer ist (dann ist der Ordner leer).
+4. Einspielen als Benutzer `node` (Modus 0600), erst jetzt die alten Dateien entfernen: `docker compose run --rm --no-deps -v ~/pandafit/backups:/backup:ro --entrypoint sh api -ec 'umask 077; rm -f /data/pandafit.db /data/pandafit.db-wal /data/pandafit.db-shm; gunzip -c /backup/pandafit-<zeit>.db.gz > /data/pandafit.db'`
+5. `docker compose up -d api`, dann `curl -s http://127.0.0.1:7003/healthz`, im Browser einloggen. Sitzungen und Gerätetoken aus der Sicherung gelten wieder; was nach der Sicherung entstand, fehlt (die Geräte gleichen es beim nächsten Abgleich aus ihrem lokalen Bestand nach).
 
 ## Betrieb
 

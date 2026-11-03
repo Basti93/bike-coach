@@ -21,10 +21,14 @@ id="$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
 vol="pandafit-drill-$id"
 app="pandafit-drill-app-$id"
 cleanup() {
+  # Safe to run twice (a signal runs it, then EXIT runs it again): every command tolerates "already gone".
   docker rm -f "$app" >/dev/null 2>&1 || true
   docker volume rm "$vol" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+trap 'cleanup; trap - EXIT; exit 130' INT
+trap 'cleanup; trap - EXIT; exit 143' TERM
+trap 'cleanup; trap - EXIT; exit 129' HUP
 
 COUNT_JS="const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(process.argv[1], { readOnly: true });
