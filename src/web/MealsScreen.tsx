@@ -41,9 +41,9 @@ function ChatBox({ chat, onSend }: { chat: MealChat[]; onSend: (text: string) =>
   const submit = () => { const t = text.trim(); if (!t) return; setText(''); void onSend(t); };
   return (
     <section className="card pm-chat" aria-label="Mit dem Coach über den Plan sprechen">
-      <h3>Etwas ändern?</h3>
+      <h3>Sag dem Coach, was du ändern willst</h3>
       <form className="tk-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <input aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="Sag dem Coach, was du ändern willst" value={text} onChange={(e) => setText(e.target.value)} />
+        <input aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="z. B. Mittwoch lieber Nudeln" value={text} onChange={(e) => setText(e.target.value)} />
         <button type="submit" className="secondary" disabled={!text.trim()}>Senden</button>
       </form>
       {last && <ul className="pm-chat-list"><ChatRow c={last} /></ul>}
