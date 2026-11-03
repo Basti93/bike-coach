@@ -7,3 +7,4 @@ export { ExercisePicker } from './ExercisePicker';
 export { RunScreen } from './RunScreen';
 export { RunSettingsCard } from './RunSettingsCard';
 export { RunLookBack } from './RunLookBack';
+export { StatsScreen } from './StatsScreen';

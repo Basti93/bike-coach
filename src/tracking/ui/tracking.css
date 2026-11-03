@@ -120,3 +120,39 @@
 .tk-ex-done > :not(.tk-ex-head) { opacity: .7; }
 .tk-ex-badge { flex: none; align-self: center; padding: .15rem .6rem; border-radius: 999px; background: var(--tk-good); color: var(--tk-ink); font-size: .8rem; font-weight: 700; }
 .tk-ex-current { border-left: 5px solid var(--tk-accent); scroll-margin-top: 4.5rem; }
+/* The statistics page. Sport colours: calm, told apart also by the legend and the numbers as text. Checked for colour blindness on the card colour. */
+.tk-screen { --tk-sport-bike: #d95926; --tk-sport-strength: #3987e5; --tk-sport-run: #c98500; --tk-sport-mobility: #9085e9; --tk-sport-other: #199e70; }
+.tk-stats { display: flex; flex-direction: column; gap: .6rem; }
+.tk-stats h3 { font-size: 1rem; margin: .4rem 0 0; }
+.tk-sport-bike { background: var(--tk-sport-bike); }
+.tk-sport-strength { background: var(--tk-sport-strength); }
+.tk-sport-run { background: var(--tk-sport-run); }
+.tk-sport-mobility { background: var(--tk-sport-mobility); }
+.tk-sport-other { background: var(--tk-sport-other); }
+.tk-band-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.tk-band-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "icon label text" "icon bar bar"; gap: .2rem .5rem; align-items: center; }
+.tk-band-list li > svg { grid-area: icon; }
+.tk-band-label { grid-area: label; }
+.tk-band-text { grid-area: text; color: var(--tk-muted); font-variant-numeric: tabular-nums; font-size: .9rem; }
+.tk-band { grid-area: bar; position: relative; height: .7rem; border-radius: 999px; background: var(--tk-field); overflow: hidden; }
+.tk-band-range { position: absolute; top: 0; bottom: 0; background: var(--tk-line); border-left: 1px solid var(--tk-muted); border-right: 1px solid var(--tk-muted); }
+.tk-band-value { position: absolute; left: 0; top: .2rem; bottom: .2rem; border-radius: 0 4px 4px 0; background: var(--tk-accent); }
+.tk-verdicts { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: .3rem; }
+.tk-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .9rem; }
+.tk-legend li { display: flex; align-items: center; gap: .35rem; }
+.tk-swatch { width: .8rem; height: .8rem; border-radius: 3px; display: inline-block; }
+.tk-stack-chart { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; align-items: end; }
+.tk-stack-col { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-variant-numeric: tabular-nums; }
+.tk-stack { width: 100%; max-width: 2.6rem; height: 8rem; display: flex; flex-direction: column-reverse; gap: 2px; border-bottom: 1px solid var(--tk-line); }
+.tk-stack > span { display: block; width: 100%; min-height: 2px; }
+.tk-stack > span:last-child { border-radius: 4px 4px 0 0; }
+.tk-stack-total { font-size: .8rem; color: var(--tk-muted); }
+.tk-stack-date { font-size: .7rem; color: var(--tk-muted); }
+.tk-stack-hard { font-size: .85rem; font-weight: 700; }
+.tk-small { font-size: .8rem; }
+.tk-table-wrap { overflow-x: auto; }
+.tk-sets-table { border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; width: 100%; }
+.tk-sets-table caption { text-align: left; font-weight: 700; padding-bottom: .3rem; }
+.tk-sets-table th, .tk-sets-table td { padding: .2rem .35rem; border-bottom: 1px solid var(--tk-line); text-align: right; white-space: nowrap; }
+.tk-sets-table th[scope="row"], .tk-sets-table thead th:first-child { text-align: left; font-weight: 400; color: var(--tk-muted); }
+.tk-pairs { margin: 0; padding-left: 1.2rem; }

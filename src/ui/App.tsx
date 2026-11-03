@@ -17,7 +17,8 @@ import { CoachView } from './views/CoachView';
 import { coachScreen, DebriefView } from './views/DebriefCard';
 import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
-import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, WorkoutScreen } from '../tracking/ui';
+import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { statsVisible } from '../tracking/ui/StatsScreen';
 import type { TrackingPort } from '../tracking/ports';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { runView } from '../tracking/ui/run-view';
@@ -82,6 +83,10 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const runRecords = usePortRecords(coach.tracking ?? NO_PORT, 'run').records;
   const runOn = !!coach.tracking && runView(runRecords ?? [], Date.now()).visible;
   const mealsOn = coach.meals?.settings.on === true;
+  const statsRecords = usePortRecords(coach.tracking ?? NO_PORT, 'stats').records;
+  const workoutRecords = usePortRecords(coach.tracking ?? NO_PORT, 'workout').records;
+  const statsOn = !!coach.tracking && statsVisible(statsRecords, workoutRecords);
+  useEffect(() => { if (v.stats && !statsOn && statsRecords !== null && workoutRecords !== null) patch({ stats: false }); }, [v.stats, statsOn, statsRecords, workoutRecords]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.run && !runOn && runRecords !== null) patch({ run: false }); }, [v.run, runOn, runRecords]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.meals && !mealsOn && arrivedMeals(coach)) patch({ meals: false }); }, [v.meals, mealsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.trackFor && (!coach.gym || v.trackFor.profileId !== profile?.id)) patch({ trackFor: null }); }, [coach.gym, v.trackFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -139,7 +144,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const waiting = !arrived && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach';
   const menu = showMenu({ profile: true, riding: false, film: false, waiting }) && (
     <MenuBar
-      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn, run: runOn })}
+      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn, run: runOn, stats: statsOn })}
       active={activeItem(v, profile.id, home)} name={profile.name} avatar={profile.avatar}
       onGo={go} onSwitch={() => setProfile(null)} />
   );
@@ -161,6 +166,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (v.review && coach.garminSuggestion) return page(<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => patch({ review: false })} />);
   if (v.together && coach.together) return page(<TogetherView together={coach.together} />);
   if (v.run && runOn && coach.tracking) return page(<main className="home"><RunScreen port={coach.tracking} now={runNow} newId={runNewId} /></main>);
+  if (v.stats && statsOn && coach.tracking) return page(<main className="home"><StatsScreen port={coach.tracking} now={runNow} /></main>);
   if (v.meals && mealsOn && coach.meals) return page(<MealsView key={profile.id} profileId={profile.id} meals={coach.meals} send={coach.send} />);
   if (v.trackFor && v.trackFor.profileId === profile.id && coach.gym && coach.tracking) {
     const port = coach.tracking;

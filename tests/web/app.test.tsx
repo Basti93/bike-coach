@@ -591,3 +591,22 @@ describe('Laufen on the phone', () => {
   });
 
 });
+
+describe('Statistik on the phone', () => {
+  const statsRec: TrackedRecord = { kind: 'stats', id: 'stats', updatedMs: NOW - 1000, deleted: false, body: { type: 'stats', atMs: NOW - 1000, goal: null, days: [], muscles: {} } };
+  const done: TrackedRecord = { kind: 'workout', id: 'w1', updatedMs: NOW - 1000, deleted: false, body: { id: 'w1', title: 'Training', startMs: NOW - 2 * DAY, endMs: NOW - 2 * DAY + 3_600_000, source: 'pandafit', exercises: [] } };
+
+  it('the Statistik tab appears with a stats record or a finished workout, and not without', async () => {
+    await boot({ account: 'anna', seed: [] });
+    await screen.findByRole('navigation');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByRole('button', { name: 'Statistik' })).toBeNull();
+    cleanup();
+    await boot({ account: 'anna', seed: [statsRec] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Statistik' }));
+    expect(await screen.findByRole('heading', { name: 'Statistik' })).toBeTruthy();
+    cleanup();
+    await boot({ account: 'anna', seed: [done] });
+    expect(await screen.findByRole('button', { name: 'Statistik' })).toBeTruthy();
+  });
+});

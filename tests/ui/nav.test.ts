@@ -67,3 +67,13 @@ test('menuItems lists Laufen after Kraft only when run is true', () => {
   expect(menuItems({ ...base, run: false })).not.toContain('laufen');
   expect(menuItems(base)).not.toContain('laufen');
 });
+
+test('Statistik after Verlauf, only when stats is true', () => {
+  const base = { overview: true, gym: true, history: true, health: true, together: false };
+  expect(menuItems({ ...base, stats: true })).toEqual(['start', 'rad', 'kraft', 'verlauf', 'statistik', 'gesundheit']);
+  expect(menuItems({ ...base, stats: false })).not.toContain('statistik');
+  expect(menuItems(base)).not.toContain('statistik');
+  expect(open('statistik', 'a')).toEqual({ ...HOME, stats: true });
+  expect(activeItem(open('statistik', 'a'), 'a', 'overview')).toBe('statistik');
+  expect(MENU_LABEL.statistik).toBe('Statistik');
+});
