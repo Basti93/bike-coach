@@ -24,6 +24,9 @@ export type StatsContentInput = {
   goal: string | null;
   /** The primary muscle of a Hevy or own template as the gym coach knows it (also custom ones); null when unknown. */
   templateMuscle?: (templateId: string) => string | null;
+  /** The bike coach's FTP history; the last half year goes into the record. */
+  ftp?: { atMs: number; ftpW: number }[];
+  weightKg?: number | null;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -63,5 +66,6 @@ export function statsContent(i: StatsContentInput): Omit<StatsBody, 'atMs'> | nu
   const muscles = Object.fromEntries([...found].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   const empty = days.every((d) => d.hardness === null && !d.legs && SPORTS.every((s) => d.minutes[s] === 0));
   if (empty && found.size === 0) return null;
-  return { type: 'stats', goal: i.goal, days, muscles };
+  const ftp = (i.ftp ?? []).filter((h) => i.nowMs - h.atMs <= 183 * 86_400_000).slice(-30).map((h) => ({ atMs: h.atMs, ftpW: h.ftpW }));
+  return { type: 'stats', goal: i.goal, days, muscles, ...(ftp.length ? { ftp } : {}), ...(i.weightKg ? { weightKg: i.weightKg } : {}) };
 }

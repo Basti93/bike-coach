@@ -2,7 +2,8 @@ export const STATS_ID = 'stats';
 export type Sport = 'bike' | 'strength' | 'run' | 'mobility' | 'other';
 export const SPORTS: readonly Sport[] = ['bike', 'strength', 'run', 'mobility', 'other'];
 export type StatsDay = { date: string; minutes: Record<Sport, number>; hardness: 'easy' | 'moderate' | 'hard' | null; legs: boolean };
-export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string> };
+/** `ftp` and `weightKg` are optional: the bike coach's FTP history (last half year) and the profile weight, for the progress card. */
+export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string>; ftp?: { atMs: number; ftpW: number }[]; weightKg?: number | null };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
@@ -37,5 +38,9 @@ export function readStats(body: unknown): StatsBody | null {
   for (const [k, v] of entries) if (typeof v !== 'string' || v.length > 100 || k.length > 100) return null;
   // Rebuilt from own keys only; fromEntries keeps a key like __proto__ as an own key.
   const muscles = Object.fromEntries(entries) as Record<string, string>;
-  return { type: 'stats', atMs: body.atMs, goal: body.goal, days, muscles };
+  const out: StatsBody = { type: 'stats', atMs: body.atMs, goal: body.goal, days, muscles };
+  // Optional and read leniently: a broken entry is dropped, never the whole record.
+  if (Array.isArray(body.ftp)) out.ftp = body.ftp.slice(0, 50).flatMap((h) => (isObj(h) && typeof h.atMs === 'number' && Number.isFinite(h.atMs) && typeof h.ftpW === 'number' && h.ftpW > 0 && h.ftpW < 2000 ? [{ atMs: h.atMs, ftpW: h.ftpW }] : []));
+  if (typeof body.weightKg === 'number' && body.weightKg > 20 && body.weightKg < 400) out.weightKg = body.weightKg;
+  return out;
 }

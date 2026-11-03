@@ -225,6 +225,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
       ratings: (dates) => ratingsOf(id, dates, runs), goal: gym.state(id).goal ?? null,
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
+      ftp: coach.state(id).ftpHistory, weightKg: profiles().find((p) => p.id === id)?.weightKg ?? null,
     });
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).

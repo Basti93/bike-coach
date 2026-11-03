@@ -169,3 +169,6 @@
 .tk-msg-coach { align-self: flex-start; background: var(--bg, #12201a); }
 .tk-proposal { margin-top: .4rem; }
 .tk-chat-input textarea { flex: 1; min-height: 2.6rem; font: inherit; border-radius: .6rem; padding: .5rem; background: var(--field, #101b16); color: var(--text, #f6eedd); border: 1px solid var(--line, #33493c); }
+.tk-progress { margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+.tk-progress dt { font-weight: 700; }
+.tk-progress dd { margin: 0; }

@@ -124,3 +124,14 @@ test('a failed first read shows a calm message with a retry', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Nochmal versuchen' }));
   expect(await screen.findByRole('heading', { name: 'Statistik' })).toBeTruthy();
 });
+
+test('Fortschritt shows one line per area with data and nothing for the rest', async () => {
+  const at = Date.UTC(2026, 10, 4, 12);
+  const body = { type: 'stats', atMs: at, goal: null, days: [], muscles: {}, ftp: [{ atMs: at - 70 * 86_400_000, ftpW: 200 }, { atMs: at - 86_400_000, ftpW: 210 }], weightKg: 70 };
+  const { port } = fakePort([{ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body }]);
+  render(<StatsScreen port={port} now={() => at} />);
+  const card = await screen.findByRole('region', { name: 'Fortschritt' });
+  expect(card.textContent).toContain('FTP 210 W · 3,0 W/kg');
+  expect(card.textContent).toContain('+10 W seit 10 Wochen');
+  expect(card.querySelectorAll('dt')).toHaveLength(1);
+});

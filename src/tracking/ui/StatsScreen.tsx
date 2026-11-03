@@ -7,6 +7,8 @@ import { statsView, wellFormed, type StatsView, type WeekStats } from '../stats'
 import { finishedWorkouts, usePortRecords } from './hooks';
 import { dateLabel } from './labels';
 import { MuscleIcon } from './MuscleIcon';
+import { progressRows, type ProgressRow } from '../progress';
+import { runView } from './run-view';
 
 const SPORT_LABEL: Record<Sport, string> = { bike: 'Rad', strength: 'Kraft', run: 'Laufen', mobility: 'Mobility', other: 'Andere' };
 const GROUPS = Object.keys(MUSCLE_TARGETS) as MuscleGroup[];
@@ -114,15 +116,35 @@ function SetsTable({ weeks }: { weeks: WeekStats[] }) {
 }
 
 /** Minutes, hard days and sets per muscle: what the week was and how the last eight looked. No score, no streak. */
+/** Progress over the months: one line per area, no charts. */
+function Progress({ rows }: { rows: ProgressRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="card tk-stats" aria-label="Fortschritt">
+      <h2>Fortschritt</h2>
+      <dl className="tk-progress">
+        {rows.map((r) => (
+          <div key={r.label}><dt>{r.label}</dt><dd>{r.value}{r.change && <span className="muted"> · {r.change}</span>}</dd></div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 export function StatsScreen({ port, now }: { port: TrackingPort; now: () => number }) {
   const statsQ = usePortRecords(port, 'stats');
   const workoutsQ = usePortRecords(port, 'workout');
   const statsRecords = statsQ.records;
   const workoutRecords = workoutsQ.records;
+  const runRecords = usePortRecords(port, 'run').records;
   const stats = useMemo(() => statsOf(statsRecords), [statsRecords]);
   const workouts: LoggedWorkout[] = useMemo(() => countable(workoutRecords), [workoutRecords]);
   const nowMs = now();
   const v = useMemo(() => statsView(stats, workouts, nowMs), [stats, workouts, nowMs]);
+  const progress = useMemo(() => progressRows({
+    nowMs, ftp: stats?.ftp ?? [], weightKg: stats?.weightKg ?? null, runPace: runView(runRecords ?? [], nowMs).status?.numbers.easyPace ?? null,
+    workouts, weeks: v.weeks.slice(0, -1), targets: v.targets,
+  }), [stats, runRecords, workouts, v, nowMs]);
   if (statsQ.failed || workoutsQ.failed) {
     const retry = () => { if (statsQ.failed) statsQ.retry(); if (workoutsQ.failed) workoutsQ.retry(); };
     return (
@@ -146,6 +168,7 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
         <p className="muted">{v.asOfMs !== null ? `Stand: ${dateLabel(v.asOfMs)}` : 'Minuten und harte Tage erscheinen nach dem nächsten Lauf des Coaches.'}</p>
       </div>
       <ThisWeek v={v} hasStats={hasStats} muscles={muscles} />
+      <Progress rows={progress} />
       {(minutes || muscles) && (
         <section className="card tk-stats" aria-label="Letzte 8 Wochen">
           <h2>Letzte 8 Wochen</h2>
