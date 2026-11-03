@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App, type Env } from './App';
+import { browserPush } from './push';
 import { setupServiceWorker, type OpenState } from './register';
 import './web.css';
 
@@ -9,21 +10,36 @@ let sw: { check(): void } | null = null;
 let fresh = true;
 for (const t of ['pointerdown', 'keydown'] as const) addEventListener(t, () => { fresh = false; }, { capture: true, once: true });
 
+// A notification opens the app at /?tab=essen; the address goes back to / at once.
+const startTab = new URLSearchParams(location.search).get('tab');
+if (startTab) history.replaceState(null, '', '/');
+const ua = navigator.userAgent;
+const standalone = (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
+const hasWorker = import.meta.env.PROD && 'serviceWorker' in navigator;
+
 const env: Env = {
   fetchFn: (...a) => fetch(...a),
   now: Date.now,
   newId: () => crypto.randomUUID(),
   storage: localStorage,
   persist: async () => (await navigator.storage?.persist?.()) ?? false,
-  ua: navigator.userAgent,
-  standalone: (navigator as unknown as { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches,
+  ua,
+  standalone,
   onWorkoutOpen: (state) => { workoutOpen = state; sw?.check(); },
+  push: hasWorker ? browserPush({ ua, standalone }) : undefined,
+  startTab,
+  onOpenTab: (f) => {
+    if (!('serviceWorker' in navigator)) return () => {};
+    const on = (e: MessageEvent) => { const d = e.data as { type?: unknown; tab?: unknown } | null; if (d?.type === 'OPEN_TAB' && typeof d.tab === 'string') f(d.tab); };
+    navigator.serviceWorker.addEventListener('message', on);
+    return () => navigator.serviceWorker.removeEventListener('message', on);
+  },
 };
 
 createRoot(document.getElementById('root')!).render(<App env={env} />);
 
 // Registered from the module bundle (the server's CSP allows no inline scripts). Not in dev.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if (hasWorker) {
   void setupServiceWorker({ container: navigator.serviceWorker as never, isWorkoutOpen: () => workoutOpen, isFresh: () => fresh, reload: () => location.reload() })
     .then((s) => {
       sw = s;

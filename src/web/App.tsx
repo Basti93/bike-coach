@@ -10,6 +10,7 @@ import { mobilityToShow, openComplaints, planDateText, planIsStale, readPlan, sh
 import type { OpenState } from './register';
 import { createWebPort, type WebPort } from './webPort';
 import { MealsScreen, mealWeeks } from './MealsScreen';
+import type { PushEnv, SubJson } from './push';
 
 export type Env = {
   fetchFn: typeof fetch;
@@ -23,6 +24,12 @@ export type Env = {
   standalone: boolean;
   /** Tells the update logic whether a workout is open on this device. */
   onWorkoutOpen?: (state: OpenState) => void;
+  /** Push notifications; undefined where there is no service worker (dev). */
+  push?: PushEnv;
+  /** The tab a notification opened the app with. */
+  startTab?: string | null;
+  /** A notification tapped while the app is open asks for a tab. Returns the unsubscribe. */
+  onOpenTab?: (f: (tab: string) => void) => () => void;
 };
 
 const ACCOUNT_KEY = 'pandafit.account';
@@ -172,6 +179,111 @@ function Training({ port, env }: { port: WebPort; env: Env }) {
   );
 }
 
+const pushKey = (account: string) => `pandafit.push.${account}`;
+const cardKey = (account: string) => `pandafit.pushCard.${account}`;
+const PUSH_INSTALL = 'Auf dem iPhone gibt es Benachrichtigungen, wenn Pandafit auf dem Home-Bildschirm liegt (ab iOS 16.4): unten auf Teilen tippen, dann auf „Zum Home-Bildschirm“, und Pandafit von dort öffnen.';
+const PUSH_DENIED = 'Benachrichtigungen sind für Pandafit nicht erlaubt. Du kannst sie in den Einstellungen erlauben und dann im Profil einschalten.';
+const PUSH_FAILED = 'Das Einschalten hat gerade nicht geklappt. Versuch es später im Profil nochmal.';
+
+type PushState = { env: PushEnv; on: boolean; busy: boolean; showCard: boolean; enable: () => Promise<void>; disable: () => Promise<void>; closeCard: () => void };
+
+/** One on/off per account and device for both notices. A subscription is sent again at every start, so it follows the login. */
+function usePush(env: Env, account: string): { state: PushState | null; msg: string | null } {
+  const p = env.push;
+  const [on, setOn] = useState(() => env.storage.getItem(pushKey(account)) === 'on');
+  const [cardDone, setCardDone] = useState(() => env.storage.getItem(cardKey(account)) === '1');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const key = useRef<string | null>(null);
+  const getKey = useCallback(async (): Promise<string> => {
+    if (key.current) return key.current;
+    const res = await get(env, '/push/key');
+    const k = res.ok ? ((await res.json()) as { key?: unknown }).key : null;
+    if (typeof k !== 'string') throw new Error('no key');
+    return (key.current = k);
+  }, [env]);
+  const send = useCallback(async (s: SubJson) => {
+    const res = await post(env, '/push/subscribe', { endpoint: s.endpoint, keys: s.keys });
+    if (!res.ok) throw new Error('not stored');
+  }, [env]);
+
+  useEffect(() => {
+    if (!p || p.support !== 'ok') return;
+    void getKey().catch(() => {}); // ready before the tap, so subscribing follows the permission at once
+    if (env.storage.getItem(pushKey(account)) === 'on' && p.permission() === 'granted') {
+      void (async () => send((await p.current()) ?? (await p.subscribe(await getKey()))))().catch(() => {});
+    }
+  }, [env, p, account, getKey, send]);
+
+  if (!p) return { state: null, msg };
+  const closeCard = () => { env.storage.setItem(cardKey(account), '1'); setCardDone(true); };
+  const enable = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      if ((await p.requestPermission()) !== 'granted') { setMsg(PUSH_DENIED); return; } // first: iOS asks only during the tap
+      await send(await p.subscribe(await getKey()));
+      env.storage.setItem(pushKey(account), 'on'); setOn(true);
+    } catch { setMsg(PUSH_FAILED); } finally { setBusy(false); closeCard(); }
+  };
+  const disable = async () => {
+    setBusy(true); setMsg(null);
+    env.storage.setItem(pushKey(account), 'off'); setOn(false);
+    try {
+      const endpoint = await p.unsubscribe();
+      if (endpoint) await post(env, '/push/unsubscribe', { endpoint });
+    } catch { /* the push service answers 410 next time, and the server drops it */ } finally { setBusy(false); }
+  };
+  const showCard = !cardDone && !on && (p.support === 'install' || (p.support === 'ok' && p.permission() === 'default'));
+  return { state: { env: p, on, busy, showCard, enable, disable, closeCard }, msg };
+}
+
+function PushCard({ push }: { push: PushState }) {
+  return (
+    <div className="tk-screen">
+      <section className="card" aria-label="Benachrichtigungen einschalten">
+        <h2>Benachrichtigungen einschalten</h2>
+        {push.env.support === 'install' ? (
+          <>
+            <p>{PUSH_INSTALL}</p>
+            <button type="button" className="ghost" onClick={push.closeCard}>Verstanden</button>
+          </>
+        ) : (
+          <>
+            <p>Pandafit sagt dir Bescheid, wenn eine neue Version da ist und wenn dein Essensplan für die Woche kommt. Sonst nichts.</p>
+            <div className="tk-row">
+              <button type="button" disabled={push.busy} onClick={() => void push.enable()}>Einschalten</button>
+              <button type="button" className="ghost" onClick={push.closeCard}>Nicht jetzt</button>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PushSettings({ push }: { push: PushState }) {
+  const p = push.env;
+  const granted = p.support === 'ok' && p.permission() === 'granted';
+  return (
+    <section className="card">
+      <h2>Benachrichtigungen</h2>
+      {p.support === 'install' && <p>{PUSH_INSTALL}</p>}
+      {p.support === 'none' && <p className="muted">In diesem Browser gibt es keine Benachrichtigungen.</p>}
+      {p.support === 'ok' && (
+        <>
+          <p className="muted">Nur zwei: wenn eine neue Version da ist und wenn dein Essensplan für die Woche kommt.</p>
+          <label className="tk-row">
+            <input type="checkbox" role="switch" checked={push.on && granted} disabled={push.busy}
+              onChange={(e) => void (e.target.checked ? push.enable() : push.disable())} />
+            Benachrichtigungen
+          </label>
+          {push.on && !granted && <p className="muted">{PUSH_DENIED}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
 type Tab = 'heute' | 'training' | 'essen' | 'verlauf' | 'profil';
 const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
 
@@ -186,7 +298,7 @@ const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; last
 };
 
 /** The account on this device: who is signed in, how the sync stands, and the way out. */
-function Profil({ account, port, status, onLogout }: { account: string; port: WebPort; status: 'ok' | 'login' | 'offline'; onLogout: () => void }) {
+function Profil({ account, port, status, onLogout, push }: { account: string; port: WebPort; status: 'ok' | 'login' | 'offline'; onLogout: () => void; push: PushState | null }) {
   const [confirming, setConfirming] = useState(false);
   usePortRecords(port, 'workout'); // re-renders when the port changes
   const c = port.syncState();
@@ -199,6 +311,7 @@ function Profil({ account, port, status, onLogout }: { account: string; port: We
         <h2>{account}</h2>
         <p role="status">{syncText(status, c)}</p>
       </section>
+      {push && <PushSettings push={push} />}
       {confirming ? (
         <p role="status" className="tk-note">
           Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.
@@ -211,7 +324,9 @@ function Profil({ account, port, status, onLogout }: { account: string; port: We
 }
 
 function Shell({ account, env, port, onLogout, onRelogin }: { account: string; env: Env; port: WebPort; onLogout: () => void; onRelogin: (name: string) => void }) {
-  const [tab, setTab] = useState<Tab>('heute');
+  const [tab, setTab] = useState<Tab>(env.startTab === 'essen' ? 'essen' : 'heute');
+  const push = usePush(env, account);
+  useEffect(() => env.onOpenTab?.((t) => { if (t === 'essen') setTab('essen'); }), [env]);
   const [persistRefused, setPersistRefused] = useState(false);
   const [hint, setHint] = useState(false);
   const [, tick] = useState(0);
@@ -263,14 +378,16 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
               onDone={(n) => { if (n === account) { port.resume(); void port.sync(); } else onRelogin(n); }} />
           </div>
         )}
-        {hint && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
+        {push.state?.showCard && <PushCard push={push.state} />}
+        {push.msg && <div className="tk-screen"><p role="status" className="tk-note">{push.msg}</p></div>}
+        {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
         {persistRefused && <div className="tk-screen"><p role="status" className="tk-note">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} />}
           {tab === 'training' && <Training port={port} env={env} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'verlauf' && <HistoryScreen port={port} now={env.now} />}
-          {tab === 'profil' && <Profil account={account} port={port} status={status} onLogout={onLogout} />}
+          {tab === 'profil' && <Profil account={account} port={port} status={status} onLogout={onLogout} push={push.state} />}
         </ErrorBoundary>
       </main>
       <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleFetch, NEVER_CACHE, precacheName, routeFor } from '../../src/web/swLogic';
+import { clickTarget, handleFetch, NEVER_CACHE, notificationFor, precacheName, routeFor } from '../../src/web/swLogic';
 import { setupServiceWorker, shouldActivateNow, type OpenState } from '../../src/web/register';
 
 const ORIGIN = 'https://pf.example';
@@ -21,7 +21,8 @@ describe('service worker routing', () => {
       expect(routeFor(req(p, { mode: 'navigate' }), ORIGIN, ALLOW)).toBe('bypass');
     }
     expect(routeFor(req('/records?since=3'), ORIGIN, ALLOW)).toBe('bypass');
-    expect(NEVER_CACHE).toEqual(['/records', '/login', '/logout', '/me', '/device-token', '/healthz']);
+    expect(NEVER_CACHE).toEqual(['/records', '/login', '/logout', '/me', '/device-token', '/healthz', '/push']);
+    expect(routeFor(req('/push/key'), ORIGIN, ALLOW)).toBe('bypass');
   });
   it('only precached files are served; everything else is the browser\'s business', () => {
     expect(routeFor(req('/assets/index-a.js'), ORIGIN, ALLOW)).toBe('precached');
@@ -185,5 +186,33 @@ describe('update decisions', () => {
     h.installing.state = 'installed';
     h.installing.listeners.statechange?.();
     expect(h.posted).toEqual([{ type: 'SKIP_WAITING' }]);
+  });
+});
+
+describe('push notifications', () => {
+  it('shows the version notice with the app icon and a tag per type, so a repeat replaces it', () => {
+    const n = notificationFor(JSON.stringify({ type: 'version', title: 'Pandafit', body: 'x' }))!;
+    expect(n.title).toBe('Pandafit');
+    expect(n.options).toMatchObject({ body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.', tag: 'pandafit-version', icon: '/icons/icon-192.png', data: { url: '/' } });
+    const m = notificationFor(JSON.stringify({ type: 'meal' }))!;
+    expect(m.options).toMatchObject({ body: 'Dein Essensplan für die Woche ist da.', tag: 'pandafit-meal', data: { url: '/?tab=essen' } });
+  });
+
+  it('never shows text it did not expect; a broken or unknown message still shows a plain notice (iOS requires one)', () => {
+    for (const bad of [null, '', 'not json', JSON.stringify({ type: 'workout', body: 'Trainier jetzt!' }), JSON.stringify([1])]) {
+      const n = notificationFor(bad)!;
+      expect(n.options.tag).toBe('pandafit');
+      expect(n.options.body).not.toContain('Trainier');
+      expect(n.options.data.url).toBe('/');
+    }
+  });
+
+  it('a click focuses an open app window and tells it the tab, or opens the app', () => {
+    const win = (url: string) => ({ url });
+    expect(clickTarget({ url: '/?tab=essen' }, [win('https://other.example/'), win(`${ORIGIN}/`)], ORIGIN)).toEqual({ focus: 1, tab: 'essen' });
+    expect(clickTarget({ url: '/' }, [win(`${ORIGIN}/`)], ORIGIN)).toEqual({ focus: 0, tab: null });
+    expect(clickTarget({ url: '/?tab=essen' }, [], ORIGIN)).toEqual({ open: '/?tab=essen' });
+    expect(clickTarget({ url: 'https://evil.example/' }, [], ORIGIN)).toEqual({ open: '/' });
+    expect(clickTarget(undefined, [], ORIGIN)).toEqual({ open: '/' });
   });
 });

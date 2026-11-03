@@ -1,5 +1,5 @@
 /** Pure decisions of the service worker, so they can be tested without a browser. */
-export const NEVER_CACHE = ['/records', '/login', '/logout', '/me', '/device-token', '/healthz'];
+export const NEVER_CACHE = ['/records', '/login', '/logout', '/me', '/device-token', '/healthz', '/push'];
 /** shell: the app page. precached: a file of this build. bypass: not ours, the browser decides. */
 export type Route = 'bypass' | 'shell' | 'precached';
 type Req = { method: string; url: string; mode: string };
@@ -25,4 +25,33 @@ export async function handleFetch(r: Req, origin: string, allow: ReadonlySet<str
   if (route === 'bypass') return null;
   const key = route === 'shell' ? '/index.html' : new URL(r.url).pathname;
   return (await deps.cache.match(key)) ?? deps.fetch(r.url);
+}
+
+// ---- push notifications ----
+
+/** The only texts the worker ever shows: what the server sends is used for its type only. */
+const NOTES: Record<string, { body: string; url: string }> = {
+  version: { body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.', url: '/' },
+  meal: { body: 'Dein Essensplan für die Woche ist da.', url: '/?tab=essen' },
+};
+export type Note = { title: string; options: { body: string; tag: string; icon: string; badge: string; data: { url: string } } };
+
+/** A push always shows something (Safari ends subscriptions that stay silent); unknown or broken data gets a plain notice. */
+export function notificationFor(text: string | null): Note {
+  let type = '';
+  try { const d = JSON.parse(text ?? '') as { type?: unknown }; if (typeof d?.type === 'string') type = d.type; } catch { /* plain notice */ }
+  const n = Object.hasOwn(NOTES, type) ? NOTES[type]! : null;
+  return {
+    title: 'Pandafit',
+    options: { body: n?.body ?? 'Neues in Pandafit.', tag: n ? `pandafit-${type}` : 'pandafit', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: n?.url ?? '/' } },
+  };
+}
+
+/** On a click: focus an open window of the app and tell it the tab, or open the app at the notice's own path. */
+export function clickTarget(data: unknown, windows: readonly { url: string }[], origin: string): { focus: number; tab: 'essen' | null } | { open: string } {
+  const raw = (data as { url?: unknown } | null | undefined)?.url;
+  const url = typeof raw === 'string' && Object.values(NOTES).some((n) => n.url === raw) ? raw : '/';
+  const i = windows.findIndex((w) => { try { return new URL(w.url).origin === origin; } catch { return false; } });
+  if (i >= 0) return { focus: i, tab: url === '/?tab=essen' ? 'essen' : null };
+  return { open: url };
 }
