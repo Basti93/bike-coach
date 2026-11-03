@@ -55,6 +55,23 @@ Zeile anhängen (Crontab nie ersetzen):
 - `docker compose stop api` beendet den Prozess sofort (SIGTERM, kein Abwarten offener Anfragen); die Daten sind dank WAL sicher.
 - Speicher: api hat 256m, Node ist darin knapp; beim ersten Start `docker stats --no-stream` ansehen.
 
+## Benachrichtigungen (Web Push)
+
+Es gibt genau zwei Mitteilungen, kurz und ohne Gesundheitsdaten (sie laufen über den Push-Dienst von Apple, Google, Mozilla oder Microsoft):
+
+- **Neue Version:** „Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.“ Einmal pro Version an alle Abos. Die Version ist ein Hash der gebauten Web-App (`/app/out/web`), beim Start berechnet; ist er anders als der zuletzt gemeldete (in der Datenbank), wird er gespeichert und einmal gesendet. Ein Neustart mit demselben Image sendet nichts, ein reines Server-Update ohne geänderte App auch nicht.
+- **Essensplan:** „Dein Essensplan für die Woche ist da.“ Wenn der Mac für ein Konto einen Wochenplan (`mealplan`, Eintrag `week-JJJJ-MM-TT`) für eine Woche ablegt, die für dieses Konto neu ist. Einmal pro Woche und Konto, nur an die Abos dieses Kontos.
+
+Sonst nichts: keine Trainings-Erinnerungen, keine Serien.
+
+- **Schlüssel:** Das VAPID-Schlüsselpaar entsteht beim ersten Start und liegt in der Datenbank (Tabelle `meta`, Schlüssel `vapid`), also auch in den Sicherungen, nie im Repo oder Image. Geht es verloren, müssen alle Geräte die Mitteilungen im Profil einmal aus- und wieder einschalten.
+- **Absender (`PANDAFIT_PUSH_SUBJECT`):** in `.env` eine Kontaktadresse für die Push-Dienste, `mailto:...` oder `https://...`. Leer: die öffentliche Adresse der App (`https://pandafit.<tailnet>.ts.net`, gemerkt beim ersten Abo). Ein ungültiger Wert wird mit Warnung ignoriert.
+- **Ganz aus:** `PANDAFIT_PUSH=off` in `.env`, dann `docker compose up -d api`. Die Abos bleiben gespeichert, es wird nur nichts gesendet. `restore-drill.sh` startet seine Kopie immer mit `PANDAFIT_PUSH=off`.
+- **Pro Person aus:** in der App unter Profil, „Benachrichtigungen“, oder in den iPhone-Einstellungen bei Pandafit. Abmelden beendet die Abos dieser Sitzung; `set-password` beendet alle Sitzungen und damit auch deren Abos.
+- **Grenzen:** Abos nur zu den bekannten Push-Diensten (`web.push.apple.com`, `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`, nur https), höchstens 10 pro Konto (die ältesten fallen weg). Antwortet ein Dienst mit 404 oder 410, wird das Abo gelöscht. Senden läuft im Hintergrund mit 10 s Timeout und hält keine Anfrage auf; im Log stehen bei Fehlern nur Dienst-Host und Status, nie Inhalte oder Schlüssel.
+- **Netz:** Der Container braucht ausgehend HTTPS zu diesen Hosts.
+- **iPhone:** geht nur mit Pandafit auf dem Home-Bildschirm und iOS 16.4 oder neuer. In einem normalen Safari-Tab zeigt die App stattdessen den Hinweis zum Installieren.
+
 ## Kill Switch
 
 - Sofort aus: `docker compose stop api` (die App arbeitet offline weiter, der Abgleich pausiert).
