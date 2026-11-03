@@ -241,18 +241,19 @@ export class MigrationDesk {
     const target = path.join(dir, name);
     const metaFile = path.join(dir, `${name}.meta.json`);
     /** Reads the body chunk by chunk, counting and hashing, into `take`. Past the limit it stops at once. */
-    const drain = async (take: (chunk: Buffer) => Promise<void> | void): Promise<void> => {
+    const drain = async (take: (chunk: Buffer) => Promise<void> | void, onTooLarge?: (chunk: Buffer) => void): Promise<void> => {
       for await (const raw of body as AsyncIterable<Buffer | string>) {
         const chunk = typeof raw === 'string' ? Buffer.from(raw) : raw;
         bytes += chunk.length;
-        if (bytes > max) throw new MigrationError('too-large');
+        if (bytes > max) { onTooLarge?.(chunk); throw new MigrationError('too-large'); }
         hash.update(chunk);
         await take(chunk);
       }
     };
     if (label) {
       const chunks: Buffer[] = [];
-      await drain((chunk) => { chunks.push(chunk); });
+      // Too large: what has arrived of the secret is wiped before the refusal.
+      await drain((chunk) => { chunks.push(chunk); }, (last) => { for (const c of [...chunks, last]) c.fill(0); });
       const clear = Buffer.concat(chunks);
       try {
         if (hash.digest('hex') !== sha256) return 'hash';
@@ -267,8 +268,20 @@ export class MigrationDesk {
     } else {
       const part = path.join(dir, `.${name}.${randomBytes(6).toString('hex')}.part`);
       const out = fs.createWriteStream(part, { mode: 0o600 });
+      // Listened to for the stream's whole life: a write error (a full disk) while the body waits for its next chunk is kept here
+      // and thrown at the next step, never an unhandled 'error' that ends the process.
+      let failure: Error | null = null;
+      const broken = new Promise<never>((_, reject) => {
+        out.on('error', (e) => { failure ??= e; reject(e); });
+        out.on('close', () => { if (!out.writableFinished) reject(failure ?? new Error('Schreiben abgebrochen')); });
+      });
+      broken.catch(() => {});
       try {
-        await drain(async (chunk) => { if (!out.write(chunk)) await once(out, 'drain'); });
+        await drain(async (chunk) => {
+          if (failure) throw failure;
+          if (!out.write(chunk)) await Promise.race([once(out, 'drain'), broken]);
+        });
+        if (failure) throw failure;
         out.end();
         await finished(out);
         if (hash.digest('hex') !== sha256) return 'hash';
@@ -320,7 +333,8 @@ export class MigrationDesk {
     for (const i of m.items) {
       const target = path.join(dir, ...INSTALL[i.name](p));
       copySynced(path.join(incoming, i.name), target);
-      folders.add(path.dirname(target));
+      // The target's folder and every parent up to the account folder, as mkdir may have made them fresh (garmin/, garmin/data/).
+      for (let f = path.dirname(target); f.startsWith(dir + path.sep); f = path.dirname(f)) folders.add(f);
     }
     // Every rename above is durable before the marker says the move is done.
     for (const f of folders) fsyncDir(f);

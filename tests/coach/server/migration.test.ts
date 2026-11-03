@@ -451,8 +451,10 @@ test('every install folder is synced before the moved marker is written', async 
   try { expect(t.desk.finish(1, m).state).toBe('done'); } finally { openSpy.mockRestore(); syncSpy.mockRestore(); renameSpy.mockRestore(); }
   const marker = log.indexOf(`rename ${path.join(t.acc(1), 'moved.json')}`);
   expect(marker).toBeGreaterThan(0);
-  for (const dir of [['coach'], ['coach', 'gym'], ['garmin', 'data', 'pa'], ['hevy', 'pa'], ['garmin', 'tokens', 'pa']]) {
+  // The target folders and the parents mkdir made for them.
+  for (const dir of [[], ['coach'], ['coach', 'gym'], ['garmin'], ['garmin', 'data'], ['garmin', 'data', 'pa'], ['hevy'], ['hevy', 'pa'], ['garmin', 'tokens'], ['garmin', 'tokens', 'pa']]) {
     const at = log.indexOf(`sync ${path.join(t.acc(1), ...dir)}`);
+    if (dir.length === 0) { expect(at).toBeGreaterThanOrEqual(0); continue; }
     expect(at, dir.join('/')).toBeGreaterThanOrEqual(0);
     expect(at, dir.join('/')).toBeLessThan(marker);
   }
@@ -514,4 +516,51 @@ test('routes: a secret past its size is a 413 and leaves no part behind; a meals
     const r = await app!.inject({ method: 'POST', url: '/migrate/meals', payload: body, headers: { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '1', 'content-type': 'application/json' } });
     expect(r.statusCode, body).toBe(400);
   }
+});
+
+// ---- Fix round 2 ----
+
+test('a write error between chunks is answered, never crashes the process, and leaves no part', async () => {
+  const t = make();
+  t.desk.begin(1, manifestOf(P1, {}, []));
+  const real = fs.createWriteStream;
+  let made: fs.WriteStream | null = null;
+  const spy = vi.spyOn(fs, 'createWriteStream').mockImplementation(((...args: Parameters<typeof fs.createWriteStream>) => {
+    const s = real(...args);
+    made = s;
+    // The disk fills up after the first chunk was written, while the desk waits for the next one.
+    s.once('finish', () => {});
+    const write = s.write.bind(s);
+    let n = 0;
+    s.write = ((chunk: unknown, ...rest: unknown[]) => {
+      const ok = (write as (...a: unknown[]) => boolean)(chunk, ...rest);
+      if (++n === 1) setTimeout(() => s.destroy(Object.assign(new Error('no space left'), { code: 'ENOSPC' })), 5);
+      return ok;
+    }) as typeof s.write;
+    return s;
+  }) as typeof fs.createWriteStream);
+  const body = new PassThrough();
+  const first = Buffer.alloc(1024, 1), second = Buffer.alloc(1024, 2);
+  const done = t.desk.putItem(1, 'coach-state', body, sha(Buffer.concat([first, second])));
+  try {
+    body.write(first);
+    await new Promise((r) => setTimeout(r, 40));
+    body.end(second);
+    await expect(done).rejects.toMatchObject({ code: 'ENOSPC' });
+  } finally { spy.mockRestore(); }
+  expect(made).not.toBeNull();
+  expect(tree(path.join(t.acc(1), 'migrate'))).toEqual([]);
+});
+
+test('a secret past its size is wiped from memory', async () => {
+  const t = make();
+  t.desk.begin(1, manifestOf(P1, {}, []));
+  const body = new PassThrough();
+  const a = Buffer.alloc(40 * 1024, 0x61), b = Buffer.alloc(40 * 1024, 0x62);
+  const done = t.desk.putItem(1, 'hevy-key', body, sha('x'));
+  body.write(a);
+  body.end(b);
+  await expect(done).rejects.toMatchObject({ reason: 'too-large' });
+  expect(a.every((x) => x === 0)).toBe(true);
+  expect(b.every((x) => x === 0)).toBe(true);
 });
