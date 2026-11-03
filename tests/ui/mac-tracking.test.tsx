@@ -42,7 +42,7 @@ describe('server side', () => {
     const store = new RecordStore({ dir: tmp });
     const order: string[] = [];
     const put = store.put.bind(store);
-    store.put = (p, r) => { put(p, r); order.push('stored'); };
+    store.put = (p, r, seen) => { const res = put(p, r, seen); order.push('stored'); return res; };
     const out = handleRecords({ store, gym: gymSpy(), profiles }, { type: 'records-put', requestId: 'q1', profileId: 'a', record: wk() });
     order.push('answered');
     expect(order).toEqual(['stored', 'answered']);

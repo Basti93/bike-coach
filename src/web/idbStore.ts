@@ -1,19 +1,22 @@
 import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { PutResult } from '../tracking/ports';
+import { planWrite, type WriteOrigin } from '../tracking/kept-copy';
 import type { SyncCursors } from '../tracking/sync';
 import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
-type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean };
+type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number };
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan'];
 
 export type IdbStore = {
   /** Records the screens can draw. Unreadable ones stay stored (and are still synced) but are not listed. */
   list(kind: RecordKind): Promise<TrackedRecord[]>;
   /** Resolves only after the transaction completed, so the data is durable. `applyRecord` decides; nothing is overwritten blindly. Reports what was kept. */
-  put(r: TrackedRecord): Promise<PutResult>;
+  put(r: TrackedRecord, opts?: { seenMs?: number }): Promise<PutResult>;
   /** One transaction for a whole page. */
   applyMany(rs: TrackedRecord[]): Promise<void>;
+  /** The server took these versions. Not a change: no new sequence number. */
+  acknowledged(rs: TrackedRecord[]): Promise<void>;
   changedSince(cursor: number): Promise<{ records: TrackedRecord[]; cursor: number }>;
   cursors: { get(): Promise<SyncCursors>; set(c: SyncCursors): Promise<void> };
   /** Refused records stay in their own store, with the record as it was. */
@@ -107,12 +110,12 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
     return changed;
   }
 
-  async function apply(rs: TrackedRecord[], remote: boolean): Promise<PutResult[]> {
+  async function apply(rs: TrackedRecord[], origin: WriteOrigin): Promise<PutResult[]> {
     if (rs.length === 0) return [];
     let wrote = false; // also a first attempt whose commit we did not hear about
     const { results } = await run(async (d) => {
       // Local writes ask for a durable commit where the browser supports the option.
-      const tx = d.transaction(['records', 'meta'], 'readwrite', { durability: remote ? 'default' : 'strict' });
+      const tx = d.transaction(['records', 'meta'], 'readwrite', { durability: origin.from === 'remote' ? 'default' : 'strict' });
       const finished = done(tx);
       const records = tx.objectStore('records'), meta = tx.objectStore('meta');
       let seq = ((await req(meta.get('seq'))) as number | undefined) ?? 0;
@@ -121,11 +124,21 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
       for (const r of rs) {
         const key = `${r.kind}:${r.id}`;
         const have = (await req(records.get(key))) as Row | undefined;
-        const { keep } = applyRecord(have?.rec, r);
-        results.push({ kept: !have || keep !== have.rec || JSON.stringify(have.rec) === JSON.stringify(r), updatedMs: keep.updatedMs });
-        if (have && keep === have.rec) continue;
+        const plan = planWrite(have, r, origin);
+        results.push(plan.result);
+        if (plan.copy) {
+          const copyKey = `${plan.copy.kind}:${plan.copy.id}`;
+          const other = (await req(records.get(copyKey))) as Row | undefined;
+          const { keep } = applyRecord(other?.rec, plan.copy);
+          if (!other || keep !== other.rec) { seq += 1; any = true; records.put({ key: copyKey, seq, rec: keep, remote: false } satisfies Row); }
+        }
+        if (!plan.replaces) {
+          // The newer one stays, but now the device knows what the server has.
+          if (have && plan.serverMs !== have.serverMs) records.put({ ...have, serverMs: plan.serverMs } satisfies Row);
+          continue;
+        }
         seq += 1; any = true;
-        records.put({ key, seq, rec: keep, remote } satisfies Row);
+        records.put({ key, seq, rec: plan.keep, remote: origin.from === 'remote', serverMs: plan.serverMs } satisfies Row);
       }
       if (any) { meta.put(seq, 'seq'); wrote = true; }
       await finished;
@@ -143,8 +156,21 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
       const rows = (await req(tx.objectStore('records').getAll(IDBKeyRange.bound(`${kind}:`, `${kind}:￿`)))) as Row[];
       return rows.map((r) => r.rec).filter(readable);
     }),
-    put: async (r) => (await apply([r], false))[0]!,
-    applyMany: async (rs) => { await apply(rs, true); },
+    put: async (r, opts) => (await apply([r], { from: 'local', seenMs: opts?.seenMs }))[0]!,
+    applyMany: async (rs) => { await apply(rs, { from: 'remote' }); },
+    async acknowledged(rs) {
+      if (rs.length === 0) return;
+      await run(async (d) => {
+        const tx = d.transaction('records', 'readwrite');
+        const finished = done(tx);
+        for (const r of rs) {
+          const key = `${r.kind}:${r.id}`;
+          const row = (await req(tx.objectStore('records').get(key))) as Row | undefined;
+          if (row) tx.objectStore('records').put({ ...row, serverMs: r.updatedMs } satisfies Row);
+        }
+        await finished;
+      });
+    },
     changedSince: (cursor) => run(async (d) => {
       const tx = d.transaction('records', 'readonly');
       const rows = (await req(tx.objectStore('records').index('seq').getAll(IDBKeyRange.lowerBound(cursor, true)))) as Row[];

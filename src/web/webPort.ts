@@ -79,7 +79,7 @@ export function createWebPort(o: {
       if (paused) return 'login';
       await syncRecords({
         cursors: store.cursors,
-        local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs), put: (r) => store.put(r) },
+        local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs), acknowledged: (rs) => store.acknowledged(rs) },
         send: async (records) => {
           await verify();
           const out = await call('POST', '/records', { records });
@@ -133,10 +133,10 @@ export function createWebPort(o: {
 
   return {
     list: (kind: RecordKind) => store.list(kind),
-    async put(r) {
+    async put(r, opts) {
       writes++;
       let res;
-      try { res = await store.put(r); } finally { writes--; }
+      try { res = await store.put(r, opts); } finally { writes--; }
       schedule();
       return res;
     },

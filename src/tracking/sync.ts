@@ -1,5 +1,4 @@
-import { applyRecord, type TrackedRecord } from '../shared/records';
-import { keptCopy } from './kept-copy';
+import type { TrackedRecord } from '../shared/records';
 
 export type Refusal = { id: string; reason: string };
 export const MAX_BATCH_RECORDS = 200;
@@ -10,7 +9,7 @@ export type SyncCursors = {
   sent: number; received: number;
   /** The server database these cursors belong to. */
   generation?: string;
-  /** The server was restored: everything here goes up again. `sent` stays, it still says what was really unsent. */
+  /** The server was restored: everything here goes up again. */
   resend?: boolean;
 };
 
@@ -20,8 +19,8 @@ export type SyncOptions = {
     apply(r: TrackedRecord): Promise<void>;
     /** Preferred for pages: one load and one save. */
     applyMany?(rs: TrackedRecord[]): Promise<void>;
-    /** A record born on this device during a sync (a kept copy). Default: `apply`. */
-    put?(r: TrackedRecord): Promise<unknown>;
+    /** The server took these: later edits here stand on them. */
+    acknowledged?(rs: TrackedRecord[]): Promise<void>;
   };
   send: (rs: TrackedRecord[]) => Promise<{ refused: Refusal[] } | void>;
   fetchSince: (cursor: number) => Promise<{ records: TrackedRecord[]; cursor: number; more?: boolean; reset?: boolean; generation?: string }>;
@@ -51,8 +50,7 @@ function batches(records: TrackedRecord[]): TrackedRecord[][] {
 
 /**
  * Sends, fetches, then sends what the fetch left to send. The send comes first so that the server sees a version that is
- * about to lose and keeps it; before a page replaces unsent work holding more confirmed sets, that work is written as a
- * kept copy. `sent` only moves at the very end, so a failed run finds the same unsent work again and repeats harmlessly.
+ * about to lose and keeps it. What a page replaces is the local store's business (tracking/kept-copy). `sent` only moves at the very end, so a failed run finds the same unsent work again and repeats harmlessly.
  * Records that came from the server are not sent back. Throws on a failed request; the cursors then stay where they were.
  */
 export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal[] }> {
@@ -62,7 +60,6 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
   const fromServer = new Map<string, string>();
   const sentNow = new Map<string, string>();
   const key = (r: TrackedRecord) => `${r.kind}:${r.id}`;
-  const putLocal = opts.local.put ?? opts.local.apply;
 
   /** Sends what changed since `floor`, except what this run already sent or received. Null when it may not continue. */
   const sendChanged = async (floor: number): Promise<number | null> => {
@@ -72,21 +69,11 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
       if (!may()) return null;
       const res = await opts.send(batch);
       if (res && Array.isArray(res.refused)) refused.push(...res.refused);
+      const no = new Set(res && Array.isArray(res.refused) ? res.refused.map((x) => x.id) : []);
+      await opts.local.acknowledged?.(batch.filter((r) => !no.has(r.id)));
       for (const r of batch) sentNow.set(key(r), JSON.stringify(r));
     }
     return changed.cursor;
-  };
-
-  /** Unsent workouts of this device that this page is about to replace, as kept copies where they hold more sets. */
-  const copiesFor = async (page: TrackedRecord[]): Promise<TrackedRecord[]> => {
-    if (!page.some((r) => r.kind === 'workout')) return [];
-    const unsent = new Map((await opts.local.changedSince(cur.sent)).records.filter((r) => fromServer.get(key(r)) !== JSON.stringify(r)).map((r) => [key(r), r]));
-    return page.flatMap((r) => {
-      const mine = unsent.get(key(r));
-      if (!mine || applyRecord(mine, r).keep !== r) return [];
-      const copy = keptCopy(mine, r);
-      return copy ? [copy] : [];
-    });
   };
 
   if (!may()) return { refused };
@@ -105,8 +92,6 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
       if (wasAt !== 0) continue; // that page was read from a cursor of the old database
     }
     if (got.records.length > 0) {
-      // The copy first: if anything fails after this, the same copy is written again, the same text under the same id.
-      for (const c of await copiesFor(got.records)) await putLocal(c);
       if (opts.local.applyMany) await opts.local.applyMany(got.records);
       else for (const r of got.records) await opts.local.apply(r);
       for (const r of got.records) fromServer.set(key(r), JSON.stringify(r));

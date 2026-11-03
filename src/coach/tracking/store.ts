@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { applyRecord, type RecordKind, type TrackedRecord } from '../../shared/records';
+import type { RecordKind, TrackedRecord } from '../../shared/records';
+import { planWrite, type WriteOrigin } from '../../tracking/kept-copy';
+import type { PutResult } from '../../tracking/ports';
 
 const MAX_OVERWRITTEN = 200;
 
-type Entry = { record: TrackedRecord; seq: number };
+type Entry = { record: TrackedRecord; seq: number; /** See tracking/kept-copy. */ serverMs?: number };
 type FileData = { seq: number; entries: Record<string, Entry>; overwritten: TrackedRecord[] };
 
 const empty = (): FileData => ({ seq: 0, entries: {}, overwritten: [] });
@@ -55,27 +57,58 @@ export class RecordStore {
     fs.renameSync(`${f}.tmp`, f);
   }
 
-  put(profileId: string, r: TrackedRecord): void { this.putMany(profileId, [r]); }
+  /** A write made on this Mac. `seenMs` is the version it stands on, when the writer knows one. */
+  put(profileId: string, r: TrackedRecord, seenMs?: number): PutResult & { copies: TrackedRecord[] } {
+    const copies: TrackedRecord[] = [];
+    const [result] = this.write(profileId, [r], { from: 'local', seenMs }, copies);
+    return { ...result!, copies };
+  }
 
-  /** Many records with one load and one save, for bulk imports. */
-  putMany(profileId: string, records: TrackedRecord[]): void {
+  /**
+   * Many records with one load and one save. `remote` for versions from the server, `import` for what this Mac derives
+   * (Hevy, plan, complaints). Returns the kept copies this made.
+   */
+  putMany(profileId: string, records: TrackedRecord[], from: 'remote' | 'import' = 'import'): TrackedRecord[] {
+    const copies: TrackedRecord[] = [];
+    this.write(profileId, records, { from }, copies);
+    return copies;
+  }
+
+  private write(profileId: string, records: TrackedRecord[], origin: WriteOrigin, copies: TrackedRecord[]): PutResult[] {
     const data = this.load(profileId);
     let changed = false;
-    for (const r of records) {
+    const keepLoser = (loser: TrackedRecord) => {
+      const text = JSON.stringify(loser);
+      if (data.overwritten.some(o => JSON.stringify(o) === text)) return;
+      data.overwritten.push(loser);
+      if (data.overwritten.length > MAX_OVERWRITTEN) data.overwritten.splice(0, data.overwritten.length - MAX_OVERWRITTEN);
+      changed = true;
+    };
+    const results = records.map((r) => {
       const key = keyOf(r);
-      const current = data.entries[key]?.record;
-      const { keep, overwritten } = applyRecord(current, r);
-      if (keep !== current) { data.entries[key] = { record: keep, seq: ++data.seq }; changed = true; }
-      if (overwritten) {
-        const text = JSON.stringify(overwritten);
-        if (!data.overwritten.some(o => JSON.stringify(o) === text)) {
-          data.overwritten.push(overwritten);
-          if (data.overwritten.length > MAX_OVERWRITTEN) data.overwritten.splice(0, data.overwritten.length - MAX_OVERWRITTEN);
-          changed = true;
-        }
+      const have = data.entries[key];
+      const plan = planWrite(have && { rec: have.record, serverMs: have.serverMs }, r, origin);
+      if (plan.copy) {
+        const copyKey = keyOf(plan.copy);
+        const other = data.entries[copyKey];
+        const c = planWrite(other && { rec: other.record, serverMs: other.serverMs }, plan.copy, { from: 'import' });
+        if (c.replaces) { data.entries[copyKey] = { record: c.keep, seq: ++data.seq, serverMs: c.serverMs }; changed = true; copies.push(c.keep); }
       }
-    }
+      if (plan.replaces) { data.entries[key] = { record: plan.keep, seq: ++data.seq, serverMs: plan.serverMs }; changed = true; }
+      else if (have && plan.serverMs !== have.serverMs) { have.serverMs = plan.serverMs; changed = true; }
+      if (plan.overwritten) keepLoser(plan.overwritten);
+      return plan.result;
+    });
     if (changed) this.save(profileId, data);
+    return results;
+  }
+
+  /** The server took these versions. Not a change: no new sequence number. */
+  acknowledged(profileId: string, records: TrackedRecord[]): void {
+    if (records.length === 0) return;
+    const data = this.load(profileId);
+    for (const r of records) { const e = data.entries[keyOf(r)]; if (e) e.serverMs = r.updatedMs; }
+    this.save(profileId, data);
   }
 
   all(profileId: string, kind?: RecordKind): TrackedRecord[] {

@@ -46,17 +46,17 @@ export function handleRecords(deps: Deps, m: Extract<CoachClientMessage, { type:
   if (!record) return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false, refused: true } };
   let before: TrackedRecord | undefined;
   let after: TrackedRecord | undefined;
+  let result: ReturnType<RecordStore['put']>;
   try {
     before = record.kind === 'workout' ? deps.store.all(m.profileId, 'workout').find((r) => r.id === record.id) : undefined;
-    deps.store.put(m.profileId, record);
+    result = deps.store.put(m.profileId, record, typeof m.seenMs === 'number' && Number.isFinite(m.seenMs) ? m.seenMs : undefined);
     after = deps.store.all(m.profileId, record.kind).find((r) => r.id === record.id);
   } catch { return { reply: { type: 'records-put-result', requestId: m.requestId, ok: false } }; }
   // Stored, so the answer may go out. What follows is bookkeeping and must not turn a kept record into a failure.
   try {
     // Only the first change from open to finished plans; edits, replays and older copies do not.
     const finished = finishedOwnWorkout(after);
-    if (finished !== null) { deps.gym.start(m.profileId); if (finished && finishedOwnWorkout(before) !== true) deps.gym.workoutFinished(m.profileId); }
+    if (finished !== null) { deps.gym.start(m.profileId); if ((finished && finishedOwnWorkout(before) !== true) || result.copies.length > 0) deps.gym.workoutFinished(m.profileId); }
   } catch { /* the next scan sees the stored workout anyway */ }
-  const kept = !after || JSON.stringify(after) === JSON.stringify(record);
-  return { reply: { type: 'records-put-result', requestId: m.requestId, ok: true, kept, updatedMs: after?.updatedMs ?? record.updatedMs }, changed: m.profileId };
+  return { reply: { type: 'records-put-result', requestId: m.requestId, ok: true, kept: result.kept, updatedMs: result.updatedMs }, changed: m.profileId };
 }

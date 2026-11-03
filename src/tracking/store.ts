@@ -37,9 +37,11 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((l) => l());
 
+  /** The version this store's state stands on: what it opened, took over, or last wrote. */
+  let seen: number | undefined = isRecord(source) ? source.updatedMs : undefined;
   const putWithTimeout = (r: TrackedRecord): Promise<PutResult> => new Promise<PutResult>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('timeout')), PUT_TIMEOUT_MS);
-    port.put(r).then((res) => { clearTimeout(t); resolve(res); }, (e) => { clearTimeout(t); reject(e); });
+    port.put(r, { seenMs: seen }).then((res) => { clearTimeout(t); resolve(res); }, (e) => { clearTimeout(t); reject(e); });
   });
 
   /** Runs on the chain: writes the newest state. */
@@ -53,10 +55,11 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
       for (let i = 0; i < MAX_LOST_WRITES && !ok; i++) {
         const res = await putWithTimeout({ kind: 'workout', id: w.id, updatedMs: last, deleted, body: w });
         ok = res.kept;
-        if (!ok) last = Math.max(now(), res.updatedMs + 1, last + 1);
+        // `seen` stays: the write above the winner is what tells the port it was not seen.
+        if (!ok) { last = Math.max(now(), res.updatedMs + 1, last + 1); seen ??= 0; }
       }
     } catch { ok = false; }
-    if (ok) everSaved = true;
+    if (ok) { everSaved = true; seen = last; }
     snapshot = { workout: w, save: ok ? 'saved' : 'unsaved' };
     if (!ok && !disposed && !closed) timer = setTimeout(() => { timer = null; enqueue(writeNow); }, RETRY_MS);
     notify();
@@ -124,6 +127,7 @@ export function createWorkoutStore(port: TrackingPort, source: TrackedWorkout | 
       // Older than what was written here (a list read that started before our last write): nothing to take over.
       if (record.updatedMs < last) return;
       current = ensureIds(record.body as TrackedWorkout);
+      seen = record.updatedMs;
       snapshot = { workout: current, save: 'saved' };
       notify();
     },

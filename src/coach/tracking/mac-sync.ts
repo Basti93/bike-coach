@@ -116,6 +116,7 @@ export class AccountSync {
           changedSince: async (c) => this.deps.store.changedSince(id, c),
           apply: async (r) => this.applyRemote(id, [r]),
           applyMany: async (rs) => this.applyRemote(id, rs),
+          acknowledged: async (rs) => this.deps.store.acknowledged(id, rs),
         },
         send: async (records) => {
           const out = await call('POST', '/records', { records });
@@ -149,9 +150,10 @@ export class AccountSync {
       const all = store.all(id, 'workout');
       for (const w of workouts) before.set(w.id, finishedOwnWorkout(all.find((r) => r.id === w.id)));
     }
-    store.putMany(id, recs);
+    const copies = store.putMany(id, recs, 'remote');
+    for (const c of copies) before.set(c.id, null);
     try {
-      if (workouts.length > 0) {
+      if (before.size > 0) {
         const all = store.all(id, 'workout');
         for (const wid of before.keys()) {
           const done = finishedOwnWorkout(all.find((r) => r.id === wid));

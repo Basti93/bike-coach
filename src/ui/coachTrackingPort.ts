@@ -2,7 +2,8 @@ import type { CoachClientMessage, CoachServerMessage } from '../shared/coach-pro
 import { applyRecord, type RecordKind, type TrackedRecord } from '../shared/records';
 import type { TrackingPort } from '../tracking/ports';
 
-type Entry = { record: TrackedRecord };
+/** `seenMs`: the version the first write of this chain stood on. */
+type Entry = { record: TrackedRecord; seenMs?: number };
 type Answer = Extract<CoachServerMessage, { type: 'records-put-result' | 'records' }>;
 export type CoachTrackingPort = TrackingPort & {
   /** Messages from the Mac that belong to the tracking. */
@@ -56,11 +57,11 @@ export function createCoachTrackingPort(o: {
   const readQueue = (): Entry[] => readList(storageKey);
   const writeQueue = (q: Entry[]): void => store().setItem(storageKey, JSON.stringify(q));
 
-  const enqueue = (r: TrackedRecord): void => {
+  const enqueue = (r: TrackedRecord, seenMs: number | undefined): void => {
     const q = readQueue();
     const i = q.findIndex((e) => keyOf(e.record) === keyOf(r));
-    if (i < 0) q.push({ record: r });
-    else q[i] = { record: applyRecord(q[i].record, r).keep };
+    if (i < 0) q.push({ record: r, seenMs });
+    else q[i] = { record: applyRecord(q[i].record, r).keep, seenMs: q[i].seenMs };
     writeQueue(q);
   };
   const dequeue = (r: TrackedRecord): void => {
@@ -97,12 +98,13 @@ export function createCoachTrackingPort(o: {
         if (!head) break;
         inflight++;
         let a: Answer | null;
-        try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: head.record }); } finally { inflight--; }
+        try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: head.record, seenMs: head.seenMs }); } finally { inflight--; }
         if (!a || a.type !== 'records-put-result') break;
         if (a.ok && a.kept === false) {
-          // A newer record stayed on the Mac. What waited here is the rider's latest word: it goes above that one.
+          // A newer record stayed on the Mac. What waited here goes above it, standing on what it stood on, so the rule in
+          // tracking/kept-copy keeps that record as a copy if it holds more sets.
           const raised = { ...head.record, updatedMs: (a.updatedMs ?? head.record.updatedMs) + 1 };
-          writeQueue(readQueue().map((e) => (sameRecord(e.record, head.record) ? { record: raised } : e)));
+          writeQueue(readQueue().map((e) => (sameRecord(e.record, head.record) ? { record: raised, seenMs: head.seenMs ?? head.record.updatedMs } : e)));
           continue;
         }
         if (a.ok) { lastOkMs = now(); remember(head.record); dequeue(head.record); notify(); continue; }
@@ -134,17 +136,17 @@ export function createCoachTrackingPort(o: {
       for (const r of queued) merged.set(r.id, applyRecord(merged.get(r.id), r).keep);
       return [...merged.values()];
     },
-    async put(r) {
+    async put(r, opts) {
       // Behind unsent records, so the order of edits is kept.
       if (readQueue().length > 0 || flushing) {
-        enqueue(r);
+        enqueue(r, opts?.seenMs);
         notify();
         void flush();
         return { kept: true, updatedMs: r.updatedMs };
       }
       inflight++;
       let a: Answer | null;
-      try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: r }); } finally { inflight--; }
+      try { a = await request({ type: 'records-put', requestId: `${profileId}-${now()}-${++seq}`, profileId, record: r, seenMs: opts?.seenMs }); } finally { inflight--; }
       if (a && a.type === 'records-put-result') {
         if (!a.ok) throw new Error('Das Training konnte nicht gespeichert werden.');
         lastOkMs = now();
@@ -153,7 +155,7 @@ export function createCoachTrackingPort(o: {
         return { kept: a.kept !== false, updatedMs: a.updatedMs ?? r.updatedMs };
       }
       // No answer: kept on this device, it goes out when the Mac answers again.
-      enqueue(r);
+      enqueue(r, opts?.seenMs);
       remember(r);
       notify();
       return { kept: true, updatedMs: r.updatedMs };

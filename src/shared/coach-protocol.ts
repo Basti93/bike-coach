@@ -63,7 +63,7 @@ export type CoachClientMessage =
   | { type: 'gym-confirm'; profileId: string; name: string }
   | { type: 'mobility-done'; profileId: string; sessionId: string }
   | { type: 'mobility-feel'; profileId: string; text: string }
-  | { type: 'records-put'; requestId: string; profileId: string; record: TrackedRecord }
+  | { type: 'records-put'; requestId: string; profileId: string; record: TrackedRecord; seenMs?: number }
   | { type: 'records-list'; requestId: string; profileId: string; kind: RecordKind };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
