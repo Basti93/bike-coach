@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parse } from 'yaml';
 
 const root = resolve(__dirname, '../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -31,16 +32,49 @@ test('no secret or host name appears in the deploy files', () => {
   expect(read('web-server/.env.example')).toMatch(/^PANDAFIT_PORT=$/m);
 });
 
-test('the API container has read_only, no capabilities and only a localhost port', () => {
-  const api = read('web-server/compose.yaml').split(/^  tailscale:/m)[0]!;
-  expect(api).toMatch(/read_only: true/);
-  expect(api).toMatch(/cap_drop: \[ALL\]/);
-  expect(api).toContain('no-new-privileges:true');
-  expect(api).toContain('mem_limit: 256m');
-  expect(api).toContain('stop_grace_period: 15s');
-  expect(api).toMatch(/- \/tmp/);
-  const ports = [...api.matchAll(/^\s+- "([^"]*:\d+)"$/gm)].map((m) => m[1]);
-  expect(ports).toEqual(['127.0.0.1:${PANDAFIT_PORT:-7003}:8080']);
+type Service = Record<string, unknown> & { environment?: Record<string, string>; ports?: string[]; logging?: { options?: Record<string, string> } };
+const compose = () => parse(read('web-server/compose.yaml')) as { services: Record<string, Service> };
+
+describe.each(['api', 'tailscale'])('compose service %s', (name) => {
+  const svc = () => compose().services[name]!;
+  test('is locked down', () => {
+    expect(svc().read_only).toBe(true);
+    expect(svc().cap_drop).toEqual(['ALL']);
+    expect(svc().security_opt).toContain('no-new-privileges:true');
+    expect(svc().tmpfs).toEqual(expect.arrayContaining(['/tmp']));
+  });
+  test('has memory, cpu and pid limits and log rotation', () => {
+    expect(svc().mem_limit).toBe(name === 'api' ? '256m' : '128m');
+    expect(Number(svc().cpus)).toBeGreaterThan(0);
+    expect(Number(svc().cpus)).toBeLessThanOrEqual(1);
+    expect(svc().pids_limit).toBeGreaterThan(0);
+    expect(svc().logging?.options).toEqual({ 'max-size': '10m', 'max-file': '3' });
+  });
+  test('has no env_file', () => expect(svc()).not.toHaveProperty('env_file'));
+});
+
+test('only the API publishes a port, and only on localhost', () => {
+  const { services } = compose();
+  expect(services.api!.ports).toEqual(['127.0.0.1:${PANDAFIT_PORT:-7003}:8080']);
+  expect(services.tailscale).not.toHaveProperty('ports');
+  expect(services.tailscale).not.toHaveProperty('network_mode');
+  expect(services.tailscale).not.toHaveProperty('cap_add');
+  expect(services.tailscale).not.toHaveProperty('devices');
+});
+
+test('the Tailscale key reaches only the sidecar, which runs in userspace mode', () => {
+  const { services } = compose();
+  expect(services.tailscale!.environment).toMatchObject({ TS_USERSPACE: 'true', TS_HOSTNAME: 'pandafit' });
+  expect(services.tailscale!.environment).toHaveProperty('TS_AUTHKEY');
+  expect(Object.keys(services.api!.environment ?? {}).filter((k) => k.startsWith('TS_'))).toEqual([]);
+  expect(JSON.stringify(services.api)).not.toContain('TS_AUTHKEY');
+});
+
+test('the image runs as node and the build context hides secrets', () => {
+  expect(read('web-server/Dockerfile')).toMatch(/^USER node$/m);
+  expect(read('web-server/Dockerfile')).toContain('--ignore-scripts');
+  const ign = read('web-server/Dockerfile.dockerignore').split('\n');
+  for (const e of ['**/node_modules', '**/.env', '.git', 'out']) expect(ign).toContain(e);
 });
 
 test('scripts are executable and the lockfile exists', () => {

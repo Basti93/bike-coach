@@ -3,14 +3,15 @@
 FROM node:24-slim AS web
 WORKDIR /src
 COPY package.json package-lock.json ./
-RUN npm ci
+# No install scripts on the server: the web build needs none (esbuild/rolldown ship prebuilt binaries).
+RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build:web
 
 FROM node:24-slim AS deps
 WORKDIR /app/web-server
 COPY web-server/package.json web-server/package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 FROM node:24-slim
 ENV NODE_ENV=production
