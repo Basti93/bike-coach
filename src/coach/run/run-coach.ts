@@ -16,7 +16,7 @@ import { RUN_REGION, runComplaintMode, type ComplaintMode } from './complaints';
 import { garminRuns, type Run } from './garmin-runs';
 import { checkRunWeek, type RunCheck } from './guardrails';
 import type { WorkoutOps, WorkoutResult } from './garmin-workouts';
-import { RESTART_DAYS, TEST_MAIN_MIN, TEST_WARM_MIN } from './limits';
+import { TEST_EVERY_DAYS, TEST_MAIN_MIN, TEST_WARM_MIN } from './limits';
 import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from './numbers';
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
 import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
@@ -431,10 +431,12 @@ export class RunCoach {
     return all.length > 0 ? Math.max(...all) : null;
   }
 
-  /** The local date the newest run complaint closed, while the mode still says restart. */
+  /**
+   * The local date the newest run complaint closed, for the 28 days after it: no test in that time, and the ramp counts from
+   * that week on. The restart mode itself lasts only its first 7 days.
+   */
   private restartSince(ctx: Ctx): string | null {
-    if (ctx.mode !== 'restart') return null;
-    const closed = ctx.complaints.filter((c) => c.status === 'over' && RUN_REGION.test(c.text) && ctx.now - c.updatedMs < RESTART_DAYS * DAY);
+    const closed = ctx.complaints.filter((c) => c.status === 'over' && RUN_REGION.test(c.text) && ctx.now - c.updatedMs < TEST_EVERY_DAYS * DAY);
     return closed.length > 0 ? dateOfMs(Math.max(...closed.map((c) => c.updatedMs))) : null;
   }
 

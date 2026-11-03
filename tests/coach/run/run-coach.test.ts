@@ -338,6 +338,23 @@ describe('test runs and restarts', () => {
     expect(tests(weekKey(5))).toEqual([]);
   });
 
+  test('no test in the first 28 days after a run complaint closed, also after the 7-day restart window', async () => {
+    garmin = history(-10, -1);
+    settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+    now = at(0, 8);
+    // Without the complaint the test is due (switched on 60 days ago).
+    await make().tick('pa');
+    expect(tests(W0)).toHaveLength(1);
+
+    store = new RecordStore({ dir: path.join(dir, 'tracking2') });
+    settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+    complaints = [{ id: 'c1', text: 'Knie', status: 'over', startedMs: at(-20), updatedMs: at(-9) }];
+    await make({ dir: path.join(dir, 'run2') }).tick('pa');
+    expect(status()!.complaint).toBeNull();
+    expect(week(W0)!.runs.length).toBeGreaterThan(0);
+    expect(tests(W0)).toEqual([]);
+  });
+
   test('the week after a restart ramps from the restart week', async () => {
     // Running before the complaint, a pause of two weeks, then two runs of 30 minutes in the restart week.
     garmin = [...history(-7, -3), run('r1', at(1, 18), 30, 5), run('r2', at(3, 18), 30, 5)];

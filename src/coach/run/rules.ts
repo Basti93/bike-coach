@@ -21,7 +21,7 @@ export type RuleInput = {
   /** The last test run, or the switch-on time when there was none yet (Task 8); null plans no test. */
   lastTestMs: number | null;
   phase: Phase;
-  /** The date a closed run complaint restarted the plan; later weeks ramp from that week on. */
+  /** The date a closed run complaint restarted the plan, for 28 days after it: no test before then, and later weeks ramp from that week on. */
   restartSince: string | null;
   /** When a test counts as due; defaults to nowMs. A week planned ahead passes the start of its first open day. */
   dueAtMs?: number;
