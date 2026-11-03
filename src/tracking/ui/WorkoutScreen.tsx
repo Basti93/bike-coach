@@ -5,7 +5,7 @@ import type { Exercise } from '../../shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, startEmpty, startFromPlan,
+  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan,
   swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -124,7 +124,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
           <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
-      {w.exercises.map((e) => {
+      {w.exercises.map((e, ei) => {
+        const nextEx = w.exercises[ei + 1];
+        const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
         const labels = setLabels(e.sets);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
@@ -146,6 +148,14 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
                 {description && (
                   <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
                     onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
+                )}
+                {canLink && (
+                  <button type="button" className="secondary" aria-label={`${e.title} als Superset mit ${nextEx!.title}`}
+                    onClick={() => { setMenu(null); act((x) => linkSuperset(x, e.rid)); }}>Superset mit nächster Übung</button>
+                )}
+                {e.supersetId !== null && (
+                  <button type="button" className="secondary" aria-label={`${e.title} aus dem Superset lösen`}
+                    onClick={() => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }}>Aus Superset lösen</button>
                 )}
                 <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
                 <button type="button" className="secondary" aria-label={`${e.title} entfernen`}

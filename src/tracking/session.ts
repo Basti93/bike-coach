@@ -102,7 +102,12 @@ function mapSet(w: TrackedWorkout, ex: string, set: string, f: (s: TrackedSet) =
 export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: number): TrackedWorkout {
   const e = w.exercises.find((x) => x.rid === ex);
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: nowMs }));
-  return next === w ? w : { ...next, rest: { startMs: nowMs, durationS: e?.restS ?? DEFAULT_REST_S } };
+  if (next === w) return w;
+  // In a superset the rest comes after the last exercise of the round: none while a later one of the group still has an open set.
+  const i = next.exercises.findIndex((x) => x.rid === ex);
+  const group = e?.supersetId ?? null;
+  const goOn = group !== null && next.exercises.slice(i + 1).some((x) => x.supersetId === group && x.sets.some((s) => s.doneMs === null));
+  return { ...next, rest: goOn ? null : { startMs: nowMs, durationS: e?.restS ?? DEFAULT_REST_S } };
 }
 export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: null }));
@@ -165,4 +170,25 @@ export function durationLabel(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = String(s % 60).padStart(2, '0');
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+/** Joins an exercise with the next one in a superset; the next one joins this one's group, or both start a new group. */
+export function linkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
+  const i = w.exercises.findIndex((x) => x.rid === ex);
+  if (i < 0 || i + 1 >= w.exercises.length) return w;
+  const a = w.exercises[i], b = w.exercises[i + 1];
+  if (a.supersetId !== null && a.supersetId === b.supersetId) return w;
+  const used = w.exercises.map((x) => x.supersetId ?? -1);
+  const id = a.supersetId ?? b.supersetId ?? Math.max(-1, ...used) + 1;
+  const from = b.supersetId; // b's old group moves along with it
+  return { ...w, exercises: w.exercises.map((x, j) => (j === i || j === i + 1 || (from !== null && x.supersetId === from) ? { ...x, supersetId: id } : x)) };
+}
+
+/** Takes one exercise out of its superset; a group left with one exercise is dissolved. */
+export function unlinkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
+  const e = w.exercises.find((x) => x.rid === ex);
+  if (!e || e.supersetId === null) return w;
+  const group = e.supersetId;
+  const rest = w.exercises.filter((x) => x.rid !== ex && x.supersetId === group);
+  return { ...w, exercises: w.exercises.map((x) => (x.rid === ex || (rest.length === 1 && x.supersetId === group) ? { ...x, supersetId: null } : x)) };
 }

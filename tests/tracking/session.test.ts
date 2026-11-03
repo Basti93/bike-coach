@@ -1,6 +1,6 @@
 import {
   addExercise, addSet, confirmSet, editSet, finish, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
-  durationLabel, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
+  durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
 import type { GymWorkout } from '../../src/coach/gym/types';
@@ -160,5 +160,58 @@ describe('durationLabel', () => {
     expect(durationLabel(99_000)).toBe('1:39');
     expect(durationLabel(3_725_000)).toBe('1:02:05');
     expect(durationLabel(-5_000)).toBe('0:00');
+  });
+});
+
+describe('supersets', () => {
+  const three: GymWorkout = { name: 'S', exercises: ['pf-bench-press', 'pf-squat', 'pf-lat-pulldown'].map((id) => ({
+    templateId: id, title: id, restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 20, reps: 10 }, { type: 'normal' as const, weightKg: 20, reps: 10 }],
+  })) };
+  const start = () => startFromPlan(three, [], 1000, 'w1');
+  const groups = (w: ReturnType<typeof start>) => w.exercises.map((e) => e.supersetId);
+
+  it('links an exercise with the next one, and a third joins the same group', () => {
+    const w = start();
+    const a = linkSuperset(w, w.exercises[0].rid);
+    expect(groups(a)[0]).not.toBeNull();
+    expect(groups(a)[0]).toBe(groups(a)[1]);
+    expect(groups(a)[2]).toBeNull();
+    const b = linkSuperset(a, a.exercises[1].rid);
+    expect(new Set(groups(b)).size).toBe(1);
+    expect(linkSuperset(b, b.exercises[2].rid)).toBe(b); // the last one has no next exercise
+  });
+
+  it('gives a new group a number no other group uses', () => {
+    const w = start();
+    const a = linkSuperset(w, w.exercises[1].rid);
+    const b = linkSuperset({ ...a, exercises: [{ ...a.exercises[0], supersetId: 7 }, ...a.exercises.slice(1)] }, a.exercises[0].rid);
+    expect(new Set(groups(b))).toEqual(new Set([groups(b)[0]]));
+  });
+
+  it('unlinking takes one exercise out, and a group of one is dissolved', () => {
+    const w = start();
+    const a = linkSuperset(linkSuperset(w, w.exercises[0].rid), w.exercises[1].rid);
+    const b = unlinkSuperset(a, a.exercises[2].rid);
+    expect(groups(b)[2]).toBeNull();
+    expect(groups(b)[0]).toBe(groups(b)[1]);
+    const c = unlinkSuperset(b, b.exercises[0].rid);
+    expect(groups(c)).toEqual([null, null, null]);
+  });
+
+  it('no rest between the exercises of a superset, rest after the last one', () => {
+    const st = start();
+    const s = linkSuperset(st, st.exercises[0].rid);
+    const a = confirmSet(s, s.exercises[0].rid, s.exercises[0].sets[0].rid, 5000);
+    expect(a.rest).toBeNull();
+    const b = confirmSet(a, a.exercises[1].rid, a.exercises[1].sets[0].rid, 6000);
+    expect(b.rest).toEqual({ startMs: 6000, durationS: 90 });
+  });
+
+  it('rests normally once the later exercise of the superset is finished', () => {
+    const st = start();
+    const s0 = linkSuperset(st, st.exercises[0].rid);
+    let s = s0;
+    for (const set of s0.exercises[1].sets) s = confirmSet(s, s0.exercises[1].rid, set.rid, 4000);
+    expect(confirmSet(s, s.exercises[0].rid, s.exercises[0].sets[0].rid, 5000).rest).toEqual({ startMs: 5000, durationS: 90 });
   });
 });

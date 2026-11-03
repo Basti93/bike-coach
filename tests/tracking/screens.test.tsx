@@ -657,3 +657,25 @@ test('finished exercises and the current one are marked', async () => {
   expect(squat.getAttribute('aria-current')).toBe('step');
   expect(squat.className).not.toContain('tk-ex-done');
 });
+
+test('two exercises can be joined to a superset and taken apart again from the menu', async () => {
+  const w = open({ exercises: [
+    { exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(60, 8, null)] },
+    { exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [set(80, 5, null)] },
+  ] });
+  const { port, map } = fakePort([rec(w)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Bankdrücken als Superset mit Kniebeuge' }));
+  await waitFor(() => {
+    const g = bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId);
+    expect(g[0]).not.toBeNull();
+    expect(g[0]).toBe(g[1]);
+  });
+  expect(screen.getAllByText('Superset')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+  expect(screen.queryByRole('button', { name: /als Superset mit/ })).toBeNull(); // the last exercise has no next one
+  fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge aus dem Superset lösen' }));
+  await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId)).toEqual([null, null]));
+});
