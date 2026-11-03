@@ -119,6 +119,7 @@ const familyOf = (u: Unit): Family => (PANTRY_UNITS.includes(u) ? 'etwas' : (u a
 export const itemKey = (name: string, unit: Unit): string => `${lower(name)}|${familyOf(unit)}`;
 
 /** Common pack sizes, so the list says what to take from the shelf. */
+const PLURAL: Record<string, string> = { Packung: 'Packungen', Becher: 'Becher', Beutel: 'Beutel' };
 const PACKS: Record<string, { size: number; label: string }> = {
   magerquark: { size: 500, label: 'Becher' }, skyr: { size: 450, label: 'Becher' }, 'hüttenkäse': { size: 200, label: 'Becher' },
   naturjoghurt: { size: 500, label: 'Becher' }, 'griechischer joghurt': { size: 500, label: 'Becher' }, sojajoghurt: { size: 500, label: 'Becher' },
@@ -147,7 +148,7 @@ export function shopAmount(name: string, unit: Unit, amount: number): string {
   if (fam === 'etwas') return 'aus dem Vorrat';
   if ((fam === 'g' || fam === 'ml') && pack) {
     const n = Math.max(1, Math.ceil(amount / pack.size - 1e-9));
-    return `${n} ${pack.label} à ${pack.size >= 1000 ? `${de(pack.size / 1000)} ${fam === 'g' ? 'kg' : 'l'}` : `${pack.size} ${fam}`}`;
+    return `${n} ${n === 1 ? pack.label : PLURAL[pack.label] ?? pack.label} à ${pack.size >= 1000 ? `${de(pack.size / 1000)} ${fam === 'g' ? 'kg' : 'l'}` : `${pack.size} ${fam}`}`;
   }
   if (fam === 'g' || fam === 'ml') return roundMass(amount, fam);
   if (fam === 'Zehe') { const n = Math.max(1, Math.ceil(amount / CLOVES_PER_BULB - 1e-9)); return n === 1 ? '1 Knolle' : `${n} Knollen`; }
@@ -173,7 +174,8 @@ export function recipeAmount(i: Ingredient, portions: number): string {
 }
 
 export type ShopItem = { key: string; name: string; amount: string; state: ItemState; dishes: string[] };
-export type ShopList = { sections: { section: Section; items: ShopItem[] }[]; have: ShopItem[]; open: number; total: number };
+/** `pantry`: spoonfuls and pinches, usually at home already: only a reminder to check. */
+export type ShopList = { sections: { section: Section; items: ShopItem[] }[]; pantry: ShopItem[]; have: ShopItem[]; open: number; total: number };
 
 /** Every ingredient of the week, summed over the portions really eaten, grouped by supermarket section. */
 export function shoppingList(plan: MealPlan, state: MealState): ShopList {
@@ -188,11 +190,12 @@ export function shoppingList(plan: MealPlan, state: MealState): ShopList {
       if (have) { have.amount += i.amount * portions; have.dishes.add(m.dish.title); } else acc.set(key, { name: i.name.trim(), unit: i.unit, amount: i.amount * portions, section: i.section, dishes: new Set([m.dish.title]) });
     }
   }
-  const all = [...acc.entries()].map(([key, a]) => ({ section: a.section, item: { key, name: a.name, amount: shopAmount(a.name, a.unit, a.amount), state: state.items[key]?.state ?? 'offen', dishes: [...a.dishes] } as ShopItem }));
+  const all = [...acc.entries()].map(([key, a]) => ({ section: a.section, pantry: familyOf(a.unit) === 'etwas', item: { key, name: a.name, amount: shopAmount(a.name, a.unit, a.amount), state: state.items[key]?.state ?? 'offen', dishes: [...a.dishes] } as ShopItem }));
   const byName = (x: ShopItem, y: ShopItem) => x.name.localeCompare(y.name, 'de');
-  const sections = SECTIONS.map((section) => ({ section, items: all.filter((x) => x.section === section && x.item.state !== 'da').map((x) => x.item).sort(byName) })).filter((s) => s.items.length > 0);
+  const sections = SECTIONS.map((section) => ({ section, items: all.filter((x) => x.section === section && !x.pantry && x.item.state !== 'da').map((x) => x.item).sort(byName) })).filter((s) => s.items.length > 0);
+  const pantry = all.filter((x) => x.pantry && x.item.state !== 'da').map((x) => x.item).sort(byName);
   const have = all.filter((x) => x.item.state === 'da').map((x) => x.item).sort(byName);
-  return { sections, have, open: all.filter((x) => x.item.state === 'offen').length, total: all.length };
+  return { sections, pantry, have, open: all.filter((x) => x.item.state === 'offen').length, total: all.length };
 }
 
 // ---- Reading records: anything else is skipped, never thrown ----

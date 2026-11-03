@@ -8,7 +8,7 @@ import {
 
 type Props = { profileId: string; meals: MealsData; send: (m: CoachClientMessage) => void };
 
-const SLOT_NOTE: Record<Slot, string> = { fruehstueck: 'vor der Arbeit', mittag: 'zum Mitnehmen', abend: 'kleine Portion' };
+const SLOT_NOTE: Record<Slot, string> = { fruehstueck: 'vor der Arbeit', mittag: 'werktags zum Mitnehmen', abend: 'kleine Portion' };
 const keyOf = (m: Meal) => mealKey(m.day, m.slot);
 const short = (k: string) => { const [d, s] = k.split('-'); return `${DAY_SHORT[Number(d)]}${s === 'mittag' ? '' : ` ${SLOT_LABEL[s as Slot]}`}`; };
 export const personColor = (people: Person[], id: string): number => Math.max(0, people.findIndex((p) => p.id === id)) % 4;
@@ -121,8 +121,8 @@ export const ShoppingView = ({ week, onSet }: { week: MealWeek; onSet: (item: st
   const row = (i: ShopItem) => (
     <li key={i.key} className={`shop-item ${i.state}`}>
       <button type="button" className="shop-check" role="checkbox" aria-checked={i.state === 'gekauft'} aria-label={`${i.name} gekauft`} onClick={() => onSet(i.key, NEXT_STATE[i.state])}>{i.state === 'gekauft' ? '✓' : ''}</button>
-      <span className="shop-name" title={i.dishes.join(', ')}>{i.name}</span>
-      <span className="shop-amount">{i.amount}</span>
+      <span className="shop-name" title={`Für: ${i.dishes.join(', ')}`}>{i.name}</span>
+      {i.amount !== 'aus dem Vorrat' && <span className="shop-amount">{i.amount}</span>}
       {i.state === 'da'
         ? <button type="button" className="shop-have" onClick={() => onSet(i.key, 'offen')}>doch kaufen</button>
         : <button type="button" className="shop-have" onClick={() => onSet(i.key, 'da')} aria-label={`${i.name} schon da`}>schon da</button>}
@@ -139,6 +139,12 @@ export const ShoppingView = ({ week, onSet }: { week: MealWeek; onSet: (item: st
             <ul>{s.items.map(row)}</ul>
           </section>
         ))}
+        {list.pantry.length > 0 && (
+          <section className="card shop-section shop-pantry">
+            <h3>Kleine Mengen: kurz prüfen, ob da</h3>
+            <ul>{list.pantry.map(row)}</ul>
+          </section>
+        )}
         {list.have.length > 0 && (
           <section className="card shop-section shop-have-list">
             <h3>Schon da</h3>

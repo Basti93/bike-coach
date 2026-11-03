@@ -59,7 +59,8 @@ describe('shopping list', () => {
     // the curry is cooked for 4: 2 tins, 280 g rice
     expect(items.Kichererbsen!.amount).toBe('2 Dosen');
     expect(items.Basmatireis!.amount).toBe('1 Packung à 500 g');
-    expect(items.Currypulver!.amount).toBe('aus dem Vorrat');
+    expect(items.Currypulver).toBeUndefined();
+    expect(list.pantry.map((i) => `${i.name}: ${i.amount}`)).toEqual(['Currypulver: aus dem Vorrat']);
     expect(items.Karotten).toEqual({ amount: '1 Stück', section: 'Obst und Gemüse' });
     expect(list.sections.map((s) => s.section)).toEqual(['Obst und Gemüse', 'Kühlregal', 'Vorrat']);
   });
@@ -91,6 +92,7 @@ describe('shopping list', () => {
     expect(shopAmount('Mehl', 'g', 1230)).toBe('1,3 kg');
     expect(shopAmount('Knoblauch', 'Zehe', 3)).toBe('1 Knolle');
     expect(shopAmount('Vollkornbrot', 'Scheibe', 12)).toBe('2 Brote (12 Scheiben)');
+    expect(shopAmount('Feta', 'g', 300)).toBe('2 Packungen à 200 g');
   });
 });
 

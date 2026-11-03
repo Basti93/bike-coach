@@ -7,6 +7,9 @@ import { rampTest } from '../../src/coach/rules';
 import { STARTER_SESSIONS } from '../../src/shared/starter-sessions';
 import { MOBILITY_EXERCISES } from '../../src/coach/mobility/exercises';
 import { initialGymState } from '../../src/coach/gym/state';
+import os from 'node:os';
+import { MealCoach } from '../../src/coach/meals/meal-coach';
+import { itemKey, withEater, withItem } from '../../src/shared/meals';
 
 const out = process.argv[2] ?? 'ui-shots';
 fs.mkdirSync(out, { recursive: true });
@@ -60,6 +63,21 @@ const GYM = {
   ] } } },
   thinking: false, ready: true, hevy: false, hasHistory: true, complaints: [],
 };
+// Meals: a real rule plan for Max and Lena, seen on Tuesday 10 November 2026, with a few ticks and Lena out on Thursday evening.
+const MEALS = await (async () => {
+  let now = new Date(2026, 10, 7, 6).getTime(); // planned on Saturday morning, seen on Tuesday
+  const c = new MealCoach({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'shots-meals-')), nowMs: () => now, profiles: () => [{ id: 'pa', name: 'Max' }, { id: 'pb', name: 'Lena' }], noOpenRide: () => true, trainingDays: () => [0, 3] });
+  c.setSettings('pa', { on: true });
+  c.setSettings('pb', { on: true, dislikes: ['Koriander', 'rohe Zwiebeln'] });
+  await c.tick();
+  now = new Date(2026, 10, 10, 9).getTime();
+  const v = JSON.parse(JSON.stringify(c.view('pa')));
+  const w = v.weeks[0];
+  w.notice = null;
+  w.state = withItem(withItem(withEater(w.state, '3-abend', 'pb', false, now), itemKey('Haferflocken', 'g'), 'da', now), itemKey('Skyr', 'g'), 'gekauft', now);
+  return v;
+})();
+
 const shots: { name: string; ride: object; coach?: object | null; steps?: (win: Page) => Promise<void>; crop?: string; pick?: boolean; offer?: object; width?: number; height?: number; hash?: string; click?: string; click2?: RegExp; wait?: number; fill?: boolean }[] = [
   { name: 'profile', ride: idle() },
   { name: 'profile-empty', ride: idle({ profiles: [] }) },
@@ -124,6 +142,10 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Satz 2 erledigt' }).first().click();
     await win.waitForTimeout(300);
   } },
+  { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
+  { name: 'meals-recipe', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280, click2: /Mittwoch, Mittagessen/ },
+  { name: 'meals-shopping', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 1000, width: 1280, click2: /^Einkaufsliste$/ },
+  { name: 'meals-settings', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Profil', height: 1700 },
   { name: 'status-off', ride: idle({ devices: { trainer: 'connected', hr: 'searching', clicker: 'off' }, deviceNames: { trainer: 'Zwift Hub' }, latest: {} }) },
 ];
 
@@ -144,7 +166,7 @@ const stub = () => {
         }
       }, 0);
     }
-    stateMsg(c: { mobility?: unknown }) { const x = c as { together?: unknown; garminMsg?: object; gym?: unknown }; return JSON.stringify({ type: 'coach-state', state: c, thinking: false, together: x.together, gym: x.gym, mobility: c.mobility, ...x.garminMsg }); }
+    stateMsg(c: { mobility?: unknown }) { const x = c as { together?: unknown; garminMsg?: object; gym?: unknown }; return JSON.stringify({ type: 'coach-state', state: c, thinking: false, together: x.together, gym: x.gym, mobility: c.mobility, meals: (c as { meals?: unknown }).meals, ...x.garminMsg }); }
     send(raw: string) { if (this.coach && raw.includes('records-')) { const m = JSON.parse(raw) as { type: string; requestId: string; kind?: string; record?: { kind: string; id: string; updatedMs: number } }; const db = ((w as unknown as { __db?: Map<string, { kind: string }> }).__db ??= new Map()); if (m.record) db.set(`${m.record.kind}:${m.record.id}`, m.record); setTimeout(() => this.onmessage?.({ data: JSON.stringify(m.type === 'records-list' ? { type: 'records', requestId: m.requestId, kind: m.kind, records: [...db.values()].filter((r) => r.kind === m.kind) } : { type: 'records-put-result', requestId: m.requestId, ok: true, kept: true, updatedMs: m.record?.updatedMs }) }), 0); return; }
       if (this.coach && raw.includes('mobility-done')) { const c = w.__coach as { mobility?: unknown; mobilityAfter?: unknown }; c.mobility = c.mobilityAfter; setTimeout(() => this.onmessage?.({ data: this.stateMsg(c) }), 0); } const h = (w.__coach as { health?: unknown } | null)?.health; if (this.coach && h && raw.includes('garmin-health')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'garmin-health', data: h }) }), 0); const d = (w.__coach as { detail?: unknown } | null)?.detail; if (this.coach && d && raw.includes('ride-detail')) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ type: 'ride-detail', detail: d }) }), 0); } close() {} addEventListener() {}
   };
