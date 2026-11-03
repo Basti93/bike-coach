@@ -1,4 +1,5 @@
 import type { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import type { Profile } from '../shared/profiles';
 import type { CoachClientMessage, CoachServerMessage, CoachStateMessage } from '../shared/coach-protocol';
@@ -21,7 +22,10 @@ import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
 import { handleRecords } from './tracking/records-api';
 import { errorKind } from './error-kind';
-import { MobilityCoach } from './mobility/mobility';
+import { MobilityCoach, muscleOf } from './mobility/mobility';
+import { RunCoach } from './run/run-coach';
+import { dayRatings } from './day-load';
+import { allTraining } from './all-training';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
@@ -181,6 +185,31 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     rides: (id) => coach.state(id).summaries,
     strength: (id) => gym.history(id),
     complaints: (id) => coach.state(id).complaints ?? [],
+    runs: (id) => run.runs(id),
+  });
+  // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
+  const run = new RunCoach({
+    dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
+    profile: (id) => profiles().find((p) => p.id === id) ?? null,
+    garminDb: (id) => {
+      if (!/^[A-Za-z0-9-]+$/.test(id)) return null;
+      const file = path.join(garminDir, 'data', id, 'garmin.db');
+      return fs.existsSync(file) ? new GarminDb(file) : null;
+    },
+    // Only reads the other coaches' plans and history; never changes them.
+    days: (id, dates) => {
+      const s = coach.state(id);
+      const history = gym.history(id);
+      const now = nowMs();
+      return dayRatings({
+        rides: s.summaries, bikeNext: s.next?.session ?? null, gym: history, gymNext: gym.state(id).next?.workout ?? null, muscleOf,
+        bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
+      }, dates);
+    },
+    weeks: (id) => allTraining({ rides: coach.state(id).summaries, workouts: gym.history(id), activities: garminData(id)?.activities }, nowMs())?.weeks ?? [],
+    complaints: (id) => coach.state(id).complaints ?? [],
+    garmin: (id) => ({ connected: garmin.status(id).state === 'connected', capable: false }),
+    onExport: (id) => { accountSync.touch(id); notifyRecords(id); },
   });
   // Optional and per profile: without a link nothing is sent. Never runs with a ride open and never blocks the bike coach.
   const accountSync = new AccountSync({
@@ -420,6 +449,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (syncs) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
       // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
       if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+      // Separate safeguard: the run coach must never disturb a ride or the other coaches, and plans with no ride open only.
+      if (runs) for (const p of list) { try { void run.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);

@@ -254,3 +254,40 @@ test('a failed scan logs only the error kind, never its message or the error obj
     expect(log.mock.calls.flat().some((x) => x instanceof Error)).toBe(false);
   } finally { log.mockRestore(); }
 });
+
+describe('the run coach in the runtime', () => {
+  const runSettings = (runtime: ReturnType<typeof make>['runtime']) => runtime.records.put('pa', { kind: 'run', id: 'settings', updatedMs: Date.now(), deleted: false, body: { type: 'settings', on: true, weekdays: [0, 1, 2, 3, 4, 5, 6], answers: null } });
+  const runIds = (runtime: ReturnType<typeof make>['runtime']) => runtime.records.all('pa', 'run').map((r) => r.id).sort();
+
+  test('scan ticks the run coach only for profiles coached here', async () => {
+    const away = make({ coachHere: () => false });
+    runSettings(away.runtime);
+    away.runtime.scan();
+    await settle();
+    expect(runIds(away.runtime)).toEqual(['settings']);
+
+    const here = make();
+    runSettings(here.runtime);
+    here.runtime.scan();
+    await settle();
+    expect(runIds(here.runtime)).toContain('status');
+    expect(runIds(here.runtime).some((id) => id.startsWith('week-'))).toBe(true);
+  });
+
+  test('with no ride open and Garmin missing, scan writes no run records', async () => {
+    const { runtime } = make();
+    runtime.scan();
+    await settle();
+    runtime.scan();
+    await settle();
+    expect(runIds(runtime)).toEqual([]);
+  });
+
+  test('with a ride open scan writes no run records', async () => {
+    const { runtime } = make({ noOpenRide: () => false });
+    runSettings(runtime);
+    runtime.scan();
+    await settle();
+    expect(runIds(runtime)).toEqual(['settings']);
+  });
+});

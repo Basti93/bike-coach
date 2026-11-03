@@ -9,7 +9,7 @@ export type PlanBody = {
   workout: import('../coach/gym/types').GymWorkout | null; reason: string | null; source: string | null; note: string | null;
   questions: string[]; atMs: number; mobility: MobilitySession | null;
 };
-export type MobilitySession = { id: string; forSession: 'bike' | 'strength'; minutes: number; exercises: { id: string; title: string; howTo: string; area: string }[]; reason: string };
+export type MobilitySession = { id: string; forSession: 'bike' | 'strength' | 'run'; minutes: number; exercises: { id: string; title: string; howTo: string; area: string }[]; reason: string };
 export type Complaint = { text: string; status: string; atMs: number };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
