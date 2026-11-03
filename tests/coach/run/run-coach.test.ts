@@ -395,6 +395,14 @@ describe('test runs and restarts', () => {
     now = at(0, 9);
     await coach.tick('pa');
     expect(tests(W0).map((r) => r.date)).not.toContain('2026-11-02');
+    expect(ask).toHaveBeenCalledTimes(2);
+    // A new day alone, or a change on a day that has passed, replans nothing.
+    now = at(1, 9);
+    await coach.tick('pa');
+    hard.delete('2026-11-02');
+    now = at(1, 10);
+    await coach.tick('pa');
+    expect(ask).toHaveBeenCalledTimes(2);
   });
 
   test('the week after a restart ramps from the restart week', async () => {

@@ -235,12 +235,20 @@ export class RunCoach {
     const cache = this.cache(id);
     const existing = ctx.weeks.get(t.week) ?? null;
     const missed = (existing?.runs ?? []).filter((r) => r.date < ctx.today && this.doneOn(ctx.runs, r.date) === null).map((r) => r.date);
+    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers]);
     const dates = Array.from({ length: 9 }, (_, i) => dateKey(dateOf(t.week, i - 1)));
     const days = this.deps.days(id, dates);
-    // A bike or gym plan that changed the days still ahead (and the day before them) replans, so a test or long run leaves a day that became hard.
-    const rated = dates.filter((d) => d >= shift(t.fromDate, -1)).map((d) => [d, days[d]?.hardness ?? null, days[d]?.legs === true]);
-    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, rated]);
-    if (existing && cache.planKey[t.week] === key) { this.matchDone(ctx, t.week); return; }
+    const ratings = Object.fromEntries(dates.map((d) => [d, `${days[d]?.hardness ?? '-'}${days[d]?.legs ? ' legs' : ''}`]));
+    // A bike or gym plan that changed a day still ahead replans, so a test or long run leaves a day that became hard.
+    // Days that have passed do not count: what was actually ridden there never moves the rest of the week.
+    const madeWith = cache.planDays[t.week];
+    const daysChanged = madeWith !== undefined && dates.some((d) => d >= t.fromDate && madeWith[d] !== undefined && madeWith[d] !== ratings[d]);
+    if (existing && cache.planKey[t.week] === key && !daysChanged) {
+      if (!madeWith) { cache.planDays[t.week] = ratings; this.saveCache(id); }
+      this.matchDone(ctx, t.week);
+      return;
+    }
+    cache.planDays = Object.fromEntries([...Object.entries(cache.planDays).filter(([w]) => w >= addWeeks(t.week, -2)), [t.week, ratings]]);
 
     const allowedDates = weekDates(t.week).filter((d, i) => ctx.weekdays.includes(i) && d >= t.fromDate);
     const rule = ruleWeek({

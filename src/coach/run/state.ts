@@ -12,6 +12,8 @@ export type RunCache = {
   lastError: ClaudeErrorKind | null;
   /** Per week: the inputs its plan was settled for. A changed key replans the week. */
   planKey: Record<string, string>;
+  /** Per week: the day ratings (bike and gym) its plan was made with. A changed rating of a day still ahead replans the week. */
+  planDays: Record<string, Record<string, string>>;
   /** Weeks whose review record was written. */
   reviewed: string[];
   /** When running was switched on; null while off. Anchors the first test run. */
@@ -21,7 +23,7 @@ export type RunCache = {
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialRunCache = (profileId: string): RunCache => ({
-  profileId, paceCache: {}, attempts: 0, lastAttemptMs: null, lastError: null, planKey: {}, reviewed: [], onSinceMs: null,
+  profileId, paceCache: {}, attempts: 0, lastAttemptMs: null, lastError: null, planKey: {}, planDays: {}, reviewed: [], onSinceMs: null,
 });
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -32,7 +34,8 @@ export const loadRunCache = (dir: string, profileId: string): RunCache => {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(f, 'utf8'));
     if (!isObj(parsed) || !isObj(parsed.paceCache) || !isObj(parsed.planKey) || !Array.isArray(parsed.reviewed)) throw new Error('not a cache');
-    return { ...initialRunCache(profileId), ...(parsed as Partial<RunCache>), profileId };
+    const c: RunCache = { ...initialRunCache(profileId), ...(parsed as Partial<RunCache>), profileId };
+    return isObj(c.planDays) ? c : { ...c, planDays: {} };
   } catch {
     return initialRunCache(profileId);
   }
