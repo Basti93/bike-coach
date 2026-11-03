@@ -67,3 +67,5 @@ export const ANSWER_START_MAX_MIN = 90;
 export const ANSWER_RUN_MAX_MIN = 30;
 // ... and at most 3 runs. "Usual" may describe running before a break.
 export const ANSWER_MAX_RUNS = 3;
+// Our own choice: the number of runs grows by at most 1 over last week's runs.
+export const MAX_RUN_STEP = 1;

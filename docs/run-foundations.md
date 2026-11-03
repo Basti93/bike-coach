@@ -7,7 +7,7 @@ The coach makes no medical claims. It does not promise a health effect, does not
 ## Phases
 
 - **Phase 1, "wieder fit".** Easy runs only, at a conversational effort. With a known max heart rate there is a cap at 75 % of it. Without one, runs are planned by feel ("so, dass du dich noch unterhalten kannst") and by time.
-- **Phase 2, "Distanz".** One long run a week grows step by step. It goes on the latest running day of the week that has no hard session and does not follow leg training; without such a day there is no long run that week. The other runs stay easy. Speed work is not planned, apart from the occasional test run.
+- **Phase 2, "Distanz".** One long run a week grows step by step. It goes on the latest running day of the week that has no hard session and does not follow leg training; without such a day there is no long run that week, and the other runs stay at the usual recent length. The other runs stay easy. Speed work is not planned, apart from the occasional test run.
 - **Into phase 2:** at least 3 runs a week in 4 of the last 5 complete weeks. A week with an active run complaint does not count.
 - **Back to phase 1:** 21 days without a run. The new phase starts on that day.
 
@@ -47,6 +47,7 @@ The coach makes no medical claims. It does not promise a health effect, does not
 | ANSWER_START_MAX_MIN | 90 | The most minutes of a first week planned from answers alone |
 | ANSWER_RUN_MAX_MIN | 30 | The longest run of a first week planned from answers alone |
 | ANSWER_MAX_RUNS | 3 | The most runs of a first week planned from answers alone |
+| MAX_RUN_STEP | 1 | The number of runs grows by at most 1 over last week's runs |
 
 The easy band (60 % to 75 % of max heart rate), the cap, and the easy-pace smoothing are also in `limits.ts` and are our own choices too.
 

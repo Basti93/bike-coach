@@ -5,7 +5,7 @@ import type { ComplaintMode } from './complaints';
 import type { Run } from './garmin-runs';
 import { capFor, startPoint } from './numbers';
 import {
-  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
+  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, MAX_RUN_STEP, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
   MIN_RUN_MIN, PHASE2_OF, PHASE2_RUNS, PHASE2_WEEKS, TEST_COOL_MIN, TEST_EVERY_DAYS, TEST_LOAD, TEST_MAIN_MIN, TEST_WARM_MIN,
 } from './limits';
 
@@ -127,16 +127,21 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   let base: number | null = null;
   let total: number;
   let longest: number;
+  let typical: number;
   let desired: number;
   if (recent.length > 0) {
     base = recent.reduce((s, r) => s + r.durationS / 60, 0) / Math.max(1, baseWeeks.length);
     // Ramp in whole minutes, rounded down (the epsilon keeps 100 × 1.1 at 110); a few short runs never plan less than a gentle start.
     total = Math.max(Math.floor(base * (1 + MAX_RAMP) + 1e-9), Math.min(start, DEFAULT_RUNS * DEFAULT_MIN));
     longest = Math.max(...recent.map((r) => r.durationS / 60));
-    desired = input.weekdays.length;
+    const sorted = recent.map((r) => r.durationS / 60).sort((x, y) => x - y);
+    typical = sorted[Math.floor((sorted.length - 1) / 2)]!;
+    const lastWeek = addWeeks(input.week, -1);
+    desired = Math.min(input.weekdays.length, past.filter((r) => weekOf(r.startMs) === lastWeek).length + MAX_RUN_STEP);
   } else {
     total = start;
     longest = startMin;
+    typical = startMin;
     desired = startRuns;
   }
 
@@ -152,6 +157,8 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
 
   // No run longer than 10 minutes over the longest recent one.
   const cap = Math.min(MAX_RUN_MIN, Math.max(MIN_RUN_MIN, Math.floor(longest + LONG_STEP_MIN)));
+  // In phase 2 only the long run grows; a week without one keeps its runs at the usual recent length.
+  const easyCap = phase === 2 ? Math.min(cap, Math.max(MIN_RUN_MIN, Math.floor(typical))) : cap;
   const hard = (d: string): number => (input.days[d]?.hardness === 'hard' ? 1 : 0);
   const afterLegs = (d: string): boolean => input.days[shift(d, -1)]?.legs === true;
   const prefer = (ds: string[]): string[] => [...ds].sort((x, y) => hard(x) - hard(y) || byDate(x, y));
@@ -187,7 +194,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
         const each = Math.floor(Math.min((budget - long) / (k - 1), long));
         if (each >= MIN_RUN_MIN) return use.map((date) => (date === longDate ? { date, kind: 'long', minutes: long } : { date, kind: 'easy', minutes: each }));
       } else {
-        const each = Math.floor(Math.min(budget / k, cap));
+        const each = Math.floor(Math.min(budget / k, easyCap));
         if (each >= MIN_RUN_MIN) return use.map((date) => ({ date, kind: 'easy', minutes: each }));
       }
     }
@@ -208,7 +215,8 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     runs,
     reason: reasonText(phase, {
       mode, light, noDay: open.length === 0, tooFew: open.length > 0 && runs.length === 0, rising,
-      long: runs.some((r) => r.kind === 'long'), test: testDate !== null,
+      long: runs.some((r) => r.kind === 'long') ? 'placed' : longDate === null ? 'noDay' : testDate !== null ? 'test' : 'short',
+      test: testDate !== null,
     }),
     phase,
     totalMinutes: runs.reduce((s, r) => s + r.minutes * (r.kind === 'test' ? TEST_LOAD : 1), 0),
@@ -217,7 +225,9 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   };
 };
 
-export type ReasonFacts = { mode: ComplaintMode; light: boolean; noDay: boolean; tooFew: boolean; rising: boolean; long: boolean; test: boolean };
+/** Phase 2: the long run was placed, no day could take it, the test took its place, or the time was too short. */
+export type LongFact = 'placed' | 'noDay' | 'test' | 'short';
+export type ReasonFacts = { mode: ComplaintMode; light: boolean; noDay: boolean; tooFew: boolean; rising: boolean; long: LongFact; test: boolean };
 
 /** One calm sentence that names the phase. */
 export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
@@ -229,7 +239,8 @@ export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
   if (w.light) return `${name}: Eine leichtere Woche, damit Erholung Platz hat.`;
   const test = w.test ? ', dazu ein Testlauf als Messpunkt' : '';
   if (phase === 1) return `${name}: Ruhige Läufe, die Wochenzeit ${w.rising ? 'steigt' : 'bleibt'} behutsam${test}.`;
-  return w.long
-    ? `${name}: Ein langer ruhiger Lauf, die anderen Läufe bleiben ruhig${test}.`
-    : `${name}: Diese Woche gibt es nur ruhige Läufe, für den langen Lauf passt kein Tag${test}.`;
+  if (w.long === 'placed') return `${name}: Ein langer ruhiger Lauf, die anderen Läufe bleiben ruhig${test}.`;
+  if (w.long === 'test') return `${name}: Diese Woche ein Testlauf statt des langen Laufs, die anderen Läufe bleiben ruhig.`;
+  if (w.long === 'noDay') return `${name}: Diese Woche gibt es nur ruhige Läufe, für den langen Lauf passt kein Tag${test}.`;
+  return `${name}: Diese Woche gibt es nur ruhige Läufe, für einen langen Lauf reicht die Zeit nicht${test}.`;
 };
