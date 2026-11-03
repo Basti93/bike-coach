@@ -210,6 +210,51 @@ test('queued: a change older than the item\'s last change is skipped', async () 
   await vi.waitFor(() => expect(coach().complaints![0]!.status).toBe('healing'));
 });
 
+const json = (x: unknown) => new Response(JSON.stringify(x), { status: 200, headers: { 'content-type': 'application/json' } });
+
+test('queued: an older Mac complaint change never undoes a newer change the phone made through the records', async () => {
+  const t = await start({ now: { ms: 1000 } });
+  const c = await t.as(1);
+  t.send(c, { type: 'subscribe', profileId: 'pa' });
+  t.send(c, { type: 'note', profileId: 'pa', text: 'Mein Knie schmerzt seit gestern' });
+  const a = t.household.account(1)!;
+  const coach = () => a.runtime.coachState('pa')!;
+  await vi.waitFor(() => expect(coach().complaints?.length).toBe(1));
+  const cpl = coach().complaints![0]!;
+  // The phone marked it over at 50 s; the api serves that record once.
+  const phone = { kind: 'complaint', id: cpl.id, updatedMs: 50_000, deleted: false, body: { text: cpl.text, status: 'over', atMs: cpl.startedMs } };
+  const sent: { id: string; updatedMs: number; body: { status: string } }[] = [];
+  let served = false;
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') { sent.push(...(JSON.parse(String(init.body)) as { records: typeof sent }).records); return json({ refused: [] }); }
+    const records = served ? [] : [phone];
+    served = true;
+    return json({ records, cursor: 1, more: false });
+  }));
+  t.clock.ms = 100_000;
+  t.household.scan();
+  await vi.waitFor(() => expect(coach().complaints![0]!.status).toBe('over'));
+  await vi.waitFor(() => expect(a.runtime.accountSync.status('pa').lastSyncMs).toBe(100_000));
+  sent.length = 0; // the complaint as it was before the phone's change went up in that first sync
+  // The Mac's change was made at 40 s, before the phone's, and arrives only now.
+  t.send(c, { type: 'queued', qid: 'q-old', atMs: 40_000, message: { type: 'complaint-update', profileId: 'pa', id: cpl.id, status: 'healing' } });
+  await vi.waitFor(() => expect(c.frames.some((f) => f.type === 'queued-ack' && f.qid === 'q-old')).toBe(true));
+  expect(coach().complaints![0]!).toMatchObject({ status: 'over', updatedMs: 50_000 });
+  // The next sync sends nothing stale back to the phone.
+  t.clock.ms = 200_000;
+  t.household.scan();
+  await vi.waitFor(() => expect(a.runtime.accountSync.status('pa').lastSyncMs).toBe(200_000));
+  expect(sent.filter((r) => r.id === cpl.id && r.body.status !== 'over')).toEqual([]);
+  expect(a.runtime.records.all('pa', 'complaint').find((r) => r.id === cpl.id)).toMatchObject({ updatedMs: 50_000, body: { status: 'over' } });
+  // A queued change newer than the phone's wins and keeps its own time, on the server and in the exported record.
+  t.send(c, { type: 'queued', qid: 'q-new', atMs: 60_000, message: { type: 'complaint-update', profileId: 'pa', id: cpl.id, status: 'healing' } });
+  await vi.waitFor(() => expect(coach().complaints![0]!).toMatchObject({ status: 'healing', updatedMs: 60_000 }));
+  t.clock.ms = 300_000;
+  t.household.scan();
+  await vi.waitFor(() => expect(a.runtime.accountSync.status('pa').lastSyncMs).toBe(300_000));
+  expect(a.runtime.records.all('pa', 'complaint').find((r) => r.id === cpl.id)).toMatchObject({ updatedMs: 60_000, body: { status: 'healing' } });
+});
+
 test('queued: notes and answers are always applied, in order', async () => {
   const t = await start();
   const c = await t.as(1);

@@ -277,6 +277,30 @@ describe('sync through the account records', () => {
     expect((maxState.body as { items: Record<string, { state: string }> }).items[key]!.state).toBe('gekauft');
   });
 
+  it('a change made earlier elsewhere and applied late (a queued one) never undoes a newer tick from the phone', async () => {
+    const { coach, store, clock } = setup({ linked: ['max', 'lena'] });
+    coach.setSettings('max', ON());
+    coach.setSettings('lena', ON());
+    await coach.tick();
+    const key = itemKey('Tofu natur', 'g');
+    const t0 = clock.now;
+    // Lena's phone ticks the item at t0 + 2 s, then eaters at t0 + 2 s; its record arrives before any tick has merged it.
+    const st = store.all('lena', 'mealplan').find((r) => r.id === 'state-2026-11-09')!;
+    store.putMany('lena', [{ ...st, updatedMs: t0 + 2000, body: { eaters: { '2-abend': { max: { on: false, atMs: t0 + 2000 } } }, items: { [key]: { state: 'gekauft', atMs: t0 + 2000 } } } }], 'remote');
+    clock.now = t0 + 5000;
+    // Max's Mac made its changes at t0 + 1 s, before the phone's.
+    coach.setItem('max', '2026-11-09', key, 'da', t0 + 1000);
+    coach.setEater('max', '2026-11-09', '2-abend', 'max', true, t0 + 1000);
+    let w = coach.view('max').weeks[0]!;
+    expect(w.state.items[key]).toEqual({ state: 'gekauft', atMs: t0 + 2000 });
+    expect(w.state.eaters['2-abend']!.max).toEqual({ on: false, atMs: t0 + 2000 });
+    expect((store.all('lena', 'mealplan').find((r) => r.id === 'state-2026-11-09')!.body as { items: Record<string, { state: string }> }).items[key]!.state).toBe('gekauft');
+    // A late change newer than the phone's wins, with its own time.
+    coach.setItem('max', '2026-11-09', key, 'da', t0 + 3000);
+    w = coach.view('max').weeks[0]!;
+    expect(w.state.items[key]).toEqual({ state: 'da', atMs: t0 + 3000 });
+  });
+
   it('turning the plan off tombstones the records of that profile', async () => {
     const { coach, store } = setup({ linked: ['max'] });
     coach.setSettings('max', ON());

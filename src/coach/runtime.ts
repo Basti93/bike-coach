@@ -72,7 +72,8 @@ export type RuntimeOptions = {
 };
 
 export type CoachRuntime = {
-  handle(m: CoachClientMessage, reply: (m: CoachServerMessage) => void): void;
+  /** `atMs`: when a change applied late (queued while offline) was made. Without it the change is made now. */
+  handle(m: CoachClientMessage, reply: (m: CoachServerMessage) => void, atMs?: number): void;
   view(profileId: string): CoachStateMessage | null;
   scan(): void;
   /** The files of a ride were replaced: its summary is made again from the new files. */
@@ -302,20 +303,20 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
 
   /** Settings, ticks and who eats are local writes and fine with a ride open. Planning and swapping wait for no ride (the coach checks). */
-  const handleMeals = (m: CoachClientMessage): void => {
+  const handleMeals = (m: CoachClientMessage, atMs: number | undefined): void => {
     const meals = mealsNow();
     if (!meals) return;
     const sync = () => publish();
     if (m.type === 'meals-settings') meals.setSettings(m.profileId, m.settings);
-    if (m.type === 'meals-eater') meals.setEater(m.profileId, m.week, m.meal, m.person, m.on === true);
-    if (m.type === 'meals-item') meals.setItem(m.profileId, m.week, m.item, m.state);
+    if (m.type === 'meals-eater') meals.setEater(m.profileId, m.week, m.meal, m.person, m.on === true, atMs);
+    if (m.type === 'meals-item') meals.setItem(m.profileId, m.week, m.item, m.state, atMs);
     if (m.type === 'meals-replan') { void meals.replan(m.profileId, m.week).catch(() => {}).finally(sync); }
     if (m.type === 'meals-swap') { void meals.swap(m.profileId, m.week, m.meal, m.ai === true).catch(() => {}).finally(sync); }
     if (m.type === 'meals-chat') { void meals.chat(m.profileId, m.week, m.text).catch(() => {}).finally(sync); }
     sync();
   };
 
-  const handle = (m: CoachClientMessage, reply: (msg: CoachServerMessage) => void): void => {
+  const handle = (m: CoachClientMessage, reply: (msg: CoachServerMessage) => void, atMs?: number): void => {
     const send = (msg: CoachServerMessage) => { try { reply(msg); } catch { /* connection gone */ } };
     try {
       // The server coach handles a profile update and a queued change itself, before they reach a runtime.
@@ -359,7 +360,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (m.type === 'garmin-disconnect') { garminSync.stop(m.profileId); uploader.stop(m.profileId); garmin.disconnect(m.profileId); try { coach.garminDisconnected(m.profileId); } catch { /* unknown profile */ } publish(); return; }
       if (m.type === 'garmin-health') { send({ type: 'garmin-health', data: healthOf(m.profileId, m.rangeDays) }); return; }
       if (m.type.startsWith('gym-')) { handleGym(m, send); return; }
-      if (m.type.startsWith('meals-')) { handleMeals(m); return; }
+      if (m.type.startsWith('meals-')) { handleMeals(m, atMs); return; }
       // Local writes only, also with a ride open: no AI, no Hevy, no Garmin.
       if (m.type === 'mobility-done') { mobility.markDone(m.profileId, m.sessionId); publish(); return; }
       if (m.type === 'mobility-feel') { mobility.feel(m.profileId, m.text); publish(); return; }
@@ -368,7 +369,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (m.type === 'feedback') { coach.feedback(m.profileId, m.rideId, m.rating); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-feedback') { coach.skipFeedback(m.profileId); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'note') { coach.note(m.profileId, m.text); if (noOpenRide()) refresh(m.profileId); }
-      if (m.type === 'complaint-update') { coach.updateComplaint(m.profileId, m.id, m.status); if (noOpenRide()) refresh(m.profileId); }
+      if (m.type === 'complaint-update') { coach.updateComplaint(m.profileId, m.id, m.status, atMs); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'answer-question') { coach.answerQuestion(m.profileId, m.questionId, m.text); if (noOpenRide()) refresh(m.profileId); }
       if (m.type === 'skip-question') coach.skipQuestion(m.profileId);
       if (m.type === 'debrief-seen') coach.debriefSeen(m.profileId);

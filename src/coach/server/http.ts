@@ -229,6 +229,13 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     } catch { return false; }
   };
 
+  /** True for a complaint change made before the complaint's last change, wherever that was made. */
+  const olderThanComplaint = (a: AccountCoach, m: CoachClientMessage, atMs: number): boolean => {
+    if (m.type !== 'complaint-update') return false;
+    const have = (a.runtime.coachState(a.profileId)?.complaints ?? []).find((x) => x.id === m.id);
+    return have !== undefined && atMs < have.updatedMs;
+  };
+
   /** One message for this account, live or from a client's queue. Anything for another profile id is refused without an answer. */
   const apply = (c: Conn, a: AccountCoach, m: Record<string, unknown>, atMs: number, queued: boolean): void => {
     if (typeof m.type !== 'string' || m.profileId !== a.profileId) return;
@@ -238,6 +245,8 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     const clock = key === null ? null : isHouseholdKey(key) ? household.mealClock() : clockOf(a);
     // A queued change older than the item's last change is skipped. A live one is the newest by definition.
     if (key !== null && clock && queued && !clock.admits(key, atMs)) return;
+    // The phone changes a complaint through the records, which the clock does not see; the complaint's own time does.
+    if (queued && olderThanComplaint(a, msg, atMs)) return;
     // Only a change that takes effect moves the clock.
     const stamp = (): void => { if (key !== null && clock) clock.stamp(key, atMs); };
     if (msg.type === 'profile-update') {
@@ -254,10 +263,11 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
       sendView(c, a);
       return;
     }
+    // A queued change keeps the time it was made, so it is newest only against older changes, here and in the exported records.
     a.runtime.handle(msg, (reply) => {
       if (reply.type === 'coach-state') sendView(c, a);
       else send(c, reply);
-    });
+    }, queued ? atMs : undefined);
   };
 
   const onMessage = (c: Conn, a: AccountCoach, data: RawData, isBinary: boolean): void => {

@@ -352,19 +352,30 @@ export class MealCoach {
     done(replySwapped(meal, dish.title), [key!]);
   }
 
-  setEater(id: string, week: string, key: string, person: string, on: boolean): void {
+  /**
+   * `atMs` is when the change was made, for one applied late (queued while offline): it then only wins against an older entry.
+   * Phones' changes are taken in first, so one not merged yet is neither overwritten nor undone.
+   */
+  setEater(id: string, week: string, key: string, person: string, on: boolean, atMs?: number): void {
     const d = this.load();
     const plan = d.plans[week];
     if (!this.enabled(id) || !plan || !plan.meals.some((m) => mealKey(m.day, m.slot) === key) || !plan.people.some((p) => p.id === person)) return;
-    d.states[week] = withEater(d.states[week] ?? EMPTY_STATE, key, person, on, this.deps.nowMs());
-    this.save();
-    this.exportAll();
+    this.importStates();
+    this.putState(week, (s) => withEater(s, key, person, on, atMs ?? this.deps.nowMs()), atMs);
   }
 
-  setItem(id: string, week: string, item: string, state: ItemState): void {
+  setItem(id: string, week: string, item: string, state: ItemState, atMs?: number): void {
     const d = this.load();
     if (!this.enabled(id) || !d.plans[week] || typeof item !== 'string' || item.length > 120 || !['offen', 'gekauft', 'da'].includes(state)) return;
-    d.states[week] = withItem(d.states[week] ?? EMPTY_STATE, item, state, this.deps.nowMs());
+    this.importStates();
+    this.putState(week, (s) => withItem(s, item, state, atMs ?? this.deps.nowMs()), atMs);
+  }
+
+  /** A change made now replaces its entry; one made at an earlier `atMs` is merged, so a newer entry stays. */
+  private putState(week: string, change: (s: MealState) => MealState, atMs: number | undefined): void {
+    const d = this.load();
+    const before = d.states[week] ?? EMPTY_STATE;
+    d.states[week] = atMs === undefined ? change(before) : mergeStates(before, change(EMPTY_STATE));
     this.save();
     this.exportAll();
   }
