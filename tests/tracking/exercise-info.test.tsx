@@ -31,7 +31,7 @@ describe('workout: Ausführung in the exercise menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Kniebeuge' });
     expect(note.textContent).toMatch(/Füße etwas mehr als hüftbreit/);
-    expect(note.textContent).toContain('Quelle: wger.de, wger.de, CC-BY-SA 3.0');
+    expect(note.textContent).toContain('Quelle: wger.de, CC-BY-SA 3.0');
     expect(screen.queryByRole('button', { name: 'Kniebeuge tauschen' })).toBeNull(); // the menu closed
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung ausblenden' }));
     expect(screen.queryByRole('note', { name: 'Ausführung Kniebeuge' })).toBeNull();

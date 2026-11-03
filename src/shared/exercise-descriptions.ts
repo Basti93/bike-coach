@@ -136,6 +136,9 @@ export const EXERCISE_DESCRIPTIONS: Record<string, ExerciseDescription> = {
 /** The description of an own exercise, or null for user-created and Hevy-only exercises. */
 export const exerciseDescription = (exerciseId: string): ExerciseDescription | null => EXERCISE_DESCRIPTIONS[exerciseId] ?? null;
 
-/** The attribution line shown under a wger description. */
-export const descriptionCredit = (d: ExerciseDescription): string | null =>
-  d.source.kind === 'wger' ? `Quelle: wger.de, ${d.source.author}, ${d.source.licence}` : null;
+/** The attribution line shown under a wger description. Where wger.de itself is the author it is named once. */
+export const descriptionCredit = (d: ExerciseDescription): string | null => {
+  if (d.source.kind !== 'wger') return null;
+  const author = d.source.author === 'wger.de' ? '' : `${d.source.author}, `;
+  return `Quelle: wger.de, ${author}${d.source.licence}`;
+};

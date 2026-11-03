@@ -39,6 +39,6 @@ test('lookups: unknown ids have nothing, wger entries carry a credit line', () =
   expect(exerciseDescription('a-user-made-uuid')).toBeNull();
   expect(exerciseDescription('hevy-template-123')).toBeNull();
   const squat = exerciseDescription('pf-squat')!;
-  expect(descriptionCredit(squat)).toBe('Quelle: wger.de, wger.de, CC-BY-SA 3.0');
+  expect(descriptionCredit(squat)).toBe('Quelle: wger.de, CC-BY-SA 3.0');
   expect(descriptionCredit(exerciseDescription('pf-front-squat')!)).toBeNull();
 });
