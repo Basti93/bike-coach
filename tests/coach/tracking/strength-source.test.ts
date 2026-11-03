@@ -81,8 +81,8 @@ describe('bike coach and health page read the merged history', () => {
   it('marking dirty interrupts nothing: no planning call follows from it, ride or not', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pf-coach-'));
     const ask = vi.fn(async () => ({}));
-    const coach = new Coach({ ridesDir: tmp, coachDir: tmp, nowMs: () => NOW, ask });
-    coach.state(ID);
+    const coach = new Coach({ ridesDir: path.join(tmp, 'r'), coachDir: tmp, nowMs: () => NOW, ask });
+    coach.scanRides([{ id: ID, name: 'A', ftpW: 200 }]);
     coach.strengthChanged(ID);
     expect(coach.state(ID).dirty).toBe(true);
     expect(ask).not.toHaveBeenCalled();
