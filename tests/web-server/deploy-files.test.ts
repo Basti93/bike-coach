@@ -55,7 +55,7 @@ describe.each(['api', 'tailscale'])('compose service %s', (name) => {
 
 test('only the API publishes a port, and only on localhost', () => {
   const { services } = compose();
-  expect(services.api!.ports).toEqual(['127.0.0.1:${PANDAFIT_PORT:-7003}:8080']);
+  expect(services.api!.ports).toEqual(['127.0.0.1:${PANDAFIT_PORT:-7004}:8080']);
   expect(services.tailscale).not.toHaveProperty('ports');
   expect(services.tailscale).not.toHaveProperty('network_mode');
   expect(services.tailscale).not.toHaveProperty('cap_add');

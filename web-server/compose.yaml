@@ -24,7 +24,7 @@ services:
       PANDAFIT_STATIC: /app/out/web
       PANDAFIT_TRUST_PROXY_CIDR: ${PANDAFIT_TRUST_PROXY_CIDR:-172.16.0.0/12}
     ports:
-      - "127.0.0.1:${PANDAFIT_PORT:-7003}:8080"
+      - "127.0.0.1:${PANDAFIT_PORT:-7004}:8080"
     volumes:
       - data:/data
     tmpfs:
