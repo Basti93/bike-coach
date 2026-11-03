@@ -679,3 +679,30 @@ test('two exercises can be joined to a superset and taken apart again from the m
   fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge aus dem Superset lösen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId)).toEqual([null, null]));
 });
+
+describe('effort question after an exercise', () => {
+  const planned = (): LoggedWorkout => open({ exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [{ ...set(60, 8, null), plannedReps: 8 }] }] });
+  afterEach(() => localStorage.clear());
+  it('asks after the last set when the plan was hit, and stores the answer', async () => {
+    const { port, map } = fakePort([rec(planned())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    expect(screen.queryByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
+    const q = await screen.findByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' });
+    fireEvent.click(within(q).getByRole('button', { name: '1–2' }));
+    await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].effort).toBe('some'));
+    expect(screen.queryByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).toBeNull();
+    expect(screen.getByText('Noch möglich: 1–2')).toBeTruthy();
+  });
+  it('can be skipped, and switched off on this device', async () => {
+    const { port, map } = fakePort([rec(planned())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
+    fireEvent.click(within(await screen.findByRole('group', { name: /noch geschafft/ })).getByRole('button', { name: 'Nicht mehr fragen' }));
+    await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].effort).toBe('skip'));
+    expect(localStorage.getItem('pandafit-effort-questions')).toBe('off');
+    expect(screen.queryByRole('group', { name: /noch geschafft/ })).toBeNull();
+  });
+});

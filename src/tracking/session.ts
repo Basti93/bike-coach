@@ -1,11 +1,12 @@
 import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { dedupeSessions, onePerSession } from '../shared/history';
-import type { LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
+import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
 /** Pure workout logic. No browser, Node or Electron APIs, so the Mac app and the web app share it. */
-export type TrackedSet = LoggedSet & { rid: string; repRange?: { start: number; end: number } };
-export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; timed?: boolean };
+/** `plannedReps`: the reps the plan asked for, kept when the rider edits `reps`. */
+export type TrackedSet = LoggedSet & { rid: string; repRange?: { start: number; end: number }; plannedReps?: number };
+export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; timed?: boolean; swappedIn?: true };
 /** Stored as the record body. `rest` keeps the timer start, so a reload continues it. Rows have stable ids (`rid`). */
 export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null };
 
@@ -71,6 +72,7 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
       reps: p.reps ?? (p.repRange ? p.repRange.start : null) ?? l?.reps ?? null,
       durationS: l?.durationS ?? null, doneMs: null,
       ...(p.repRange ? { repRange: p.repRange } : {}),
+      ...(p.reps !== null && p.reps !== undefined ? { plannedReps: p.reps } : {}),
     };
   });
   return { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
@@ -117,6 +119,7 @@ export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): Tracke
 }
 export const editSet = (w: TrackedWorkout, ex: string, set: string, patch: Partial<Pick<TrackedSet, 'weightKg' | 'reps' | 'durationS' | 'type'>>): TrackedWorkout =>
   mapSet(w, ex, set, (s) => ({ ...s, ...patch }));
+export const setEffort = (w: TrackedWorkout, ex: string, effort: Effort | 'skip'): TrackedWorkout => mapEx(w, ex, (x) => ({ ...x, effort }));
 export const editNotes = (w: TrackedWorkout, ex: string, notes: string): TrackedWorkout => mapEx(w, ex, (x) => ({ ...x, notes }));
 export const addSet = (w: TrackedWorkout, ex: string): TrackedWorkout =>
   mapEx(w, ex, (x) => {
@@ -136,7 +139,7 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   if (i < 0) return w;
   const old = w.exercises[i];
   const doneSets = old.sets.filter(isDone);
-  const fresh = fromCatalog(e, history, old);
+  const fresh: TrackedExercise = { ...fromCatalog(e, history, old), swappedIn: true };
   const exercises = [...w.exercises];
   exercises.splice(i, 1, ...(doneSets.length ? [{ ...old, sets: doneSets }, fresh] : [fresh]));
   return { ...w, exercises };

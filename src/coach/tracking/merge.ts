@@ -17,6 +17,7 @@ export function toStrengthWorkout(w: LoggedWorkout, links: Links): StrengthWorko
       return {
         title: e.title, templateId: links.get(e.exerciseId) ?? e.exerciseId,
         workSets: sets.map((s) => ({ type: s.type, weightKg: s.weightKg ?? null, reps: s.reps ?? null })),
+        ...(e.effort && e.effort !== 'skip' ? { effort: e.effort } : {}),
         sets: work.length,
         reps: work.reduce((a, s) => a + (s.reps ?? 0), 0),
         volumeKg: Math.round(work.reduce((a, s) => a + (s.weightKg ?? 0) * (s.reps ?? 0), 0)),

@@ -6,7 +6,9 @@ export const RECORD_KINDS_SIGNATURE = [...RECORD_KINDS].sort().join(',');
 export type TrackedRecord = { kind: RecordKind; id: string; updatedMs: number; deleted: boolean; body: unknown };
 
 export type LoggedSet = { type: 'warmup' | 'normal' | 'failure' | 'dropset'; weightKg: number | null; reps: number | null; durationS: number | null; doneMs: number | null };
-export type LoggedExercise = { exerciseId: string; title: string; supersetId: number | null; notes: string; sets: LoggedSet[] };
+/** How many more reps were left after an exercise: none (0), some (1–2), plenty (3+); skip means asked and not answered. */
+export type Effort = 'none' | 'some' | 'plenty';
+export type LoggedExercise = { exerciseId: string; title: string; supersetId: number | null; notes: string; sets: LoggedSet[]; effort?: Effort | 'skip' };
 export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[] };
 
 /** Newer wins; a tie goes to the greater JSON text so every device ends the same. The loser is returned, never dropped silently. */

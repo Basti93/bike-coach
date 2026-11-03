@@ -49,6 +49,9 @@
 .tk-screen button.tk-skip { background: rgba(255, 255, 255, .3); color: var(--tk-ink); border: 1px solid rgba(31, 20, 8, .45); }
 .tk-rest { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem 1rem; border-radius: 1rem; background: var(--good, #9ccb68); color: var(--ink, #1f1408); font-weight: 700; }
 .tk-note { background: var(--card, #1c2f26); border-left: 4px solid var(--low, #f2bd55); padding: .7rem 1rem; border-radius: .6rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.tk-effort { margin: .6rem 0; padding: .7rem 1rem; border-radius: .8rem; border-left: 4px solid var(--good, #9ccb68); background: var(--card, #1c2f26); }
+.tk-effort p { margin: 0 0 .5rem; }
+.tk-effort .tk-row button { min-width: 3.2rem; }
 .tk-list { display: flex; flex-direction: column; gap: .4rem; }
 .tk-pick { text-align: left; border-radius: .8rem !important; background: #243a30 !important; color: var(--text, #f6eedd) !important; }
 .tk-pick small { color: var(--muted, #aebba9); font-weight: 400; }

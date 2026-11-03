@@ -10,6 +10,32 @@ const wk = (daysAgo: number, sets: S[], templateId = 'sq', title = 'Squat'): Str
   exercises: [{ title, templateId, sets: sets.length, reps: 0, volumeKg: 0, workSets: sets.map(([weightKg, reps, type]) => ({ type: type ?? 'normal', weightKg, reps })) }],
 });
 
+const withEffort = (w: StrengthWorkout, effort: 'none' | 'some' | 'plenty'): StrengthWorkout => ({ ...w, exercises: w.exercises.map((e) => ({ ...e, effort })) });
+
+describe('suggestNext with effort answers', () => {
+  it('3+ left goes up even where the reps alone would keep', () => {
+    const r = suggestNext('sq', [wk(14, [[60, 10], [60, 10]]), withEffort(wk(7, [[60, 10], [60, 8]]), 'plenty')], NOW);
+    expect(r).toEqual({ weightKg: 60, reps: 9, why: 'progress' });
+  });
+  it('3+ left after a single session goes up too', () => {
+    expect(suggestNext('sq', [withEffort(wk(7, [[60, 8], [60, 8]]), 'plenty')], NOW)).toEqual({ weightKg: 60, reps: 9, why: 'progress' });
+  });
+  it('1-2 left changes nothing', () => {
+    const plain = suggestNext('sq', [wk(14, [[60, 8], [60, 8]]), wk(7, [[60, 8], [60, 9]])], NOW);
+    expect(suggestNext('sq', [wk(14, [[60, 8], [60, 8]]), withEffort(wk(7, [[60, 8], [60, 9]]), 'some')], NOW)).toEqual(plain);
+  });
+  it('0 left holds even where the reps alone would go up', () => {
+    const r = suggestNext('sq', [wk(14, [[60, 8], [60, 8]]), withEffort(wk(7, [[60, 8], [60, 9]]), 'none')], NOW);
+    expect(r).toEqual({ weightKg: 60, reps: 8, why: 'keep' });
+  });
+  it('two 0 in a row hold, three step back', () => {
+    const two = [withEffort(wk(14, [[60, 8], [60, 8]]), 'none'), withEffort(wk(7, [[60, 8], [60, 9]]), 'none')];
+    expect(suggestNext('sq', two, NOW).why).toBe('keep');
+    const three = [withEffort(wk(21, [[60, 8], [60, 8]]), 'none'), ...two];
+    expect(suggestNext('sq', three, NOW)).toEqual({ weightKg: 54, reps: 8, why: 'step-back' });
+  });
+});
+
 describe('suggestNext', () => {
   it('all reps reached twice in 56 days adds reps first', () => {
     const r = suggestNext('sq', [wk(14, [[60, 8], [60, 8]]), wk(7, [[60, 8], [60, 9]])], NOW);

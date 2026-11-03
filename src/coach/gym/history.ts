@@ -1,3 +1,4 @@
+import type { Effort } from '../../shared/records';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate } from './types';
 import { COMPARABLE_DAYS, LONG_BREAK_DAYS, MAX_STEP_PCT, MIN_COMPARABLE, MIN_STEP_KG, RECENT_DAYS, REP_MAX, REP_MIN, STEP_BACK } from './limits';
@@ -31,7 +32,7 @@ export function availableExercises(workouts: StrengthWorkout[], nowMs: number): 
   return [...found.values()].sort((a, b) => b.lastMs - a.lastMs);
 }
 
-type Session = { ms: number; weightKg: number | null; minReps: number; sets: number[] };
+type Session = { ms: number; weightKg: number | null; minReps: number; sets: number[]; effort?: Effort };
 
 /** One value per session: the heaviest weight of the normal and failure sets and the reps done at it. */
 function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: number): Session[] {
@@ -44,12 +45,14 @@ function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: numb
       if (work.length === 0) continue;
       const top = Math.max(...work.map((s) => s.weightKg ?? 0));
       const atTop = work.filter((s) => (s.weightKg ?? 0) === top).map((s) => s.reps as number);
-      out.push({ ms: w.startMs, weightKg: top > 0 ? top : null, minReps: Math.min(...atTop), sets: atTop });
+      out.push({ ms: w.startMs, weightKg: top > 0 ? top : null, minReps: Math.min(...atTop), sets: atTop, effort: e.effort });
     }
   }
   return out.sort((a, b) => a.ms - b.ms);
 }
 
+/** Sessions in a row with "0 left" before the weight steps back. */
+const EFFORT_STEP_BACK = 3;
 const toHalf = (kg: number, mode: 'round' | 'floor'): number => Math[mode](kg * 2) / 2;
 
 /**
@@ -67,11 +70,18 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
     return { weightKg: last.weightKg === null || assisted ? last.weightKg : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
   }
-  const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
-  if (comparable.length < MIN_COMPARABLE) return { weightKg: last.weightKg, reps, why: 'keep' };
-  const before = comparable[comparable.length - 2];
-  const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
-  if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
+  // The rider's answers win over the numbers: 0 left holds (three times in a row steps back), 3+ left goes up.
+  let none = 0;
+  for (let i = sessions.length - 1; i >= 0 && sessions[i].effort === 'none'; i--) none++;
+  if (none >= EFFORT_STEP_BACK && last.weightKg !== null && !assisted) return { weightKg: toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
+  if (none > 0) return { weightKg: last.weightKg, reps, why: 'keep' };
+  if (last.effort !== 'plenty') {
+    const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
+    if (comparable.length < MIN_COMPARABLE) return { weightKg: last.weightKg, reps, why: 'keep' };
+    const before = comparable[comparable.length - 2];
+    const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
+    if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
+  }
   if (last.weightKg === null || last.minReps < REP_MAX) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
   if (assisted) return { weightKg: last.weightKg, reps, why: 'keep' };
   const step = Math.max(last.weightKg * MAX_STEP_PCT / 100, MIN_STEP_KG);

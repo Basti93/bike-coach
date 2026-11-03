@@ -8,7 +8,7 @@ import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
   addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan,
-  swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
+  setEffort, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
@@ -18,6 +18,8 @@ import { MuscleIcon } from './MuscleIcon';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
 import { NotesField } from './NotesField';
+import { EffortQuestion, EFFORT_LABEL, effortQuestionsOn } from './EffortQuestion';
+import { asksEffort } from '../effort';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
@@ -40,6 +42,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const remote = usePortRecords(port, 'workout').all;
   const catalog = useCatalog(port);
   const [notice, setNotice] = useState<string | null>(null);
+  const [effortOn, setEffortOn] = useState(effortQuestionsOn);
   const pendingLeave = useRef<string | null>(null);
   useWakeLock(true);
   useTick(true); // the rest countdown and the total time
@@ -191,6 +194,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
                 onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
                 onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
+            {effortOn && asksEffort(w, e.rid, history) && (
+              <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
+                onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
+            )}
+            {e.effort && e.effort !== 'skip' && <p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p>}
             <div className="tk-row">
               <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
             </div>

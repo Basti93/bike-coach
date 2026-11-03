@@ -15,11 +15,15 @@ const SAFE_ID = /^[A-Za-z0-9-]+$/;
 const KEY_FORMAT = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const KEY_FILE = 'api-key';
 
+import type { Effort } from '../shared/records';
+
 export type StrengthWorkout = {
   id: string; title: string; startMs: number; durationS: number;
   exercises: {
     title: string; templateId: string; sets: number; reps: number; volumeKg: number;
     workSets: { type: SetType; weightKg: number | null; reps: number | null }[];
+    /** The rider's answer to "how many more?" (own workouts only). */
+    effort?: Effort;
   }[];
 };
 export type SetType = 'warmup' | 'normal' | 'failure' | 'dropset';
