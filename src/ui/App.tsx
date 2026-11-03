@@ -17,9 +17,10 @@ import { CoachView } from './views/CoachView';
 import { coachScreen, DebriefView } from './views/DebriefCard';
 import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
-import { HistoryScreen, RoutinesScreen, WorkoutScreen } from '../tracking/ui';
+import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, WorkoutScreen } from '../tracking/ui';
 import type { TrackingPort } from '../tracking/ports';
 import { usePortRecords } from '../tracking/ui/hooks';
+import { runView } from '../tracking/ui/run-view';
 import type { LoggedWorkout } from '../shared/records';
 import { activeItem, HOME, menuItems, open, showMenu, type MenuItem, type TrackScreen, type Views } from './nav';
 import { MenuBar } from './views/MenuBar';
@@ -56,6 +57,11 @@ const StrengthPage = ({ port, ...props }: Omit<ComponentProps<typeof GymView>, '
   return <GymView {...props} openWorkout={(workouts ?? []).some((r) => (r.body as LoggedWorkout).endMs === null)} />;
 };
 
+/** Stands in for the port while there is none, so the hook can always run. */
+const NO_PORT: TrackingPort = { list: async () => [], put: async (r) => ({ kept: false, updatedMs: r.updatedMs }), subscribe: () => () => {}, syncState: () => ({ pending: 0, lastOkMs: null }) };
+const runNow = () => Date.now();
+const runNewId = () => crypto.randomUUID();
+
 /** The meal status has arrived: a missing one in an old coach counts as off. */
 const arrivedMeals = (coach: { statusArrived?: boolean }): boolean => coach.statusArrived ?? true;
 
@@ -73,7 +79,10 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const runRecords = usePortRecords(coach.tracking ?? NO_PORT, 'run').records;
+  const runOn = !!coach.tracking && runView(runRecords ?? [], Date.now()).visible;
   const mealsOn = coach.meals?.settings.on === true;
+  useEffect(() => { if (v.run && !runOn && runRecords !== null) patch({ run: false }); }, [v.run, runOn, runRecords]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.meals && !mealsOn && arrivedMeals(coach)) patch({ meals: false }); }, [v.meals, mealsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (v.trackFor && (!coach.gym || v.trackFor.profileId !== profile?.id)) patch({ trackFor: null }); }, [coach.gym, v.trackFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The bike page chosen from the overview belongs to one profile and needs the overview to exist.
@@ -130,7 +139,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const waiting = !arrived && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach';
   const menu = showMenu({ profile: true, riding: false, film: false, waiting }) && (
     <MenuBar
-      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn })}
+      items={menuItems({ overview: home === 'overview', gym: !!coach.gym, history: !!coach.state, health: coach.garmin?.state === 'connected' || home === 'overview', together: !!coach.together, meals: mealsOn, run: runOn })}
       active={activeItem(v, profile.id, home)} name={profile.name} avatar={profile.avatar}
       onGo={go} onSwitch={() => setProfile(null)} />
   );
@@ -140,6 +149,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
     const settings = (
       <>
         {languageToggle}
+        {coach.tracking && <RunSettingsCard port={coach.tracking} now={runNow} />}
         {!coach.gym && coach.connected && <button className="secondary" onClick={() => coach.send({ type: 'gym-start', profileId: profile.id })}>Krafttraining starten</button>}
       </>
     );
@@ -150,6 +160,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (v.health !== undefined) return page(<HealthView data={coach.garminHealth} range={v.health} onRange={(range) => { patch({ health: range }); requestHealth(range); }} strength={coach.strengthHealth} rides={coach.state?.summaries} garmin={garminSections} readiness={coach.garminReadiness} sync={coach.garminSync} />);
   if (v.review && coach.garminSuggestion) return page(<GarminProfileReview profile={profile} ftpW={coach.state?.ftpW ?? profile.ftpW} suggestion={coach.garminSuggestion} sendRide={send} sendCoach={coach.send} onBack={() => patch({ review: false })} />);
   if (v.together && coach.together) return page(<TogetherView together={coach.together} />);
+  if (v.run && runOn && coach.tracking) return page(<main className="home"><RunScreen port={coach.tracking} now={runNow} newId={runNewId} /></main>);
   if (v.meals && mealsOn && coach.meals) return page(<MealsView key={profile.id} profileId={profile.id} meals={coach.meals} send={coach.send} />);
   if (v.trackFor && v.trackFor.profileId === profile.id && coach.gym && coach.tracking) {
     const port = coach.tracking;
@@ -176,7 +187,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const overviewOpen = home === 'overview' && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
   if (overviewOpen) return page(<OverviewView name={profile.name} avatar={profile.avatar} bikeNext={coach.state?.next?.session.name} strengthNext={coach.gym?.state.next?.workout.name} onBike={() => go('rad')} onStrength={() => go('kraft')} onHealth={() => go('gesundheit')} />);
   return page(
-    v.history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} garminConnected={coach.garmin?.state === 'connected'} /> : coachScreen(coach.state) === 'debrief' && coach.state?.debriefToShow
+    v.history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} garminConnected={coach.garmin?.state === 'connected'} lookBack={coach.tracking ? <RunLookBack port={coach.tracking} now={runNow} /> : undefined} /> : coachScreen(coach.state) === 'debrief' && coach.state?.debriefToShow
       ? <DebriefView profileId={profile.id} debrief={coach.state.debriefs![coach.state.debriefToShow]} next={coach.state.next} thinking={coach.debriefing} title={coach.state.summaries.find((r) => r.rideId === coach.state?.debriefToShow)?.sessionName} send={coach.send} />
       : coach.state?.awaitingFeedback
       ? <FeedbackView garminConnected={coach.garmin?.state === 'connected'} upload={coach.state.garminUpload} debrief={coach.state.debriefs?.[coach.state.awaitingFeedback]} debriefing={coach.debriefing} next={coach.state.next} together={coach.together} profileId={profile.id} rideId={coach.state.awaitingFeedback} send={coach.send} detail={coach.detail} summaries={coach.state.summaries} summary={coach.state.summaries.find((r) => r.rideId === coach.state?.awaitingFeedback)} />
