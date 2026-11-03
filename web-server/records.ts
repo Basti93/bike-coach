@@ -32,10 +32,10 @@ export const pageOfQuery = (q: { since?: string; limit?: string }): { since: num
 };
 
 /** Stores what is newer, keeps what lost, in one transaction. A new meal or run week is reported so its push goes out after the commit. */
-export function putRecords(db: DatabaseSync, accountId: number, list: unknown[], nowMs: number): { accepted: number; refused: { kind: unknown; id: unknown; reason: string }[]; newMealWeek: boolean; newRunWeek: boolean } {
+export function putRecords(db: DatabaseSync, accountId: number, list: unknown[], nowMs: number): { accepted: number; refused: { kind: unknown; id: unknown; reason: string }[]; newMealWeek: boolean; newRunWeek: boolean; newCoachNote: boolean } {
   const account = accountId, t = nowMs;
   const refused: { kind: unknown; id: unknown; reason: string }[] = [];
-  let accepted = 0, newMealWeek = false, newRunWeek = false;
+  let accepted = 0, newMealWeek = false, newRunWeek = false, newCoachNote = false;
   const weekStmt = db.prepare('INSERT OR IGNORE INTO push_meal_weeks VALUES (?, ?)');
   const runWeekStmt = db.prepare('INSERT OR IGNORE INTO push_run_weeks VALUES (?, ?)');
   const getStmt = db.prepare('SELECT * FROM records WHERE account_id = ? AND kind = ? AND id = ?');
@@ -77,6 +77,9 @@ export function putRecords(db: DatabaseSync, accountId: number, list: unknown[],
         if (w && weekStmt.run(account, w).changes > 0) newMealWeek = true;
         const rw = runWeekOf(keep, t);
         if (rw && runWeekStmt.run(account, rw).changes > 0) newRunWeek = true;
+        // A coach message written for a push (the week conversation, the evening before): once, when it first arrives.
+        const b = keep.body as { role?: unknown; push?: unknown } | null;
+        if (!cur && !keep.deleted && keep.kind === 'chat' && b && b.role === 'coach' && b.push === true) newCoachNote = true;
       }
       accepted++;
     }
@@ -86,7 +89,7 @@ export function putRecords(db: DatabaseSync, accountId: number, list: unknown[],
     db.exec('ROLLBACK');
     throw e;
   }
-  return { accepted, refused, newMealWeek, newRunWeek };
+  return { accepted, refused, newMealWeek, newRunWeek, newCoachNote };
 }
 
 /** One page after the cursor. A cursor from the future means the server lost data (restore): start over so nothing is missed. */

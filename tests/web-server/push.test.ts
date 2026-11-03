@@ -318,3 +318,18 @@ describe('run week notification', () => {
     expect(MESSAGES.run).toEqual({ title: 'Pandafit', body: 'Dein Laufplan für die Woche ist da.' });
   });
 });
+
+describe('coach note notification', () => {
+  const note = (id: string, body: object) => ({ kind: 'chat', id, updatedMs: NOW, deleted: false, body: { role: 'coach', text: 'Morgen: Rad, locker.', atMs: NOW, ...body } });
+  it('a new coach message written for a push notifies its account once; answers and rider messages do not', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [note('n1', { push: true })]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ endpoint: sub('anna').endpoint, type: 'coach' });
+    await post(app, H(a), [{ ...note('n1', { push: true }), updatedMs: NOW + 1 }, note('n2', {}), { ...note('n3', { push: true }), body: { role: 'rider', text: 'x', atMs: NOW, push: true } }]);
+    await settle();
+    expect(sent).toHaveLength(1);
+  });
+});

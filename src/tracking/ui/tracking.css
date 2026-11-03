@@ -174,3 +174,5 @@
 .tk-progress dd { margin: 0; }
 .tk-coach-panel ul { margin: .3rem 0; padding-left: 1.2rem; }
 .tk-coach-open { align-self: flex-start; }
+.tk-prefs summary { cursor: pointer; font-weight: 700; }
+.tk-prefs label { gap: .5rem; }

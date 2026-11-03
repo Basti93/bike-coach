@@ -7,12 +7,13 @@ import type { DatabaseSync } from 'node:sqlite';
  * Web Push with Node's own crypto: VAPID (RFC 8292, ES256 JWT) and aes128gcm payload encryption (RFC 8291).
  * Only four messages exist, all short and without health details, because they pass through the browser vendor's push service.
  */
-export type PushType = 'version' | 'meal' | 'run' | 'rest';
+export type PushType = 'version' | 'meal' | 'run' | 'rest' | 'coach';
 export const MESSAGES: Record<PushType, { title: string; body: string }> = {
   version: { title: 'Pandafit', body: 'Neue Version von Pandafit. Beim nächsten Öffnen ist sie da.' },
   meal: { title: 'Pandafit', body: 'Dein Essensplan für die Woche ist da.' },
   run: { title: 'Pandafit', body: 'Dein Laufplan für die Woche ist da.' },
   rest: { title: 'Pandafit', body: 'Pause vorbei. Weiter mit dem nächsten Satz.' },
+  coach: { title: 'Pandafit', body: 'Dein Coach hat dir geschrieben.' },
 };
 export const MAX_SUBSCRIPTIONS = 10;
 export const SEND_TIMEOUT_MS = 10_000;

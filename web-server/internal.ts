@@ -71,9 +71,10 @@ export const buildInternal = (opts: { dbPath: string; token: string; push?: Push
     if (account === null) return reply.code(404).send({ error: 'not found' });
     const list = recordsOfBody(req.body);
     if (!list) return reply.code(400).send({ error: 'bad request' });
-    const { accepted, refused, newMealWeek, newRunWeek } = putRecords(db, account, list, now());
+    const { accepted, refused, newMealWeek, newRunWeek, newCoachNote } = putRecords(db, account, list, now());
     if (newMealWeek) void push.notifyAccount(account, 'meal'); // fire and forget, after the data is safe
     if (newRunWeek) void push.notifyAccount(account, 'run');
+    if (newCoachNote) void push.notifyAccount(account, 'coach');
     return { accepted, refused };
   });
 

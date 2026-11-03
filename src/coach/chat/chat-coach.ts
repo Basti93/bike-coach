@@ -194,7 +194,21 @@ export class ChatCoach {
       .map((r) => ({ id: r.id, text: (r.body as { text: string }).text, status: String((r.body as { status: unknown }).status) }));
   }
 
-  private prompt(id: string, thread: ReturnType<typeof chatThread>, now: number): string {
+  /** The week conversation: the coach opens it with a proposal for next week, without being asked. Never throws. */
+  async openWeek(id: string): Promise<boolean> {
+    if (this.busy.has(id)) return false;
+    this.busy.add(id);
+    try {
+      const now = this.deps.nowMs();
+      const thread = chatThread(this.deps.store.all(id, 'chat'));
+      const prompt = this.prompt(id, thread.slice(-CHAT_CONTEXT), now, 'Das ist das Wochengespräch, die Person hat dir gerade nicht geschrieben. Blick in einem Halbsatz auf die letzte Woche zurück, ohne Schuld, und schlag die nächste Woche vor (wocheNaechste). Frag kurz, ob es so passt.');
+      const msg = await this.answer(id, prompt, now);
+      this.put(id, { ...msg, push: true });
+      return true;
+    } catch { return false; } finally { this.busy.delete(id); }
+  }
+
+  private prompt(id: string, thread: ReturnType<typeof chatThread>, now: number, instruction = 'Antworte auf die letzte Nachricht der Person im Verlauf.'): string {
     const today = dateKey(now);
     const monday = mondayOf(today);
     const plans = this.deps.store.all(id, 'weekplan');
@@ -213,9 +227,12 @@ export class ChatCoach {
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
       dataBlock('beschwerden', this.complaintList(id)),
       dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}) }))),
-      'Antworte auf die letzte Nachricht der Person im Verlauf.',
+      instruction,
     ].join('\n');
   }
+
+  /** Writes a coach message the rider did not ask for. */
+  say(id: string, m: ChatMessage): void { this.put(id, m); }
 
   private put(id: string, m: ChatMessage): void {
     const r: TrackedRecord = { kind: 'chat', id: this.deps.newId(), updatedMs: Math.max(m.atMs, this.deps.nowMs()), deleted: false, body: m };

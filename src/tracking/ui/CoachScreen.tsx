@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage } from '../../shared/chat';
+import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
 import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekPlanBody, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
 import { usePortRecords } from './hooks';
@@ -46,12 +46,39 @@ function Proposal({ m, answer, onTake, onDecline }: { m: ChatEntry & { proposal:
   );
 }
 
+const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);
+
+/** When the coach writes by itself. Both off until switched on; pushes need notifications allowed on this device. */
+function PrefsCard({ prefs, onChange }: { prefs: CoachPrefs; onChange: (p: CoachPrefs) => void }) {
+  const hourSelect = (label: string, value: number, set: (h: number) => void) => (
+    <select aria-label={label} value={value} onChange={(e) => set(Number(e.target.value))}>{HOURS.map((h) => <option key={h} value={h}>{h}:00</option>)}</select>
+  );
+  return (
+    <details className="card tk-prefs">
+      <summary>Wann sich der Coach meldet</summary>
+      <label className="tk-row"><input type="checkbox" checked={prefs.week.on} onChange={(e) => onChange({ ...prefs, week: { ...prefs.week, on: e.target.checked } })} /> Wochengespräch mit Vorschlag für die nächste Woche</label>
+      {prefs.week.on && (
+        <div className="tk-row">
+          <select aria-label="Tag des Wochengesprächs" value={prefs.week.day} onChange={(e) => onChange({ ...prefs, week: { ...prefs.week, day: Number(e.target.value) } })}>
+            {WEEKDAY_LABEL.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+          {hourSelect('Uhrzeit des Wochengesprächs', prefs.week.hour, (h) => onChange({ ...prefs, week: { ...prefs.week, hour: h } }))}
+        </div>
+      )}
+      <label className="tk-row"><input type="checkbox" checked={prefs.evening.on} onChange={(e) => onChange({ ...prefs, evening: { ...prefs.evening, on: e.target.checked } })} /> Am Vorabend sagen, was morgen ansteht (nur vor Trainingstagen)</label>
+      {prefs.evening.on && <div className="tk-row">{hourSelect('Uhrzeit am Vorabend', prefs.evening.hour, (h) => onChange({ ...prefs, evening: { ...prefs.evening, hour: h } }))}</div>}
+      <p className="muted">Kommt als Mitteilung, wenn sie auf diesem Gerät erlaubt sind, und steht immer hier im Chat.</p>
+    </details>
+  );
+}
+
 /** One chat with the coach for all sports, with the week plan on top. Proposals change nothing until the rider takes them. */
 export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
+  const prefRecords = usePortRecords(port, 'coachprefs').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -88,6 +115,10 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
       await write({ role: 'rider', text: 'Übernommen.', atMs: now(), takes: m.id });
     } catch { setError('Der Plan konnte nicht gespeichert werden. Versuch es gleich nochmal.'); }
   };
+  const savePrefs = (p: CoachPrefs) => {
+    const have = (prefRecords ?? []).find((r) => r.id === COACH_PREFS_ID);
+    void port.put({ kind: 'coachprefs', id: COACH_PREFS_ID, updatedMs: nextUpdatedMs(now(), have), deleted: false, body: p }).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'));
+  };
   const decline = (m: ChatEntry) => void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id });
 
   return (
@@ -121,6 +152,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
         <textarea aria-label="Nachricht an den Coach" rows={2} value={text} maxLength={MAX_CHAT_TEXT} onChange={(e) => setText(e.target.value)} placeholder="Nachricht an den Coach" />
         <button type="submit" disabled={!text.trim()}>Senden</button>
       </form>
+      <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
     </div>
   );
 }

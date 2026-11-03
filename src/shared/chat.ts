@@ -26,6 +26,8 @@ export type ChatMessage = {
   declines?: string;
   /** The coach could not answer (no Claude, limit); the rider may write again. */
   failed?: boolean;
+  /** A coach message the rider did not ask for (the week conversation, the evening before): the server sends a push for it. */
+  push?: boolean;
   /** Written during this open workout: the coach answers about the rest of it. */
   inWorkout?: string;
   workoutChange?: WorkoutChange;
@@ -49,6 +51,7 @@ export function readChat(x: unknown): ChatMessage | null {
   if (typeof x.declines === 'string') m.declines = x.declines;
   if (x.failed === true) m.failed = true;
   if (typeof x.inWorkout === 'string') m.inWorkout = x.inWorkout;
+  if (x.push === true) m.push = true;
   if (x.workoutChange !== undefined) { const c = readWorkoutChange(x.workoutChange); if (!c) return null; m.workoutChange = c; }
   if (x.proposal !== undefined) { const p = parseProposal(x.proposal); if (!p) return null; m.proposal = p; }
   if (x.warnings !== undefined) { if (!strings(x.warnings)) return null; m.warnings = x.warnings; }
@@ -92,3 +95,21 @@ export function readWorkoutChange(x: unknown): WorkoutChange | null {
   }
   return { workoutId: x.workoutId, ops };
 }
+
+/**
+ * When the coach writes by itself, per profile (record kind coachprefs, id "prefs"). Both off by default. `day` is 0 for Monday;
+ * hours are local hours of the coaching side.
+ */
+export type CoachPrefs = { week: { on: boolean; day: number; hour: number }; evening: { on: boolean; hour: number } };
+export const COACH_PREFS_ID = 'prefs';
+export const DEFAULT_PREFS: CoachPrefs = { week: { on: false, day: 6, hour: 18 }, evening: { on: false, hour: 19 } };
+const hour = (x: unknown, d: number) => (Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 23 ? (x as number) : d);
+export function readCoachPrefs(x: unknown): CoachPrefs {
+  if (!isObj(x)) return DEFAULT_PREFS;
+  const w = isObj(x.week) ? x.week : {}, e = isObj(x.evening) ? x.evening : {};
+  return {
+    week: { on: w.on === true, day: Number.isInteger(w.day) && (w.day as number) >= 0 && (w.day as number) <= 6 ? (w.day as number) : 6, hour: hour(w.hour, 18) },
+    evening: { on: e.on === true, hour: hour(e.hour, 19) },
+  };
+}
+export const prefsOf = (records: TrackedRecord[]): CoachPrefs => readCoachPrefs(records.find((r) => r.kind === 'coachprefs' && r.id === COACH_PREFS_ID && !r.deleted)?.body);

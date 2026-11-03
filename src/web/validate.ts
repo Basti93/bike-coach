@@ -32,6 +32,7 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     case 'stats': return readStats(body) !== null;
     case 'chat': return readChat(body) !== null;
     case 'weekplan': return parseProposal(body) !== null;
+    case 'coachprefs': return true;
   }
 }
 

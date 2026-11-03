@@ -61,3 +61,14 @@ test('the run coach runs sit on their days in the week, and are listed alone wit
   const wed = (await screen.findByRole('list', { name: 'Wochenplan diese Woche' })).querySelectorAll('li')[2]!;
   expect(wed.textContent).toContain('Lauf locker · 35 Min.');
 });
+
+test('the coach writes by itself only when switched on here; the settings are saved as a record', async () => {
+  const { port, map } = fakePort();
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByText('Wann sich der Coach meldet'));
+  const evening = screen.getByLabelText(/Am Vorabend sagen/) as HTMLInputElement;
+  expect(evening.checked).toBe(false);
+  fireEvent.click(evening);
+  await waitFor(() => expect(records(map, 'coachprefs')[0]?.body).toEqual({ week: { on: false, day: 6, hour: 18 }, evening: { on: true, hour: 19 } }));
+  expect(await screen.findByLabelText('Uhrzeit am Vorabend')).toBeTruthy();
+});

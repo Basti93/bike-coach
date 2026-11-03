@@ -34,6 +34,8 @@ import { ChatCoach } from './chat/chat-coach';
 import { planHint } from './chat/plan-hint';
 import { longTermHint } from './chat/long-term';
 import { PlanSeen, weekPlanKey } from './chat/plan-seen';
+import { duePrompts, SentPrompts } from './chat/prompts';
+import { runView } from '../tracking/ui/run-view';
 import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -230,6 +232,14 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
+  // The week conversation and the evening suggestion, only when the rider switched them on.
+  const sentPrompts = new SentPrompts(path.join(coachDir, 'chat', 'prompts-sent.json'));
+  const detailOf = (id: string, sport: string): string | null => {
+    if (sport === 'gym') return gym.state(id).next?.workout.name ?? null;
+    if (sport === 'bike') return coach.state(id).next?.session.name ?? null;
+    if (sport === 'run') { const r = runView(records.all(id, 'run'), nowMs() + 86_400_000).week?.runs.find((x) => x.date === dateKey(nowMs() + 86_400_000)); return r ? `${r.minutes} Minuten` : null; }
+    return null;
+  };
   // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
   const chat = new ChatCoach({
     store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null,
@@ -523,6 +533,13 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
+      if (free && scheduled()) for (const p of list) {
+        try {
+          const due = duePrompts({ id: p.id, records: { prefs: records.all(p.id, 'coachprefs'), weekplan: records.all(p.id, 'weekplan') }, nowMs: now, sent: sentPrompts, detail: (s) => detailOf(p.id, s) });
+          if (due.evening) { chat.say(p.id, due.evening); mealsChanged([p.id]); }
+          if (due.week) void chat.openWeek(p.id).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish);
+        } catch { /* next scan */ }
+      }
       // Chat answers: a message gets its answer even while scheduled runs pause. Never with a ride open.
       if (free) for (const p of list) { try { void chat.tick(p.id).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish); } catch { /* next scan */ } }
       // The stats record for every profile coached here, linked or not: written only when it changes, never with a ride open. Never throws.
