@@ -1,0 +1,29 @@
+# Build with the repo root as context: docker build -f web-server/Dockerfile.coach -t pandafit-coach:local .
+# The coach: Node server (src/coach/server), the Garmin Python bridge (venv at /opt/garmin-venv) and the Claude CLI. Runs as user node.
+FROM node:24-slim
+ENV NODE_ENV=production
+# garminconnect 0.3.20 needs Python 3.12 or newer, which the Debian base does not ship: uv fetches a managed Python
+# (kept in /opt/python, readable by node) and builds the venv from it.
+COPY --from=ghcr.io/astral-sh/uv:0.9.0 /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+  && UV_PYTHON_INSTALL_DIR=/opt/python uv venv --python 3.12 /opt/garmin-venv \
+  && UV_PYTHON_INSTALL_DIR=/opt/python uv pip install --python /opt/garmin-venv/bin/python --no-cache garminconnect==0.3.20 \
+  && rm /usr/local/bin/uv
+# Claude CLI pinned to the version current on the build day; raise it deliberately. tsx runs the TypeScript sources.
+RUN npm install -g --no-fund --no-audit @anthropic-ai/claude-code@2.1.317 tsx@4.23.15 && npm cache clean --force
+WORKDIR /app
+COPY package.json package-lock.json ./
+# Root dependencies without install scripts and without dev dependencies.
+RUN npm ci --omit=dev --ignore-scripts
+COPY src/coach ./src/coach
+COPY src/shared ./src/shared
+COPY src/tracking ./src/tracking
+COPY src/service/recorder.ts src/service/recovery.ts ./src/service/
+COPY src/service/export ./src/service/export
+COPY scripts/garmin ./scripts/garmin
+RUN mkdir -p /data/home && chown -R node:node /data
+USER node
+ENV HOME=/data/home PORT=8090 HOST=0.0.0.0 PANDAFIT_COACH_DATA=/data PANDAFIT_API_INTERNAL=http://api:8081 \
+  PANDAFIT_GARMIN_PYTHON=/opt/garmin-venv/bin/python3 PANDAFIT_GARMIN_SCRIPTS=/app/scripts/garmin \
+  BIKE_CLAUDE_BIN=/usr/local/bin/claude
+CMD ["tsx", "src/coach/server/main.ts"]

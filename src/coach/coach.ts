@@ -195,7 +195,8 @@ export class Coach {
       this.states.get(p.id)!.ftpCapW = p.ftpCapW;
     }
     if (!fs.existsSync(this.deps.ridesDir)) return;
-    for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-')).sort(byStart)) {
+    // `<id>.replaced-<ms>` is an old copy of a ride, never a ride of its own.
+    for (const name of fs.readdirSync(this.deps.ridesDir).filter((n) => n.startsWith('ride-') && !n.includes('.')).sort(byStart)) {
       try { this.scanRide(name); } catch { /* skip a broken ride, try again on the next run */ }
     }
     for (const s of this.states.values()) this.backfillInsights(s);
@@ -484,6 +485,16 @@ export class Coach {
     s.ftpHistory.push({ atMs: now, ftpW, source: 'coach' });
   }
 
+  /** A ride whose files were replaced is summarized again: its old summary and its processed mark go, the next scan reads the new files. */
+  reprocessRide(profileId: string, rideId: string): void {
+    if (!this.states.has(profileId)) return;
+    this.update(profileId, (x) => {
+      x.processedRides = x.processedRides.filter((r) => r !== rideId);
+      x.summaries = x.summaries.filter((r) => r.rideId !== rideId);
+      if (x.awaitingFeedback === rideId) x.awaitingFeedback = null;
+    });
+  }
+
   private scanRide(name: string): void {
     const meta = readMeta(this.deps.ridesDir, name);
     const s = this.states.get(meta.profileId);
@@ -502,7 +513,7 @@ export class Coach {
       x.summaries.push(summary);
       x.alternatives = []; // They fit the situation before this ride.
       x.processedRides.push(name);
-      x.awaitingFeedback = name;
+      if (!x.feedback[name]) x.awaitingFeedback = name;
       if (meta.sessionId === RAMP_ID) this.applyRamp(x, summary);
       // A different session was ridden: a proposed ramp test is thereby skipped.
       if (x.next.session.id !== RAMP_ID || meta.sessionId !== RAMP_ID) x.next = { ...ruleBasedSession(this.context(x)), source: 'rules' };

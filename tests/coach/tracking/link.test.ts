@@ -232,6 +232,31 @@ describe('AccountSync', () => {
     expect(w.sync.status(ID).lastSyncMs).toBe(w.now);
   });
 
+  it('a 403 is logged once, without the token, and the sync keeps retrying', async () => {
+    const w = await linked(world());
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    w.server.status = 403;
+    await w.sync.tick(ID);
+    expect(w.sync.status(ID)).toMatchObject({ state: 'linked', offline: true });
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0]![0])).toContain('403');
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+    const n = w.server.calls.length;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(w.server.calls.length).toBeGreaterThan(n);
+    expect(log).toHaveBeenCalledTimes(1);
+    // Once a run went through, a new 403 is worth one more line.
+    w.server.status = 0;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(w.sync.status(ID).offline).toBe(false);
+    w.server.status = 403;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(log).toHaveBeenCalledTimes(2);
+  });
+
   it('a rejected token shows calmly and stops calling', async () => {
     const w = await linked(world());
     w.server.status = 401;
@@ -414,5 +439,44 @@ describe('AccountSync', () => {
     w.links.unlink(ID);
     expect(w.gym.enabled(ID)).toBe(false);
     expect(w.store.all(ID, 'routine').length).toBe(1);
+  });
+
+  it('settled: a run that leaves its resend open is not settled, even when the sent cursor is past every record', async () => {
+    const w = await linked(world());
+    w.store.put(ID, rec('mobility', 'm1', NOW, { text: 'a' }));
+    // The server's database was replaced: everything must go up again from the start.
+    await w.links.cursors(ID).set({ sent: 1_000_000, received: 0, resend: true });
+    // A ride opens with the first request, so the run stops before it cleared resend.
+    w.server.hook = () => { w.ride = true; };
+    await w.sync.tick(ID);
+    expect((await w.links.cursors(ID).get()).resend).toBe(true);
+    expect(w.sync.settled(ID)).toBe(false);
+  });
+
+  it('settled: only after a run that went through, and not once something changed here since', async () => {
+    const w = await linked(world());
+    expect(w.sync.settled(ID)).toBe(false);
+    w.store.put(ID, rec('mobility', 'n1', NOW, { text: 'a' }));
+    await w.sync.tick(ID);
+    expect(w.server.posted()).toContain('n1');
+    expect(w.sync.settled(ID)).toBe(true);
+    // A new record here: not settled until the next run sent it.
+    w.store.put(ID, rec('mobility', 'n2', NOW + 1, { text: 'b' }));
+    expect(w.sync.settled(ID)).toBe(false);
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(true);
+    // A failed run is not settled.
+    w.server.offline = true;
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(false);
+    // A run stopped by a ride before it sent is not settled either.
+    w.server.offline = false;
+    w.store.put(ID, rec('mobility', 'n3', NOW + 2, { text: 'c' }));
+    w.server.hook = () => { w.ride = true; };
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.sync.settled(ID)).toBe(false);
   });
 });

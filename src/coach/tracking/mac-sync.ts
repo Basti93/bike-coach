@@ -6,7 +6,7 @@ import type { GymCoach } from '../gym/gym-coach';
 import type { MobilityCoach } from '../mobility/mobility';
 import type { ComplaintStatus } from '../motivation';
 import { finishedOwnWorkout, validRecord } from './records-api';
-import { LinkError, type AccountLinks, type LinkFailure } from './link';
+import { LinkError, type LinkFailure, type RecordLinks } from './link';
 import type { RecordStore } from './store';
 
 const MIN_GAP_MS = 60_000;
@@ -18,7 +18,7 @@ const STATUSES: readonly string[] = ['active', 'healing', 'over'];
 const UNKNOWN_KIND_RETRY_MS = 6 * 3_600_000;
 
 type Deps = {
-  links: AccountLinks; store: RecordStore; nowMs: () => number;
+  links: RecordLinks; store: RecordStore; nowMs: () => number;
   coach: Pick<Coach, 'state' | 'addComplaintFromText' | 'updateComplaint'>;
   gym: Pick<GymCoach, 'state' | 'enabled' | 'start' | 'workoutFinished'>;
   mobility: Pick<MobilityCoach, 'view'>;
@@ -27,14 +27,25 @@ type Deps = {
   fetchFn?: typeof fetch;
   /** Records from the server were applied. */
   onChange?: (profileId: string) => void;
+  /**
+   * False for a profile coached by the server: only records sync then. No plan or complaint record is written from the
+   * local coach, and nothing from the records (complaints, finished workouts) reaches the local coach. Default: always.
+   */
+  coachHere?: (profileId: string) => boolean;
 };
 
 class Rejected extends Error {}
+/** 403: on the server, the api's internal listener refused the peer (an address check), which no token change fixes. */
+class Forbidden extends Error {}
 type Per = {
   lastStartMs: number | null; dirty: boolean; running: Promise<void> | null; offline: boolean; lastSyncMs: number | null;
   refused: Set<string>; linking: boolean; failure: LinkFailure | null;
   /** Records an older server refused as an unknown kind: not a problem to show, sent again later. */
   later: Map<string, number>;
+  /** The store's sequence the last run sent up to, when that run went through to its end. Null otherwise. */
+  settledAt: number | null;
+  /** A 403 was logged and no run has gone through since: the next one stays quiet. */
+  forbiddenLogged: boolean;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -47,9 +58,11 @@ export class AccountSync {
   private per = new Map<string, Per>();
   constructor(private deps: Deps) {}
 
+  private coachHere(id: string): boolean { try { return this.deps.coachHere?.(id) ?? true; } catch { return false; } }
+
   private st(id: string): Per {
     let s = this.per.get(id);
-    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map() }; this.per.set(id, s); }
+    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map(), settledAt: null, forbiddenLogged: false }; this.per.set(id, s); }
     return s;
   }
 
@@ -79,6 +92,18 @@ export class AccountSync {
     return { state, name: l.name, reason: s.failure, refused: s.refused.size, offline: s.offline, lastSyncMs: s.lastSyncMs };
   }
 
+  /**
+   * The last run went through and nothing changed here since: every record of the profile is on the server. Records the server
+   * refused for good do not hold this up; they are shown as refused.
+   */
+  settled(profileId: string): boolean {
+    try {
+      const s = this.st(profileId);
+      if (s.running || s.dirty || s.settledAt === null || !this.deps.links.token(profileId)) return false;
+      return this.deps.store.changedSince(profileId, s.settledAt).records.length === 0;
+    } catch { return false; }
+  }
+
   /** Safe to call from the scan loop without awaiting. Never rejects. */
   tick(profileId: string): Promise<void> {
     try {
@@ -99,6 +124,7 @@ export class AccountSync {
     const { links } = this.deps;
     const s = this.st(id);
     const token = links.token(id), url = links.url(id);
+    s.settledAt = null;
     if (!token || !url) return;
     const call = async (method: 'GET' | 'POST', path: string, body?: unknown): Promise<unknown> => {
       const res = await (this.deps.fetchFn ?? fetch)(`${url}${path}`, {
@@ -107,13 +133,16 @@ export class AccountSync {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (res.status === 401) throw new Rejected();
+      if (res.status === 403) throw new Forbidden();
       if (!res.ok) throw new Error(`server answered ${res.status}`);
       return res.json();
     };
     try {
       try { this.retryUnknownKinds(id); } catch { /* the next run tries again */ }
-      try { this.exportPlan(id); } catch { /* the next run tries again */ }
-      try { this.exportComplaints(id); } catch { /* the next run tries again */ }
+      if (this.coachHere(id)) {
+        try { this.exportPlan(id); } catch { /* the next run tries again */ }
+        try { this.exportComplaints(id); } catch { /* the next run tries again */ }
+      }
       await syncRecords({
         cursors: links.cursors(id),
         mayContinue: () => this.deps.noOpenRide() && links.token(id) !== null,
@@ -142,9 +171,17 @@ export class AccountSync {
           }
         },
       });
-      s.offline = false; s.lastSyncMs = this.deps.nowMs();
+      s.offline = false; s.lastSyncMs = this.deps.nowMs(); s.forbiddenLogged = false;
+      // Settled only when the run sent everything: a run stopped by a ride leaves its cursor behind the store.
+      const c = await links.cursors(id).get();
+      if (!c.resend) s.settledAt = c.sent;
     } catch (e) {
       if (e instanceof Rejected) { links.reject(id); s.offline = false; } else s.offline = true;
+      // Kept retrying like any failure, but said once: a refusal that never ends would otherwise go unnoticed.
+      if (e instanceof Forbidden && !s.forbiddenLogged) {
+        s.forbiddenLogged = true;
+        console.error(`Records-Abgleich für Profil ${id}: der Server antwortet 403, neuer Versuch beim nächsten Lauf`);
+      }
     }
   }
 
@@ -172,6 +209,8 @@ export class AccountSync {
     }
     const copies = store.putMany(id, recs, 'remote');
     for (const c of copies) before.set(c.id, null);
+    // The server coaches a moved profile: the records are kept, the local coach is not told.
+    if (!this.coachHere(id)) { try { this.deps.onChange?.(id); } catch { /* a listener never matters here */ } return; }
     try {
       if (before.size > 0) {
         const all = store.all(id, 'workout');

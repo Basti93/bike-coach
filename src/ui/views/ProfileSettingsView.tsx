@@ -1,6 +1,6 @@
 import { ZoneChip } from '../hr-zone-style';
 import { useState, type ReactNode } from 'react';
-import type { CoachClientMessage } from '../../shared/coach-protocol';
+import type { CoachClientMessage, CoachHome } from '../../shared/coach-protocol';
 import type { ClientMessage } from '../../shared/protocol';
 import { hrMaxFor, zoneBounds, ZONES } from '../../shared/hr-zones';
 import type { Profile } from '../../shared/profiles';
@@ -16,10 +16,11 @@ type Props = {
   sendRide: (m: ClientMessage) => void; sendCoach: (m: CoachClientMessage) => void; onBack: () => void; onDeleted?: () => void;
   /** Further sections of the profile page: settings and connections. */
   extra?: ReactNode;
+  coachHome?: CoachHome;
 };
 
 /** What you enter applies here: Garmin never overwrites these values on its own. */
-export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted, extra }: Props) => {
+export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, sendCoach, onBack, onDeleted, extra, coachHome }: Props) => {
   const [name, setName] = useState(profile.name);
   const [ftp, setFtp] = useState(String(ftpW));
   const [maxHr, setMaxHr] = useState(text(profile.maxHrBpm));
@@ -60,6 +61,7 @@ export const ProfileSettingsView = ({ profile, ftpW, coachConnected, sendRide, s
       delete next.ftpCapW;
       sendCoach({ type: 'set-ftp', profileId: profile.id, ftpW: number(ftp) });
     }
+    if (coachHome?.where === 'server') sendCoach({ type: 'profile-update', profileId: profile.id, profile: next });
     sendRide({ type: 'save-profile', profile: next });
     onBack();
   };

@@ -141,6 +141,16 @@ export class MealCoach {
     this.exportAll();
   }
 
+  /** A moving person's settings from their Mac, taken only when the household has none for them yet. True when taken. */
+  adoptSettings(id: string, raw: unknown): boolean {
+    const d = this.load();
+    if (Object.prototype.hasOwnProperty.call(d.settings, id)) return false;
+    d.settings[id] = cleanSettings(raw);
+    this.save();
+    this.exportAll();
+    return true;
+  }
+
   view(id: string): MealsView {
     const now = this.deps.nowMs();
     const d = this.load();
@@ -150,8 +160,11 @@ export class MealCoach {
     return { settings: this.settings(id), weeks: on ? weeks : [], currentWeek: current, today: dayIndex(now), planning: this.planning, canPlan: this.deps.noOpenRide(), chat: on ? d.chats[id] ?? [] : [] };
   }
 
-  /** From the scan loop. Never throws into it, never plans with a ride open, and does nothing at all with no one in. */
-  async tick(): Promise<string[]> {
+  /**
+   * From the scan loop. Never throws into it, never plans with a ride open, and does nothing at all with no one in.
+   * `plan: false` keeps the scheduled weekly plan back (quiet hours on the server) but still answers a person's waiting messages.
+   */
+  async tick(opts: { plan?: boolean } = {}): Promise<string[]> {
     try {
       // No profile ever turned the plan on: nothing is read, written or sent.
       if (Object.keys(this.load().settings).length === 0) return [];
@@ -165,7 +178,7 @@ export class MealCoach {
       const due = (day === PLAN_DAY && new Date(now).getHours() >= PLAN_HOUR) || day === PLAN_DAY + 1;
       const target = addWeeks(weekOf(now), 1);
       const d = this.load();
-      if (due && !d.plans[target] && d.lastAuto !== target && this.deps.noOpenRide() && !this.planning) {
+      if (opts.plan !== false && due && !d.plans[target] && d.lastAuto !== target && this.deps.noOpenRide() && !this.planning) {
         d.lastAuto = target;
         this.save();
         await this.planWeek(target, 0);
@@ -339,19 +352,30 @@ export class MealCoach {
     done(replySwapped(meal, dish.title), [key!]);
   }
 
-  setEater(id: string, week: string, key: string, person: string, on: boolean): void {
+  /**
+   * `atMs` is when the change was made, for one applied late (queued while offline): it then only wins against an older entry.
+   * Phones' changes are taken in first, so one not merged yet is neither overwritten nor undone.
+   */
+  setEater(id: string, week: string, key: string, person: string, on: boolean, atMs?: number): void {
     const d = this.load();
     const plan = d.plans[week];
     if (!this.enabled(id) || !plan || !plan.meals.some((m) => mealKey(m.day, m.slot) === key) || !plan.people.some((p) => p.id === person)) return;
-    d.states[week] = withEater(d.states[week] ?? EMPTY_STATE, key, person, on, this.deps.nowMs());
-    this.save();
-    this.exportAll();
+    this.importStates();
+    this.putState(week, (s) => withEater(s, key, person, on, atMs ?? this.deps.nowMs()), atMs);
   }
 
-  setItem(id: string, week: string, item: string, state: ItemState): void {
+  setItem(id: string, week: string, item: string, state: ItemState, atMs?: number): void {
     const d = this.load();
     if (!this.enabled(id) || !d.plans[week] || typeof item !== 'string' || item.length > 120 || !['offen', 'gekauft', 'da'].includes(state)) return;
-    d.states[week] = withItem(d.states[week] ?? EMPTY_STATE, item, state, this.deps.nowMs());
+    this.importStates();
+    this.putState(week, (s) => withItem(s, item, state, atMs ?? this.deps.nowMs()), atMs);
+  }
+
+  /** A change made now replaces its entry; one made at an earlier `atMs` is merged, so a newer entry stays. */
+  private putState(week: string, change: (s: MealState) => MealState, atMs: number | undefined): void {
+    const d = this.load();
+    const before = d.states[week] ?? EMPTY_STATE;
+    d.states[week] = atMs === undefined ? change(before) : mergeStates(before, change(EMPTY_STATE));
     this.save();
     this.exportAll();
   }

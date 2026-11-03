@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { HevyLinks, HevySync } from '../../src/coach/hevy';
+import { PLAIN_CODEC, sealedCodec, type SecretCodec } from '../../src/coach/secrets/secret-box';
 
 const NOW = 1_800_000_000_000;
 const raw = (id: string, day = 1, over: object = {}) => ({
@@ -332,5 +333,51 @@ describe('connection per profile', () => {
     const l = links(ok());
     await l.connect('pa', KEY);
     expect(JSON.stringify(l.status('pa'))).not.toContain(KEY);
+  });
+});
+
+describe('sealed key', () => {
+  const SECRET = Buffer.alloc(32, 3);
+  const ok = () => vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    if (String(url).includes('/v1/user/info')) return json({ data: { name: 'Test' } });
+    if ((init?.headers as Record<string, string>)['api-key'] !== KEY) return json({}, 401);
+    return json({ page: 1, page_count: 1, workouts: [raw('w1')] });
+  });
+  const links = (fetchFn: unknown, codec?: SecretCodec | ((id: string) => SecretCodec)) => new HevyLinks({ baseDir: dir, nowMs: () => now, fetchFn: fetchFn as typeof fetch, sleep, onChange: vi.fn(), ...(codec ? { codec } : {}) });
+  const keyFile = (id: string) => path.join(dir, id, 'api-key');
+
+  test('Hevy with a sealed codec: api-key on disk starts with pfs1., apiKey() returns the key, status() never contains it', async () => {
+    const codec = sealedCodec(SECRET, 'acc1:hevy');
+    const l = links(ok(), codec);
+    await l.connect('pa', KEY);
+    const stored = fs.readFileSync(keyFile('pa'), 'utf8');
+    expect(stored.startsWith('pfs1.')).toBe(true);
+    expect(stored).not.toContain(KEY);
+    expect(fs.statSync(keyFile('pa')).mode & 0o777).toBe(0o600);
+    expect(l.apiKey('pa')).toBe(KEY);
+    expect(l.status('pa').state).toBe('connected');
+    await l.tick(['pa']);
+    expect(l.workouts('pa')).toHaveLength(1);
+    expect(JSON.stringify(l.status('pa'))).not.toContain(KEY);
+    // A fresh start reads the sealed key again.
+    expect(links(ok(), codec).apiKey('pa')).toBe(KEY);
+    // Per profile codecs work as well.
+    expect(links(ok(), () => codec).apiKey('pa')).toBe(KEY);
+  });
+  test('a sealed key that does not open counts as no key, and nothing is sent', async () => {
+    await links(ok(), sealedCodec(SECRET, 'acc1:hevy')).connect('pa', KEY);
+    const f = ok();
+    const other = links(f, sealedCodec(SECRET, 'acc2:hevy'));
+    expect(other.apiKey('pa')).toBeNull();
+    expect(other.status('pa')).toEqual({ state: 'idle' });
+    await other.tick(['pa']);
+    expect(f).not.toHaveBeenCalled();
+  });
+  test('Hevy without a codec writes the key in plain as today', async () => {
+    const l = links(ok());
+    await l.connect('pa', KEY);
+    expect(fs.readFileSync(keyFile('pa'), 'utf8')).toBe(KEY);
+    expect(l.apiKey('pa')).toBe(KEY);
+    expect(links(ok(), PLAIN_CODEC).apiKey('pa')).toBe(KEY);
   });
 });

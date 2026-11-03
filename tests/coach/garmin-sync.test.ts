@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { GarminSync } from '../../src/coach/garmin-sync';
+import type { GarminTokens } from '../../src/coach/secrets/garmin-tokens';
 
 const HOUR = 3600_000;
 const setup = (opts: { tokens?: boolean; python?: boolean } = {}) => {
@@ -134,4 +135,64 @@ test('unsafe profile ids are ignored', () => {
   const { sync, children } = setup();
   sync.tick('../p1');
   expect(children).toHaveLength(0);
+});
+
+const recordingTokens = (log: string[], mtime: number | null = 5): GarminTokens => ({
+  has: () => mtime !== null,
+  mtimeMs: () => mtime,
+  checkout: (id) => { log.push(`checkout ${id}`); return { id, dir: `/run/secrets/${id}`, gen: 1 }; },
+  checkin: (h, how) => { log.push(`checkin ${h.id}${how?.discard ? ' discard' : ''}`); },
+  remove: (id) => { log.push(`remove ${id}`); },
+});
+test('a sync run checks out before the spawn and checks in after the child exits, also when it fails', async () => {
+  const { baseDir } = setup({ tokens: false });
+  const log: string[] = [];
+  const children: any[] = [];
+  const spawnFn: any = (_bin: string, args: string[]) => {
+    log.push('spawn');
+    const child: any = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.args = args;
+    child.kill = vi.fn(() => child.emit('close', null, 'SIGTERM'));
+    children.push(child);
+    return child;
+  };
+  const env = { now: 1_000_000_000, ride: false };
+  const sync = new GarminSync({ baseDir, python: path.join(baseDir, 'python'), script: 's.py', spawnFn, tokens: recordingTokens(log), rideOpen: () => env.ride, onUpdate: () => {}, nowMs: () => env.now });
+  sync.tick('p1');
+  expect(log).toEqual(['checkout p1', 'spawn']);
+  expect(children[0].args).toEqual(expect.arrayContaining(['--tokens', '/run/secrets/p1']));
+  children[0].emit('close', 0, null);
+  expect(log).toEqual(['checkout p1', 'spawn', 'checkin p1']);
+
+  env.now += 3 * HOUR;
+  sync.tick('p1');
+  children[1].emit('error', new Error('weg'));
+  children[1].emit('close', 1, null);
+  expect(log.slice(3)).toEqual(['checkout p1', 'spawn', 'checkin p1']);
+  expect(sync.info('p1').problem).toBe('failed');
+
+  // Stopped by a ride: checked in as well.
+  env.now += HOUR;
+  sync.tick('p1');
+  env.ride = true;
+  sync.tick('p1');
+  expect(log.slice(6)).toEqual(['checkout p1', 'spawn', 'checkin p1']);
+});
+test('the sync uses the tokens time to see a new login', async () => {
+  const { baseDir } = setup({ tokens: false });
+  let mtime: number | null = 5;
+  const log: string[] = [];
+  const tokens: GarminTokens = { ...recordingTokens(log), has: () => mtime !== null, mtimeMs: () => mtime };
+  const children: any[] = [];
+  const spawnFn: any = () => { const c: any = new EventEmitter(); c.stdout = new PassThrough(); c.kill = vi.fn(); children.push(c); return c; };
+  const sync = new GarminSync({ baseDir, python: path.join(baseDir, 'python'), script: 's.py', spawnFn, tokens, rideOpen: () => false, onUpdate: () => {}, nowMs: () => 1 });
+  sync.tick('p1');
+  children[0].emit('close', 10, null);
+  expect(sync.info('p1').problem).toBe('reauth');
+  sync.tick('p1');
+  expect(children).toHaveLength(1);
+  mtime = 6;
+  sync.tick('p1');
+  expect(children).toHaveLength(2);
 });

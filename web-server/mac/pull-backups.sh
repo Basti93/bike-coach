@@ -23,7 +23,7 @@ fail() {
 }
 
 /usr/bin/rsync -a --timeout=120 -e "/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=20" \
-  --include='pandafit-*.db.gz' --exclude='*' "$SERVER:$SOURCE" "$TARGET/" 2>> "$LOG" \
+  --include='pandafit-*.db.gz' --include='pandafit-coach-*.tar.gz' --exclude='*' "$SERVER:$SOURCE" "$TARGET/" 2>> "$LOG" \
   || fail "Server nicht erreichbar oder Kopieren gescheitert (Details: $LOG)"
 
 newest=$(/bin/ls -t "$TARGET"/pandafit-*.db.gz 2>/dev/null | head -1 || true)
@@ -31,5 +31,11 @@ newest=$(/bin/ls -t "$TARGET"/pandafit-*.db.gz 2>/dev/null | head -1 || true)
 age_days=$(( ( $(date +%s) - $(stat -f %m "$newest") ) / 86400 ))
 [ "$age_days" -le 2 ] || fail "neueste Datenbanksicherung ist $age_days Tage alt"
 
-find "$TARGET" -type f -name 'pandafit-*.db.gz' -mtime "+$KEEP_DAYS" -delete
+coach_newest=$(/bin/ls -t "$TARGET"/pandafit-coach-*.tar.gz 2>/dev/null | head -1 || true)
+if [ -n "$coach_newest" ]; then
+  coach_age=$(( ( $(date +%s) - $(stat -f %m "$coach_newest") ) / 86400 ))
+  [ "$coach_age" -le 2 ] || fail "neueste Coach-Sicherung ist $coach_age Tage alt"
+fi
+
+find "$TARGET" -type f \( -name 'pandafit-*.db.gz' -o -name 'pandafit-coach-*.tar.gz' \) -mtime "+$KEEP_DAYS" -delete
 echo "$(date '+%F %T') ok, newest $(basename "$newest"), $(du -sh "$TARGET" | cut -f1) in total" >> "$LOG"

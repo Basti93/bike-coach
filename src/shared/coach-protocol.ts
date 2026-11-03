@@ -9,6 +9,7 @@ import type { MobilityView } from '../coach/mobility/mobility';
 import type { RecordKind, TrackedRecord } from './records';
 import type { MealsView } from '../coach/meals/meal-coach';
 import type { ItemState } from './meals';
+import type { Profile } from './profiles';
 
 export type GarminStatus =
   | { state: 'idle' | 'connecting' | 'needs-mfa' | 'connected' }
@@ -72,8 +73,39 @@ export type CoachClientMessage =
   | { type: 'meals-eater'; profileId: string; week: string; meal: string; person: string; on: boolean }
   | { type: 'meals-item'; profileId: string; week: string; item: string; state: ItemState }
   | { type: 'records-put'; requestId: string; profileId: string; record: TrackedRecord; seenMs?: number }
-  | { type: 'records-list'; requestId: string; profileId: string; kind: RecordKind };
+  | { type: 'records-list'; requestId: string; profileId: string; kind: RecordKind }
+  /** The profile's values (name, FTP, weight ...) as changed on a client. The server coach keeps them per account. */
+  | { type: 'profile-update'; profileId: string; profile: Profile }
+  /**
+   * A change made while the server was unreachable or a ride was open, with the time it was made. Only QUEUEABLE messages count.
+   * qid is the client's id for the entry: the server answers every queued message with a queued-ack carrying it.
+   */
+  | { type: 'queued'; qid: string; atMs: number; message: CoachClientMessage };
+
+/** What a client may queue while offline: writes a person made, never a login, a key, an upload or a request that wants an answer. */
+export const QUEUEABLE: ReadonlySet<CoachClientMessage['type']> = new Set<CoachClientMessage['type']>([
+  'feedback', 'skip-feedback', 'note', 'complaint-update', 'answer-question', 'skip-question', 'debrief-seen', 'debrief-answer',
+  'debrief-skip-question', 'remove-motive', 'set-ftp', 'adjust', 'skip-ramp', 'remove-rule', 'word-result', 'pass-select', 'pass-progress',
+  'pass-summit', 'gym-adjust', 'gym-note', 'gym-answer', 'gym-skip-question', 'gym-remove-rule', 'mobility-done', 'mobility-feel',
+  'meals-settings', 'meals-eater', 'meals-item', 'garmin-upload-settings', 'profile-update',
+]);
+
+/** Where a profile's coach runs, as the Mac shows it. */
+export type CoachHome =
+  | { where: 'local' }
+  /**
+   * problem: other-profile (the account holds another profile), offline (server not reached; tried again), unreadable (an item here
+   * cannot be read), missing (the server keeps missing an item), too-large (a ride over the upload limit), refused (the server refused a request).
+   */
+  | { where: 'moving'; done: number; total: number; problem: 'other-profile' | 'offline' | 'unreadable' | 'missing' | 'too-large' | 'refused' | null }
+  /**
+   * full: the queue holds its most entries, so further writes are refused until the server is back. drift: items changed here after
+   * the server took over on a cut-off finish; they stay on this Mac and did not reach the server.
+   */
+  | { where: 'server'; online: boolean; sinceMs: number | null; session: 'server' | 'cached' | 'rules'; queued: number; full: boolean; drift?: string[] };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
-export type CoachServerMessage = { type: 'records'; requestId: string; kind: RecordKind; records: TrackedRecord[] } | { type: 'records-put-result'; requestId: string; ok: boolean; refused?: boolean; kept?: boolean; updatedMs?: number } | { type: 'records-changed'; profileId: string } | { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null; mobility?: MobilityView | null; account?: AccountStatus; meals?: MealsView | null };
+/** queued-ack: the queued entry was handled (applied, skipped as stale or ignored as invalid) and may leave the client's queue. */
+export type CoachServerMessage = { type: 'queued-ack'; qid: string } | { type: 'records'; requestId: string; kind: RecordKind; records: TrackedRecord[] } | { type: 'records-put-result'; requestId: string; ok: boolean; refused?: boolean; kept?: boolean; updatedMs?: number } | { type: 'records-changed'; profileId: string } | { type: 'gym-preview'; preview: { workout: GymWorkout; edited: boolean; leftOut?: string[] } | null } | { type: 'gym-confirm-result'; result: GymConfirmResult } | { type: 'garmin-health'; data: GarminHealth } | { type: 'ride-detail'; detail: RideDetail } | { type: 'coach-state'; state: CoachState; thinking: boolean; debriefing?: boolean; together: Together; hevy?: HevyStatus; garmin?: GarminStatus; garminSync?: GarminSyncInfo; garminReadiness?: GarminReadiness | null; garminSuggestion?: GarminSuggestion | null; gym?: GymPublic | null; strengthHealth?: StrengthHealth | null; mobility?: MobilityView | null; account?: AccountStatus; meals?: MealsView | null; profile?: Profile; coachHome?: CoachHome };
+export type CoachStateMessage = Extract<CoachServerMessage, { type: 'coach-state' }>;
 export const COACH_PORT = 7411;
