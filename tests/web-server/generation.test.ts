@@ -13,6 +13,7 @@ import { syncRecords } from '../../src/tracking/sync';
 import { openIdb } from '../../src/web/idbStore';
 import { createWebPort } from '../../src/web/webPort';
 import { buildServer } from '../../web-server';
+import { run } from '../../web-server/cli';
 import type { TrackedRecord } from '../../src/shared/records';
 import { login, PW_A, setup } from './helpers';
 
@@ -109,6 +110,17 @@ describe('the database generation', () => {
   });
 });
 
+describe('new-generation', () => {
+  it('takes effect on the running server', async () => {
+    const s = await setup();
+    current = s.app;
+    const { cookie } = await login(s.app, 'anna', PW_A);
+    const g = await generation(s.app, cookie!);
+    expect(await run(['new-generation'], s.dbPath, { readPassword: async () => '', out: () => {} })).toBe(0);
+    expect(await generation(s.app, cookie!)).not.toBe(g);
+  });
+});
+
 describe('a restore with two devices', () => {
   it('the second device re-sends what only it holds and takes what it lacks, also after the first filled the server up', async () => {
     const w = await world();
@@ -137,27 +149,21 @@ describe('a restore with two devices', () => {
     w.phone.dispose();
   });
 
-  it('after a restore, records sent long ago give no kept copies when a newer tombstone is already up', async () => {
-    const sets = (n: number) => ({ id: 'w1', title: 'T', startMs: 1, endMs: 5, source: 'pandafit', exercises: [{ exerciseId: 'x', title: 'X', supersetId: null, notes: '', sets: Array.from({ length: n }, () => ({ type: 'normal', weightKg: 1, reps: 1, durationS: null, doneMs: 3 })) }] });
-    const w: TrackedRecord = { kind: 'workout', id: 'w1', updatedMs: 10, deleted: false, body: sets(5) };
-    const entries = [w];
-    let top = 1;
-    const saved: { sent: number; received: number; generation?: string; resend?: boolean } = { sent: 1, received: 7, generation: 'old' };
-    await syncRecords({
-      local: {
-        changedSince: async (c) => ({ records: c === 0 ? entries : [], cursor: top }),
-        apply: async (r) => { entries[0] = r; top++; },
-        put: async (r) => { entries.push(r); },
-      },
-      cursors: { get: async () => ({ ...saved }), set: async (c) => { Object.assign(saved, c); } },
-      send: async () => ({ refused: [] }),
-      // Another device has already put a newer tombstone up; this device had sent w1 long ago.
-      fetchSince: async () => ({ records: [{ ...w, updatedMs: 20, deleted: true, body: sets(0) }], cursor: 1, generation: 'new' }),
-    });
-    expect(entries.map((r) => r.id)).toEqual(['w1']);
-    expect(saved.generation).toBe('new');
-    expect(saved.received).toBe(1);
-    expect(saved.resend).toBeFalsy();
+  it('after a restore a delete made on the latest version gives no copy, whichever device fills the server first', async () => {
+    const w = await world();
+    const body = { id: 'w1', title: 'T', startMs: 1, endMs: 5, source: 'pandafit', exercises: [{ exerciseId: 'x', title: 'X', supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: 1, reps: 1, durationS: null, doneMs: 3 }] }] };
+    const one: TrackedRecord = { kind: 'workout', id: 'w1', updatedMs: 10, deleted: false, body };
+    await w.phone.put(one);
+    await w.phone.sync(); await w.mac();
+    const copy = w.backup();
+    w.store.put('p', { ...one, updatedMs: 20, deleted: true });
+    await w.mac();
+    await w.restoreFrom(copy);
+    await w.mac(); await w.phone.sync(); await w.mac();
+    expect(w.store.all('p', 'workout')).toHaveLength(1);
+    expect((await w.idb.changedSince(0)).records).toHaveLength(1);
+    expect((await w.idb.changedSince(0)).records[0]!.deleted).toBe(true);
+    w.phone.dispose();
   });
 
   it('a failed resend is taken up again by the next run', async () => {
