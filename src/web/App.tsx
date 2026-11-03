@@ -3,6 +3,7 @@ import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { openStoreCount } from '../tracking/registry';
 import { HistoryScreen, RoutinesScreen, WorkoutScreen } from '../tracking/ui';
+import { MobilityOffer } from '../tracking/ui/MobilityOffer';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { openIdb } from './idbStore';
 import { mobilityToShow, openComplaints, planDateText, planIsStale, readPlan, shouldShowInstallHint } from './logic';
@@ -87,7 +88,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onTraining: 
   }
 }
 
-function Heute({ port, env, goTraining }: { port: WebPort; env: Env; goTraining: () => void }) {
+function Heute({ port, env, account, goTraining }: { port: WebPort; env: Env; account: string; goTraining: () => void }) {
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
   const complaints = usePortRecords(port, 'complaint').records;
@@ -134,15 +135,7 @@ function Heute({ port, env, goTraining }: { port: WebPort; env: Env; goTraining:
           <button type="button" onClick={goTraining}>Zum Training</button>
         </section>
       )}
-      {session && (
-        <section className="card">
-          <h2>Beweglichkeit, wenn du magst</h2>
-          <p>{session.reason}</p>
-          <p className="muted">Etwa {session.minutes} Minuten, {session.exercises.length} Übungen.</p>
-          <ol>{session.exercises.map((e) => <li key={e.id}><b>{e.title}</b><p className="muted">{e.howTo}</p></li>)}</ol>
-          <button type="button" onClick={() => void markDone()}>Gemacht</button>
-        </section>
-      )}
+      {session && <MobilityOffer key={session.id} session={session} hideKey={`pandafit.mobility.notToday.${account}`} storage={env.storage} now={env.now} onDone={() => void markDone()} />}
       <section className="card">
         <h2>Beschwerden</h2>
         {open.length === 0 && <p className="muted">Nichts offen.</p>}
@@ -178,11 +171,46 @@ function Training({ port, env }: { port: WebPort; env: Env }) {
   );
 }
 
-type Tab = 'heute' | 'training' | 'verlauf';
+type Tab = 'heute' | 'training' | 'verlauf' | 'profil';
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
+
+const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
+  if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
+  if (status === 'offline') return 'Gerade keine Verbindung. Alles bleibt auf diesem Gerät und geht raus, sobald es wieder geht.';
+  if ((c.refused ?? 0) > 0) return 'Ein Eintrag wurde vom Server nicht angenommen. Er bleibt sicher auf diesem Gerät gespeichert.';
+  if (c.pending > 0) return c.pending === 1 ? 'Ein Eintrag wartet noch aufs Senden. Er ist sicher auf diesem Gerät.' : `${c.pending} Einträge warten noch aufs Senden. Sie sind sicher auf diesem Gerät.`;
+  if (c.lastOkMs === null) return 'Der erste Abgleich folgt gleich.';
+  const at = new Date(c.lastOkMs);
+  return `Alles abgeglichen, zuletzt ${at.toLocaleDateString('de-DE')} um ${at.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.`;
+};
+
+/** The account on this device: who is signed in, how the sync stands, and the way out. */
+function Profil({ account, port, status, onLogout }: { account: string; port: WebPort; status: 'ok' | 'login' | 'offline'; onLogout: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  usePortRecords(port, 'workout'); // re-renders when the port changes
+  const c = port.syncState();
+  const tryLogout = () => { if (c.pending > 0 || (c.refused ?? 0) > 0) setConfirming(true); else onLogout(); };
+  return (
+    <div className="tk-screen">
+      <h1 className="tk-title">Profil</h1>
+      <section className="card">
+        <p className="muted">Angemeldet als</p>
+        <h2>{account}</h2>
+        <p role="status">{syncText(status, c)}</p>
+      </section>
+      {confirming ? (
+        <p role="status" className="tk-note">
+          Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.
+          <button type="button" onClick={onLogout}>Trotzdem abmelden</button>
+          <button type="button" className="ghost" onClick={() => setConfirming(false)}>Doch nicht</button>
+        </p>
+      ) : <button type="button" className="ghost" onClick={tryLogout}>Abmelden</button>}
+    </div>
+  );
+}
 
 function Shell({ account, env, port, onLogout, onRelogin }: { account: string; env: Env; port: WebPort; onLogout: () => void; onRelogin: (name: string) => void }) {
   const [tab, setTab] = useState<Tab>('heute');
-  const [confirming, setConfirming] = useState(false);
   const [persistRefused, setPersistRefused] = useState(false);
   const [hint, setHint] = useState(false);
   const [, tick] = useState(0);
@@ -207,19 +235,19 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
     void port.sync();
   }, [env, port]);
 
-  const tryLogout = () => {
-    const c = port.syncState();
-    if (c.pending > 0 || (c.refused ?? 0) > 0) setConfirming(true); else onLogout();
-  };
+  // While typing, the bottom bar steps aside, so the on-screen keyboard never pushes it over a field.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const field = (t: EventTarget | null) => t instanceof HTMLElement && t.matches('input, textarea, select');
+    const on = (e: FocusEvent) => { if (field(e.target)) setTyping(true); };
+    const off = (e: FocusEvent) => { if (field(e.target) && !field(e.relatedTarget)) setTyping(false); };
+    document.addEventListener('focusin', on);
+    document.addEventListener('focusout', off);
+    return () => { document.removeEventListener('focusin', on); document.removeEventListener('focusout', off); };
+  }, []);
 
   return (
     <>
-      <nav aria-label="Seiten" className="web-nav">
-        {(['heute', 'training', 'verlauf'] as const).map((t) => (
-          <button key={t} type="button" className="ghost" aria-pressed={tab === t} onClick={() => setTab(t)}>{t === 'heute' ? 'Heute' : t === 'training' ? 'Training' : 'Verlauf'}</button>
-        ))}
-        <button type="button" className="ghost" onClick={tryLogout}>Abmelden</button>
-      </nav>
       <main className="web-main" onClick={() => setTimeout(() => tick((n) => n + 1), 50)}>
         {status === 'login' && (
           <div className="tk-screen">
@@ -229,21 +257,20 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
               onDone={(n) => { if (n === account) { port.resume(); void port.sync(); } else onRelogin(n); }} />
           </div>
         )}
-        {confirming && (
-          <div className="tk-screen"><p role="status" className="tk-note">
-            Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.
-            <button type="button" onClick={onLogout}>Trotzdem abmelden</button>
-            <button type="button" className="ghost" onClick={() => setConfirming(false)}>Doch nicht</button>
-          </p></div>
-        )}
         {hint && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
         {persistRefused && <div className="tk-screen"><p role="status" className="tk-note">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
-          {tab === 'heute' && <Heute port={port} env={env} goTraining={() => setTab('training')} />}
+          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} />}
           {tab === 'training' && <Training port={port} env={env} />}
           {tab === 'verlauf' && <HistoryScreen port={port} now={env.now} />}
+          {tab === 'profil' && <Profil account={account} port={port} status={status} onLogout={onLogout} />}
         </ErrorBoundary>
       </main>
+      <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`}>
+        {TABS.map(([t, label]) => (
+          <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => setTab(t)}>{label}</button>
+        ))}
+      </nav>
     </>
   );
 }
