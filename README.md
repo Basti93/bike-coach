@@ -92,6 +92,6 @@ To get in touch, write to the owner through their GitHub profile: https://github
 
 ## Licence
 
-The project's own code is under the [MIT licence](LICENSE). The word list and dependencies are excepted, see [`NOTICE.md`](NOTICE.md).
+The project's own code is under the [MIT licence](LICENSE). The word list, the exercise descriptions (partly from [wger](https://wger.de), CC BY-SA) and dependencies are excepted, see [`NOTICE.md`](NOTICE.md).
 
 This project is independent and not affiliated with Garmin, Zwift, Polar or Anthropic. The trademarks belong to their owners.
