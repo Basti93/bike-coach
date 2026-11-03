@@ -189,6 +189,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       )}
       {picker && (
         <ExercisePicker port={port} now={now} newId={newId} onClose={() => setPicker(null)}
+          like={picker.mode === 'swap' ? w.exercises.find((x) => x.rid === picker.ex) : undefined}
           onPick={(ex: Exercise) => {
             const p = picker; setPicker(null);
             act((x) => (p.mode === 'swap' ? swapExercise(x, p.ex, ex, history) : addExercise(x, ex, history)));

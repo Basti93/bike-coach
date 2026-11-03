@@ -114,8 +114,21 @@ test('an exercise can be swapped from the workout screen', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
-  fireEvent.click(await screen.findByRole('button', { name: /^Brustpresse/ }));
+  const similar = await screen.findByRole('region', { name: 'Ähnliche Übungen' });
+  expect(within(similar).getAllByRole('button').map((b) => b.textContent)[0]).toMatch(/Bankdrücken/); // same movement first
+  fireEvent.click(within(similar).getByRole('button', { name: /^Brustpresse/ }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.exerciseId)).toEqual(['pf-chest-press-machine']));
+});
+
+test('a search in the picker finds the English Hevy name', async () => {
+  const { port } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
+  fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'squat' } });
+  expect(screen.getByRole('button', { name: 'Kniebeuge' })).toBeTruthy();
+  expect(screen.queryByRole('region', { name: 'Ähnliche Übungen' })).toBeNull();
 });
 
 test('past workouts can be edited and deleted', async () => {

@@ -3,11 +3,14 @@ import { exerciseDescription } from '../../shared/exercise-descriptions';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
+import { matchesSearch, similarExercises } from '../similar';
 import { useCatalog } from './hooks';
 import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
 
-export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = () => crypto.randomUUID() }: {
-  port: TrackingPort; onPick: (e: Exercise) => void; onClose: () => void; now?: () => number; newId?: () => string;
+/** `like` is the exercise being swapped; similar ones then come first. */
+export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, newId = () => crypto.randomUUID() }: {
+  port: TrackingPort; onPick: (e: Exercise) => void; onClose: () => void; like?: { title: string; exerciseId: string };
+  now?: () => number; newId?: () => string;
 }) {
   const catalog = useCatalog(port);
   const [q, setQ] = useState('');
@@ -18,11 +21,12 @@ export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = 
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const hit = catalog.filter((e) => !needle || e.title.toLowerCase().includes(needle) || muscleLabel(e.primaryMuscle).toLowerCase().includes(needle));
+    const hit = catalog.filter((e) => matchesSearch(e, needle));
     const by = new Map<string, Exercise[]>();
     for (const e of hit) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
     return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
   }, [catalog, q]);
+  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog).slice(0, 8) : []), [like, catalog, q]);
 
   const valid = draft.name.trim() !== '' && draft.muscle !== '' && draft.equipment !== '' && draft.type !== '';
   async function save() {
@@ -32,6 +36,24 @@ export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = 
       onPick(ex);
     } catch { setError(true); }
   }
+
+  const item = (e: Exercise) => {
+    const description = exerciseDescription(e.id);
+    return (
+      <div key={e.id} className="tk-pick-item">
+        <div className="tk-pick-row">
+          <button type="button" className="tk-pick" onClick={() => onPick(e)}>
+            {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
+          </button>
+          {description && (
+            <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
+              onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
+          )}
+        </div>
+        {description && info === e.id && <ExerciseInfo title={e.title} description={description} />}
+      </div>
+    );
+  };
 
   return (
     <div className="tk-picker" role="dialog" aria-label="Übung wählen">
@@ -67,28 +89,16 @@ export function ExercisePicker({ port, onPick, onClose, now = Date.now, newId = 
         <button type="button" className="secondary" onClick={() => setCreating(true)}>Eigene Übung anlegen</button>
       )}
       {groups.length === 0 && <p className="muted">Nichts gefunden. Du kannst eine eigene Übung anlegen.</p>}
+      {similar.length > 0 && (
+        <section aria-label="Ähnliche Übungen">
+          <h3>Ähnlich wie {like!.title}</h3>
+          <div className="tk-list">{similar.map(item)}</div>
+        </section>
+      )}
       {groups.map(([muscle, list]) => (
         <section key={muscle}>
           <h3>{muscleLabel(muscle)}</h3>
-          <div className="tk-list">
-            {list.map((e) => {
-              const description = exerciseDescription(e.id);
-              return (
-                <div key={e.id} className="tk-pick-item">
-                  <div className="tk-pick-row">
-                    <button type="button" className="tk-pick" onClick={() => onPick(e)}>
-                      {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
-                    </button>
-                    {description && (
-                      <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
-                        onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
-                    )}
-                  </div>
-                  {description && info === e.id && <ExerciseInfo title={e.title} description={description} />}
-                </div>
-              );
-            })}
-          </div>
+          <div className="tk-list">{list.map(item)}</div>
         </section>
       ))}
     </div>
