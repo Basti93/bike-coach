@@ -195,6 +195,8 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     testDate = picked.find((d) => !nearLong.includes(d) && fresh(d)) ?? null;
   }
 
+  /** The long run would not have been clearly longer than the others. */
+  let tooEven = false;
   const place = (budget: number, ds: string[]): Slot[] => {
     const order = longDate !== null && ds.includes(longDate) ? [longDate, ...prefer(ds.filter((d) => d !== longDate))] : prefer(ds);
     for (let k = Math.min(ds.length, Math.floor(budget / MIN_RUN_MIN)); k > 0; k--) {
@@ -202,7 +204,10 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
       if (longDate !== null && k >= 2 && use.includes(longDate)) {
         const long = Math.floor(Math.min(Math.max(budget * LONG_SHARE, budget / k), cap));
         const each = Math.floor(Math.min((budget - long) / (k - 1), long));
-        if (each >= MIN_RUN_MIN) return use.map((date) => (date === longDate ? { date, kind: 'long', minutes: long } : { date, kind: 'easy', minutes: each }));
+        // A long run that is not clearly longer is none: then the days get easy runs.
+        if (each >= MIN_RUN_MIN && isLongerThanEasy(long, each)) return use.map((date) => (date === longDate ? { date, kind: 'long', minutes: long } : { date, kind: 'easy', minutes: each }));
+        const easy = Math.floor(Math.min(budget / k, easyCap));
+        if (each >= MIN_RUN_MIN && easy >= MIN_RUN_MIN) { tooEven = true; return use.map((date) => ({ date, kind: 'easy', minutes: easy })); }
       } else {
         const each = Math.floor(Math.min(budget / k, easyCap));
         if (each >= MIN_RUN_MIN) return use.map((date) => ({ date, kind: 'easy', minutes: each }));
@@ -225,7 +230,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     runs,
     reason: reasonText(phase, {
       mode, light, noDay: open.length === 0, tooFew: open.length > 0 && runs.length === 0, rising,
-      long: runs.some((r) => r.kind === 'long') ? 'placed' : longDate === null ? 'noDay' : testDate !== null ? 'test' : 'short',
+      long: runs.some((r) => r.kind === 'long') ? 'placed' : longDate === null ? 'noDay' : testDate !== null && !tooEven ? 'test' : 'short',
       test: testDate !== null,
     }),
     phase,

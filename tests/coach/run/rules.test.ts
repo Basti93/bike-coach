@@ -390,3 +390,26 @@ test('no test the day after a long run of the week before, planned or run', () =
   // An ordinary run the day before is no reason.
   expect(ruleWeek(input({ ...base, longDates: ['2027-06-12'] })).testDate).toBe(WEEK);
 });
+
+test('a long run is at least 10 minutes or 20 % longer than the easy runs; otherwise the week has only easy runs', () => {
+  const p2 = { phase: { phase: 2 as const, since: '2027-05-10' } };
+  for (const perRun of [[35, 35, 35, 50], [45, 45, 45, 30], [30, 30, 30], [50, 50, 50, 50]]) {
+    for (const complaint of [null, 'half'] as const) {
+      for (const lastTestMs of [null, NOW - 60 * DAY]) {
+        for (const weekdays of [[0, 2, 4, 6], [1, 3, 5], [0, 2, 4, 5, 6]]) {
+          const w = ruleWeek(input({ ...p2, runs: history(perRun), complaint, lastTestMs, weekdays }));
+          const long = w.runs.find((r) => r.kind === 'long');
+          if (!long) continue;
+          const easy = Math.max(...w.runs.filter((r) => r.kind === 'easy').map((r) => r.minutes));
+          expect(long.minutes).toBeGreaterThanOrEqual(Math.min(easy + 10, easy * 1.2));
+        }
+      }
+    }
+  }
+  // Three runs that would all be about the same length: all easy, and the reason does not say a long run was placed.
+  const same = ruleWeek(input({ ...p2, runs: history([50, 50, 50, 50]), weekdays: [1, 3, 5] }));
+  expect(same.runs.map((r) => r.kind)).toEqual(['easy', 'easy', 'easy']);
+  expect(same.reason).not.toContain('Ein langer ruhiger Lauf');
+  expect(same.reason).toContain('reicht die Zeit nicht');
+  expect(ruleWeek(input({ ...p2, runs: history([30, 30, 30]), complaint: 'half', weekdays: [1, 3, 5] })).runs.every((r) => r.kind === 'easy')).toBe(true);
+});
