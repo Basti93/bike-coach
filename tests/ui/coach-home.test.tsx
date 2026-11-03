@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library
 import type { CoachState } from '../../src/coach/state';
 import type { CoachHome } from '../../src/shared/coach-protocol';
 import type { Profile } from '../../src/shared/profiles';
-import { useServerProfile } from '../../src/ui/useServerProfile';
+import { settleServerProfile, useServerProfile } from '../../src/ui/useServerProfile';
 import { AccountCard } from '../../src/ui/views/AccountCard';
 import { CoachView } from '../../src/ui/views/CoachView';
 import { ProfileSettingsView } from '../../src/ui/views/ProfileSettingsView';
@@ -19,7 +19,7 @@ test("a moved profile's server values reach the ride service", () => {
   const send = vi.fn();
   const { rerender } = renderHook(({ s }) => useServerProfile(local, s, false, send), { initialProps: { s: server } });
   expect(send).toHaveBeenCalledTimes(1);
-  expect(send).toHaveBeenCalledWith({ type: 'save-profile', profile: { ...local, ftpW: 210 } });
+  expect(send).toHaveBeenCalledWith({ type: 'save-profile', profile: { id: 'p', name: 'Anna', ftpW: 210, maxHrBpm: 175 } });
   rerender({ s: { ...server } });
   expect(send).toHaveBeenCalledTimes(1);
 });
@@ -76,4 +76,36 @@ test('an unlinked profile shows no note and the coach page renders as before', (
   coachView(state, { where: 'local' });
   expect(screen.queryByText(/Server|Umzug/)).toBeNull();
   expect(screen.getByText('Los')).toBeTruthy();
+});
+
+test('nothing is sent until the ride service state is known', () => {
+  const send = vi.fn();
+  const { rerender } = renderHook(({ k }) => useServerProfile(local, server, false, send, k), { initialProps: { k: false } });
+  expect(send).not.toHaveBeenCalled();
+  rerender({ k: true });
+  expect(send).toHaveBeenCalledTimes(1);
+});
+test('a message the ride service did not take is tried again for the same server state', () => {
+  const send = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+  const { rerender } = renderHook(({ k }) => useServerProfile(local, server, false, send, k), { initialProps: { k: true } });
+  expect(send).toHaveBeenCalledTimes(1);
+  rerender({ k: false });
+  rerender({ k: true });
+  expect(send).toHaveBeenCalledTimes(2);
+  rerender({ k: false });
+  rerender({ k: true });
+  expect(send).toHaveBeenCalledTimes(2);
+});
+test('a cleared estimate limit on the server is cleared locally', () => {
+  const send = vi.fn();
+  renderHook(() => useServerProfile(local, { ...server, ftpW: 150 }, false, send));
+  expect(send.mock.calls[0][0].profile.ftpCapW).toBeUndefined();
+});
+test('a server profile older than a local edit is skipped until it reflects the edit or 30 seconds pass', () => {
+  const edit = { ...server, weightKg: 70 };
+  const pending = { profile: edit, atMs: 1000 };
+  expect(settleServerProfile(pending, server, 2000)).toEqual({ accept: false, pending });
+  expect(settleServerProfile(pending, edit, 2000)).toEqual({ accept: true, pending: null });
+  expect(settleServerProfile(pending, server, 32_000)).toEqual({ accept: true, pending: null });
+  expect(settleServerProfile(null, server, 2000)).toEqual({ accept: true, pending: null });
 });

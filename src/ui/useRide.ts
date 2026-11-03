@@ -34,9 +34,12 @@ export const useRide = () => {
     return () => { closed = true; clearTimeout(timer); socket.current?.close(); };
   }, []);
 
-  const send = (m: ClientMessage) => {
+  /** Whether the socket took the message. */
+  const send = (m: ClientMessage): boolean => {
     setError(null);
-    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
+    if (socket.current?.readyState !== WebSocket.OPEN) return false;
+    socket.current.send(JSON.stringify(m));
+    return true;
   };
   return { click, state, offer, clearOffer: () => setOffer(null), connected, send, error, reportPath };
 };

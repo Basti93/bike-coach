@@ -2,6 +2,7 @@ import type { Profile } from '../shared/profiles';
 import type { MobilityView } from '../coach/mobility/mobility';
 import type { MealsView } from '../coach/meals/meal-coach';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { settleServerProfile, type PendingEdit } from './useServerProfile';
 import { createTrackingPorts } from './coachTrackingPort';
 import type { CoachState } from '../coach/state';
 import type { Together } from '../coach/together';
@@ -41,6 +42,7 @@ export const useCoach = (profileId: string | null) => {
   const [gymPreviewFailed, setGymPreviewFailed] = useState(false);
   const [connected, setConnected] = useState(false);
   const socket = useRef<WebSocket | null>(null);
+  const edit = useRef<PendingEdit | null>(null);
   // One tracking port per profile, kept after a switch: a workout store of the old profile still writes through its own.
   const ports = useMemo(() => createTrackingPorts({
     send: (m) => { if (socket.current?.readyState !== WebSocket.OPEN) return false; socket.current.send(JSON.stringify(m)); return true; },
@@ -52,6 +54,7 @@ export const useCoach = (profileId: string | null) => {
     setState(null);
     setCoachHome(LOCAL_HOME);
     setServerProfile(null);
+    edit.current = null;
     setGarminHealth(null);
     setGym(null);
     setMobility(null);
@@ -80,7 +83,7 @@ export const useCoach = (profileId: string | null) => {
         if (m.type === 'garmin-health') setGarminHealth(m.data);
         if (m.type === 'gym-preview') { setGymPreview(m.preview); setGymPreviewFailed(m.preview === null); }
         if (m.type === 'gym-confirm-result') setGymConfirmResult(m.result);
-        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setMeals(m.meals ?? null); setAccount(m.account ?? IDLE_ACCOUNT); setCoachHome(m.coachHome ?? LOCAL_HOME); setServerProfile(m.coachHome?.where === 'server' ? m.profile ?? null : null); }
+        if (m.type === 'coach-state') { setStatusArrived(true); setState(m.state); setThinking(m.thinking); setDebriefing(m.debriefing ?? false); setHevy(m.hevy ?? { state: 'idle' }); setTogether(m.together ?? null); setGarmin(m.garmin ?? { state: 'idle' }); setGarminSync(m.garminSync ?? null); setGarminReadiness(m.garminReadiness ?? null); setGarminSuggestion(m.garminSuggestion ?? null); setGym(m.gym ?? null); setStrengthHealth(m.strengthHealth ?? null); setMobility(m.mobility ?? null); setMeals(m.meals ?? null); setAccount(m.account ?? IDLE_ACCOUNT); setCoachHome(m.coachHome ?? LOCAL_HOME); if (m.coachHome?.where !== 'server' || !m.profile) { edit.current = null; setServerProfile(null); } else { const settled = settleServerProfile(edit.current, m.profile, Date.now()); edit.current = settled.pending; if (settled.accept) setServerProfile(m.profile); } }
       };
       ws.onclose = () => {
         setConnected(false);
@@ -93,6 +96,7 @@ export const useCoach = (profileId: string | null) => {
   }, [profileId, ports]);
 
   const send = (m: CoachClientMessage) => {
+    if (m.type === 'profile-update') edit.current = { profile: m.profile, atMs: Date.now() };
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   };
   const clearGym = (what: 'preview' | 'result' | 'all') => {

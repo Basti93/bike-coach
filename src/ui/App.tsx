@@ -69,7 +69,7 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   const patch = (p: Partial<Views>) => setV((x) => (Object.entries(p).every(([k, val]) => x[k as keyof Views] === val) ? x : { ...x, ...p }));
   const setProfile = (p: Profile | null) => { setPicked(p); setV(HOME); };
   const coach = useCoach(profile?.id ?? state?.ride?.profileId ?? state?.profiles[0]?.id ?? null);
-  useServerProfile(profile ?? null, coach.serverProfile, !!state?.engine || !!state?.ride, send);
+  useServerProfile(profile ?? null, coach.serverProfile, !!state?.engine || !!state?.ride, send, connected && state !== null);
   const hevy = coach.hevy ?? { state: 'idle' as const };
   // The strength page belongs to one profile and needs strength training.
   useEffect(() => { if (v.strengthFor !== null && (!coach.gym || v.strengthFor !== profile?.id)) patch({ strengthFor: null }); }, [coach.gym, v.strengthFor, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
