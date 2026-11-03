@@ -77,3 +77,14 @@ describe('the gym prompt', () => {
     expect(GYM_SYSTEM_PROMPT).toMatch(/5 bis 30 Wiederholungen/);
   });
 });
+
+describe('pairVerdicts', () => {
+  it('names the smaller side when it is below two thirds of the larger and the larger is at least 6', async () => {
+    const { pairVerdicts } = await import('../../../src/shared/muscle-targets');
+    expect(pairVerdicts({ chest: 14, back: 8 })[0]).toMatchObject({ label: 'Brust : Rücken', a: 14, b: 8, short: 'back' });
+    expect(pairVerdicts({ chest: 5, back: 2 })[0].short).toBeNull();
+    expect(pairVerdicts({ chest: 12, back: 9 })[0].short).toBeNull();
+    expect(pairVerdicts({ quads: 6, hams_glutes: 0 })[1].short).toBe('hams_glutes');
+    expect(pairVerdicts({})).toHaveLength(3);
+  });
+});
