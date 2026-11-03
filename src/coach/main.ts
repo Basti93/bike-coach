@@ -20,7 +20,7 @@ import { GarminUploader } from './garmin-uploader';
 import { computeTogether } from './together';
 import type { CoachState } from './state';
 import { GymCoach } from './gym/gym-coach';
-import { strengthHealth, type StrengthHealth } from './strength';
+import type { StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
@@ -28,6 +28,7 @@ import { handleRecords } from './tracking/records-api';
 import { MobilityCoach } from './mobility/mobility';
 import { AccountLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
+import { mergedHealth, mergedStrength } from './tracking/strength-source';
 
 const dir = process.env.BIKE_DATA_DIR;
 const coachDir = process.env.BIKE_COACH_DIR;
@@ -64,7 +65,7 @@ const hevy = new HevyLinks({ baseDir: path.join(dir, '..', 'hevy'), nowMs: () =>
 
 const coach = new Coach({
   ridesDir: dir, coachDir, nowMs: () => Date.now(), garmin: garminData,
-  strength: (profileId) => hevy.workouts(profileId),
+  strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
   mobility: (profileId) => mobility.promptData(profileId),
   ask: async (input) => askClaude({ ...input, workDir, bin: process.env.BIKE_CLAUDE_BIN ?? (await findClaude()) }),
 });
@@ -91,6 +92,7 @@ const gym = new GymCoach({
   complaint: (id, text) => coach.addComplaintFromText(id, text),
   writer: gymWriter,
   account: (id) => accounts.status(id).state === 'linked',
+  onWorkoutFinished: (id) => coach.strengthChanged(id),
 });
 // Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
 const mobility = new MobilityCoach({
@@ -119,8 +121,9 @@ const gymOf = (profileId: string) => {
 };
 
 // Local workouts only, no Hevy call.
+const ownStrengthHealth = mergedHealth({ history: (id) => gym.history(id), connected: gymConnected, nowMs: () => Date.now() });
 const strengthHealthOf = (profileId: string): StrengthHealth | null => {
-  try { return hevy.status(profileId).state === 'connected' ? strengthHealth(hevy.workouts(profileId), Date.now()) : null; } catch { return null; }
+  try { return ownStrengthHealth(profileId); } catch { return null; }
 };
 
 const profiles = (): Profile[] => {
