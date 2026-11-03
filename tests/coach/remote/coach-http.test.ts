@@ -72,3 +72,11 @@ test('finish waits up to five minutes in total; other calls one', async () => {
   await vi.advanceTimersByTimeAsync(4 * 60_000);
   expect(fin).toMatchObject({ kind: 'offline' });
 });
+
+test('a server without the coach (404 on /coach) counts as not there yet, not as a refusal', async () => {
+  const fetchFn = (async () => new Response('Not Found', { status: 404 })) as typeof fetch;
+  const http = coachHttp({ url: 'https://coach.test', token: 't', fetchFn });
+  const e = await http.status().catch((x: unknown) => x);
+  expect(e).toBeInstanceOf(CoachHttpError);
+  expect((e as CoachHttpError).kind).toBe('offline');
+});

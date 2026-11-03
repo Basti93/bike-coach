@@ -115,8 +115,9 @@ export const coachHttp = (opts: {
     try { data = text === '' ? null : JSON.parse(text); } catch { /* not JSON */ }
     if (res.ok || (res.status === 409 && o.conflictAnswer?.(data))) return data;
     const reason = isObj(data) && typeof data.reason === 'string' ? data.reason : isObj(data) && typeof data.result === 'string' ? data.result : null;
-    // 503 is the api's "coach not there now"; any 5xx is worth another try.
-    throw new CoachHttpError(res.status >= 500 ? 'offline' : 'refused', res.status, reason);
+    // 503 is the api's "coach not there now"; any 5xx is worth another try. A 404 is a server that has no coach yet
+    // (the api without PANDAFIT_COACH_URL): not a refusal, so no move starts and no problem is shown.
+    throw new CoachHttpError(res.status >= 500 || res.status === 404 ? 'offline' : 'refused', res.status, reason);
   };
 
   const answer = <T>(data: unknown, ok: (d: Record<string, unknown>) => boolean): T => {

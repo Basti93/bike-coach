@@ -154,7 +154,10 @@ const movingOf = (id: string): CoachHome | null => {
   if (links.status(id).state === 'idle' || onServer(id)) return null;
   const at = moving.get(id);
   const problem = backoff.problem(id);
-  return at || problem ? { where: 'moving', done: at?.done ?? 0, total: at?.total ?? 0, problem } : null;
+  // Before anything went up, an unreachable server (or one without a coach yet) is no move worth showing.
+  const started = !!at && at.total > 0;
+  if (!started && (problem === null || problem === 'offline')) return null;
+  return { where: 'moving', done: at?.done ?? 0, total: at?.total ?? 0, problem };
 };
 
 const router = createRouter({ local: runtime, remote, mealsLocal, togetherLocal: () => profiles().some((p) => !onServer(p.id)), coachDir: coachRoot, moving: movingOf });
