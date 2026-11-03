@@ -1,4 +1,5 @@
-import type { TrackedRecord } from '../shared/records';
+import { applyRecord, type TrackedRecord } from '../shared/records';
+import { keptCopy } from './kept-copy';
 
 export type Refusal = { id: string; reason: string };
 export const MAX_BATCH_RECORDS = 200;
@@ -11,6 +12,8 @@ export type SyncOptions = {
     apply(r: TrackedRecord): Promise<void>;
     /** Preferred for pages: one load and one save. */
     applyMany?(rs: TrackedRecord[]): Promise<void>;
+    /** A record born on this device during a sync (a kept copy). Default: `apply`. */
+    put?(r: TrackedRecord): Promise<unknown>;
   };
   send: (rs: TrackedRecord[]) => Promise<{ refused: Refusal[] } | void>;
   fetchSince: (cursor: number) => Promise<{ records: TrackedRecord[]; cursor: number; more?: boolean; reset?: boolean }>;
@@ -39,7 +42,9 @@ function batches(records: TrackedRecord[]): TrackedRecord[][] {
 }
 
 /**
- * Fetches, then sends. Cursors are stored after every page and after the send, so a failure resumes where it stopped.
+ * Sends, fetches, then sends what the fetch left to send. The send comes first so that the server sees a version that is
+ * about to lose and keeps it; before a page replaces unsent work holding more confirmed sets, that work is written as a
+ * kept copy. `sent` only moves at the very end, so a failed run finds the same unsent work again and repeats harmlessly.
  * Records that came from the server are not sent back. Throws on a failed request; the cursors then stay where they were.
  */
 export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal[] }> {
@@ -47,12 +52,44 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
   const may = () => opts.mayContinue?.() !== false;
   const cur = await opts.cursors.get();
   const fromServer = new Map<string, string>();
+  const sentNow = new Map<string, string>();
   const key = (r: TrackedRecord) => `${r.kind}:${r.id}`;
+  const putLocal = opts.local.put ?? opts.local.apply;
+
+  /** Sends what changed since `floor`, except what this run already sent or received. Null when it may not continue. */
+  const sendChanged = async (floor: number): Promise<number | null> => {
+    const changed = await opts.local.changedSince(floor);
+    const toSend = changed.records.filter((r) => { const t = JSON.stringify(r); return fromServer.get(key(r)) !== t && sentNow.get(key(r)) !== t; });
+    for (const batch of batches(toSend)) {
+      if (!may()) return null;
+      const res = await opts.send(batch);
+      if (res && Array.isArray(res.refused)) refused.push(...res.refused);
+      for (const r of batch) sentNow.set(key(r), JSON.stringify(r));
+    }
+    return changed.cursor;
+  };
+
+  /** Unsent workouts of this device that this page is about to replace, as kept copies where they hold more sets. */
+  const copiesFor = async (page: TrackedRecord[]): Promise<TrackedRecord[]> => {
+    if (!page.some((r) => r.kind === 'workout')) return [];
+    const unsent = new Map((await opts.local.changedSince(cur.sent)).records.filter((r) => fromServer.get(key(r)) !== JSON.stringify(r)).map((r) => [key(r), r]));
+    return page.flatMap((r) => {
+      const mine = unsent.get(key(r));
+      if (!mine || applyRecord(mine, r).keep !== r) return [];
+      const copy = keptCopy(mine, r);
+      return copy ? [copy] : [];
+    });
+  };
+
+  if (!may()) return { refused };
+  if ((await sendChanged(cur.sent)) === null) return { refused };
 
   for (let page = 0; page < MAX_PAGES; page++) {
     if (!may()) return { refused };
     const got = await opts.fetchSince(cur.received);
     if (got.records.length > 0) {
+      // The copy first: if anything fails after this, the same copy is written again, the same text under the same id.
+      for (const c of await copiesFor(got.records)) await putLocal(c);
       if (opts.local.applyMany) await opts.local.applyMany(got.records);
       else for (const r of got.records) await opts.local.apply(r);
       for (const r of got.records) fromServer.set(key(r), JSON.stringify(r));
@@ -66,14 +103,9 @@ export async function syncRecords(opts: SyncOptions): Promise<{ refused: Refusal
   }
 
   if (!may()) return { refused };
-  const changed = await opts.local.changedSince(cur.sent);
-  const toSend = changed.records.filter((r) => fromServer.get(key(r)) !== JSON.stringify(r));
-  for (const batch of batches(toSend)) {
-    if (!may()) return { refused };
-    const res = await opts.send(batch);
-    if (res && Array.isArray(res.refused)) refused.push(...res.refused);
-  }
-  cur.sent = changed.cursor;
+  const sentTo = await sendChanged(cur.sent);
+  if (sentTo === null) return { refused };
+  cur.sent = sentTo;
   await opts.cursors.set({ ...cur });
   if (refused.length > 0) opts.refused?.(refused);
   return { refused };

@@ -79,7 +79,7 @@ export function createWebPort(o: {
       if (paused) return 'login';
       await syncRecords({
         cursors: store.cursors,
-        local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs) },
+        local: { changedSince: (c) => store.changedSince(c), apply: (r) => store.applyMany([r]), applyMany: (rs) => store.applyMany(rs), put: (r) => store.put(r) },
         send: async (records) => {
           await verify();
           const out = await call('POST', '/records', { records });

@@ -24,3 +24,19 @@ export function dedupeSessions(all: LoggedWorkout[]): LoggedWorkout[] {
     .filter((w) => w.source !== 'hevy' || !own.some((o) => overlapsHalf(span(o), span(w))))
     .sort((a, b) => (b.endMs ?? 0) - (a.endMs ?? 0));
 }
+
+const doneCount = (w: LoggedWorkout): number => w.exercises.flatMap((e) => e.sets).filter((s) => s.doneMs !== null).length;
+
+/**
+ * For anything that counts training: a session known as a record and as kept copies counts once, in the version with
+ * the most confirmed sets. The history list still shows them all, so the person can see and delete a copy.
+ */
+export function onePerSession<T extends LoggedWorkout>(all: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const w of all) {
+    const key = w.keptCopyOf ?? w.id;
+    const have = best.get(key);
+    if (!have || doneCount(w) > doneCount(have)) best.set(key, w);
+  }
+  return all.filter((w) => best.get(w.keptCopyOf ?? w.id) === w);
+}

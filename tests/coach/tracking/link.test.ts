@@ -176,7 +176,9 @@ describe('AccountSync', () => {
     w.server.calls.length = 0;
     w.server.hook = () => { w.ride = true; };
     await w.sync.tick(ID);
-    expect(w.server.posted()).toEqual([]);
+    // The send was the first request. Nothing follows it.
+    expect(w.server.posted()).toEqual(['w0', 'w1', 'w2']);
+    expect(w.server.gets()).toBe(0);
   });
 
   it('sends local records and takes what the phone wrote, once', async () => {

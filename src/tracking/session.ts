@@ -1,6 +1,6 @@
 import type { Exercise } from '../shared/exercises';
 import { EXERCISES } from '../shared/exercises';
-import { dedupeSessions } from '../shared/history';
+import { dedupeSessions, onePerSession } from '../shared/history';
 import type { LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
@@ -43,7 +43,7 @@ export const formatDecimal = (n: number | null): string => (n === null ? '' : St
 
 /** Confirmed sets of the newest performed session containing the exercise. A session known twice (own and Hevy) counts once. */
 export function lastValues(exerciseId: string, history: LoggedWorkout[]): LoggedSet[] {
-  for (const w of dedupeSessions(history)) {
+  for (const w of onePerSession(dedupeSessions(history))) {
     const sets = w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter(isDone));
     if (sets.length) return sets;
   }

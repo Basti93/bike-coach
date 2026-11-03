@@ -209,7 +209,9 @@ describe('webPort', () => {
     const { port } = await mk(switching);
     await port.put(rec('w1'));
     expect(await port.sync()).toBe('login');
-    expect(s.posted).toEqual([]);
+    // Sent under the right login; the page after the change is not asked for and nothing comes in.
+    expect(s.posted.map((r) => r.id)).toEqual(['w1']);
+    expect((await port.list('workout')).map((r) => r.id)).toEqual(['w1']);
     expect(port.mismatch()).toBe(true);
   });
 

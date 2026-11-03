@@ -8,6 +8,7 @@ import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { EXERCISES, linkHevyTemplates } from '../../shared/exercises';
+import { onePerSession } from '../../shared/history';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { hevyRecord } from '../tracking/hevy-import';
 import { historyFromLogged, mergeHistory } from '../tracking/merge';
@@ -109,7 +110,7 @@ export class GymCoach {
   history(id: string): StrengthWorkout[] {
     const links = this.links(id);
     const all = this.logged(id);
-    const own = historyFromLogged(all.filter((w) => w.source !== 'hevy'), links);
+    const own = historyFromLogged(onePerSession(all.filter((w) => w.source !== 'hevy' && w.endMs !== null)), links);
     const hevy = this.isHevy(id) ? this.deps.workouts(id).filter((w) => Array.isArray(w.exercises)) : historyFromLogged(all.filter((w) => w.source === 'hevy'), links);
     return mergeHistory(own, hevy, links);
   }
