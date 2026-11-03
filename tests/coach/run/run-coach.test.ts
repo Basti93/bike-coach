@@ -510,6 +510,20 @@ describe('sending to Garmin after confirmation', () => {
     settings({ weekdays: [0, 2, 4, 6] });
   });
 
+  test('the status says whether Garmin sending is possible, and follows a disconnect', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    expect(status()!.garmin).toBe(true);
+    link = { connected: false, capable: true };
+    now += HOUR;
+    await coach.tick('pa');
+    expect(status()!.garmin).toBe(false);
+    link = { connected: true, capable: false };
+    now += HOUR;
+    await coach.tick('pa');
+    expect(status()!.garmin).toBe(false);
+  });
+
   test('no Garmin login: week.garmin is null and a send record starts nothing', async () => {
     link = { connected: false, capable: true };
     const coach = garminCoach();

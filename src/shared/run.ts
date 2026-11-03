@@ -16,7 +16,7 @@ export type ManualRunBody = { type: 'manual'; startMs: number; durationS: number
 export type RunSendBody = { type: 'send'; week: string; fp: string; atMs: number };
 export type RunNumbers = { easyPace: { now: number | null; weeks4: number | null; weeks12: number | null; trend: (number | null)[] }; weeks: { week: string; km: number; minutes: number; plannedMinutes: number | null }[]; longest: { blockKm: number | null; lastBlockKm: number | null }; tests: { date: string; distanceM: number }[] };
 export type RunCard = { runId: string; date: string; kind: RunKind | 'unplanned'; counted: string; result: string; sentence: string };
-export type RunStatusBody = { type: 'status'; atMs: number; on: boolean; suggest: boolean; needsAnswers: boolean; suggestedDays: number[]; hrCap: number | null; complaint: 'pause' | 'half' | 'restart' | null; numbers: RunNumbers; card: RunCard | null };
+export type RunStatusBody = { type: 'status'; atMs: number; on: boolean; suggest: boolean; needsAnswers: boolean; /** Garmin is connected and can take workouts: only then is sending offered. `week.garmin` may stay set after a disconnect. */ garmin: boolean; suggestedDays: number[]; hrCap: number | null; complaint: 'pause' | 'half' | 'restart' | null; numbers: RunNumbers; card: RunCard | null };
 export type RunReviewBody = { type: 'review'; week: string; atMs: number; km: number; minutes: number; plannedMinutes: number | null; runs: number; longestKm: number | null; easyPace: { now: number | null; weeks4: number | null } | null; testM: number | null; focus: string };
 export type RunBody = RunWeekBody | RunSettingsBody | ManualRunBody | RunSendBody | RunStatusBody | RunReviewBody;
 
@@ -86,7 +86,8 @@ export function readRunBody(body: unknown): RunBody | null {
     case 'send': return isWeekKey(b.week) && text(b.fp, 2000) && nn(b.atMs) ? b as RunSendBody : null;
     case 'status': return nn(b.atMs) && typeof b.on === 'boolean' && typeof b.suggest === 'boolean' && typeof b.needsAnswers === 'boolean'
       && list(b.suggestedDays, 7) && b.suggestedDays.every((d) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6) && optNn(b.hrCap)
-      && (b.complaint === null || b.complaint === 'pause' || b.complaint === 'half' || b.complaint === 'restart') && numbersOk(b.numbers) && cardOk(b.card) ? b as RunStatusBody : null;
+      && (b.complaint === null || b.complaint === 'pause' || b.complaint === 'half' || b.complaint === 'restart') && numbersOk(b.numbers) && cardOk(b.card)
+      && (b.garmin === undefined || typeof b.garmin === 'boolean') ? { ...b, garmin: b.garmin === true } as RunStatusBody : null;
     case 'review': {
       const e = b.easyPace;
       return isWeekKey(b.week) && nn(b.atMs) && nn(b.km) && nn(b.minutes) && optNn(b.plannedMinutes) && nn(b.runs) && optNn(b.longestKm)

@@ -208,8 +208,10 @@ export class RunCoach {
       });
     }
     const recent = runs.some((r) => r.startMs > now - SUGGEST_DAYS * DAY);
+    const link = this.deps.garmin(id);
     return {
       type: 'status', atMs: now, on, suggest, needsAnswers: on && settings?.answers === null && !recent,
+      garmin: link.connected && link.capable && !!this.deps.sendWorkouts,
       suggestedDays: suggestedDays(runs, now), hrCap: capFor(maxHr), complaint: mode, numbers: runNumbers(runs, weeks, now), card,
     };
   }

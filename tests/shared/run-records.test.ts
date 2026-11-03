@@ -10,7 +10,7 @@ const bodies = [
   { type: 'settings', on: true, weekdays: [1, 3, 5], answers: { runsPerWeek: 3, usualMinutes: 30, pain: false } },
   { type: 'manual', startMs: 1, durationS: 1800, distanceM: 5000, avgHr: null, runType: 'running' },
   { type: 'send', week: '2026-11-02', fp: 'f', atMs: 1 },
-  { type: 'status', atMs: 1, on: true, suggest: false, needsAnswers: false, suggestedDays: [1], hrCap: 140, complaint: null,
+  { type: 'status', atMs: 1, on: true, suggest: false, needsAnswers: false, garmin: true, suggestedDays: [1], hrCap: 140, complaint: null,
     numbers: { easyPace: { now: 6, weeks4: null, weeks12: null, trend: [6, null] }, weeks: [{ week: '2026-11-02', km: 10, minutes: 60, plannedMinutes: null }], longest: { blockKm: null, lastBlockKm: null }, tests: [{ date: '2026-10-01', distanceM: 5000 }] },
     card: { runId: 'a', date: '2026-11-03', kind: 'unplanned', counted: 'c', result: 'r', sentence: 's' } },
   { type: 'review', week: '2026-11-02', atMs: 1, km: 10, minutes: 60, plannedMinutes: 70, runs: 2, longestKm: 6, easyPace: { now: 6, weeks4: null }, testM: null, focus: 'f' },
@@ -19,6 +19,12 @@ const bodies = [
 describe('run records', () => {
   it('readRunBody accepts each of the six body types', () => {
     for (const b of bodies) expect(readRunBody(b)?.type).toBe(b.type);
+  });
+  it('a status record without the garmin flag reads as garmin false; a non-boolean one is rejected', () => {
+    const { garmin: _g, ...old } = bodies.find((b) => b.type === 'status') as Record<string, unknown>;
+    expect(readRunBody(old)).toMatchObject({ type: 'status', garmin: false });
+    expect(readRunBody({ ...old, garmin: true })).toMatchObject({ garmin: true });
+    expect(readRunBody({ ...old, garmin: 'yes' })).toBeNull();
   });
   it('readRunBody rejects a week body with a bad week key, a negative minutes value and an unknown type', () => {
     expect(readRunBody({ ...week, week: '2026-11-03' })).toBeNull();
