@@ -5,7 +5,7 @@ import type { ExerciseTemplate } from './types';
 const DAY_MS = 86_400_000;
 
 export type GroupVolume = {
-  group: MuscleGroup; label: string; last7Days: number; perWeek4Weeks: number;
+  group: MuscleGroup; label: string; last7Days: number; perWeek4Weeks: number; sum4Weeks: number;
   target: { min: number; max: number }; reps: { min: number; max: number };
 };
 
@@ -29,6 +29,7 @@ export function muscleVolume(workouts: StrengthWorkout[], templates: ExerciseTem
     .filter((g) => g !== 'other' || (month.get(g) ?? 0) > 0)
     .map((g) => ({
       group: g, label: MUSCLE_TARGETS[g].label, last7Days: week.get(g) ?? 0,
+      sum4Weeks: month.get(g) ?? 0,
       perWeek4Weeks: Math.round(((month.get(g) ?? 0) / 4) * 10) / 10,
       target: weeklySetRange(g, goal), reps: MUSCLE_TARGETS[g].reps,
     }));

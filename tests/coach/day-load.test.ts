@@ -1,4 +1,4 @@
-import { crossSportCut, dayRatings, rateRide, rateSession, trainsLegs, type DayInput } from '../../src/coach/day-load';
+import { crossSportCut, dayRatings, rateRide, rateRun, rateSession, trainsLegs, type DayInput } from '../../src/coach/day-load';
 import type { RideSummary } from '../../src/coach/metrics';
 import type { Session } from '../../src/shared/session';
 import type { StrengthWorkout } from '../../src/coach/hevy';
@@ -110,4 +110,16 @@ test('crossSportCut cuts nothing with only one to three earlier weeks', () => {
     const weeks = [...Array(n).fill(0).map(() => week(200)), week(300), week(0)];
     expect(crossSportCut(weeks, 120)).toBe(0);
   }
+});
+
+test('a hard run makes its day hard and adds its minutes, without legs', () => {
+  const r = dayRatings(input({ runs: [{ startMs: at(15), durationS: 1800, hardness: 'hard' }] }), DATES);
+  expect(r['2027-06-15']).toMatchObject({ hardness: 'hard', legs: false, minutes: 30 });
+});
+
+test('rateRun: test is hard, long or 75 minutes and more is moderate, else easy', () => {
+  expect(rateRun({ durationS: 1200, planned: 'test' })).toBe('hard');
+  expect(rateRun({ durationS: 1200, planned: 'long' })).toBe('moderate');
+  expect(rateRun({ durationS: 75 * 60, planned: null })).toBe('moderate');
+  expect(rateRun({ durationS: 74 * 60, planned: 'easy' })).toBe('easy');
 });

@@ -2,7 +2,8 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncEx
 import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { openStoreCount } from '../tracking/registry';
-import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, WorkoutScreen } from '../tracking/ui';
+import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { statsVisible } from '../tracking/ui/StatsScreen';
 import { runView } from '../tracking/ui/run-view';
 import { MobilityOffer } from '../tracking/ui/MobilityOffer';
 import { usePortRecords } from '../tracking/ui/hooks';
@@ -291,8 +292,8 @@ function PushSettings({ push }: { push: PushState }) {
   );
 }
 
-type Tab = 'heute' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
+type Tab = 'heute' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'statistik' | 'profil';
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['statistik', 'Statistik'], ['profil', 'Profil']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
@@ -346,7 +347,11 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   // Laufen only once the run coach's status says on or suggest: nothing of it for a person who does not run.
   const runRecords = usePortRecords(port, 'run').records;
   const hasRun = runView(runRecords ?? [], env.now()).visible;
-  const tabs = TABS.filter(([t]) => (t !== 'essen' || hasMeals) && (t !== 'laufen' || hasRun));
+  // Statistik once there is a stats record or a finished workout.
+  const statsRecords = usePortRecords(port, 'stats').records;
+  const hasStats = statsVisible(statsRecords, workouts);
+  const tabs = TABS.filter(([t]) => (t !== 'essen' || hasMeals) && (t !== 'laufen' || hasRun) && (t !== 'statistik' || hasStats));
+  useEffect(() => { if (tab === 'statistik' && statsRecords !== null && workouts !== null && !hasStats) setTab('heute'); }, [tab, hasStats, statsRecords, workouts]);
   useEffect(() => { if (tab === 'laufen' && runRecords !== null && !hasRun) setTab('heute'); }, [tab, hasRun, runRecords]);
   useEffect(() => { if (tab === 'essen' && mealRecords !== null && !hasMeals) setTab('heute'); }, [tab, hasMeals, mealRecords]);
 
@@ -400,6 +405,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
           {tab === 'verlauf' && <><HistoryScreen port={port} now={env.now} /><RunLookBack port={port} now={env.now} /></>}
+          {tab === 'statistik' && hasStats && <StatsScreen port={port} now={env.now} />}
           {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} push={push.state} />}
         </ErrorBoundary>
       </main>

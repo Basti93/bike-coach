@@ -44,9 +44,25 @@ const REAR_OR_SIDE_IDS = new Set(['pf-lateral-raise', 'pf-lateral-raise-cable', 
 /** The group an exercise counts for: its primary muscle, with shoulders split by the kind of exercise. */
 export function muscleGroupOf(e: { id?: string; title: string; primaryMuscle: string | null | undefined }): MuscleGroup {
   if (e.primaryMuscle === 'shoulders') return (e.id && REAR_OR_SIDE_IDS.has(e.id)) || REAR_OR_SIDE.test(e.title) ? 'side_rear_delts' : 'front_delts';
-  return (e.primaryMuscle && BY_MUSCLE[e.primaryMuscle]) || 'other';
+  return (e.primaryMuscle && Object.hasOwn(BY_MUSCLE, e.primaryMuscle) && BY_MUSCLE[e.primaryMuscle]) || 'other';
 }
 
 /** The weekly set range for a group: the building range for a muscle goal, the minimum effective range otherwise. */
 export const weeklySetRange = (g: MuscleGroup, goal: string | null | undefined): { min: number; max: number } =>
   goal === 'muscle' ? MUSCLE_TARGETS[g].muscle : MUSCLE_TARGETS[g].other;
+
+export const PAIRS: { a: MuscleGroup; b: MuscleGroup; label: string }[] = [
+  { a: 'chest', b: 'back', label: 'Brust : Rücken' },
+  { a: 'quads', b: 'hams_glutes', label: 'Oberschenkel vorn : Oberschenkel hinten und Gesäß' },
+  { a: 'front_delts', b: 'side_rear_delts', label: 'Schultern vorn : Schultern seitlich und hinten' },
+];
+
+/** Set counts of both sides of each pair. `short` is the smaller side when it is below two thirds of the larger and the larger has at least 6. */
+export function pairVerdicts(sets4Weeks: Partial<Record<MuscleGroup, number>>): { label: string; a: number; b: number; short: MuscleGroup | null }[] {
+  return PAIRS.map((p) => {
+    const a = sets4Weeks[p.a] ?? 0, b = sets4Weeks[p.b] ?? 0;
+    const large = Math.max(a, b), small = Math.min(a, b);
+    const short = large >= 6 && small < (2 / 3) * large ? (a < b ? p.a : p.b) : null;
+    return { label: p.label, a, b, short };
+  });
+}

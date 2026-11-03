@@ -25,8 +25,11 @@ import { errorKind } from './error-kind';
 import { MobilityCoach, muscleOf } from './mobility/mobility';
 import { GarminWorkouts } from './run/garmin-workouts';
 import { RunCoach } from './run/run-coach';
-import { dayRatings } from './day-load';
+import { dateKey, dayRatings, type DayInput, type DayRating } from './day-load';
 import { allTraining } from './all-training';
+import { statsContent } from './stats/stats-content';
+import { exportStats } from './tracking/stats-export';
+import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
@@ -103,6 +106,8 @@ export type CoachRuntime = {
 const RETRY_MS = 30 * 60_000;
 const GARMIN_CACHE_MS = 5 * 60_000;
 const GARMIN_DAYS = 60;
+/** A mobility session done without its own length counts this many minutes. */
+const STATS_EVERY_MS = 5 * 60_000;
 const READ_ONLY = new Set<string>(['subscribe', 'records-list', 'ride-detail', 'garmin-health', 'gym-preview']);
 
 /** One coach for the profiles of one data root: the Mac's own, or one account's on the server. */
@@ -188,6 +193,39 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     complaints: (id) => coach.state(id).complaints ?? [],
     runs: (id) => run.runs(id),
   });
+  /**
+   * How hard each date is. Without `runs`, the next bike and gym sessions count on their usual days (the run coach plans with
+   * it). With `runs`, only what was done, those runs included (the statistics).
+   */
+  const ratingsOf = (id: string, dates: string[], runs?: DayInput['runs']): Record<string, DayRating> => {
+    const s = coach.state(id);
+    const history = gym.history(id);
+    const now = nowMs();
+    const planned = runs === undefined;
+    return dayRatings({
+      rides: s.summaries, bikeNext: planned ? s.next?.session ?? null : null, gym: history, gymNext: planned ? gym.state(id).next?.workout ?? null : null, muscleOf,
+      bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
+      ...(runs ? { runs } : {}),
+    }, dates);
+  };
+  /** What the stats record of a profile says; null when there is nothing in the nine weeks. */
+  const statsOf = (id: string): Omit<StatsBody, 'atMs'> | null => {
+    const runs = run.runsFor(id);
+    return statsContent({
+      nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
+      mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
+      ratings: (dates) => ratingsOf(id, dates, runs), goal: gym.state(id).goal ?? null,
+    });
+  };
+  /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */
+  const statsMade = new Map<string, { atMs: number; date: string }>();
+  const statsDue = (id: string): Omit<StatsBody, 'atMs'> | null => {
+    const now = nowMs();
+    const last = statsMade.get(id);
+    if (last && now - last.atMs < STATS_EVERY_MS && now >= last.atMs && last.date === dateKey(now)) return null;
+    statsMade.set(id, { atMs: now, date: dateKey(now) });
+    return statsOf(id);
+  };
   // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
@@ -198,15 +236,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       return fs.existsSync(file) ? new GarminDb(file) : null;
     },
     // Only reads the other coaches' plans and history; never changes them.
-    days: (id, dates) => {
-      const s = coach.state(id);
-      const history = gym.history(id);
-      const now = nowMs();
-      return dayRatings({
-        rides: s.summaries, bikeNext: s.next?.session ?? null, gym: history, gymNext: gym.state(id).next?.workout ?? null, muscleOf,
-        bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
-      }, dates);
-    },
+    days: (id, dates) => ratingsOf(id, dates),
     weeks: (id) => allTraining({ rides: coach.state(id).summaries, workouts: gym.history(id), activities: garminData(id)?.activities }, nowMs())?.weeks ?? [],
     complaints: (id) => coach.state(id).complaints ?? [],
     garmin: (id) => {
@@ -470,6 +500,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
+      // The stats record for every profile coached here, linked or not: written only when it changes, never with a ride open. Never throws.
+      if (free) mealsChanged(exportStats({ store: records, profileIds: list.map((p) => p.id), coachHere, noOpenRide, nowMs: now, content: statsDue }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.
       for (const p of all) { try { void accountSync.tick(p.id).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the fetch must never disturb the coach run.

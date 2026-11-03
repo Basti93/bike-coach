@@ -33,15 +33,20 @@ export const rateRide = (r: RideSummary): DayHardness => {
   return f !== null && f >= HARD_FRACTION ? 'hard' : f !== null && f >= MODERATE_FRACTION ? 'moderate' : 'easy';
 };
 
+/** A test run is hard, a long run or any run of 75 minutes or more is moderate. */
+export const rateRun = (r: { durationS: number; planned: 'easy' | 'long' | 'test' | null }): DayHardness =>
+  r.planned === 'test' ? 'hard' : r.planned === 'long' || r.durationS >= 75 * 60 ? 'moderate' : 'easy';
+
 export const trainsLegs = (exercises: { templateId: string; title: string }[], muscleOf: MuscleOf): boolean =>
   exercises.some((e) => LEG_MUSCLES.includes(muscleOf(e.templateId, e.title) ?? ''));
 
 export type DayInput = {
   rides: RideSummary[]; bikeNext: Session | null; gym: StrengthWorkout[]; gymNext: GymWorkout | null;
   muscleOf: MuscleOf; bikeDays: number[]; gymDays: number[];
+  runs?: { startMs: number; durationS: number; hardness: DayHardness }[];
 };
 
-const dateKey = (ms: number): string => {
+export const dateKey = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
@@ -66,6 +71,7 @@ export const dayRatings = (input: DayInput, dates: string[]): Record<string, Day
     const legs = trainsLegs(w.exercises, input.muscleOf);
     add(dateKey(w.startMs), legs ? 'hard' : 'moderate', legs, w.durationS / 60);
   }
+  for (const r of input.runs ?? []) add(dateKey(r.startMs), r.hardness, false, r.durationS / 60);
   // A planned session goes on the next usual day without a finished one of its own source. Without usual days, any date does.
   const nextFree = (days: number[], done: Set<string>): string | undefined =>
     dates.find((d) => (days.length === 0 || days.includes(weekday(d))) && !done.has(d));

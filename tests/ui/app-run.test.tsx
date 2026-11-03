@@ -55,3 +55,16 @@ test('Verlauf shows the look back when a review exists', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Verlauf' }));
   expect(await screen.findByText('Wochenrückblick')).toBeTruthy();
 });
+
+test('the menu has Statistik with a stats record, and not without', async () => {
+  h.port = fakePort([]).port;
+  await pick();
+  await screen.findByRole('navigation', { name: 'Hauptmenü' });
+  await new Promise((r) => setTimeout(r, 30));
+  expect(screen.queryByRole('button', { name: 'Statistik' })).toBeNull();
+  cleanup();
+  h.port = fakePort([{ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body: { type: 'stats', atMs: 1, goal: null, days: [], muscles: {} } }]).port;
+  await pick();
+  fireEvent.click(await screen.findByRole('button', { name: 'Statistik' }));
+  expect(await screen.findByRole('heading', { name: 'Statistik' })).toBeTruthy();
+});

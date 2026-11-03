@@ -1,5 +1,5 @@
 import { ClaudeError } from '../claude-client';
-import { crossSportCut, type DayRating } from '../day-load';
+import { crossSportCut, rateRun, type DayHardness, type DayRating } from '../day-load';
 import type { GarminDb } from '../garmin-db';
 import type { TrainingWeek } from '../all-training';
 import type { Complaint } from '../motivation';
@@ -30,6 +30,8 @@ const MAX_ATTEMPTS = 3;
 const WINDOW_DAYS = 120;
 /** Runs in the last 8 weeks suggest switching running on. */
 const SUGGEST_DAYS = 56;
+/** The statistics look back this far (9 weeks fit in it). */
+const STATS_DAYS = 70;
 /** The card shows the newest run of the last week. */
 const CARD_DAYS = 7;
 /** Reviews are caught up for at most this many finished weeks. */
@@ -91,6 +93,26 @@ export class RunCoach {
   isThinking(id: string): boolean { return this.running.has(id); }
   /** The runs of the last tick, only while running is on. For mobility after a run. */
   runs(id: string): Run[] { return this.lastRuns.get(id) ?? []; }
+
+  /**
+   * Garmin and manual runs of the last 70 days, each once, rated with the planned kind of its date when a week record has one.
+   * For the statistics: reads only the run list, no activity files, and writes nothing. Also with running switched off.
+   */
+  runsFor(id: string): { startMs: number; durationS: number; hardness: DayHardness }[] {
+    const now = this.deps.nowMs();
+    const fromMs = now - STATS_DAYS * DAY;
+    const db = this.deps.garminDb(id);
+    const fromGarmin: Run[] = db
+      ? db.runs(fromMs).map((r) => ({ ...r, source: 'garmin', hasHr: r.avgHr !== null, easyPace: null, best30M: null, tempC: null }))
+      : [];
+    const runs = mergeRuns(fromGarmin, manualRuns(this.deps.store.all(id, 'run'), null)).filter((r) => r.startMs >= fromMs && r.startMs <= now);
+    const planned = new Map<string, PlannedRun['kind']>();
+    for (const [recId, o] of this.own(id)) {
+      if (o.body.type !== 'week' || recId !== runWeekId(o.body.week)) continue;
+      for (const p of o.body.runs) planned.set(p.date, p.kind);
+    }
+    return runs.map((r) => ({ startMs: r.startMs, durationS: r.durationS, hardness: rateRun({ durationS: r.durationS, planned: planned.get(dateOfMs(r.startMs)) ?? null }) }));
+  }
 
   tick(id: string): Promise<void> {
     const active = this.running.get(id);

@@ -333,3 +333,42 @@ describe('the run coach in the runtime', () => {
     expect(runIds(runtime)).toEqual(['settings']);
   });
 });
+
+describe('the stats record on the scan', () => {
+  const mobilityMinutes = (runtime: ReturnType<typeof make>['runtime']) => {
+    const body = runtime.records.all('pa', 'stats').find((r) => r.id === 'stats')?.body as { days: { minutes: { mobility: number } }[] } | undefined;
+    return body ? body.days.reduce((a, d) => a + d.minutes.mobility, 0) : null;
+  };
+  const addMobility = (runtime: ReturnType<typeof make>['runtime'], id: string, doneMs: number, minutes: number) =>
+    runtime.records.put('pa', { kind: 'mobility', id, updatedMs: doneMs, deleted: false, body: { doneMs, minutes } } as never);
+
+  test('is made at most every five minutes, or at once when the date changed', () => {
+    const d = new Date();
+    let clock = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
+    const { runtime } = make({ nowMs: () => clock });
+    addMobility(runtime, 'm1', clock - 3_600_000, 15);
+    runtime.scan();
+    expect(mobilityMinutes(runtime)).toBe(15);
+    addMobility(runtime, 'm2', clock - 1_800_000, 20);
+    clock += 10_000;
+    runtime.scan();
+    expect(mobilityMinutes(runtime)).toBe(15);
+    clock += 5 * 60_000;
+    runtime.scan();
+    expect(mobilityMinutes(runtime)).toBe(35);
+    // Just before midnight, then two minutes later on the next date.
+    clock = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59).getTime();
+    runtime.scan();
+    addMobility(runtime, 'm3', clock - 60_000, 5);
+    clock += 2 * 60_000;
+    runtime.scan();
+    expect(mobilityMinutes(runtime)).toBe(40);
+  });
+
+  test('with a ride open nothing is written', () => {
+    const { runtime } = make({ noOpenRide: () => false });
+    addMobility(runtime, 'm1', Date.now() - 60_000, 15);
+    runtime.scan();
+    expect(mobilityMinutes(runtime)).toBeNull();
+  });
+});
