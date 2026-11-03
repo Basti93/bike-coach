@@ -40,6 +40,9 @@ export const MAX_RUNS = 5;
 export const LONG_SHARE = 0.35;
 // ... and no run is more than 10 minutes longer than the longest run of the last 3 weeks.
 export const LONG_STEP_MIN = 10;
+// Our own choice: a run counts as long when it is at least 10 minutes or 20 % longer than the easy runs.
+export const LONG_MORE_MIN = 10;
+export const LONG_MORE_SHARE = 0.2;
 // Our own choice: a test run is due 28 days after the last one.
 export const TEST_EVERY_DAYS = 28;
 // Our own choice: a test run is 10 minutes warm-up, 30 minutes steady and hard, 5 minutes cool-down ...

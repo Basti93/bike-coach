@@ -355,6 +355,34 @@ describe('test runs and restarts', () => {
     expect(tests(W0)).toEqual([]);
   });
 
+  test("no test the day after last week's long run", async () => {
+    const plan = async (sundayLong: boolean, sub: string): Promise<string[]> => {
+      store = new RecordStore({ dir: path.join(dir, `tracking-${sub}`) });
+      // Eleven weeks of history: the planned week is not a light week.
+      garmin = history(-11, -1);
+      settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+      now = at(6, 8);
+      const coach = make({ dir: path.join(dir, `run-${sub}`) });
+      await coach.tick('pa');
+      if (sundayLong) {
+        // Sunday's run of this week is a planned long run.
+        const r = rec(`week-${W0}`)!;
+        const body = r.body as RunWeekBody;
+        const runs = body.runs.map((x) => (x.date === '2026-11-08' ? { ...x, kind: 'long' as const, fp: JSON.stringify([x.date, 'long', x.minutes, x.hrCap]) } : x));
+        expect(runs.some((x) => x.kind === 'long')).toBe(true);
+        store.put('pa', { ...r, updatedMs: r.updatedMs + 1, body: { ...body, runs } });
+      }
+      garmin = [...history(-11, -1), run('g-sun', at(6, 9), 60, 9)];
+      now = at(6, 18);
+      await coach.tick('pa');
+      return tests(W1).map((r) => r.date);
+    };
+    expect(await plan(false, 'a')).toEqual(['2026-11-09']);
+    const after = await plan(true, 'b');
+    expect(after).toHaveLength(1);
+    expect(after[0]).not.toBe('2026-11-09');
+  });
+
   test('the week after a restart ramps from the restart week', async () => {
     // Running before the complaint, a pause of two weeks, then two runs of 30 minutes in the restart week.
     garmin = [...history(-7, -3), run('r1', at(1, 18), 30, 5), run('r2', at(3, 18), 30, 5)];

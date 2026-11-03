@@ -5,7 +5,7 @@ import type { ComplaintMode } from './complaints';
 import type { Run } from './garmin-runs';
 import { capFor, startPoint } from './numbers';
 import {
-  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, MAX_RUN_STEP, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
+  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, MAX_RUN_STEP, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_MORE_MIN, LONG_MORE_SHARE, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
   MIN_RUN_MIN, PHASE2_OF, PHASE2_RUNS, PHASE2_WEEKS, TEST_COOL_MIN, TEST_EVERY_DAYS, TEST_LOAD, TEST_MAIN_MIN, TEST_WARM_MIN,
 } from './limits';
 
@@ -25,6 +25,8 @@ export type RuleInput = {
   restartSince: string | null;
   /** When a test counts as due; defaults to nowMs. A week planned ahead passes the start of its first open day. */
   dueAtMs?: number;
+  /** Dates of long runs planned before this plan (the week before, earlier days of this week): no test the day after. */
+  longDates?: string[];
 };
 export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null;
   /** The week's heart-rate cap for easy runs (null without a max heart rate), and whether the counts text mentions the trend. */
@@ -34,6 +36,8 @@ export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; total
 export const weekDates = (week: string): string[] => Array.from({ length: 7 }, (_, i) => dateKey(dateOf(week, i)));
 
 const shift = (date: string, days: number): string => dateKey(dateOf(date, days));
+/** A run is long when it is at least 10 minutes or 20 % longer than the easy runs. */
+export const isLongerThanEasy = (minutes: number, easy: number): boolean => minutes >= Math.min(easy + LONG_MORE_MIN, easy * (1 + LONG_MORE_SHARE));
 const weekdayOf = (date: string): number => dayIndex(dateOf(date, 0).getTime());
 /** Local midnight at the start of a date. */
 const startMsOf = (date: string): number => {
@@ -177,11 +181,13 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   const anchor = input.lastTestMs === null ? null
     : Math.max(input.lastTestMs, startMsOf(input.phase.since), input.restartSince !== null ? startMsOf(input.restartSince) : 0);
   const due = anchor !== null && (input.dueAtMs ?? input.nowMs) - anchor >= TEST_EVERY_DAYS * DAY;
+  // A long run the day before, planned or run, leaves no fresh day either.
+  const longDays = new Set([...(input.longDates ?? []), ...past.filter((r) => isLongerThanEasy(r.durationS / 60, typical)).map((r) => dateKey(new Date(r.startMs)))]);
   const fresh = (d: string): boolean => {
     const own = input.days[d]?.hardness ?? null;
     const before = input.days[shift(d, -1)];
     const after = input.days[shift(d, 1)];
-    return (own === null || own === 'easy') && !before?.legs && before?.hardness !== 'hard' && after?.hardness !== 'hard';
+    return (own === null || own === 'easy') && !before?.legs && before?.hardness !== 'hard' && after?.hardness !== 'hard' && !longDays.has(shift(d, -1));
   };
   let testDate: string | null = null;
   if (due && !light && mode === null && picked.length >= 2 && total >= TEST_LOAD * TEST_MIN + MIN_RUN_MIN) {

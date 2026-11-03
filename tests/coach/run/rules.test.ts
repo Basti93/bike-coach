@@ -376,3 +376,17 @@ test('the rule week carries the heart-rate cap and whether the trend is mentione
   expect(w.hasTrend).toBe(true);
   expect(ruleWeek(input({ maxHr: null })).hrCap).toBeNull();
 });
+
+// ---- Final fix pass ----
+
+test('no test the day after a long run of the week before, planned or run', () => {
+  const base = { runs: history([50, 50, 50, 50]), lastTestMs: NOW - 60 * DAY, phase: OLD, weekdays: [0, 2] };
+  expect(ruleWeek(input(base)).testDate).toBe(WEEK);
+  // Sunday's long run was planned last week.
+  expect(ruleWeek(input({ ...base, longDates: ['2027-06-13'] })).testDate).toBe('2027-06-16');
+  // A long run on Sunday that was simply run, without a plan.
+  const ranLong = [...base.runs.filter((r) => r.startMs < at(2027, 6, 13, 0)), run(at(2027, 6, 13), 75)];
+  expect(ruleWeek(input({ ...base, runs: ranLong })).testDate).toBe('2027-06-16');
+  // An ordinary run the day before is no reason.
+  expect(ruleWeek(input({ ...base, longDates: ['2027-06-12'] })).testDate).toBe(WEEK);
+});

@@ -245,6 +245,7 @@ export class RunCoach {
       nowMs: now, week: t.week, fromDate: t.fromDate, runs: ctx.runs, weekdays: ctx.weekdays, answers: ctx.settings.answers, maxHr: ctx.maxHr,
       complaint: ctx.mode, days, crossCut: (m) => crossSportCut(this.deps.weeks(id), m),
       lastTestMs: this.lastTestMs(ctx, t.fromDate), dueAtMs: Math.max(now, startMsOf(t.fromDate)), phase: phaseOf(ctx.runs, this.complaintWeeks(ctx), now), restartSince: this.restartSince(ctx),
+      longDates: this.longDatesBefore(ctx, t.fromDate),
     });
     const save = (planned: PlannedRun[], source: 'rules' | 'claude', reason: string, note: string | null): void => {
       const body = this.weekBody(ctx, t, existing, rule, planned, source, reason, note);
@@ -422,6 +423,11 @@ export class RunCoach {
       status: r.status === 'ok' ? 'sent' : 'failed', reason: r.status === 'ok' ? null : r.reason ?? 'failed', confirmedMs: p?.atMs ?? g0.confirmedMs, sent,
     }, body.runs);
     this.write(id, runWeekId(week), { ...body, garmin: g }, this.deps.nowMs());
+  }
+
+  /** Long runs planned before `fromDate` in any stored week, among them last week's. */
+  private longDatesBefore(ctx: Ctx, fromDate: string): string[] {
+    return [...ctx.weeks.values()].flatMap((w) => w.runs).filter((r) => r.kind === 'long' && r.date < fromDate).map((r) => r.date);
   }
 
   /** The later of the last planned test date before `fromDate` (done or skipped) and the switch-on time. */
