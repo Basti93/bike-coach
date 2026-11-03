@@ -50,10 +50,16 @@ export const ruleFallback = (coachDir: string, profileId: string, ftpW: number, 
   return { ...s, next: { ...ruleBasedSession({ ftpW: s.ftpW, summaries: s.summaries, nowMs }), source: 'rules' } };
 };
 
+/** Temp file, fsync, rename, fsync of the folder: after a power cut the file is the old one or the new one, never empty. */
 const writeAtomic = (file: string, data: unknown): void => {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(data));
-  fs.renameSync(`${file}.tmp`, file);
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${file}.tmp`;
+  const fd = fs.openSync(tmp, 'w');
+  try { fs.writeSync(fd, JSON.stringify(data)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fs.renameSync(tmp, file);
+  const dfd = fs.openSync(dir, 'r');
+  try { fs.fsyncSync(dfd); } finally { fs.closeSync(dfd); }
 };
 
 /**
@@ -70,6 +76,8 @@ export class RemoteCoach {
   private poll: ReturnType<typeof setInterval> | null = null;
   /** Queued entries sent on the current connection and not yet acknowledged. */
   private inflight = new Set<string>();
+  /** Counts the connections opened: an answer always comes on the connection its request went out on. */
+  private opened = 0;
   private queue: Entry[];
   private cache: Cache | null;
 
@@ -82,12 +90,31 @@ export class RemoteCoach {
   private get stateFile(): string { return path.join(this.opts.dir, 'state.json'); }
 
   private loadQueue(): Entry[] {
-    try {
-      const d = JSON.parse(fs.readFileSync(this.queueFile, 'utf8')) as unknown;
-      if (!Array.isArray(d)) return [];
+    let text: string;
+    try { text = fs.readFileSync(this.queueFile, 'utf8'); } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      this.setAside();
+      return [];
+    }
+    let d: unknown;
+    try { d = JSON.parse(text); } catch { d = null; }
+    if (!Array.isArray(d)) { this.setAside(); return []; }
+    {
       return d.flatMap((e): Entry[] => (isObj(e) && typeof e.qid === 'string' && typeof e.atMs === 'number' && isObj(e.message) && QUEUEABLE.has(e.message.type as CoachClientMessage['type'])
         ? [{ qid: e.qid, atMs: e.atMs, message: e.message as CoachClientMessage }] : [])).slice(0, MAX_QUEUE);
-    } catch { return []; }
+    }
+  }
+  /** An unreadable queue is kept for a look by hand, never overwritten by the next write. */
+  private setAside(): void {
+    const name = `queue.corrupt-${this.opts.nowMs()}.json`;
+    try {
+      fs.renameSync(this.queueFile, path.join(this.opts.dir, name));
+      console.error(`Coach-Warteschlange unlesbar, beiseitegelegt als ${name}`);
+    } catch (e) {
+      console.error(`Coach-Warteschlange unlesbar und nicht beiseitezulegen (${name})`, e);
+      // Never written over: the queue stays in memory only until the file can be moved.
+      this.queueBlocked = true;
+    }
   }
   private loadCache(): Cache | null {
     try {
@@ -96,7 +123,11 @@ export class RemoteCoach {
     } catch { /* no cache yet */ }
     return null;
   }
-  private saveQueue(): void { try { writeAtomic(this.queueFile, this.queue); } catch { /* kept in memory, written with the next change */ } }
+  private queueBlocked = false;
+  private saveQueue(): void {
+    if (this.queueBlocked) return;
+    try { writeAtomic(this.queueFile, this.queue); } catch { /* kept in memory, written with the next change */ }
+  }
 
   private changed(): void { try { this.opts.onMessage(this.view()); } catch { /* a listener never stops the coach */ } }
 
@@ -146,6 +177,7 @@ export class RemoteCoach {
     ws.on('open', () => {
       if (this.ws !== ws) return;
       this.online = true;
+      this.opened++;
       this.inflight.clear();
       // The subscription is a read and stays, also with a ride open.
       try { ws.send(JSON.stringify({ type: 'subscribe', profileId: this.opts.profileId } satisfies CoachClientMessage)); } catch { /* the close follows */ }
@@ -211,7 +243,12 @@ export class RemoteCoach {
   send(m: CoachClientMessage): 'sent' | 'queued' | 'refused' {
     if (m.type === 'queued') return 'refused';
     if (QUEUEABLE.has(m.type)) {
-      if (this.queue.length >= MAX_QUEUE) return 'refused';
+      if (m.type === 'pass-progress') {
+        const merged = this.mergeProgress(m);
+        if (merged === 'kept') return 'queued';
+      }
+      // Full: refused, and the view says so, so nothing is dropped silently.
+      if (this.queue.length >= MAX_QUEUE) { this.changed(); return 'refused'; }
       const e: Entry = { qid: randomUUID(), atMs: this.opts.nowMs(), message: m };
       this.queue.push(e);
       this.saveQueue();
@@ -226,8 +263,25 @@ export class RemoteCoach {
     try { this.ws.send(JSON.stringify(m)); return 'sent'; } catch { return 'refused'; }
   }
 
+  /**
+   * A pass ride reports its distance every 30 s: only the latest report per pass is kept in the queue, back to the last
+   * summit or pick of that pass. A lower distance never replaces a higher one ('kept'); a higher one takes the old one's
+   * place at the end of the queue ('replaced').
+   */
+  private mergeProgress(m: Extract<CoachClientMessage, { type: 'pass-progress' }>): 'kept' | 'replaced' | 'none' {
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      const q = this.queue[i]!.message;
+      if ((q.type === 'pass-summit' || q.type === 'pass-select') && q.passId === m.passId) return 'none';
+      if (q.type !== 'pass-progress' || q.passId !== m.passId) continue;
+      if (!(m.distanceM > q.distanceM)) return 'kept';
+      this.queue.splice(i, 1);
+      return 'replaced';
+    }
+    return 'none';
+  }
+
   view(): CoachStateMessage {
-    const home = (session: 'server' | 'cached' | 'rules'): CoachHome => ({ where: 'server', online: this.online, sinceMs: this.cache?.receivedMs ?? null, session, queued: this.queue.length });
+    const home = (session: 'server' | 'cached' | 'rules'): CoachHome => ({ where: 'server', online: this.online, sinceMs: this.cache?.receivedMs ?? null, session, queued: this.queue.length, full: this.queue.length >= MAX_QUEUE });
     if (this.cache) {
       const v = this.cache.view;
       return this.online ? { ...v, coachHome: home('server') } : { ...v, thinking: false, debriefing: false, coachHome: home('cached') };
@@ -235,6 +289,9 @@ export class RemoteCoach {
     const now = this.opts.nowMs();
     return { type: 'coach-state', state: this.opts.fallback(), thinking: false, together: computeTogether([], [], now), coachHome: home('rules') };
   }
+
+  /** Which connection is open now; changes with every new one. */
+  connection(): number { return this.opened; }
 
   status(): { online: boolean; sinceMs: number | null; queued: number } {
     return { online: this.online, sinceMs: this.cache?.receivedMs ?? null, queued: this.queue.length };

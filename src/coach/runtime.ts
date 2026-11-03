@@ -84,6 +84,8 @@ export type CoachRuntime = {
   coachState(profileId: string): CoachState | null;
   /** The meal plan as this runtime shows it to a profile, also to one coached by the server. */
   mealsView(profileId: string): MealsView | null;
+  /** The together page as this runtime computes it. */
+  together(): Together;
   profileIds(): string[];
   /** Weekdays (Monday 0) the profile usually trains on, from rides and workouts. For a meal plan shared by several runtimes. */
   trainingDays(profileId: string): number[];
@@ -444,6 +446,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     notify: (profileId) => notifyRecords(profileId),
     coachState: (profileId) => { if (!known(profileId) || !coachHere(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
     mealsView: (profileId) => (known(profileId) ? mealsOf(profileId) : null),
+    together: () => opts.together(),
     profileIds: () => profiles().map((p) => p.id),
     trainingDays: (profileId) => (known(profileId) ? trainingDays(profileId) : []),
     records, accountSync,

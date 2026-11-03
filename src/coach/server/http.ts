@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { QUEUEABLE, type CoachClientMessage, type CoachServerMessage, type CoachStateMessage } from '../../shared/coach-protocol';
 import { ChangeClock, changeKey, isHouseholdKey } from './change-clock';
+import { HandledQids } from './handled-qids';
 import { RIDE_ID } from '../ride-upload-format';
 import { storeRide } from './ride-store';
 import { RecordStore } from '../tracking/store';
@@ -172,6 +173,12 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
   const conns = new Map<number, Set<Conn>>();
   const clocks = new Map<number, ChangeClock>();
   const unlisten = new Map<number, () => void>();
+  const handledQids = new Map<number, HandledQids>();
+  const qidsOf = (a: AccountCoach): HandledQids => {
+    let q = handledQids.get(a.accountId);
+    if (!q) { q = new HandledQids(path.join(a.dir, 'qids.json')); handledQids.set(a.accountId, q); }
+    return q;
+  };
   const clockOf = (a: AccountCoach): ChangeClock => {
     let c = clocks.get(a.accountId);
     if (!c) { c = new ChangeClock(path.join(a.dir, 'clock.json')); clocks.set(a.accountId, c); }
@@ -263,14 +270,20 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
       if (m.type === 'queued') {
         const qid = typeof m.qid === 'string' && m.qid !== '' && m.qid.length <= MAX_QID ? m.qid : null;
         try {
+          // Handled before and its ack lost: acked again, never applied twice.
+          if (qid !== null && qidsOf(a).has(qid)) return;
           const inner = m.message;
           if (typeof m.atMs !== 'number' || !Number.isFinite(m.atMs) || !isObj(inner)) return;
           if (typeof inner.type !== 'string' || !QUEUEABLE.has(inner.type as CoachClientMessage['type'])) return;
           // A clock running ahead on the client never makes a change newer than now.
           apply(c, a, inner, Math.min(m.atMs, now), true);
         } finally {
-          // Applied, stale or invalid: the entry is done either way, so the client may drop it. A re-send is skipped by the clock.
-          if (qid !== null) send(c, { type: 'queued-ack', qid });
+          // Applied, stale or invalid: the entry is done either way, so the client may drop it. Its qid is remembered first, so
+          // a re-send after a lost ack is not applied again. Kept in memory even when the file cannot be written.
+          if (qid !== null) {
+            try { if (!qidsOf(a).has(qid)) qidsOf(a).add(qid, now); } catch { /* remembered until the coach restarts */ }
+            send(c, { type: 'queued-ack', qid });
+          }
         }
         return;
       }

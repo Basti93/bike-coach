@@ -19,6 +19,9 @@ const TOKEN = 'device-token-test';
 const PROFILES: Profile[] = [{ id: 'pa', name: 'A', ftpW: 200 } as Profile, { id: 'pb', name: 'B', ftpW: 180 } as Profile];
 const good = { id: 'ki', name: 'KI', steps: [{ kind: 'erg', durationS: 300, ftpFraction: 0.5, label: 'Warmup' }, { kind: 'erg', durationS: 1200, ftpFraction: 0.65, label: 'Locker' }] };
 const answer = { phase: { name: 'Aufbau', weeksLeft: 3, goal: 'x' }, ftpForecast: [], session: good, reason: 'Von KI', change: 'neu' };
+/** The Mac's own together page: local states plus the cached server states. */
+const LOCAL_TOGETHER = { summits: [{ name: 'Auf dem Mac', atMs: 1 }] } as never;
+const SERVER_TOGETHER = { summits: [{ name: 'Vom Server', atMs: 2 }] };
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rr-'));
 const settle = () => new Promise((r) => setTimeout(r, 50));
 
@@ -65,7 +68,7 @@ let stops: (() => void)[] = [];
 afterEach(() => { for (const s of stops) s(); stops = []; vi.unstubAllGlobals(); });
 
 /** The Mac's coach process as main.ts wires it, with a fake socket. */
-const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[] } = {}) => {
+const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[]; timers?: (() => void)[] } = {}) => {
   const root = temp();
   const rides = path.join(root, 'rides');
   fs.mkdirSync(rides, { recursive: true });
@@ -104,11 +107,12 @@ const mac = (o: { moved?: string[]; linked?: string[]; meals?: string[] } = {}) 
   const runtime = createCoachRuntime({
     root, profiles: () => PROFILES, noOpenRide: () => !w.ride, ask,
     python: process.execPath, garminScripts: path.join(root, 'scripts'),
-    links, meals: 'own', together: () => ({ summits: [] }) as never,
+    links, meals: 'own', together: () => LOCAL_TOGETHER,
     spawnFn: spawnFn as never, fetchFn: hevyFetch as never, waitMs: 0,
     coachHere: (id) => !onServer(id), mealsHere: mealsLocal,
   });
-  const router = createRouter({ local: runtime, remote, mealsLocal, coachDir });
+  const togetherLocal = () => PROFILES.some((p) => !onServer(p.id));
+  const router = createRouter({ local: runtime, remote, mealsLocal, togetherLocal, coachDir, ...(o.timers ? { setTimer: (fn: () => void) => { o.timers!.push(fn); } } : {}) });
   const replies: CoachServerMessage[] = [];
   const handle = (m: Parameters<typeof router.handle>[0]) => router.handle(m, (r) => replies.push(r));
   return { root, rides, coachDir, ws, links, runtime, router, remote, ask, spawnFn, hevyFetch, w, replies, handle, onServer };
@@ -278,4 +282,99 @@ test('meals stay local until every person in the meal plan has moved', () => {
   expect(all.router.view('pa')!.meals).toBeNull();
   all.handle({ type: 'meals-item', profileId: 'pa', week: '2026-11-02', item: 'Haferflocken', state: 'gekauft' });
   expect(all.ws.last().types()).toEqual(['subscribe', 'queued']);
+});
+
+test('mixed household: while someone is still coached here, the moved profile sees the Mac\'s together page', () => {
+  const m = mac({ moved: ['pa'] });
+  m.handle({ type: 'subscribe', profileId: 'pa' });
+  m.ws.last().open();
+  m.ws.last().answer({ type: 'coach-state', state: ruleFallback(temp(), 'pa', 200, Date.now()), thinking: false, together: SERVER_TOGETHER });
+  expect(m.router.view('pa')!.together).toEqual(LOCAL_TOGETHER);
+  // Offline from the cache too.
+  m.ws.last().end(1013);
+  expect(m.router.view('pa')!.together).toEqual(LOCAL_TOGETHER);
+});
+
+test('once everyone has moved, the together page is the server\'s', () => {
+  const m = mac({ moved: ['pa', 'pb'] });
+  m.handle({ type: 'subscribe', profileId: 'pa' });
+  m.ws.last().open();
+  m.ws.last().answer({ type: 'coach-state', state: ruleFallback(temp(), 'pa', 200, Date.now()), thinking: false, together: SERVER_TOGETHER });
+  expect(m.router.view('pa')!.together).toEqual(SERVER_TOGETHER);
+});
+
+const EMPTY_HEALTH = { points: [], years: [], progress: { activities: 0, activitiesComplete: false, daysDone: 0, daysTotal: 0, filesDone: 0, filesTotal: 0 }, pulseBeforeRides: null };
+
+test('garmin-health and ride-detail offline get an empty answer at once', () => {
+  const m = mac({ moved: ['pa'] });
+  m.handle({ type: 'subscribe', profileId: 'pa' });
+  m.ws.last().end(1013);
+  m.replies.length = 0;
+  m.handle({ type: 'garmin-health', profileId: 'pa', rangeDays: 7 });
+  m.handle({ type: 'ride-detail', profileId: 'pa', rideId: 'ride-1000' });
+  expect(m.replies).toEqual([{ type: 'garmin-health', data: EMPTY_HEALTH }, { type: 'ride-detail', detail: { rideId: 'ride-1000', points: [] } }]);
+});
+
+test('a request that timed out gets its empty answer, and its late answer never reaches the next request', () => {
+  const timers: (() => void)[] = [];
+  const m = mac({ moved: ['pa'], timers });
+  m.handle({ type: 'subscribe', profileId: 'pa' });
+  m.ws.last().open();
+  const ask = (msg: Parameters<typeof m.router.handle>[0]) => { const got: CoachServerMessage[] = []; m.router.handle(msg, (r) => got.push(r)); return got; };
+  // Ride A times out, then ride B is asked.
+  const a = ask({ type: 'ride-detail', profileId: 'pa', rideId: 'ride-a' });
+  timers.shift()!();
+  expect(a).toEqual([{ type: 'ride-detail', detail: { rideId: 'ride-a', points: [] } }]);
+  const b = ask({ type: 'ride-detail', profileId: 'pa', rideId: 'ride-b' });
+  m.ws.last().answer({ type: 'ride-detail', detail: { rideId: 'ride-a', points: [{ t: 1, powerW: 100, hrBpm: null, cadenceRpm: null }] } });
+  expect(b).toEqual([]);
+  expect(a).toHaveLength(1);
+  m.ws.last().answer({ type: 'ride-detail', detail: { rideId: 'ride-b', points: [] } });
+  expect(b).toEqual([{ type: 'ride-detail', detail: { rideId: 'ride-b', points: [] } }]);
+  // Without a key: the late answer to a timed-out preview is dropped, the next one goes to the next request.
+  const p1 = ask({ type: 'gym-preview', profileId: 'pa' });
+  const h1 = ask({ type: 'garmin-health', profileId: 'pa', rangeDays: 7 });
+  timers.pop()!(); timers.pop()!();
+  expect(p1).toEqual([{ type: 'gym-preview', preview: null }]);
+  expect(h1).toEqual([{ type: 'garmin-health', data: EMPTY_HEALTH }]);
+  const p2 = ask({ type: 'gym-preview', profileId: 'pa' });
+  const late = { type: 'gym-preview', preview: { workout: { name: 'spät' }, edited: false } };
+  m.ws.last().answer(late);
+  expect(p2).toEqual([]);
+  m.ws.last().answer({ type: 'gym-preview', preview: null });
+  expect(p2).toEqual([{ type: 'gym-preview', preview: null }]);
+  // A request on a connection that broke never eats an answer on the next one.
+  const p3 = ask({ type: 'gym-preview', profileId: 'pa' });
+  m.ws.last().end(1006);
+  const s2 = m.ws.sockets.length;
+  m.remote('pa')!.stop(); m.remote('pa')!.start();
+  expect(m.ws.sockets.length).toBe(s2 + 1);
+  m.ws.last().open();
+  const p4 = ask({ type: 'gym-preview', profileId: 'pa' });
+  m.ws.last().answer({ type: 'gym-preview', preview: null });
+  expect(p4).toEqual([{ type: 'gym-preview', preview: null }]);
+  expect(p3).toEqual([{ type: 'gym-preview', preview: null }]);
+});
+
+test('unlinking sets the cached state and the queue aside, so a later move starts clean', () => {
+  const m = mac({ moved: ['pa'] });
+  m.handle({ type: 'subscribe', profileId: 'pa' });
+  m.ws.last().open();
+  m.ws.last().answer({ type: 'coach-state', state: ruleFallback(temp(), 'pa', 200, Date.now()), thinking: false, together: SERVER_TOGETHER });
+  m.ws.last().end(1013);
+  m.handle({ type: 'note', profileId: 'pa', text: 'vor dem Trennen' });
+  const dir = path.join(m.coachDir, 'remote', 'pa');
+  expect(fs.existsSync(path.join(dir, 'state.json'))).toBe(true);
+  expect(fs.existsSync(path.join(dir, 'queue.json'))).toBe(true);
+  m.handle({ type: 'account-unlink', profileId: 'pa' });
+  expect(fs.existsSync(path.join(dir, 'state.json'))).toBe(false);
+  expect(fs.existsSync(path.join(dir, 'queue.json'))).toBe(false);
+  // Set aside, not deleted: the unsent note can still be looked at.
+  const aside = fs.readdirSync(dir).filter((f) => f.startsWith('queue.unlinked-'));
+  expect(aside).toHaveLength(1);
+  expect(fs.readFileSync(path.join(dir, aside[0]!), 'utf8')).toContain('vor dem Trennen');
+  // Moved again later: no old state, no old writes.
+  link(m.root, 'pa');
+  markMoved(m.coachDir, 'pa', { atMs: 2, counts: { rides: 0, items: 0 } });
+  expect(m.router.view('pa')!.coachHome).toMatchObject({ session: 'rules', queued: 0 });
 });

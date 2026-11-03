@@ -23,8 +23,15 @@ export const markMoved = (coachDir: string, profileId: string, info: { atMs: num
   fs.renameSync(`${f}.tmp`, f);
 };
 
-/** Back to the local coach. The cache and queue stay on disk; the local coach does not read them. */
-export const clearMoved = (coachDir: string, profileId: string): void => {
+/**
+ * Back to the local coach. The cached server state and the queue are set aside (renamed, never deleted), so a later move
+ * starts clean and never sends writes from before the unlink.
+ */
+export const clearMoved = (coachDir: string, profileId: string, nowMs: number = Date.now()): void => {
   if (!SAFE_ID.test(profileId)) return;
   fs.rmSync(marker(coachDir, profileId), { force: true });
+  const dir = remoteDir(coachDir, profileId);
+  for (const name of ['state', 'queue']) {
+    try { fs.renameSync(path.join(dir, `${name}.json`), path.join(dir, `${name}.unlinked-${nowMs}.json`)); } catch { /* not there */ }
+  }
 };

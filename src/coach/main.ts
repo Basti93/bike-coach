@@ -100,7 +100,7 @@ const runtime = createCoachRuntime({
   legacyPush: pushToServer,
 });
 
-const router = createRouter({ local: runtime, remote, mealsLocal, coachDir: coachRoot });
+const router = createRouter({ local: runtime, remote, mealsLocal, togetherLocal: () => profiles().some((p) => !onServer(p.id)), coachDir: coachRoot });
 
 const http = createServer();
 const wss = new WebSocketServer({

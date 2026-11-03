@@ -269,6 +269,35 @@ test('every queued message with a qid gets its queued-ack: applied, stale or inv
   expect(coach().complaints![0]!.status).toBe('over');
 });
 
+test('a re-sent queued entry that was already handled is acked again but not applied twice, also after a restart', async () => {
+  const t = await start();
+  const c = await t.as(1);
+  const note = { type: 'queued', qid: 'q-note', atMs: NOON - 1000, message: { type: 'note', profileId: 'pa', text: 'nur einmal' } };
+  const summit = { type: 'queued', qid: 'q-summit', atMs: NOON - 500, message: { type: 'pass-summit', profileId: 'pa', passId: 'stelvio' } };
+  t.send(c, note);
+  t.send(c, summit);
+  const acks = (x: Conn) => x.frames.filter((f) => f.type === 'queued-ack');
+  await vi.waitFor(() => expect(acks(c)).toHaveLength(2));
+  // The connection broke before the client saw the acks: it sends both again.
+  const c2 = await t.as(1);
+  t.send(c2, note);
+  t.send(c2, summit);
+  await vi.waitFor(() => expect(acks(c2)).toHaveLength(2));
+  const coach = () => t.household.account(1)!.runtime.coachState('pa')!;
+  expect(coach().notes.map((n) => n.text)).toEqual(['nur einmal']);
+  expect(fs.existsSync(path.join(t.root, 'accounts', '1', 'qids.json'))).toBe(true);
+  // A coach restart remembers them: the server reads the file again.
+  for (const x of conns) x.ws.terminate();
+  await app!.close();
+  app = buildCoachServer({ household: t.household, internalToken: TOKEN, nowMs: () => t.clock.ms });
+  await app.listen({ port: t.port, host: '127.0.0.1' });
+  const c3 = await t.as(1);
+  t.send(c3, note);
+  await vi.waitFor(() => expect(acks(c3)).toHaveLength(1));
+  await settle();
+  expect(coach().notes.map((n) => n.text)).toEqual(['nur einmal']);
+});
+
 test('a queued message without a usable qid gets no ack', async () => {
   const t = await start();
   const c = await t.as(1);

@@ -56,7 +56,7 @@ test('a moved profile subscribes to the server and gets its coach-state with coa
   ws.last().answer(serverState());
   const v = coach.view();
   expect(v.state.next.session.id).toBe('server-plan');
-  expect(v.coachHome).toEqual({ where: 'server', online: true, sinceMs: NOW, session: 'server', queued: 0 });
+  expect(v.coachHome).toEqual({ where: 'server', online: true, sinceMs: NOW, session: 'server', queued: 0, full: false });
   expect(w.messages.at(-1)).toEqual(v);
   // Kept for the next ride, also when the server is down then.
   expect(JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).view.state.next.session.id).toBe('server-plan');
@@ -77,7 +77,7 @@ test('offline: coach-state comes from the cache, marked online false and session
   const v = coach.view();
   expect(v.state.next.session.id).toBe('server-plan');
   expect(v.thinking).toBe(false);
-  expect(v.coachHome).toEqual({ where: 'server', online: false, sinceMs: NOW, session: 'cached', queued: 0 });
+  expect(v.coachHome).toEqual({ where: 'server', online: false, sinceMs: NOW, session: 'cached', queued: 0, full: false });
 });
 
 test('offline without a cache: the next session is the local rule session, marked rules', () => {
@@ -194,12 +194,50 @@ test('a request that wants the server now is refused offline and sent live onlin
 });
 
 test('the queue holds at most 1000 entries and refuses more', () => {
-  const { coach, ws } = make();
+  const dir = temp();
+  fs.writeFileSync(path.join(dir, 'queue.json'), JSON.stringify(Array.from({ length: MAX_QUEUE - 1 }, (_, i) => ({ qid: `q${i}`, atMs: NOW, message: { type: 'word-result', profileId: 'pa', nl: `w${i}`, knew: true } }))));
+  const { coach, ws } = make({ dir });
   coach.start();
   ws.last().end(1013);
-  for (let i = 0; i < MAX_QUEUE; i++) expect(coach.send({ type: 'word-result', profileId: 'pa', nl: `w${i}`, knew: true })).toBe('queued');
+  expect(coach.send({ type: 'word-result', profileId: 'pa', nl: 'letztes', knew: true })).toBe('queued');
   expect(coach.send({ type: 'note', profileId: 'pa', text: 'eine zu viel' })).toBe('refused');
   expect(coach.status().queued).toBe(MAX_QUEUE);
+});
+
+test('a full queue is shown, not dropped silently: the view says full, and a pass-progress still merges', () => {
+  const dir = temp();
+  fs.writeFileSync(path.join(dir, 'queue.json'), JSON.stringify(Array.from({ length: MAX_QUEUE - 1 }, (_, i) => ({ qid: `q${i}`, atMs: NOW, message: { type: 'word-result', profileId: 'pa', nl: `w${i}`, knew: true } }))));
+  const { coach, ws, w } = make({ dir });
+  coach.start();
+  ws.last().end(1013);
+  expect(coach.view().coachHome).toMatchObject({ queued: MAX_QUEUE - 1, full: false });
+  expect(coach.send({ type: 'pass-progress', profileId: 'pa', passId: 'stelvio', distanceM: 100 })).toBe('queued');
+  expect(coach.view().coachHome).toMatchObject({ queued: MAX_QUEUE, full: true });
+  w.messages.length = 0;
+  expect(coach.send({ type: 'note', profileId: 'pa', text: 'eine zu viel' })).toBe('refused');
+  expect(w.messages.at(-1)).toMatchObject({ type: 'coach-state', coachHome: { full: true } });
+  // Replacing the pass's entry does not grow the queue.
+  expect(coach.send({ type: 'pass-progress', profileId: 'pa', passId: 'stelvio', distanceM: 200 })).toBe('queued');
+  expect(coach.status().queued).toBe(MAX_QUEUE);
+});
+
+test('pass-progress is merged per pass in the queue, and a lower distance never replaces a higher one', () => {
+  const { coach, ws, dir } = make();
+  coach.start();
+  ws.last().end(1013);
+  const progress = (passId: string, distanceM: number) => coach.send({ type: 'pass-progress', profileId: 'pa', passId, distanceM });
+  progress('stelvio', 1000);
+  progress('stelvio', 2000);
+  progress('galibier', 300);
+  progress('stelvio', 1500);
+  const queued = () => (JSON.parse(fs.readFileSync(path.join(dir, 'queue.json'), 'utf8')) as { message: { type: string; passId?: string; distanceM?: number } }[]).map((e) => [e.message.type, e.message.passId, e.message.distanceM]);
+  expect(queued()).toEqual([['pass-progress', 'stelvio', 2000], ['pass-progress', 'galibier', 300]]);
+  progress('stelvio', 2500);
+  expect(queued()).toEqual([['pass-progress', 'galibier', 300], ['pass-progress', 'stelvio', 2500]]);
+  // A summit starts the climb again: progress after it is its own entry.
+  coach.send({ type: 'pass-summit', profileId: 'pa', passId: 'stelvio' });
+  progress('stelvio', 100);
+  expect(queued()).toEqual([['pass-progress', 'galibier', 300], ['pass-progress', 'stelvio', 2500], ['pass-summit', 'stelvio', undefined], ['pass-progress', 'stelvio', 100]]);
 });
 
 test('1013 and a refused upgrade back off from 1 s to 60 s; 4404 keeps the cache and shows offline', () => {
@@ -234,4 +272,38 @@ test('a 401 on the upgrade rejects the link; without a token no socket is opened
   vi.advanceTimersByTime(10 * 60_000);
   expect(ws.sockets).toHaveLength(1);
   expect(coach.view().coachHome).toMatchObject({ online: false });
+});
+
+test('queue.json is written with fsync of the file and of its folder', () => {
+  const { coach, ws, dir } = make();
+  coach.start();
+  ws.last().end(1013);
+  // Which path each fd belongs to at the moment it is synced (fds are reused after a close).
+  const realOpen = fs.openSync.bind(fs);
+  const realSync = fs.fsyncSync.bind(fs);
+  const byFd = new Map<number, string>();
+  const synced: string[] = [];
+  const openSpy = vi.spyOn(fs, 'openSync').mockImplementation(((f: fs.PathLike, ...rest: never[]) => { const fd = (realOpen as (...a: unknown[]) => number)(f, ...rest); byFd.set(fd, String(f)); return fd; }) as typeof fs.openSync);
+  const sync = vi.spyOn(fs, 'fsyncSync').mockImplementation((fd: number) => { synced.push(byFd.get(fd) ?? '?'); realSync(fd); });
+  coach.send({ type: 'note', profileId: 'pa', text: 'sicher' });
+  expect(synced).toContain(path.join(dir, 'queue.json.tmp'));
+  expect(synced).toContain(dir);
+  expect(JSON.parse(fs.readFileSync(path.join(dir, 'queue.json'), 'utf8'))).toHaveLength(1);
+  sync.mockRestore(); openSpy.mockRestore();
+});
+
+test('an unreadable queue.json is moved aside, never overwritten, and logged', () => {
+  const dir = temp();
+  fs.writeFileSync(path.join(dir, 'queue.json'), '[{"qid":"a","atMs":1,"mess');
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const { coach, ws } = make({ dir });
+  expect(coach.status().queued).toBe(0);
+  expect(fs.readFileSync(path.join(dir, `queue.corrupt-${NOW}.json`), 'utf8')).toBe('[{"qid":"a","atMs":1,"mess');
+  expect(log).toHaveBeenCalledWith(expect.stringContaining('queue.corrupt-'));
+  coach.start();
+  ws.last().end(1013);
+  coach.send({ type: 'note', profileId: 'pa', text: 'neu' });
+  expect(JSON.parse(fs.readFileSync(path.join(dir, 'queue.json'), 'utf8'))).toHaveLength(1);
+  expect(fs.readFileSync(path.join(dir, `queue.corrupt-${NOW}.json`), 'utf8')).toBe('[{"qid":"a","atMs":1,"mess');
+  log.mockRestore();
 });

@@ -94,7 +94,8 @@ export const QUEUEABLE: ReadonlySet<CoachClientMessage['type']> = new Set<CoachC
 export type CoachHome =
   | { where: 'local' }
   | { where: 'moving'; done: number; total: number; problem: 'other-profile' | 'offline' | null }
-  | { where: 'server'; online: boolean; sinceMs: number | null; session: 'server' | 'cached' | 'rules'; queued: number };
+  /** full: the queue holds its most entries, so further writes are refused until the server is back. */
+  | { where: 'server'; online: boolean; sinceMs: number | null; session: 'server' | 'cached' | 'rules'; queued: number; full: boolean };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
 /** queued-ack: the queued entry was handled (applied, skipped as stale or ignored as invalid) and may leave the client's queue. */
