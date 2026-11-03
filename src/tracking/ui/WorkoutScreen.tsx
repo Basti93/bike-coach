@@ -71,6 +71,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     if (ending.current) return;
     ending.current = true; leaving.current = true;
     try {
+      store.flushDrafts(); // a note still being typed is part of what gets finished
       const r = await store.finish(choice);
       if (r.status === 'ask') { leaving.current = false; setAsk(r); return; }
       setAsk(null);

@@ -284,6 +284,21 @@ test('notes keep what is typed and save after a short pause and on blur', async 
   } finally { vi.useRealTimers(); }
 });
 
+test('a note typed right before finishing is in the finished record', async () => {
+  const w = open();
+  w.exercises[0].sets = [set(60, 5, 1000)];
+  const { port, state } = fakePort([rec(w)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  await resume();
+  const n = (await screen.findByLabelText('Notiz zu Bankdrücken')) as HTMLInputElement;
+  fireEvent.focus(n);
+  fireEvent.change(n, { target: { value: 'Schluss' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Training beenden' }));
+  await waitFor(() => expect(state.puts.some((p) => (p.body as LoggedWorkout).endMs !== null)).toBe(true));
+  const final = state.puts.filter((p) => (p.body as LoggedWorkout).endMs !== null).at(-1)!.body as LoggedWorkout;
+  expect(final.exercises[0].notes).toBe('Schluss');
+});
+
 test('nothing confirmed also offers to mark all sets done', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
