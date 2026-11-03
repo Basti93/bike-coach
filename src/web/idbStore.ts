@@ -6,7 +6,7 @@ import { readable } from './validate';
 
 export type Refusal = { id: string; reason: string };
 type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number; line?: number[] };
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
+const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
 
 export type IdbStore = {
   /** Records the screens can draw. Unreadable ones stay stored (and are still synced) but are not listed. */
