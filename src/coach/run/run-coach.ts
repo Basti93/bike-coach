@@ -235,11 +235,13 @@ export class RunCoach {
     const cache = this.cache(id);
     const existing = ctx.weeks.get(t.week) ?? null;
     const missed = (existing?.runs ?? []).filter((r) => r.date < ctx.today && this.doneOn(ctx.runs, r.date) === null).map((r) => r.date);
-    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers]);
-    if (existing && cache.planKey[t.week] === key) { this.matchDone(ctx, t.week); return; }
-
     const dates = Array.from({ length: 9 }, (_, i) => dateKey(dateOf(t.week, i - 1)));
     const days = this.deps.days(id, dates);
+    // A bike or gym plan that changed the days still ahead (and the day before them) replans, so a test or long run leaves a day that became hard.
+    const rated = dates.filter((d) => d >= shift(t.fromDate, -1)).map((d) => [d, days[d]?.hardness ?? null, days[d]?.legs === true]);
+    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, rated]);
+    if (existing && cache.planKey[t.week] === key) { this.matchDone(ctx, t.week); return; }
+
     const allowedDates = weekDates(t.week).filter((d, i) => ctx.weekdays.includes(i) && d >= t.fromDate);
     const rule = ruleWeek({
       nowMs: now, week: t.week, fromDate: t.fromDate, runs: ctx.runs, weekdays: ctx.weekdays, answers: ctx.settings.answers, maxHr: ctx.maxHr,

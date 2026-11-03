@@ -383,6 +383,20 @@ describe('test runs and restarts', () => {
     expect(after[0]).not.toBe('2026-11-09');
   });
 
+  test('a day that became hard in the bike or gym plan moves the test off it', async () => {
+    garmin = history(-10, -1);
+    settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+    now = at(0, 8);
+    const hard = new Set<string>();
+    const coach = make({ days: (_id, dates) => Object.fromEntries(dates.map((d) => [d, { date: d, hardness: hard.has(d) ? 'hard' : null, legs: false, minutes: 0 }])) });
+    await coach.tick('pa');
+    expect(tests(W0).map((r) => r.date)).toEqual(['2026-11-02']);
+    hard.add('2026-11-02');
+    now = at(0, 9);
+    await coach.tick('pa');
+    expect(tests(W0).map((r) => r.date)).not.toContain('2026-11-02');
+  });
+
   test('the week after a restart ramps from the restart week', async () => {
     // Running before the complaint, a pause of two weeks, then two runs of 30 minutes in the restart week.
     garmin = [...history(-7, -3), run('r1', at(1, 18), 30, 5), run('r2', at(3, 18), 30, 5)];
