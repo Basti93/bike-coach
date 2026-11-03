@@ -125,11 +125,6 @@ describe('Garmin', () => {
     await screen.findByRole('heading', { name: 'Diese Woche' });
     expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
     expect(screen.queryByText('Auf deiner Uhr')).toBeNull();
-    // A week without a Garmin object (null) offers nothing either.
-    cleanup();
-    const c = seeded(true, null);
-    render(<RunScreen port={c.port} {...ids} />);
-    expect(await screen.findByRole('button', { name: 'An Garmin senden' })).toBeTruthy();
   });
 
   test('changed and stale ask for a new confirmation; sending disables the button', async () => {
@@ -150,6 +145,20 @@ describe('Garmin', () => {
     render(<RunScreen port={sent.port} {...ids} />);
     expect(await screen.findByText('Auf deiner Uhr')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
+  });
+
+  test('a week without a Garmin object offers no button even when the status says Garmin is there', async () => {
+    const a = seeded(true, null);
+    render(<RunScreen port={a.port} {...ids} />);
+    await screen.findByRole('heading', { name: 'Diese Woche' });
+    expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
+  });
+
+  test('a send record whose body names another week does not count as pending', async () => {
+    const w = weekBody(undefined, garminOf());
+    const { port } = fakePort([rec('status', statusBody({ garmin: true })), rec(`week-${WEEK}`, w), rec(`send-${WEEK}`, { type: 'send', week: '2026-10-26', fp: weekFp(w.runs), atMs: NOW })]);
+    render(<RunScreen port={port} {...ids} />);
+    expect(((await screen.findByRole('button', { name: 'An Garmin senden' })) as HTMLButtonElement).disabled).toBe(false);
   });
 
   test('a tap is not repeated while the coach has not handled it yet', async () => {
@@ -246,7 +255,7 @@ test('no progress without numbers', async () => {
 });
 
 test('RunLookBack shows reviews, newest first, only with review records', async () => {
-  const { port } = fakePort([rec('review-2026-10-19', reviewBody({ week: '2026-10-19', km: 9 })), rec('review-2026-10-26', reviewBody({ testM: 5200 }))]);
+  const { port } = fakePort([rec('status', statusBody()), rec('review-2026-10-19', reviewBody({ week: '2026-10-19', km: 9 })), rec('review-2026-10-26', reviewBody({ testM: 5200 }))]);
   render(<RunLookBack port={port} now={ids.now} />);
   expect(await screen.findByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
   const items = screen.getAllByRole('listitem');
@@ -254,6 +263,50 @@ test('RunLookBack shows reviews, newest first, only with review records', async 
   expect(items[0]!.textContent).toContain('5,2 km');
   expect(items[1]!.textContent).toContain('9,0 km');
   expect(items[0]!.textContent).toContain('Ruhig weiter.');
+});
+
+test('RunLookBack shows nothing once running is off, even with old reviews', async () => {
+  for (const seed of [[rec('review-2026-10-26', reviewBody())], [rec('status', statusBody({ on: false, suggest: false })), rec('review-2026-10-26', reviewBody())]]) {
+    const { port } = fakePort(seed);
+    const { container } = render(<RunLookBack port={port} now={ids.now} />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(container.innerHTML).toBe('');
+    cleanup();
+  }
+});
+
+test('a visible-looking status stored under a week id is ignored (id and body type must agree)', async () => {
+  expect(runView([rec('week-2026-11-02', statusBody())], NOW)).toMatchObject({ status: null, visible: false });
+  expect(runView([rec('status', weekBody())], NOW)).toMatchObject({ status: null, week: null, visible: false });
+  const { port } = fakePort([rec('week-2026-11-02', statusBody())]);
+  const { container } = render(<RunScreen port={port} {...ids} />);
+  await new Promise((r) => setTimeout(r, 30));
+  expect(container.innerHTML).toBe('');
+});
+
+test('Speichern waits for at least one weekday and valid numbers', async () => {
+  const { port, state } = fakePort([rec('status', statusBody({ needsAnswers: true, suggestedDays: [] })), rec('settings', { type: 'settings', on: true, weekdays: null, answers: null })]);
+  render(<RunScreen port={port} {...ids} />);
+  const save = (await screen.findByRole('button', { name: 'Speichern' })) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Montag' }));
+  expect(save.disabled).toBe(false);
+  fireEvent.change(screen.getByLabelText('Wie oft läufst du pro Woche?'), { target: { value: '' } });
+  expect(save.disabled).toBe(true);
+  expect(state.puts).toHaveLength(0);
+});
+
+test('the test-day label and hint follow the chosen date', async () => {
+  const w = weekBody([planned({ kind: 'test', date: '2026-11-07' })]);
+  const { port } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, w)]);
+  render(<RunScreen port={port} {...ids} />);
+  expect(await screen.findByLabelText('Strecke in km')).toBeTruthy();
+  expect(screen.queryByText(/An diesem Tag ist ein Testlauf/)).toBeNull();
+  fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-11-07' } });
+  expect(screen.getByLabelText('Strecke in den 30 Minuten')).toBeTruthy();
+  expect(screen.getByText(/An diesem Tag ist ein Testlauf/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-11-04' } });
+  expect(screen.getByLabelText('Strecke in km')).toBeTruthy();
 });
 
 test('no rendered text contains Rekord, Serie, Streak, musst or Pflicht', async () => {

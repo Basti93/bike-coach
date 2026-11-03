@@ -7,8 +7,8 @@ import { kmFromKm, runView } from './run-view';
 /** The weekly look back. Nothing without review records. */
 export function RunLookBack({ port, now }: { port: TrackingPort; now: () => number }) {
   const q = usePortRecords(port, 'run');
-  const { reviews } = runView(q.records ?? [], now());
-  if (reviews.length === 0) return null;
+  const { reviews, visible } = runView(q.records ?? [], now());
+  if (!visible || reviews.length === 0) return null;
   return (
     <div className="tk-screen">
       <section className="card">

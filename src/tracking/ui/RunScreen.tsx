@@ -38,7 +38,7 @@ function Questions({ suggested, onSave }: { suggested: number[]; onSave: (a: { r
   const toggle = (d: number) => setDays((x) => (x.includes(d) ? x.filter((y) => y !== d) : [...x, d].sort((a, b) => a - b)));
   const p = num(perWeek);
   const m = num(minutes);
-  const ok = p !== null && p >= 1 && p <= 7 && m !== null && m >= 5 && m <= 300;
+  const ok = days.length > 0 && p !== null && p >= 1 && p <= 7 && m !== null && m >= 5 && m <= 300;
   return (
     <section className="card tk-form">
       <label className="tk-field">Wie oft läufst du pro Woche?
@@ -63,7 +63,8 @@ function Questions({ suggested, onSave }: { suggested: number[]; onSave: (a: { r
 
 function GarminBlock({ week, pending, onSend }: { week: RunWeekBody; pending: boolean; onSend: () => void }) {
   const g: RunGarmin | null = week.garmin;
-  const status = g?.status ?? 'none';
+  if (!g) return null; // no Garmin object: the bridge is not ready, so nothing is offered
+  const status = g.status;
   if (status === 'sent') return <p className="tk-garmin">Auf deiner Uhr</p>;
   return (
     <div className="tk-garmin">
@@ -79,9 +80,9 @@ function Spark({ trend }: { trend: (number | null)[] }) {
   const points = trend.slice(-12);
   const speeds = points.map((p) => (p === null || p <= 0 ? null : 1 / p));
   const vals = speeds.filter((s): s is number => s !== null);
+  if (vals.length < 2) return null;
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
-  if (vals.length < 2) return null;
   return (
     <div className="tk-spark" role="img" aria-label="Ruhiges Tempo über die letzten 12 Wochen, höhere Balken sind schneller">
       {speeds.map((s, i) => <span key={i} style={{ height: s === null ? '0%' : `${hi === lo ? 60 : 25 + (75 * (s - lo)) / (hi - lo)}%` }} />)}
@@ -135,13 +136,14 @@ function WeeklyKm({ n }: { n: RunNumbers }) {
   );
 }
 
-function ManualForm({ testDay, now, onSave }: { testDay: boolean; now: number; onSave: (r: Omit<ManualRunBody, 'type' | 'runType'>) => void }) {
+function ManualForm({ plannedOn, now, onSave }: { plannedOn: (date: string) => PlannedRun | null; now: number; onSave: (r: Omit<ManualRunBody, 'type' | 'runType'>) => void }) {
   const d = new Date(now);
   const [date, setDate] = useState(dateKeyOf(now));
   const [time, setTime] = useState(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
   const [minutes, setMinutes] = useState('');
   const [km, setKm] = useState('');
   const [hr, setHr] = useState('');
+  const testDay = plannedOn(date)?.kind === 'test';
   const dur = num(minutes);
   const dist = num(km);
   const avg = num(hr);
@@ -164,7 +166,7 @@ function ManualForm({ testDay, now, onSave }: { testDay: boolean; now: number; o
         <label className="tk-field">{testDay ? 'Strecke in den 30 Minuten' : 'Strecke in km'}<input inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} /></label>
         <label className="tk-field">Puls im Schnitt (optional)<input inputMode="numeric" value={hr} onChange={(e) => setHr(e.target.value)} /></label>
       </div>
-      {testDay && <p className="muted">Heute ist ein Testlauf. Trag die Strecke ein, die du in 30 Minuten geschafft hast, in km.</p>}
+      {testDay && <p className="muted">An diesem Tag ist ein Testlauf geplant. Trag die Strecke ein, die du in 30 Minuten geschafft hast, in km.</p>}
       <button type="button" disabled={!ok} onClick={save}>Lauf speichern</button>
     </section>
   );
@@ -187,7 +189,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
   const fp = week ? weekFp(week.runs) : '';
   const sendRec = week ? byId(runSendId(week.week)) : undefined;
   const sendBody = sendRec && !sendRec.deleted ? (sendRec.body as RunSendBody) : null;
-  const pending = !!(week && sendBody && sendBody.fp === fp && sendBody.atMs > (week.garmin?.confirmedMs ?? 0));
+  const pending = !!(week && sendBody && sendBody.week === week.week && sendBody.fp === fp && sendBody.atMs > (week.garmin?.confirmedMs ?? 0));
   const send = () => { if (week) put(runSendId(week.week), { type: 'send', week: week.week, fp, atMs: now() } satisfies RunSendBody); };
 
   return (
@@ -236,7 +238,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
           <Progress n={status.numbers} />
           <Longest n={status.numbers} />
           <WeeklyKm n={status.numbers} />
-          <ManualForm testDay={today?.kind === 'test'} now={now()} onSave={(r) => put(manualRunId(newId()), { type: 'manual', ...r, runType: 'running' } satisfies ManualRunBody)} />
+          <ManualForm plannedOn={(d) => (paused ? null : week?.runs.find((r) => r.date === d) ?? null)} now={now()} onSave={(r) => put(manualRunId(newId()), { type: 'manual', ...r, runType: 'running' } satisfies ManualRunBody)} />
         </>
       )}
     </div>
