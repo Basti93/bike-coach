@@ -168,7 +168,7 @@ describe('ruleWorkout', () => {
     expect(list.length).toBeLessThanOrEqual(6);
     expect(list.every((e) => TEMPLATES.find((t) => t.id === e.templateId)?.equipment === 'machine')).toBe(true);
     expect(list.flatMap((e) => e.sets).every((s) => s.weightKg === null && s.type === 'normal' && s.reps! >= 6 && s.reps! <= 12)).toBe(true);
-    expect(r.reason).toMatch(/Hevy/);
+    expect(r.reason).toMatch(/Noch keine früheren Trainings/);
   });
   it('says honestly when no suitable exercises were found', () => {
     for (const templates of [[], TEMPLATES.filter((t) => t.equipment !== 'machine')]) {
