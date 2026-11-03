@@ -7,6 +7,7 @@ import { readable } from './validate';
 export type Refusal = { id: string; reason: string };
 type Row = { key: string; seq: number; rec: TrackedRecord; /** Came from the server: not pending. */ remote?: boolean; /** See tracking/kept-copy. */ serverMs?: number; line?: number[] };
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
+const KINDS_SIGNATURE = [...KINDS].sort().join(',');
 
 export type IdbStore = {
   /** Records the screens can draw. Unreadable ones stay stored (and are still synced) but are not listed. */
@@ -179,14 +180,18 @@ export async function openIdb(account: string, factory: IDBFactory = indexedDB, 
     cursors: {
       get: () => run(async (d) => {
         const tx = d.transaction('meta', 'readonly');
-        const c = (await req(tx.objectStore('meta').get('cursors'))) as SyncCursors | undefined;
-        return { ...c, sent: c?.sent ?? 0, received: c?.received ?? 0 };
+        const stored = (await req(tx.objectStore('meta').get('cursors'))) as (SyncCursors & { kinds?: string }) | undefined;
+        const { kinds, ...c } = stored ?? { sent: 0, received: 0 };
+        // A version that did not know a kind skipped its records while the
+        // cursor moved past them: when the known kinds change, fetch everything again.
+        const received = kinds === KINDS_SIGNATURE ? c.received ?? 0 : 0;
+        return { ...c, sent: c.sent ?? 0, received };
       }),
       async set(c) {
         await run(async (d) => {
           const tx = d.transaction('meta', 'readwrite');
           const finished = done(tx);
-          tx.objectStore('meta').put({ ...c }, 'cursors');
+          tx.objectStore('meta').put({ ...c, kinds: KINDS_SIGNATURE }, 'cursors');
           await finished;
         });
         if (await refreshCounts()) notify();

@@ -89,6 +89,24 @@ describe('idbStore', () => {
     expect((await b.list('workout')).length).toBe(1);
   });
 
+  it('downloads everything again when the app learned new record kinds since the last receive', async () => {
+    const f = new IDBFactory();
+    const a = await openIdb('anna', f);
+    await a.cursors.set({ sent: 3, received: 7, generation: 'g1' });
+    expect(await a.cursors.get()).toEqual({ sent: 3, received: 7, generation: 'g1' });
+    // an older version stored its cursors without knowing today's kinds
+    await new Promise<void>((resolve, reject) => {
+      const open = f.open('pandafit-anna');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put({ sent: 3, received: 7, generation: 'g1' }, 'cursors');
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+      };
+    });
+    expect(await a.cursors.get()).toEqual({ sent: 3, received: 0, generation: 'g1' });
+  });
+
   it('keeps one database per account', async () => {
     const f = new IDBFactory();
     const a = await openIdb('anna', f);
