@@ -79,3 +79,34 @@ test('a legs day before is named as leg training, a hard day as a strenuous day'
   expect(legs).not.toContain('anstrengenden Tag');
   expect(runCard(slow, planned(), { ...ctx, dayBefore: hardDay }).sentence).toContain('anstrengenden Tag');
 });
+
+test('without a usable easy pace the card says only what the run was', () => {
+  const judging = /zu wenig|ruhige Teil|kurz|ruhig gelaufen/i;
+  const plain = [
+    run({ type: 'trail_running', easyPace: null }),
+    run({ type: 'treadmill_running', easyPace: null }),
+    // A road run whose FIT file is not there yet.
+    run({ easyPace: null }),
+    // A manual run whose average heart rate was outside the band.
+    run({ source: 'manual', easyPace: null }),
+  ];
+  for (let i = 0; i < 4; i++) {
+    for (const r of plain) {
+      const c = runCard({ ...r, startMs: T0 + i * 60_000 }, planned(), ctx);
+      expect(`${c.counted} ${c.sentence}`).not.toMatch(judging);
+      expect(c.counted).toContain('40 Min');
+      expect(c.result).toBe('5,2 km');
+    }
+  }
+  // Trail without heart rate: no hint that a strap would bring a pace.
+  expect(runCard(run({ type: 'trail_running', hasHr: false, avgHr: null, easyPace: null }), planned(), ctx).sentence).not.toMatch(/Pulsgurt|Tempo/);
+});
+
+test('a road run with a FIT file and heart rate but under 5 easy minutes says so, neutrally', () => {
+  for (let i = 0; i < 4; i++) {
+    const c = runCard(run({ startMs: T0 + i * 60_000, easyPace: null, fewEasy: true }), planned(), ctx);
+    expect(c.counted).toContain('unter 5 Minuten im ruhigen Bereich');
+    expect(`${c.counted} ${c.sentence}`).not.toMatch(/zu wenig|kurz|nur /i);
+    expect(c.result).toBe('5,2 km');
+  }
+});

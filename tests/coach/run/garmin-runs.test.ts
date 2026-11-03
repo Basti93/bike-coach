@@ -135,3 +135,16 @@ test('Garmin not there: a missing database file gives []', () => {
   expect(garminRuns(new GarminDb(missing), 0, band, {})).toEqual([]);
   expect(new GarminDb(missing).activityFile('pa')).toBeNull();
 });
+test('fewEasy only for a road run with a FIT file and heart rate whose easy part was under 5 minutes', () => {
+  const { file, act } = make();
+  const hardFit = buildFit(900, () => ({ hr: 170, speed: 1000 / 300, temp: 8 }));
+  const noHrFit = buildFit(900, () => ({ speed: 1000 / 360, temp: 8 }));
+  act('pa', 'running', {}, hardFit);
+  act('pb', 'running', {}, easyFit);
+  act('pc', 'trail_running', {}, hardFit);
+  act('pd', 'running', { averageHR: 170 });
+  act('pe', 'running', {}, noHrFit);
+  const runs = garminRuns(new GarminDb(file), 0, band, {});
+  expect(runs.map((r) => r.fewEasy === true)).toEqual([true, false, false, false, false]);
+  expect(garminRuns(new GarminDb(file), 0, null, {}).some((r) => r.fewEasy === true)).toBe(false);
+});

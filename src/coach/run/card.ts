@@ -1,6 +1,6 @@
 import type { DayRating } from '../day-load';
 import { dateKey } from '../../shared/meals';
-import { kmText, paceText, type PlannedRun, type RunCard } from '../../shared/run';
+import { kmText, PACE_TYPES, paceText, type PlannedRun, type RunCard } from '../../shared/run';
 import type { Run } from './garmin-runs';
 
 const SLOWER = 1.03;
@@ -25,9 +25,14 @@ const NO_HR = [
   'Ohne Puls zählen Kilometer und Zeit. Ein Tempo lässt sich so nicht einordnen.',
   'Die Strecke ist gezählt. Mit Pulsgurt oder Uhr käme auch das ruhige Tempo dazu.',
 ];
-const SHORT_EASY = [
-  'Der ruhige Teil war diesmal kurz. Strecke und Zeit sind gezählt.',
-  'Strecke und Zeit zählen. Für ein Tempo braucht es etwas mehr ruhige Minuten.',
+const FEW_EASY = [
+  'Ein Tempo zählt ab 5 Minuten im ruhigen Bereich. Strecke und Zeit sind gezählt.',
+  'Strecke und Zeit sind gezählt. Für ein Tempo braucht es 5 Minuten im ruhigen Bereich.',
+];
+/** A run whose pace is not used (trail, treadmill, no FIT file yet): only what it was. */
+const PLAIN = [
+  'Strecke und Zeit sind für die Woche gezählt.',
+  'Der Lauf zählt für die Woche.',
 ];
 const UNPLANNED = [
   'Ein Lauf ohne Plan zählt genauso für die Woche.',
@@ -59,14 +64,18 @@ export function runCard(run: Run, planned: PlannedRun | null, ctx: { trendNow: n
     counted = `Testlauf, ${time}`;
     result = `Beste 30 Minuten: ${kmText(run.best30M)}`;
     sentence = pick(TEST, seed);
-  } else if (!run.hasHr) {
+  } else if (run.easyPace === null && run.fewEasy === true) {
+    counted = `${time}, davon unter 5 Minuten im ruhigen Bereich`;
+    result = km ?? time;
+    sentence = pick(FEW_EASY, seed);
+  } else if (run.easyPace === null && !run.hasHr && PACE_TYPES.includes(run.type)) {
     counted = `${time} ohne Puls gezählt`;
     result = km ?? time;
     sentence = pick(NO_HR, seed);
   } else if (run.easyPace === null) {
-    counted = `${time}, davon zu wenig im ruhigen Bereich für ein Tempo`;
+    counted = `${time} gelaufen`;
     result = km ?? time;
-    sentence = pick(SHORT_EASY, seed);
+    sentence = pick(kind === 'unplanned' ? UNPLANNED : PLAIN, seed);
   } else {
     counted = `${Math.round(run.easyPace.seconds / 60)} Min im ruhigen Bereich gezählt`;
     result = `${paceText(run.easyPace.sPerKm)}${km ? `, ${km}` : ''}`;

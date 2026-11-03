@@ -7,9 +7,11 @@ export type Run = {
   id: string; source: 'garmin' | 'manual'; type: RunType; startMs: number; durationS: number; distanceM: number | null;
   avgHr: number | null; maxHr: number | null; elevationGainM: number | null; hasHr: boolean;
   easyPace: EasyPace | null; best30M: number | null; tempC: number | null;
+  /** A road run with a FIT file, heart rate and a band whose easy seconds were under the 5 minutes a pace needs. */
+  fewEasy?: boolean;
 };
 /** Per run `<id>` holds what does not depend on the heart-rate band (easyPace null); `<id>:<from>-<to>` adds the pace for that band. */
-export type PaceCache = Record<string, { easyPace: EasyPace | null; best30M: number | null; tempC: number | null; hasHr: boolean }>;
+export type PaceCache = Record<string, { easyPace: EasyPace | null; best30M: number | null; tempC: number | null; hasHr: boolean; fewEasy?: boolean }>;
 
 type Derived = PaceCache[string];
 
@@ -40,7 +42,12 @@ export const garminRuns = (db: Pick<GarminDb, 'runs' | 'activityFile'>, fromMs: 
       const base: Derived = samples
         ? { hasHr: samples.some((s) => s.hr !== null), easyPace: null, best30M: bestWindowDistance(samples, TEST_WINDOW_S), tempC: avgTemp(samples) }
         : { hasHr: r.avgHr !== null, easyPace: null, best30M: null, tempC: null };
-      derived = wantsPace && samples && band ? { ...base, easyPace: easyPace(samples, band) } : base;
+      if (wantsPace && samples && band) {
+        const pace = easyPace(samples, band);
+        derived = { ...base, easyPace: pace, fewEasy: pace === null && base.hasHr };
+      } else {
+        derived = base;
+      }
       if (read?.cacheable) {
         cache[r.id] = base;
         if (wantsPace) cache[paceKey] = derived;
