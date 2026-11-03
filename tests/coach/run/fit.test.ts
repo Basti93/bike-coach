@@ -96,7 +96,7 @@ test('unzipFit refuses an entry that inflates beyond 64 MiB', () => {
   const big = Buffer.alloc(70 * 1024 * 1024);
   big.write('.FIT', 8);
   expect(unzipFit(zipOf('a.fit', big, 8))).toBeNull();
-});
+}, 30_000); // deflating 70 MiB is slow when the whole suite runs in parallel
 describe('looksComplete', () => {
   const fit = buildFit(20, () => ({ hr: 120, speed: 3 }));
   test('a whole FIT and a whole zip are complete, a cut one is not', () => {
