@@ -241,3 +241,16 @@ test('notify tells the listeners about a profile whose records changed', () => {
   runtime.notify('pa');
   expect(seen).toEqual(['pa']);
 });
+
+test('a failed scan logs only the error kind, never its message or the error object', () => {
+  let fail = false;
+  const { runtime } = make({ profiles: () => { if (fail) throw Object.assign(new Error('token abc123 in /secret/path'), { code: 'EACCES' }); return PROFILES; } });
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    fail = true;
+    runtime.scan();
+    expect(log).toHaveBeenCalledWith('Coach-Lauf fehlgeschlagen', 'EACCES');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('abc123');
+    expect(log.mock.calls.flat().some((x) => x instanceof Error)).toBe(false);
+  } finally { log.mockRestore(); }
+});

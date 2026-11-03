@@ -20,6 +20,7 @@ import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
 import { handleRecords } from './tracking/records-api';
+import { errorKind } from './error-kind';
 import { MobilityCoach } from './mobility/mobility';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -430,7 +431,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (scheduled() && !heavyBusy()) for (const p of list) { try { garminSync.tick(p.id); } catch { /* try again on the next run */ } }
       publish();
     } catch (e) {
-      console.error('Coach-Lauf fehlgeschlagen', e);
+      console.error('Coach-Lauf fehlgeschlagen', errorKind(e));
     }
   };
 
