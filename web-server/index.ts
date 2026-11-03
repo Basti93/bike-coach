@@ -16,6 +16,9 @@ const BODY_LIMIT = 5 * 1024 * 1024;
 const LOGIN_BODY_LIMIT = 8192;
 const PUSH_BODY_LIMIT = 4096;
 const IDLE_MS = 60_000;
+/** The total time a request outside /coach may take, body included. */
+const REQUEST_LIMIT_MS = 30_000;
+const MAX_CONNECTIONS = 256;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
 const COOKIE = 'pf_session';
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
@@ -34,12 +37,27 @@ export const buildServer = (opts: {
   coach?: { url: string; token: string; pingMs?: number };
   /** How long a connection may stay silent, request body included, before it is cut. Shorter in tests. */
   idleMs?: number;
+  /** The total time limit of every request outside /coach. Shorter in tests. */
+  requestLimitMs?: number;
 }): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
-  // No limit on a request's total time, so a slow but steady upload to the coach (up to 128 MiB) completes. A connection that
-  // goes silent is cut instead; Node's headersTimeout still bounds the headers against slow senders.
+  // No server-wide limit on a request's total time, so a slow but steady upload to the coach (up to 128 MiB) completes. A
+  // connection that goes silent is cut instead; Node's headersTimeout still bounds the headers against slow senders.
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 0, connectionTimeout: opts.idleMs ?? IDLE_MS });
+  app.server.maxConnections = MAX_CONNECTIONS;
+  // Every route outside /coach keeps a total limit: a client trickling a body to /login or /records is cut when it is over.
+  const limitMs = opts.requestLimitMs ?? REQUEST_LIMIT_MS;
+  app.addHook('onRequest', (req, reply, done) => {
+    const p = req.url.split('?')[0]!;
+    if (p === '/coach' || p.startsWith('/coach/')) { done(); return; }
+    const timer = setTimeout(() => req.raw.socket.destroy(), limitMs);
+    timer.unref();
+    const stop = () => clearTimeout(timer);
+    reply.raw.once('finish', stop);
+    reply.raw.once('close', stop);
+    done();
+  });
   const staticRoot = opts.staticDir && existsSync(opts.staticDir) ? realpathSync(opts.staticDir) : null;
   const accounts = new WeakMap<FastifyRequest, number>();
   /** How the request logged in: a push subscription is bound to it and ends with it. */

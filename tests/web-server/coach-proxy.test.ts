@@ -49,12 +49,12 @@ async function fakeCoach() {
   return { url, seen, started, sockets, closeWith: (c: number | null) => { closeWith = c; }, delayUpgrades: (ms: number) => { upgradeDelayMs = ms; } };
 }
 
-async function world(o: { coachUrl?: string | null; pingMs?: number; idleMs?: number } = {}) {
+async function world(o: { coachUrl?: string | null; pingMs?: number; idleMs?: number; limitMs?: number } = {}) {
   const coach = await fakeCoach();
   const base = await setup();
   await base.app.close();
   const coachUrl = o.coachUrl === undefined ? coach.url : o.coachUrl;
-  const app = buildServer({ dbPath: base.dbPath, idleMs: o.idleMs, ...(coachUrl === null ? {} : { coach: { url: coachUrl, token: TOKEN, pingMs: o.pingMs } }) });
+  const app = buildServer({ dbPath: base.dbPath, idleMs: o.idleMs, requestLimitMs: o.limitMs, ...(coachUrl === null ? {} : { coach: { url: coachUrl, token: TOKEN, pingMs: o.pingMs } }) });
   await app.listen({ port: 0, host: '127.0.0.1' });
   cleanup.push(() => app.close());
   const host = `127.0.0.1:${(app.server.address() as AddressInfo).port}`;
@@ -101,10 +101,10 @@ const nextMessage = (ws: WebSocket) => new Promise<string>((r) => ws.once('messa
 const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); expect(f()).toBe(true); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** A body sent slowly: `chunks` pieces of `size` bytes, one every `everyMs`, then (unless `stallAfter`) the end. Reports the answer or the cut. */
-const trickle = (host: string, path: string, headers: Record<string, string>, o: { chunks: number; size: number; everyMs: number; stallAfter?: number }) =>
+const trickle = (host: string, path: string, headers: Record<string, string>, o: { chunks: number; size: number; everyMs: number; stallAfter?: number; method?: string }) =>
   new Promise<{ status: number; body: string } | { cut: string }>((resolve) => {
     const [hostname, port] = host.split(':');
-    const req = request({ hostname, port: Number(port), method: 'PUT', path, headers: { ...headers, 'content-length': String(o.chunks * o.size) } }, (res) => {
+    const req = request({ hostname, port: Number(port), method: o.method ?? 'PUT', path, headers: { ...headers, 'content-length': String(o.chunks * o.size) } }, (res) => {
       const parts: Buffer[] = [];
       res.on('data', (c: Buffer) => parts.push(c));
       res.on('end', () => resolve({ status: res.statusCode!, body: Buffer.concat(parts).toString() }));
@@ -353,9 +353,10 @@ describe('coach proxy', () => {
     await opened(connect(`127.0.0.1:${port}`, {}));
   });
 
-  it('no total time limit on a request: a slow steady upload completes, a stalled one is cut', async () => {
-    // The idle limit shortened to 300 ms: the steady upload takes about 2 s, many times that, and every gap is shorter.
-    const { coach, app, host, a, own } = await world({ idleMs: 300 });
+  it('no total time limit on a /coach request: a slow steady upload completes, a stalled one is cut', async () => {
+    // The idle limit shortened to 300 ms and the other routes' total limit to 500 ms: the steady upload takes about 2 s, many
+    // times both, and every gap is shorter.
+    const { coach, app, host, a, own } = await world({ idleMs: 300, limitMs: 500 });
     expect(app.server.requestTimeout).toBe(0);
     const steady = await trickle(host, '/coach/migrate/item/slow', { ...own(a), 'content-type': 'application/octet-stream' }, { chunks: 20, size: 1000, everyMs: 100 });
     expect(steady).toMatchObject({ status: 201 });
@@ -365,10 +366,20 @@ describe('coach proxy', () => {
     expect(coach.seen.filter((s) => s.url === '/migrate/item/stuck')).toEqual([]);
   });
 
-  it('the default idle limit is 60 s', async () => {
+  it('every other route keeps a total time limit: a slow trickle to /login is cut once it is over', async () => {
+    const { host } = await world({ idleMs: 300, limitMs: 500 });
+    const t0 = Date.now();
+    // 3 s of body, a piece every 100 ms: never idle, but six times the limit.
+    const slow = await trickle(host, '/login', { 'content-type': 'application/json' }, { chunks: 30, size: 10, everyMs: 100, method: 'POST' });
+    expect(slow).toHaveProperty('cut');
+    expect(Date.now() - t0).toBeLessThan(2500);
+  });
+
+  it('the default idle limit is 60 s, every route but /coach has 30 s in all, and connections are capped', async () => {
     const { app } = await world();
     expect(app.server.requestTimeout).toBe(0);
     expect(app.server.timeout).toBe(60_000);
+    expect(app.server.maxConnections).toBe(256);
   });
 
   it('without PANDAFIT_COACH_URL the /coach routes do not exist', async () => {
