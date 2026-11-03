@@ -30,7 +30,7 @@ const chatDate = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { week
 const ChatRow = ({ c }: { c: MealChat }) => (
   <li>
     <p className="pm-said">{c.text}<small>{chatDate(c.atMs)}</small></p>
-    <p className={c.reply ? 'pm-reply' : 'pm-reply pending'}>{c.reply ?? 'Der Coach antwortet, sobald der Mac wieder da ist.'}</p>
+    <p className={c.reply ? 'pm-reply' : 'pm-reply pending'}>{c.reply ?? 'Der Coach antwortet gleich. Ist der Mac aus, dauert es, bis er wieder an ist.'}</p>
   </li>
 );
 
