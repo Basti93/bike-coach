@@ -95,3 +95,11 @@ export function readRunBody(body: unknown): RunBody | null {
     default: return null;
   }
 }
+
+/** "6:12 /km". */
+export const paceText = (sPerKm: number): string => {
+  const s = Math.round(sPerKm);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} /km`;
+};
+/** "5,2 km". */
+export const kmText = (m: number): string => `${(Math.round(m / 100) / 10).toFixed(1).replace('.', ',')} km`;
