@@ -1,23 +1,21 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { existsSync, realpathSync, statSync, readFileSync } from 'node:fs';
+import type { IncomingMessage } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
 import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
-import { generationOf, openDb } from './db';
-import { announceVersion, buildVersion, createPush, MAX_SUBSCRIPTIONS, mealWeekOf, rememberOrigin, storedOrigin, validEndpoint, validKeys, vapidKeys, webPushSender, type Sender } from './push';
+import { registerCoachProxy } from './coach-proxy';
+import { openDb } from './db';
+import { buildInternal, INTERNAL_PORT, validInternalToken } from './internal';
+import { announceVersion, buildVersion, MAX_SUBSCRIPTIONS, pushFor, rememberOrigin, validEndpoint, validKeys, type PushOptions } from './push';
+import { listRecords, pageOfQuery, putRecords, recordsOfBody } from './records';
 
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together'];
+export type { PushOptions } from './push';
+
 const BODY_LIMIT = 5 * 1024 * 1024;
-const RECORD_BODY_LIMIT = 1024 * 1024;
-const MAX_RECORDS_PER_POST = 1000;
-const MAX_PAGE = 500;
 const LOGIN_BODY_LIMIT = 8192;
 const PUSH_BODY_LIMIT = 4096;
-const MAX_AHEAD_MS = 7 * 24 * 3600 * 1000;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
-const KEEP_OVERWRITTEN = 500;
-const KEEP_PER_RECORD = 3;
 const COOKIE = 'pf_session';
 const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
 const TYPES: Record<string, string> = {
@@ -26,21 +24,14 @@ const TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8',
 };
 
-type Row = { kind: string; id: string; updated_ms: number; deleted: number; body: string; seq: number };
-const toRecord = (r: Row): TrackedRecord => ({ kind: r.kind as RecordKind, id: r.id, updatedMs: r.updated_ms, deleted: r.deleted === 1, body: JSON.parse(r.body) as unknown });
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 
-export type PushOptions = {
-  /** 'web': the real push services. Null or missing: nothing is ever sent (tests, the restore drill). */
-  send?: Sender | 'web' | null;
-  /** VAPID subject (mailto: or https:); defaults to the public origin the app is used from. */
-  subject?: string;
-  /** The build version of the web app; announced once when it differs from the last one. */
-  version?: string | null;
-};
-
-export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string; push?: PushOptions }): FastifyInstance => {
+export const buildServer = (opts: {
+  dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string; push?: PushOptions;
+  /** The coach container on the internal network. Without it the /coach routes do not exist. */
+  coach?: { url: string; token: string };
+}): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
@@ -48,9 +39,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
   const accounts = new WeakMap<FastifyRequest, number>();
   /** How the request logged in: a push subscription is bound to it and ends with it. */
   const owners = new WeakMap<FastifyRequest, { session: string } | { device: number }>();
-  const pushKeys = vapidKeys(db);
-  const send = opts.push?.send === 'web' ? webPushSender({ keys: pushKeys, subject: () => opts.push?.subject ?? storedOrigin(db), now }) : opts.push?.send ?? null;
-  const push = createPush(db, send, now);
+  const { keys: pushKeys, push } = pushFor(db, opts.push, now);
 
   app.setErrorHandler((err: { statusCode?: number; name?: string }, req, reply) => {
     const code = typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
@@ -62,13 +51,13 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     if (!reply.hasHeader('Cache-Control')) reply.header('Cache-Control', 'no-store');
   });
 
-  const cookieOf = (req: FastifyRequest): string | null => {
+  const cookieOf = (req: { headers: IncomingMessage['headers'] }): string | null => {
     const m = new RegExp(`(?:^|;\\s*)${COOKIE}=([0-9a-f]{64})(?:;|$)`).exec(req.headers.cookie ?? '');
     return m ? m[1]! : null;
   };
   const setCookie = (reply: FastifyReply, token: string, maxAge = SESSION_MS / 1000) =>
     reply.header('Set-Cookie', `${COOKIE}=${token}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Strict`);
-  const sameOrigin = (req: FastifyRequest): boolean => {
+  const sameOrigin = (req: { headers: IncomingMessage['headers'] }): boolean => {
     const origin = req.headers.origin;
     if (typeof origin === 'string') {
       try { return new URL(origin).host === req.headers.host; } catch { return false; }
@@ -77,30 +66,47 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
   };
   const ipOf = (req: FastifyRequest) => clientIp(req.socket.remoteAddress ?? '', req.headers['x-forwarded-for'] as string | undefined, opts.trustProxyCidr);
 
-  /** Resolves a device token or session cookie to an account id. Any failure answers the same 401. */
-  const requireAuth = async (req: FastifyRequest, reply: FastifyReply) => {
+  type Login = { account: number; owner: { session: string } | { device: number }; cookie: string | null };
+  /**
+   * The login of a request: a device token, or a session cookie (which it extends). A cookie request that changes state, or opens
+   * a socket, must come from the own origin, or it is 'forbidden'. Null for no valid login.
+   */
+  const resolveLogin = (req: IncomingMessage): Login | 'forbidden' | null => {
     const auth = req.headers.authorization;
     if (typeof auth === 'string') {
       const m = /^Bearer ([0-9a-f]{64})$/.exec(auth);
       const h = m ? hashToken(m[1]!) : null;
       const row = h ? (db.prepare('SELECT id, account_id, token_hash FROM devices WHERE token_hash = ? AND revoked = 0').get(h) as { id: number; account_id: number; token_hash: string } | undefined) : undefined;
-      if (row && h && safeEqual(Buffer.from(row.token_hash), Buffer.from(h))) { accounts.set(req, row.account_id); owners.set(req, { device: row.id }); return; }
-      return reply.code(401).send({ error: 'unauthorized' });
+      if (row && h && safeEqual(Buffer.from(row.token_hash), Buffer.from(h))) return { account: row.account_id, owner: { device: row.id }, cookie: null };
+      return null;
     }
     const token = cookieOf(req);
     if (token) {
       const h = hashToken(token), t = now();
       const row = db.prepare('SELECT account_id, token_hash, expires_ms FROM sessions WHERE token_hash = ?').get(h) as { account_id: number; token_hash: string; expires_ms: number } | undefined;
       if (row && safeEqual(Buffer.from(row.token_hash), Buffer.from(h)) && row.expires_ms > t) {
-        if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOrigin(req)) return reply.code(403).send({ error: 'forbidden' });
+        const socket = String(req.headers.upgrade ?? '').toLowerCase() === 'websocket';
+        if ((socket || (req.method !== 'GET' && req.method !== 'HEAD')) && !sameOrigin(req)) return 'forbidden';
         db.prepare('UPDATE sessions SET expires_ms = ? WHERE token_hash = ?').run(t + SESSION_MS, h);
-        if (req.routeOptions.url !== '/logout') setCookie(reply, token);
-        accounts.set(req, row.account_id);
-        owners.set(req, { session: h });
-        return;
+        return { account: row.account_id, owner: { session: h }, cookie: token };
       }
     }
-    return reply.code(401).send({ error: 'unauthorized' });
+    return null;
+  };
+  /** The account of a request's login, or null; for the coach door, which answers every failure the same. */
+  const resolveAccount = async (req: IncomingMessage): Promise<number | null> => {
+    const login = resolveLogin(req);
+    return login && login !== 'forbidden' ? login.account : null;
+  };
+
+  /** Resolves a device token or session cookie to an account id. Any failure answers the same 401. */
+  const requireAuth = async (req: FastifyRequest, reply: FastifyReply) => {
+    const login = resolveLogin(req.raw);
+    if (login === 'forbidden') return reply.code(403).send({ error: 'forbidden' });
+    if (!login) return reply.code(401).send({ error: 'unauthorized' });
+    if (login.cookie && req.routeOptions.url !== '/logout') setCookie(reply, login.cookie);
+    accounts.set(req, login.account);
+    owners.set(req, login.owner);
   };
   const acct = (req: FastifyRequest) => accounts.get(req)!;
 
@@ -182,75 +188,21 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
   });
 
   app.post('/records', { onRequest: requireAuth }, async (req, reply) => {
-    const list = isObj(req.body) ? req.body.records : undefined;
-    if (!Array.isArray(list) || list.length > MAX_RECORDS_PER_POST) return reply.code(400).send({ error: 'bad request' });
-    const account = acct(req), t = now();
-    const refused: { kind: unknown; id: unknown; reason: string }[] = [];
-    let accepted = 0, newMealWeek = false;
-    const weekStmt = db.prepare('INSERT OR IGNORE INTO push_meal_weeks VALUES (?, ?)');
-    const getStmt = db.prepare('SELECT * FROM records WHERE account_id = ? AND kind = ? AND id = ?');
-    const putStmt = db.prepare(`INSERT INTO records (account_id, kind, id, updated_ms, deleted, body, seq)
-      VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM records WHERE account_id = ?))
-      ON CONFLICT (account_id, kind, id) DO UPDATE SET updated_ms = excluded.updated_ms, deleted = excluded.deleted, body = excluded.body, seq = excluded.seq`);
-    const lostStmt = db.prepare('INSERT INTO overwritten (account_id, kind, id, updated_ms, body, at_ms, deleted, stale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    const haveLostStmt = db.prepare('SELECT 1 FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND updated_ms = ? AND deleted = ? AND body = ?');
-    // Forward edits leave a short trail per record. The loser of a stale send was never based on what stayed: it is not part of that trail.
-    const trimStmt = db.prepare(`DELETE FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND stale = 0 AND n NOT IN
-      (SELECT n FROM overwritten WHERE account_id = ? AND kind = ? AND id = ? AND stale = 0 ORDER BY updated_ms DESC, n DESC LIMIT ?)`);
-    db.exec('BEGIN');
-    try {
-      for (const raw of list as unknown[]) {
-        const r = isObj(raw) ? raw : {};
-        const ref = { kind: r.kind, id: r.id };
-        const reason =
-          !isObj(raw) ? 'not an object'
-          : !KINDS.includes(r.kind as RecordKind) ? 'unknown kind'
-          : !str(r.id, 200) ? 'bad id'
-          : typeof r.updatedMs !== 'number' || !Number.isFinite(r.updatedMs) ? 'bad updatedMs'
-          : r.updatedMs > t + MAX_AHEAD_MS ? 'updatedMs too far ahead'
-          : typeof r.deleted !== 'boolean' ? 'bad deleted'
-          : r.body === undefined ? 'missing body'
-          : Buffer.byteLength(JSON.stringify(r.body)) > RECORD_BODY_LIMIT ? 'body too large'
-          : null;
-        if (reason) { refused.push({ ...ref, reason }); continue; }
-        const incoming: TrackedRecord = { kind: r.kind as RecordKind, id: r.id as string, updatedMs: r.updatedMs as number, deleted: r.deleted as boolean, body: r.body };
-        const cur = getStmt.get(account, incoming.kind, incoming.id) as Row | undefined;
-        const { keep, overwritten } = applyRecord(cur ? toRecord(cur) : undefined, incoming);
-        if (overwritten) {
-          const body = JSON.stringify(overwritten.body), del = overwritten.deleted ? 1 : 0;
-          if (!haveLostStmt.get(account, overwritten.kind, overwritten.id, overwritten.updatedMs, del, body)) lostStmt.run(account, overwritten.kind, overwritten.id, overwritten.updatedMs, body, t, del, overwritten === incoming ? 1 : 0);
-          if (keep === incoming) trimStmt.run(account, keep.kind, keep.id, account, keep.kind, keep.id, KEEP_PER_RECORD);
-        }
-        if (keep === incoming) {
-          putStmt.run(account, keep.kind, keep.id, keep.updatedMs, keep.deleted ? 1 : 0, JSON.stringify(keep.body), account);
-          const w = mealWeekOf(keep, t);
-          if (w && weekStmt.run(account, w).changes > 0) newMealWeek = true;
-        }
-        accepted++;
-      }
-      db.prepare('DELETE FROM overwritten WHERE account_id = ? AND n NOT IN (SELECT n FROM overwritten WHERE account_id = ? ORDER BY stale DESC, n DESC LIMIT ?)').run(account, account, KEEP_OVERWRITTEN);
-      db.exec('COMMIT');
-    } catch (e) {
-      db.exec('ROLLBACK');
-      throw e;
-    }
+    const list = recordsOfBody(req.body);
+    if (!list) return reply.code(400).send({ error: 'bad request' });
+    const account = acct(req);
+    const { accepted, refused, newMealWeek } = putRecords(db, account, list, now());
     if (newMealWeek) void push.notifyAccount(account, 'meal'); // fire and forget, after the data is safe
     return { accepted, refused };
   });
 
   app.get<{ Querystring: { since?: string; limit?: string } }>('/records', { onRequest: requireAuth }, async (req, reply) => {
-    let since = req.query.since === undefined ? 0 : Number(req.query.since);
-    const limit = req.query.limit === undefined ? MAX_PAGE : Number(req.query.limit);
-    if (!Number.isInteger(since) || since < 0 || !Number.isInteger(limit) || limit < 1) return reply.code(400).send({ error: 'bad request' });
-    const n = Math.min(limit, MAX_PAGE);
-    // A cursor from the future means the server lost data (restore): start over so nothing is missed.
-    const top = (db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM records WHERE account_id = ?').get(acct(req)) as { m: number }).m;
-    const reset = since > top;
-    if (reset) since = 0;
-    const rows = db.prepare('SELECT * FROM records WHERE account_id = ? AND seq > ? ORDER BY seq LIMIT ?').all(acct(req), since, n + 1) as Row[];
-    const page = rows.slice(0, n);
-    return { records: page.map(toRecord), cursor: page.length ? page[page.length - 1]!.seq : since, more: rows.length > n, reset, generation: generationOf(db) };
+    const page = pageOfQuery(req.query);
+    if (!page) return reply.code(400).send({ error: 'bad request' });
+    return listRecords(db, acct(req), page.since, page.limit);
   });
+
+  if (opts.coach) registerCoachProxy(app, { coachUrl: opts.coach.url, token: opts.coach.token, resolve: resolveAccount });
 
   // Static files: GET only, only from staticDir, no traversal, no symlink escape.
   app.setNotFoundHandler(async (req, reply) => {
@@ -284,12 +236,25 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   if (subject && !/^(mailto:|https:\/\/)\S+$/.test(subject)) { console.warn('warning: PANDAFIT_PUSH_SUBJECT must start with mailto: or https://; using the public origin'); subject = undefined; }
   let version: string | null = null;
   try { if (staticDir && existsSync(staticDir)) version = buildVersion(staticDir); } catch { /* no announcement without a build */ }
+  // The coach's door: both need the internal token, shared with the coach container only.
+  const internalToken = process.env.PANDAFIT_INTERNAL_TOKEN?.trim() || undefined;
+  if (internalToken && !validInternalToken(internalToken)) console.warn('warning: PANDAFIT_INTERNAL_TOKEN must be 64 hex characters; the coach routes stay off');
+  const token = internalToken && validInternalToken(internalToken) ? internalToken : undefined;
+  const coachUrl = process.env.PANDAFIT_COACH_URL?.trim() || undefined;
+  if (coachUrl && !token) console.warn('warning: PANDAFIT_COACH_URL is set without PANDAFIT_INTERNAL_TOKEN; the /coach routes stay off');
+  const pushOpts: PushOptions | undefined = process.env.PANDAFIT_PUSH === 'off' ? undefined : { send: 'web', subject, version };
   const app = buildServer({
     dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db',
     staticDir,
     trustProxyCidr: process.env.PANDAFIT_TRUST_PROXY_CIDR,
     // PANDAFIT_PUSH=off sends nothing (the restore drill runs on a copy that holds real subscriptions).
-    push: process.env.PANDAFIT_PUSH === 'off' ? undefined : { send: 'web', subject, version },
+    push: pushOpts,
+    coach: coachUrl && token ? { url: coachUrl, token } : undefined,
   });
   app.listen({ port: Number(process.env.PORT ?? 8080), host: process.env.HOST ?? '127.0.0.1' });
+  // The internal records routes listen on the internal network only when the token is set; the public port never has them.
+  if (token) {
+    const internal = buildInternal({ dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db', token, push: pushOpts });
+    internal.listen({ port: INTERNAL_PORT, host: '0.0.0.0' });
+  }
 }

@@ -158,6 +158,22 @@ export function createPush(db: DatabaseSync, send: Sender | null, now: () => num
   return { notifyAccount: (id, type) => run(type, id), notifyAll: (type) => run(type, null) };
 }
 
+export type PushOptions = {
+  /** 'web': the real push services. Null or missing: nothing is ever sent (tests, the restore drill). */
+  send?: Sender | 'web' | null;
+  /** VAPID subject (mailto: or https:); defaults to the public origin the app is used from. */
+  subject?: string;
+  /** The build version of the web app; announced once when it differs from the last one. */
+  version?: string | null;
+};
+
+/** The keys and the sender for one database handle, as the options ask. */
+export function pushFor(db: DatabaseSync, opts: PushOptions | undefined, now: () => number): { keys: VapidKeys; push: Push } {
+  const keys = vapidKeys(db);
+  const send = opts?.send === 'web' ? webPushSender({ keys, subject: () => opts.subject ?? storedOrigin(db), now }) : opts?.send ?? null;
+  return { keys, push: createPush(db, send, now) };
+}
+
 /** At startup: a version that differs from the last one announced is stored first (so a crash loop cannot repeat it), then sent once. */
 export function announceVersion(db: DatabaseSync, push: Push, version: string): Promise<void> | null {
   if (meta(db, 'push_version') === version) return null;
