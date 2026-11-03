@@ -66,3 +66,10 @@
 .tk-num[aria-invalid="true"] { border-color: var(--low, #f2bd55); }
 .tk-tabs { display: flex; gap: .5rem; }
 .tk-open { display: flex; flex-direction: column; gap: .5rem; }
+/* The mobility offer, shared by the Mac and the phone. */
+.tk-mob-line { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
+.tk-mob-text { flex: 1 1 16rem; margin: 0; }
+.tk-mob-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.tk-mob-reason { margin: .6rem 0 0; }
+.tk-mob-list { margin: .4rem 0 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: .6rem; }
+.tk-mob-list span { display: block; color: var(--muted, #aebba9); }
