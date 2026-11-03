@@ -547,10 +547,12 @@ describe('sending to Garmin after confirmation', () => {
     expect(sends[0]!.ops).toEqual({
       delete: [],
       create: runs.map((r) => expect.objectContaining({ date: r.date, hrLow: 114, hrHigh: r.hrCap })),
+      // Workouts of ours with lost ids in the rest of the week are removed first.
+      sweep: { from: '2026-11-04', to: '2026-11-08', prefix: 'Pandafit · ', keep: [] },
     });
     expect(week(W0)!.garmin).toMatchObject({ status: 'sending', confirmedMs: now });
     const easy = sends[0]!.ops.create.find((c) => runs.find((r) => r.date === c.date)!.kind === 'easy')!;
-    expect(easy.name).toBe('Lauf ruhig');
+    expect(easy.name).toBe('Pandafit · Lauf ruhig');
     expect(easy.warmupS + easy.mainS + easy.cooldownS).toBe(runs.find((r) => r.date === easy.date)!.minutes * 60);
     coach.sendResult('pa', W0, okFor(sends[0]!.ops));
     const firstDates = runs.map((r) => r.date);
@@ -592,6 +594,75 @@ describe('sending to Garmin after confirmation', () => {
     expect(sends).toHaveLength(2);
     expect(sends[1]!.ops.delete).toEqual([{ workoutId: `w${first.date}`, scheduleId: `s${first.date}` }]);
     expect(sends[1]!.ops.create.map((c) => c.date)).toEqual([first.date]);
+    // The sweep keeps every sent workout that is not being deleted.
+    expect(sends[1]!.ops.sweep!.keep.sort()).toEqual(body.runs.slice(1).map((r) => `w${r.date}`).sort());
+  });
+
+  test('a plan that changes while a send runs: the result keeps the fingerprints that were sent', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    const sentFps = Object.fromEntries(week(W0)!.runs.map((r) => [r.date, r.fp]));
+    // One run gets longer while the send is under way.
+    const r = rec(`week-${W0}`)!;
+    const body = r.body as RunWeekBody;
+    const first = body.runs[0]!;
+    const longer = { ...first, minutes: first.minutes + 5 };
+    store.put('pa', { ...r, updatedMs: r.updatedMs + 1, body: { ...body, runs: [{ ...longer, fp: JSON.stringify([longer.date, longer.kind, longer.minutes, longer.hrCap]) }, ...body.runs.slice(1)] } });
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    const g = week(W0)!.garmin!;
+    expect(g.sent[first.date]!.fp).toBe(sentFps[first.date]);
+    expect(g.status).toBe('changed');
+  });
+
+  test('past dates are never created or deleted', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    const r = rec(`week-${W0}`)!;
+    const body = r.body as RunWeekBody;
+    // A planned run on Monday (past) and a sent one on Tuesday (past) that is no longer planned.
+    const monday = { ...body.runs[0]!, date: '2026-11-02' };
+    const runs = [{ ...monday, fp: JSON.stringify([monday.date, monday.kind, monday.minutes, monday.hrCap]) }, ...body.runs];
+    store.put('pa', { ...r, updatedMs: r.updatedMs + 1, body: { ...body, runs, garmin: { status: 'none', reason: null, confirmedMs: null, sent: { '2026-11-03': { workoutId: 'w-tue', scheduleId: 's-tue', fp: 'alt' } } } } });
+    confirm(weekFp(runs));
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    expect(sends[0]!.ops.create.map((c) => c.date)).not.toContain('2026-11-02');
+    expect(sends[0]!.ops.delete).toEqual([]);
+    expect(sends[0]!.ops.sweep!.keep).toEqual(['w-tue']);
+  });
+
+  test("today's run already done: no workout for today", async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    expect(week(W0)!.runs[0]!.date).toBe('2026-11-04');
+    garmin = [run('g-today', at(2, 7))];
+    now += HOUR;
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    expect(sends[0]!.ops.create.map((c) => c.date)).not.toContain('2026-11-04');
+    expect(sends[0]!.ops.sweep!.from).toBe('2026-11-05');
+  });
+
+  test('a newer send record while a send runs waits for its result, and then sends only what is missing', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    now += 60_000;
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(1);
+    expect(week(W0)!.garmin!.status).toBe('sending');
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    now += 60_000;
+    await coach.tick('pa');
+    // The newer confirmation is handled now: everything is on the watch already.
+    expect(sends).toHaveLength(1);
+    expect(week(W0)!.garmin).toMatchObject({ status: 'sent', confirmedMs: now - 60_000 });
   });
 
   test('an old fingerprint marks stale and sends nothing', async () => {
@@ -697,6 +768,6 @@ describe('sending to Garmin after confirmation', () => {
     confirm(weekFp(runs));
     await coach.tick('pa');
     const c = sends[0]!.ops.create.find((x) => x.date === test.date)!;
-    expect(c).toEqual({ date: test.date, name: 'Testlauf 30 Minuten', warmupS: 600, mainS: 1800, cooldownS: 300, hrLow: null, hrHigh: null });
+    expect(c).toEqual({ date: test.date, name: 'Pandafit · Testlauf 30 Minuten', warmupS: 600, mainS: 1800, cooldownS: 300, hrLow: null, hrHigh: null });
   });
 });

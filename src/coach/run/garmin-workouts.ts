@@ -7,6 +7,8 @@ const TIMEOUT_MS = 180_000;
 export type WorkoutOps = {
   delete: { workoutId: string; scheduleId: string | null }[];
   create: { date: string; name: string; warmupS: number; mainS: number; cooldownS: number; hrLow: number | null; hrHigh: number | null }[];
+  /** Scheduled workouts from `from` to `to` named with `prefix` and not in `keep` are removed before creating (ids lost in a crash). */
+  sweep?: { from: string; to: string; prefix: string; keep: string[] } | null;
 };
 export type WorkoutResult = { status: 'ok' | 'failed'; reason: string | null; deleted: string[]; created: { date: string; workoutId: string; scheduleId: string | null }[] };
 

@@ -10,8 +10,10 @@ import sys
 
 from garmin_upload import status_of
 
-METHODS = ("upload_running_workout", "schedule_workout", "unschedule_workout", "delete_workout")
+METHODS = ("upload_running_workout", "schedule_workout", "unschedule_workout", "delete_workout", "get_scheduled_workouts_by_period")
 RUNNING = {"sportTypeId": 1, "sportTypeKey": "running"}
+# The library has no helper for a main step; the interval helper's step with this type is shown as the main part on the watch.
+MAIN_STEP = {"stepTypeId": 8, "stepTypeKey": "main", "displayOrder": 8}
 SAMPLE = {"date": "2026-01-01", "name": "Probe", "warmupS": 60, "mainS": 60, "cooldownS": 60, "hrLow": 100, "hrHigh": 120}
 
 
@@ -33,6 +35,7 @@ def build_workout(lib, run):
         main = lib.create_targeted_interval_step(float(run["mainS"]), 2, target=target)
     else:
         main = lib.create_interval_step(float(run["mainS"]), 2)
+    main = main.model_copy(update={"stepType": dict(MAIN_STEP)})
     cooldown = lib.create_cooldown_step(float(run["cooldownS"]), 3)
     return lib.RunningWorkout(
         workoutName=run["name"],
@@ -64,6 +67,12 @@ def valid(ops):
 
     if not isinstance(ops, dict) or not isinstance(ops.get("delete"), list) or not isinstance(ops.get("create"), list):
         return False
+    sweep = ops.get("sweep")
+    if sweep is not None and not (
+        isinstance(sweep, dict) and isinstance(sweep.get("from"), str) and len(sweep["from"]) == 10 and isinstance(sweep.get("to"), str) and len(sweep["to"]) == 10
+        and isinstance(sweep.get("prefix"), str) and len(sweep["prefix"]) >= 3 and isinstance(sweep.get("keep"), list) and all(text(k) for k in sweep["keep"])
+    ):
+        return False
     deletes_ok = all(isinstance(d, dict) and text(d.get("workoutId")) and (d.get("scheduleId") is None or text(d.get("scheduleId"))) for d in ops["delete"])
     creates_ok = all(
         isinstance(c, dict) and isinstance(c.get("date"), str) and len(c["date"]) == 10 and text(c.get("name"))
@@ -78,27 +87,55 @@ def gone(error):
     return status_of(error) == 404
 
 
+def scheduled_entries(items):
+    """(scheduleId, workoutId, name) of each scheduled workout in a by-period answer; odd entries are skipped."""
+    if isinstance(items, dict):
+        items = next((v for v in items.values() if isinstance(v, list)), [])
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        workout = item.get("workout") if isinstance(item.get("workout"), dict) else {}
+        workout_id = workout.get("workoutId", item.get("workoutId"))
+        name = workout.get("workoutName", item.get("workoutName"))
+        schedule_id = item.get("workoutScheduleId")
+        if workout_id is None or not isinstance(name, str):
+            continue
+        yield (None if schedule_id is None else str(schedule_id)), str(workout_id), name
+
+
+def remove(client, schedule_id, workout_id):
+    """Unschedule, then delete. Already gone counts as done; any other error stops the run."""
+    for call, value in ((client.unschedule_workout, schedule_id), (client.delete_workout, workout_id)):
+        if value is None:
+            continue
+        try:
+            call(value)
+        except Exception as error:  # noqa: BLE001
+            if not gone(error):
+                raise
+
+
 def attempt(make_client, lib, tokens, ops):
     done = {"status": "ok", "reason": None, "deleted": [], "created": []}
-    if not valid(ops):
+    # Without the workout models nothing is touched: deletes without creates would only empty the calendar.
+    if not valid(ops) or lib is None:
         return dict(done, status="failed", reason="failed")
     try:
         client = make_client()
         client.login(tokens)
         # Deletes first, so a changed run never stands twice on the watch.
         for d in ops["delete"]:
-            if d["scheduleId"] is not None:
-                try:
-                    client.unschedule_workout(d["scheduleId"])
-                except Exception as error:  # noqa: BLE001
-                    if not gone(error):
-                        raise
-            try:
-                client.delete_workout(d["workoutId"])
-            except Exception as error:  # noqa: BLE001
-                if not gone(error):
-                    raise
+            remove(client, d["scheduleId"], d["workoutId"])
             done["deleted"].append(d["workoutId"])
+        sweep = ops.get("sweep")
+        if sweep is not None:
+            # Workouts of ours whose ids were lost (a crash after the upload) go too, so nothing stands twice on the watch.
+            keep = set(sweep["keep"]) | set(done["deleted"])
+            for schedule_id, workout_id, name in list(scheduled_entries(client.get_scheduled_workouts_by_period(sweep["from"], sweep["to"]))):
+                if name.startswith(sweep["prefix"]) and workout_id not in keep:
+                    remove(client, schedule_id, workout_id)
+                    done["deleted"].append(workout_id)
+                    keep.add(workout_id)
         for c in ops["create"]:
             response = client.upload_running_workout(build_workout(lib, c))
             created = {"date": c["date"], "workoutId": str(response["workoutId"]), "scheduleId": None}

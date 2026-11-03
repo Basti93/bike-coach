@@ -38,6 +38,8 @@ const REVIEW_WEEKS = 4;
 const ANNOUNCE_HOUR = 18;
 /** Warm-up and cool-down of an easy or long run: a sixth of it each, at most 5 minutes. */
 const EDGE_MAX_S = 300;
+/** Every workout we send carries it, so ours can be found again when their ids were lost. */
+const WORKOUT_PREFIX = 'Pandafit · ';
 const WORKOUT_NAMES: Record<PlannedRun['kind'], string> = { easy: 'Lauf ruhig', long: 'Langer Lauf', test: 'Testlauf 30 Minuten' };
 const NO_GARMIN_SENT: RunGarmin = { status: 'none', reason: null, confirmedMs: null, sent: {} };
 
@@ -364,13 +366,17 @@ export class RunCoach {
     ctx.weeks.set(week, body);
   }
 
-  /** From today on: new dates are created, changed ones deleted and created again, dates no longer planned deleted. */
+  /**
+   * From today on (tomorrow once today's run is done): new dates are created, changed ones deleted and created again, dates no
+   * longer planned deleted. Earlier dates are never touched.
+   */
   private opsFor(ctx: Ctx, w: RunWeekBody, g: RunGarmin): WorkoutOps {
     const band = bandFor(ctx.maxHr);
-    const planned = w.runs.filter((r) => r.date >= ctx.today);
+    const from = this.doneOn(ctx.runs, ctx.today) !== null ? shift(ctx.today, 1) : ctx.today;
+    const planned = w.runs.filter((r) => r.date >= from);
     const del: WorkoutOps['delete'] = [];
     for (const [date, s] of Object.entries(g.sent)) {
-      if (date < ctx.today) continue;
+      if (date < from) continue;
       if (planned.find((r) => r.date === date)?.fp !== s.fp) del.push({ workoutId: s.workoutId, scheduleId: s.scheduleId });
     }
     const create: WorkoutOps['create'] = [];
@@ -390,9 +396,11 @@ export class RunCoach {
       }
       // A heart-rate range only with a known max heart rate, and never for a test run.
       const hr = r.kind !== 'test' && band !== null && r.hrCap !== null && r.hrCap >= band.fromBpm;
-      create.push({ date: r.date, name: WORKOUT_NAMES[r.kind], warmupS, mainS, cooldownS, hrLow: hr ? band!.fromBpm : null, hrHigh: hr ? r.hrCap : null });
+      create.push({ date: r.date, name: `${WORKOUT_PREFIX}${WORKOUT_NAMES[r.kind]}`, warmupS, mainS, cooldownS, hrLow: hr ? band!.fromBpm : null, hrHigh: hr ? r.hrCap : null });
     }
-    return { delete: del, create };
+    const deleted = new Set(del.map((d) => d.workoutId));
+    const keep = Object.values(g.sent).map((s) => s.workoutId).filter((id) => !deleted.has(id));
+    return { delete: del, create, sweep: { from, to: weekDates(w.week)[6]!, prefix: WORKOUT_PREFIX, keep } };
   }
 
   /** What the bridge did: deleted ids leave `sent`, created ones join it, also after a failure part way. */

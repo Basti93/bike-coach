@@ -18,6 +18,9 @@ class Model:
     def __init__(self, kind, **fields):
         self.kind, self.fields = kind, fields
 
+    def model_copy(self, update):
+        return Model(self.kind, **dict(self.fields, **update))
+
 
 def fake_lib():
     """The parts of garminconnect.workout the script uses, built offline."""
@@ -36,8 +39,9 @@ def fake_lib():
 
 
 class Client:
-    def __init__(self, fail_on=None, error=None):
+    def __init__(self, fail_on=None, error=None, scheduled=None):
         self.calls, self.fail_on, self.error = [], fail_on, error
+        self.scheduled = scheduled or []
         self.uploaded = []
         self.next_id = 100
 
@@ -61,24 +65,33 @@ class Client:
         self.next_id += 1
         return {"workoutId": self.next_id, "workoutName": workout.fields["workoutName"]}
 
+    def get_scheduled_workouts_by_period(self, start, end):
+        self._call("get_scheduled_workouts_by_period", start, end)
+        return self.scheduled
+
     def schedule_workout(self, workout_id, date):
         self._call("schedule_workout", workout_id, date)
         return {"workoutScheduleId": workout_id + 1000, "calendarDate": date}
 
 
-CREATE = {"date": "2026-11-04", "name": "Lauf ruhig", "warmupS": 300, "mainS": 1200, "cooldownS": 300, "hrLow": 114, "hrHigh": 143}
+PREFIX = "Pandafit · "
+CREATE = {"date": "2026-11-04", "name": "Pandafit · Lauf ruhig", "warmupS": 300, "mainS": 1200, "cooldownS": 300, "hrLow": 114, "hrHigh": 143}
 TOKENS = "geheim-token-ordner"
 
 
-def run(client, ops, lib=None):
+NO_LIB = object()
+
+
+def run(client, ops, lib=NO_LIB):
     out = io.StringIO()
-    garmin_workout.send(lambda: client, lib or fake_lib(), TOKENS, ops, out)
+    garmin_workout.send(lambda: client, fake_lib() if lib is NO_LIB else lib, TOKENS, ops, out)
     lines = out.getvalue().strip().split("\n")
     assert len(lines) == 1
     return json.loads(lines[0]), lines[0]
 
 
 class Supported:
+    def get_scheduled_workouts_by_period(self, s, e): pass
     def upload_running_workout(self, w): pass
     def schedule_workout(self, i, d): pass
     def unschedule_workout(self, i): pass
@@ -91,6 +104,7 @@ class CheckTest(unittest.TestCase):
 
     def test_check_unsupported_without_upload_running_workout(self):
         class Old:
+            def get_scheduled_workouts_by_period(self, s, e): pass
             def schedule_workout(self, i, d): pass
             def unschedule_workout(self, i): pass
             def delete_workout(self, i): pass
@@ -137,15 +151,60 @@ class SendTest(unittest.TestCase):
         client = Client()
         run(client, {"delete": [], "create": [CREATE]})
         workout = client.uploaded[0]
-        self.assertEqual(workout.fields["workoutName"], "Lauf ruhig")
+        self.assertEqual(workout.fields["workoutName"], "Pandafit · Lauf ruhig")
         self.assertEqual(workout.fields["estimatedDurationInSecs"], 1800)
         steps = workout.fields["workoutSegments"][0].fields["workoutSteps"]
         self.assertEqual([s.kind for s in steps], ["warmup", "main", "cooldown"])
+        # The main step is labelled as such on the watch, not as an interval.
+        self.assertEqual(steps[1].fields["stepType"], {"stepTypeId": 8, "stepTypeKey": "main", "displayOrder": 8})
         self.assertEqual([s.fields["duration"] for s in steps], [300.0, 1200.0, 300.0])
         self.assertEqual([s.fields["order"] for s in steps], [1, 2, 3])
         target = steps[1].fields["target"]
         self.assertEqual((target.kind, target.fields), ("hr", {"lower_limit": 114, "upper_limit": 143}))
         self.assertEqual(client.calls[-1], ("schedule_workout", 101, "2026-11-04"))
+
+    def test_a_failed_delete_stops_and_keeps_the_id(self):
+        client = Client(fail_on=lambda name, n: name == "delete_workout", error=HttpError(500))
+        result, _ = run(client, {"delete": [{"workoutId": "7", "scheduleId": "70"}], "create": [CREATE]})
+        self.assertEqual(result, {"status": "failed", "reason": "failed", "deleted": [], "created": []})
+        self.assertNotIn("upload_running_workout", [c[0] for c in client.calls])
+
+    def test_a_failed_unschedule_stops_before_the_delete(self):
+        client = Client(fail_on=lambda name, n: name == "unschedule_workout", error=HttpError(500))
+        result, _ = run(client, {"delete": [{"workoutId": "7", "scheduleId": "70"}], "create": [CREATE]})
+        self.assertEqual(result["deleted"], [])
+        self.assertEqual([c[0] for c in client.calls], ["login", "unschedule_workout"])
+
+    def test_without_the_workout_module_nothing_is_called(self):
+        client = Client()
+        result, _ = run(client, {"delete": [{"workoutId": "7", "scheduleId": None}], "create": [CREATE]}, lib=None)
+        self.assertEqual(result, {"status": "failed", "reason": "failed", "deleted": [], "created": []})
+        self.assertEqual(client.calls, [])
+
+    def test_old_pandafit_workouts_in_the_week_are_removed_before_creating(self):
+        scheduled = [
+            {"workoutScheduleId": 900, "calendarDate": "2026-11-05", "workout": {"workoutId": 90, "workoutName": "Pandafit · Lauf ruhig"}},
+            {"workoutScheduleId": 901, "calendarDate": "2026-11-06", "workout": {"workoutId": 91, "workoutName": "Pandafit · Langer Lauf"}},
+            {"workoutScheduleId": 902, "calendarDate": "2026-11-06", "workout": {"workoutId": 92, "workoutName": "Eigenes Training"}},
+        ]
+        client = Client(scheduled=scheduled)
+        ops = {"delete": [{"workoutId": "7", "scheduleId": None}], "create": [CREATE],
+               "sweep": {"from": "2026-11-04", "to": "2026-11-08", "prefix": PREFIX, "keep": ["91"]}}
+        result, _ = run(client, ops)
+        self.assertEqual([c[0] for c in client.calls], [
+            "login", "delete_workout", "get_scheduled_workouts_by_period", "unschedule_workout", "delete_workout", "upload_running_workout", "schedule_workout",
+        ])
+        self.assertEqual(client.calls[2], ("get_scheduled_workouts_by_period", "2026-11-04", "2026-11-08"))
+        self.assertEqual(client.calls[3], ("unschedule_workout", "900"))
+        self.assertEqual(client.calls[4], ("delete_workout", "90"))
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["deleted"], ["7", "90"])
+
+    def test_a_sweep_without_a_prefix_calls_nothing(self):
+        client = Client()
+        result, _ = run(client, {"delete": [], "create": [CREATE], "sweep": {"from": "2026-11-04", "to": "2026-11-08", "prefix": "", "keep": []}})
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(client.calls, [])
 
     def test_main_without_hr_has_no_target(self):
         client = Client()
