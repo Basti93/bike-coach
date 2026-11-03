@@ -10,7 +10,7 @@ let sw: { check(): void } | null = null;
 let fresh = true;
 for (const t of ['pointerdown', 'keydown'] as const) addEventListener(t, () => { fresh = false; }, { capture: true, once: true });
 
-// A notification opens the app at /?tab=essen; the address goes back to / at once.
+// A notification opens the app at /?tab=essen or /?tab=laufen; the address goes back to / at once.
 const startTab = new URLSearchParams(location.search).get('tab');
 if (startTab) history.replaceState(null, '', '/');
 const ua = navigator.userAgent;

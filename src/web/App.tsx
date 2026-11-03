@@ -2,7 +2,8 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncEx
 import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { openStoreCount } from '../tracking/registry';
-import { HistoryScreen, RoutinesScreen, WorkoutScreen } from '../tracking/ui';
+import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, WorkoutScreen } from '../tracking/ui';
+import { runView } from '../tracking/ui/run-view';
 import { MobilityOffer } from '../tracking/ui/MobilityOffer';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { openIdb } from './idbStore';
@@ -290,8 +291,8 @@ function PushSettings({ push }: { push: PushState }) {
   );
 }
 
-type Tab = 'heute' | 'training' | 'essen' | 'verlauf' | 'profil';
-const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
+type Tab = 'heute' | 'training' | 'essen' | 'laufen' | 'verlauf' | 'profil';
+const TABS: [Tab, string][] = [['heute', 'Heute'], ['training', 'Training'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['verlauf', 'Verlauf'], ['profil', 'Profil']];
 
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
   if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
@@ -304,7 +305,7 @@ const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; last
 };
 
 /** The account on this device: who is signed in, how the sync stands, and the way out. */
-function Profil({ account, port, status, onLogout, push }: { account: string; port: WebPort; status: 'ok' | 'login' | 'offline'; onLogout: () => void; push: PushState | null }) {
+function Profil({ account, port, now, status, onLogout, push }: { account: string; port: WebPort; now: () => number; status: 'ok' | 'login' | 'offline'; onLogout: () => void; push: PushState | null }) {
   const [confirming, setConfirming] = useState(false);
   usePortRecords(port, 'workout'); // re-renders when the port changes
   const c = port.syncState();
@@ -318,6 +319,7 @@ function Profil({ account, port, status, onLogout, push }: { account: string; po
         <p role="status">{syncText(status, c)}</p>
       </section>
       {push && <PushSettings push={push} />}
+      <RunSettingsCard port={port} now={now} />
       {confirming ? (
         <p role="status" className="tk-note">
           Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.
@@ -330,9 +332,9 @@ function Profil({ account, port, status, onLogout, push }: { account: string; po
 }
 
 function Shell({ account, env, port, onLogout, onRelogin }: { account: string; env: Env; port: WebPort; onLogout: () => void; onRelogin: (name: string) => void }) {
-  const [tab, setTab] = useState<Tab>(env.startTab === 'essen' ? 'essen' : 'heute');
+  const [tab, setTab] = useState<Tab>(env.startTab === 'essen' ? 'essen' : env.startTab === 'laufen' ? 'laufen' : 'heute');
   const push = usePush(env, account);
-  useEffect(() => env.onOpenTab?.((t) => { if (t === 'essen') setTab('essen'); }), [env]);
+  useEffect(() => env.onOpenTab?.((t) => { if (t === 'essen') setTab('essen'); else if (t === 'laufen') setTab('laufen'); }), [env]);
   const [persistRefused, setPersistRefused] = useState(false);
   const [hint, setHint] = useState(false);
   const [, tick] = useState(0);
@@ -341,7 +343,11 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   // Essen only when the Mac sent a plan for this account: the meal plan is off by default.
   const mealRecords = usePortRecords(port, 'mealplan').records;
   const hasMeals = mealWeeks(mealRecords, env.now()).length > 0;
-  const tabs = TABS.filter(([t]) => t !== 'essen' || hasMeals);
+  // Laufen only once the run coach's status says on or suggest: nothing of it for a person who does not run.
+  const runRecords = usePortRecords(port, 'run').records;
+  const hasRun = runView(runRecords ?? [], env.now()).visible;
+  const tabs = TABS.filter(([t]) => (t !== 'essen' || hasMeals) && (t !== 'laufen' || hasRun));
+  useEffect(() => { if (tab === 'laufen' && runRecords !== null && !hasRun) setTab('heute'); }, [tab, hasRun, runRecords]);
   useEffect(() => { if (tab === 'essen' && mealRecords !== null && !hasMeals) setTab('heute'); }, [tab, hasMeals, mealRecords]);
 
   // Open on this device: a recent open record, or a store this session has opened or still has unsaved. Unknown until the first read.
@@ -392,8 +398,9 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} />}
           {tab === 'training' && <Training port={port} env={env} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
-          {tab === 'verlauf' && <HistoryScreen port={port} now={env.now} />}
-          {tab === 'profil' && <Profil account={account} port={port} status={status} onLogout={onLogout} push={push.state} />}
+          {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
+          {tab === 'verlauf' && <><HistoryScreen port={port} now={env.now} /><RunLookBack port={port} now={env.now} /></>}
+          {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} push={push.state} />}
         </ErrorBoundary>
       </main>
       <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>

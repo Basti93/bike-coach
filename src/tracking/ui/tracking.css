@@ -84,3 +84,19 @@
 .tk-pick-row .tk-pick { flex: 1; min-width: 0; }
 .tk-picker button.tk-info-toggle { flex: none; width: 44px; padding: 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 1.15rem; }
 .tk-picker button.tk-info-toggle[aria-expanded="true"] { color: var(--text, #f6eedd); border-color: var(--muted, #aebba9); }
+/* The run screen, shared by the Mac and the phone. */
+.tk-run-list { list-style: none; margin: .4rem 0 0; padding: 0; }
+.tk-run-list li { display: flex; flex-direction: column; gap: .15rem; padding: .5rem 0; border-top: 1px solid rgba(255,255,255,.08); }
+.tk-run-list li:first-child { border-top: 0; }
+.tk-pace { display: grid; gap: .4rem; margin: .4rem 0; }
+.tk-pace div { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+.tk-pace dt { color: var(--muted, #aebba9); }
+.tk-pace dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tk-spark { display: flex; align-items: flex-end; gap: 4px; height: 3.2rem; margin-top: .4rem; }
+.tk-spark > span { flex: 1; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--accent, #e8964a); opacity: .85; }
+.tk-run .tk-run-when .tk-field, .tk-run .tk-run-nums .tk-field { flex: 1 1 8rem; min-width: 0; }
+.tk-run .tk-check { display: flex; gap: .6rem; align-items: center; min-height: 44px; color: var(--text, #f6eedd); }
+.tk-run .tk-check input, .tk-switch input { width: 1.6rem; height: 1.6rem; flex: none; }
+.tk-screen button.tk-day { min-width: 44px; min-height: 44px; padding: 0 .5rem; }
+.tk-switch { display: flex; align-items: center; gap: .7rem; min-height: 44px; }
+.tk-garmin { margin-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }

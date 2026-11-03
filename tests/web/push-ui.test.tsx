@@ -129,7 +129,7 @@ describe('push notifications on the phone', () => {
     expect(card()).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
     expect(await screen.findByText(/Home-Bildschirm liegt \(ab iOS 16\.4\)/)).toBeTruthy();
-    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Benachrichtigungen' })).toBeNull();
     expect(push.requestPermission).not.toHaveBeenCalled();
   });
 
