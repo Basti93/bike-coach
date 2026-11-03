@@ -1,3 +1,4 @@
+import { opensExternally } from './external-links';
 import { app, BrowserWindow, dialog, nativeImage, powerSaveBlocker, utilityProcess, type UtilityProcess, shell } from 'electron';
 import path from 'node:path';
 import { guiPath, unpacked } from './app-paths';
@@ -47,7 +48,7 @@ const openMain = (): void => {
   else void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   win.webContents.setWindowOpenHandler(({ url: u }) => {
     if (u.endsWith('#film')) { openFilmWindow(u, showMain); return { action: 'deny' }; }
-    if (u.startsWith('https://hevy.com/')) void shell.openExternal(u);
+    if (opensExternally(u)) void shell.openExternal(u);
     return { action: 'deny' };
   });
 };
