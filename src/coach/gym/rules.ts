@@ -59,7 +59,7 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   return {
     workout: { name: 'Ganzkörper an Geräten', exercises },
     reason: !hasHistory
-      ? 'Noch keine passenden Hevy-Einheiten: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.'
+      ? 'Noch keine früheren Trainings: ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.'
       : withWeights
         ? 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten. Wo du eine Übung schon kennst, steht ein Gewicht aus deinem Verlauf dabei, sonst taste dich in Ruhe heran.'
         : 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',

@@ -950,12 +950,12 @@ describe('final review', () => {
     it('the machine fallback keeps its plain text for a rider without history', () => {
       const { reason, workout } = ruleWorkout({ workouts: [], templates: machines, nowMs: NOW });
       expect(workout.exercises.every((e) => e.sets.every((x) => x.weightKg === null))).toBe(true);
-      expect(reason).toMatch(/Noch keine passenden Hevy-Einheiten/);
+      expect(reason).toMatch(/Noch keine früheren Trainings/);
       expect(reason).toMatch(/ohne Gewichte/);
     });
     it('a rider with history whose exercises were filtered gets an accurate reason', () => {
       const { reason } = ruleWorkout({ workouts: [usedTimed(7)], templates: machines, nowMs: NOW });
-      expect(reason).not.toMatch(/Noch keine passenden Hevy-Einheiten/);
+      expect(reason).not.toMatch(/Noch keine früheren Trainings/);
       expect(reason).toMatch(/Verlauf/);
       expect(reason).toMatch(/ohne Gewichte/);
     });
@@ -964,7 +964,7 @@ describe('final review', () => {
       const { reason, workout } = ruleWorkout({ workouts: [long], templates: machines, nowMs: NOW });
       expect(workout.exercises.some((e) => e.sets.some((x) => x.weightKg !== null))).toBe(true);
       expect(reason).not.toMatch(/ohne Gewichte/);
-      expect(reason).not.toMatch(/Noch keine passenden Hevy-Einheiten/);
+      expect(reason).not.toMatch(/Noch keine früheren Trainings/);
     });
   });
 });
