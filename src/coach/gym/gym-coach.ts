@@ -49,6 +49,8 @@ type Deps = {
   hevy?: (id: string) => boolean;
   /** Whether the profile is linked to an account: strength tracking is on then, as with Hevy. */
   account?: (id: string) => boolean;
+  /** A workout of the rider's own was finished, once per workout. Must only mark something, never plan. */
+  onWorkoutFinished?: (id: string) => void;
   /** Null without a Hevy key. This is the only path to a Hevy write, and only `confirm` uses it. */
   writer: (id: string) => HevyRoutines | null;
 };
@@ -59,6 +61,8 @@ const refusedByHevy = (e: unknown): boolean => e instanceof HevyError && e.statu
 const hasSetDetails = (w: StrengthWorkout): boolean => Array.isArray(w.exercises) && w.exercises.every((e) => Array.isArray(e.workSets));
 const complaintsFingerprint = (open: Complaint[]): string => open.map((c) => `${c.id}:${c.status}`).sort().join(',');
 const fingerprint = (w: GymWorkout): string => JSON.stringify(w);
+/** A tombstone written by the import because Hevy's list no longer had the workout; any other is the person's delete. */
+const goneFromHevy = (r: TrackedRecord): boolean => (r.body as { goneFromHevy?: unknown } | null)?.goneFromHevy === true;
 const isWidowmaker = (e: GymExercise): boolean => /^\s*widowmaker\b/i.test(e.notes);
 const isWidowSet = (e: GymExercise, i: number): boolean => isWidowmaker(e) && e.sets[i].reps === WIDOWMAKER_REPS && !e.sets[i].repRange;
 const clean = (text: string | undefined, max: number): string | null => {
@@ -99,7 +103,10 @@ export class GymCoach {
     return this.isHevy(id) || (this.deps.account?.(id) ?? false) || this.state(id).localStart || this.logged(id).some((w) => w.endMs !== null);
   }
   /** A workout of the rider's own was finished: plan again. Only a flag, the run itself waits for `tick` and so for a free bike. */
-  workoutFinished(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
+  workoutFinished(id: string): void {
+    this.update(id, (s) => { s.dirty = true; s.attempts = 0; });
+    try { this.deps.onWorkoutFinished?.(id); } catch { /* the other coach's trouble is not this workout's */ }
+  }
   /** Begins strength training without Hevy. */
   start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
 
@@ -111,8 +118,13 @@ export class GymCoach {
     const links = this.links(id);
     const all = this.logged(id);
     const own = historyFromLogged(onePerSession(all.filter((w) => w.source !== 'hevy' && w.endMs !== null)), links);
-    const hevy = this.isHevy(id) ? this.deps.workouts(id).filter((w) => Array.isArray(w.exercises)) : historyFromLogged(all.filter((w) => w.source === 'hevy'), links);
+    const deleted = this.deletedByPerson(id);
+    const hevy = this.isHevy(id) ? this.deps.workouts(id).filter((w) => Array.isArray(w.exercises) && !deleted.has(w.id)) : historyFromLogged(all.filter((w) => w.source === 'hevy'), links);
     return mergeHistory(own, hevy, links);
+  }
+  /** Ids the person deleted here or on the phone. Hevy's list still has them; the person's word counts. */
+  private deletedByPerson(id: string): Set<string> {
+    return new Set((this.deps.store?.all(id, 'workout') ?? []).filter((r) => r.deleted && !goneFromHevy(r)).map((r) => r.id));
   }
   hasHistory(id: string): boolean { return this.history(id).length > 0; }
 
@@ -127,8 +139,10 @@ export class GymCoach {
     for (const w of hevy) {
       const r = hevyRecord(w, links);
       const have = stored.get(r.id);
-      // Present in Hevy again after a tombstone: written live and newer, so a rebuild cannot let the tombstone win.
-      if (have?.deleted) records.push({ ...r, updatedMs: Math.max(now, have.updatedMs + 1) });
+      // Our own tombstone (it was gone from Hevy's list) and present again: written live and newer, so a rebuild cannot let the tombstone win.
+      if (have?.deleted && goneFromHevy(have)) records.push({ ...r, updatedMs: Math.max(now, have.updatedMs + 1) });
+      // The person deleted it: it stays deleted, whatever Hevy still lists.
+      else if (have?.deleted) continue;
       // Already live with the same content under a newer time (a revived one): nothing to write.
       else if (have && have.updatedMs > r.updatedMs && JSON.stringify(have.body) === JSON.stringify(r.body)) continue;
       // Stored before a link existed (still the plain Hevy ids): written again with the own ids, newer so it wins.
@@ -139,7 +153,7 @@ export class GymCoach {
     if (this.deps.ready(id)) {
       const present = new Set(hevy.map((w) => w.id));
       for (const r of this.deps.store.all(id, 'workout')) {
-        if (!r.deleted && (r.body as LoggedWorkout | null)?.source === 'hevy' && !present.has(r.id)) records.push({ ...r, deleted: true, updatedMs: now });
+        if (!r.deleted && (r.body as LoggedWorkout | null)?.source === 'hevy' && !present.has(r.id)) records.push({ ...r, deleted: true, updatedMs: now, body: { ...(r.body as object), goneFromHevy: true } });
       }
     }
     if (records.length > 0) this.deps.store.putMany(id, records);

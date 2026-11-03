@@ -230,6 +230,21 @@ describe('own history', () => {
     expect(h.store.overwritten(ID)).toHaveLength(2);
   });
 
+  it('a person\'s delete of an imported workout stays deleted: no re-import revives it and no history counts it', () => {
+    const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8), hevyWorkout('h2', 7, 'x', 50, 8)] });
+    h.coach.importHevy(ID);
+    const r = h.store.all(ID, 'workout').find((x) => x.id === 'h1')!;
+    h.store.put(ID, { ...r, deleted: true, updatedMs: NOW + 5 });
+    const cursor = h.store.changedSince(ID, 0).cursor;
+    h.coach.importHevy(ID);
+    h.coach.importHevy(ID);
+    expect(h.store.all(ID, 'workout').find((x) => x.id === 'h1')!.deleted).toBe(true);
+    expect(h.store.changedSince(ID, 0).cursor).toBe(cursor);
+    expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h2']);
+    h.hevy = false;
+    expect(h.coach.history(ID).map((w) => w.id)).toEqual(['h2']);
+  });
+
   it('never tombstones while Hevy is loading', () => {
     const h = harness({ hevy: true, workouts: [hevyWorkout('h1', 14, 'x', 50, 8)] });
     h.coach.importHevy(ID);
