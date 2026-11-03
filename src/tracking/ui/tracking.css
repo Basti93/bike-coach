@@ -84,6 +84,16 @@
 .tk-pick-row .tk-pick { flex: 1; min-width: 0; }
 .tk-picker button.tk-info-toggle { flex: none; width: 44px; padding: 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 1.15rem; }
 .tk-picker button.tk-info-toggle[aria-expanded="true"] { color: var(--text, #f6eedd); border-color: var(--muted, #aebba9); }
+/* Pictures (line drawings on white), the video link and the muscle icon. */
+.tk-info-pic { margin: 0; display: flex; flex-direction: column; gap: .2rem; }
+.tk-info-pic img { display: block; width: 100%; max-height: 240px; object-fit: contain; background: #fff; border-radius: .6rem; }
+.tk-info-pic a, .tk-info .tk-credit a { color: inherit; }
+.tk-info-empty { display: flex; align-items: center; gap: .5rem; }
+.tk-info a.tk-video { align-self: flex-start; min-height: 40px; display: inline-flex; align-items: center; padding: .3rem .9rem; border: 1px solid var(--line, #33493c); border-radius: .7rem; color: var(--tk-accent); text-decoration: none; font-weight: 600; }
+.tk-info a.tk-video::after { content: ' ↗'; white-space: pre; }
+.tk-muscle-icon { display: block; flex: none; }
+.tk-ex-icon { flex: none; padding-top: .65rem; }
+.tk-pick-icon { flex: none; display: flex; align-items: center; }
 /* The run screen, shared by the Mac and the phone. */
 .tk-run-list { list-style: none; margin: .4rem 0 0; padding: 0; }
 .tk-run-list li { display: flex; flex-direction: column; gap: .15rem; padding: .5rem 0; border-top: 1px solid rgba(255,255,255,.08); }

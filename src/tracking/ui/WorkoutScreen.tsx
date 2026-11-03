@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
-import { EXERCISES, type Exercise } from '../../shared/exercises';
-import { describeExercise } from '../similar';
+import type { Exercise } from '../../shared/exercises';
+import { muscleGroupOf } from '../../shared/muscle-targets';
+import { exerciseImages, videoSearchUrl } from '../media';
+import { describeExercise, exactExercise, ownExerciseFor } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
@@ -12,6 +14,7 @@ import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
 import { ExerciseInfo } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
+import { MuscleIcon } from './MuscleIcon';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
 import { NotesField } from './NotesField';
@@ -35,6 +38,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const ending = useRef(false);
   const leaving = useRef(false);
   const remote = usePortRecords(port, 'workout').all;
+  const catalog = useCatalog(port);
   const [notice, setNotice] = useState<string | null>(null);
   const pendingLeave = useRef<string | null>(null);
   useWakeLock(true);
@@ -130,8 +134,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const labels = setLabels(e.sets);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
-        const described = describeExercise(e, EXERCISES);
+        const described = describeExercise(e, catalog);
         const description = described?.description ?? null;
+        const own = ownExerciseFor(e, catalog);
+        const exact = exactExercise(e, catalog);
+        const icon = <MuscleIcon group={muscleGroupOf(own ?? { title: e.title, primaryMuscle: null })} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
         const current = e.rid === currentRid;
@@ -139,6 +146,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
           <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${current ? ' tk-ex-current' : ''}`} aria-label={e.title}
             aria-current={current ? 'step' : undefined}>
             <div className="tk-ex-head">
+              <span className="tk-ex-icon">{icon}</span>
               <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
               {allDone && <span className="tk-ex-badge">Erledigt</span>}
               {e.supersetId !== null && <span className="muted">Superset</span>}
@@ -146,10 +154,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             </div>
             {menu === e.rid && (
               <div className="tk-row tk-menu">
-                {description && (
-                  <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
-                    onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
-                )}
+                <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
+                  onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
                 {canLink && (
                   <button type="button" className="secondary" aria-label={`${e.title} als Superset mit ${nextEx!.title}`}
                     onClick={() => { setMenu(null); act((x) => linkSuperset(x, e.rid)); }}>Superset mit nächster Übung</button>
@@ -163,8 +169,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
                   onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
               </div>
             )}
-            {description && showInfo && (
-              <ExerciseInfo title={e.title} description={description} via={described?.via ?? null}>
+            {showInfo && (
+              <ExerciseInfo title={e.title} description={description} via={described?.via ?? null} icon={icon}
+                images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: exact?.hevyTitle })}>
                 <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
               </ExerciseInfo>
             )}

@@ -16,8 +16,9 @@ function precache(): Plugin {
     name: 'pandafit-precache',
     apply: 'build',
     closeBundle() {
+      // Exercise pictures are optional and loaded when an info is opened, so they stay out of the precache (offline: no picture).
       const files = walk(outDir).map((p) => '/' + relative(outDir, p).split('\\').join('/'))
-        .filter((f) => f !== '/sw.js' && !f.endsWith('.map')).sort();
+        .filter((f) => f !== '/sw.js' && !f.endsWith('.map') && !f.startsWith('/exercises/')).sort();
       const list = ['/', ...files.filter((f) => f !== '/index.html'), '/index.html'];
       const hash = createHash('sha256');
       for (const f of files) hash.update(f).update(readFileSync(join(outDir, f)));

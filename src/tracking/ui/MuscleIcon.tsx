@@ -1,0 +1,51 @@
+import { MUSCLE_TARGETS, type MuscleGroup } from '../../shared/muscle-targets';
+
+/** One body part: x, y, width, height on a 24×24 grid, the group it shows (null: just body), and whether it comes in a pair. */
+type Part = [x: number, y: number, w: number, h: number, region: MuscleGroup | null, pair: boolean];
+
+const FRONT: Part[] = [
+  [10.4, 4.4, 3.2, 1.6, null, false], // neck
+  [6.4, 5.6, 2.6, 2.6, 'front_delts', true],
+  [9.2, 5.8, 5.6, 4.2, 'chest', false],
+  [9.6, 10.2, 4.8, 3.5, 'abs', false],
+  [6.2, 8.4, 2.2, 3.8, 'biceps', true],
+  [5.8, 12.4, 2, 3.6, 'forearms', true],
+  [9.2, 13.9, 5.6, 2, null, false], // hips
+  [9.2, 16, 2.6, 3.8, 'quads', true],
+  [9.4, 20, 2.2, 3.6, null, true], // shins
+];
+
+const BACK: Part[] = [
+  [10.4, 4.4, 3.2, 1.6, 'traps', false],
+  [6.4, 5.6, 2.6, 2.6, 'side_rear_delts', true],
+  [9.2, 5.8, 5.6, 7.9, 'back', false],
+  [6.2, 8.4, 2.2, 3.8, 'triceps', true],
+  [5.8, 12.4, 2, 3.6, null, true], // forearms from behind
+  [9.2, 13.9, 5.6, 2, 'hams_glutes', false], // glutes
+  [9.2, 16, 2.6, 3.8, 'hams_glutes', true],
+  [9.4, 20, 2.2, 3.6, 'calves', true],
+];
+
+const BACK_GROUPS: ReadonlySet<MuscleGroup> = new Set(['back', 'side_rear_delts', 'triceps', 'hams_glutes', 'calves', 'traps']);
+
+/**
+ * A small body silhouette with the trained group in the accent colour: front view for the muscles you see from the front,
+ * back view for the rest. "other" is a plain silhouette. Own drawing, no external assets.
+ */
+export function MuscleIcon({ group, size = 22 }: { group: MuscleGroup; size?: number }) {
+  const parts = BACK_GROUPS.has(group) ? BACK : FRONT;
+  const rect = (x: number, w: number, y: number, h: number, region: MuscleGroup | null, key: string) => {
+    const on = region !== null && region === group;
+    return <rect key={key} x={x} y={y} width={w} height={h} rx={Math.min(w, h) / 2.4} data-region={region ?? undefined}
+      fill={on ? 'var(--tk-accent)' : 'var(--tk-muted)'} fillOpacity={on ? 1 : 0.35} />;
+  };
+  return (
+    <svg className="tk-muscle-icon" role="img" aria-label={MUSCLE_TARGETS[group].label} width={size} height={size} viewBox="0 0 24 24">
+      <circle cx={12} cy={2.6} r={1.9} fill="var(--tk-muted)" fillOpacity={0.35} />
+      {parts.flatMap(([x, y, w, h, region, pair], i) => [
+        rect(x, w, y, h, region, `${i}`),
+        ...(pair ? [rect(24 - x - w, w, y, h, region, `${i}m`)] : []),
+      ])}
+    </svg>
+  );
+}
