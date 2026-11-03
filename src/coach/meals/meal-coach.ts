@@ -141,6 +141,16 @@ export class MealCoach {
     this.exportAll();
   }
 
+  /** A moving person's settings from their Mac, taken only when the household has none for them yet. True when taken. */
+  adoptSettings(id: string, raw: unknown): boolean {
+    const d = this.load();
+    if (Object.prototype.hasOwnProperty.call(d.settings, id)) return false;
+    d.settings[id] = cleanSettings(raw);
+    this.save();
+    this.exportAll();
+    return true;
+  }
+
   view(id: string): MealsView {
     const now = this.deps.nowMs();
     const d = this.load();

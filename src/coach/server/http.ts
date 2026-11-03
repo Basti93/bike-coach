@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { QUEUEABLE, type CoachClientMessage, type CoachServerMessage, type CoachStateMessage } from '../../shared/coach-protocol';
 import { ChangeClock, changeKey, isHouseholdKey } from './change-clock';
@@ -10,6 +10,7 @@ import { RIDE_ID } from '../ride-upload-format';
 import { storeRide } from './ride-store';
 import { RecordStore } from '../tracking/store';
 import type { AccountCoach, Household } from './household';
+import { MAX_ITEM_BYTES, MigrationError, parseManifest } from './migration';
 
 export type CoachServerOptions = { household: Household; internalToken: string; nowMs?: () => number };
 
@@ -72,26 +73,88 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     return { ok: true, accounts };
   });
 
+  const desk = household.migrationDesk();
+
   app.get('/status', async (req) => {
-    const a = household.account(authorised(req.raw)!);
-    return { profileId: a?.profileId ?? null, moved: a !== null };
+    const accountId = authorised(req.raw)!;
+    const a = household.account(accountId);
+    // Before the move the profile id bound by begin.
+    return { profileId: a?.profileId ?? desk.boundProfileId(accountId), moved: a !== null };
   });
 
   // ---- Rides from the Mac ----
 
   // The account comes from the header, so a ride lands in that account's folder only and only with its bound profile id.
+  // During a move (begun, not finished) rides land there too, without a coach to read them yet.
   app.put('/rides/:rideId', { bodyLimit: 32 * 1024 * 1024 }, async (req, reply) => {
-    const a = household.account(authorised(req.raw)!);
-    if (!a) return reply.code(404).send({ error: 'not moved' });
+    const accountId = authorised(req.raw)!;
+    const a = household.account(accountId);
+    const target = a ? { dir: a.dir, profileId: a.profileId } : (() => {
+      const bound = desk.boundProfileId(accountId);
+      return bound ? { dir: path.join(household.accountsDir(), String(accountId)), profileId: bound } : null;
+    })();
+    if (!target) return reply.code(404).send({ error: 'not moved' });
     const upload = req.body;
     const rideId = (req.params as { rideId: string }).rideId;
     if (!RIDE_ID.test(rideId) || (upload as { rideId?: unknown } | null)?.rideId !== rideId) return reply.code(409).send({ reason: 'invalid' });
     let out;
-    try { out = storeRide({ ridesDir: path.join(a.dir, 'rides'), profileId: a.profileId, upload, nowMs: nowMs() }); } catch { return reply.code(500).send({ error: 'store failed' }); }
+    try { out = storeRide({ ridesDir: path.join(target.dir, 'rides'), profileId: target.profileId, upload, nowMs: nowMs() }); } catch { return reply.code(500).send({ error: 'store failed' }); }
     if (!out.ok) return reply.code(409).send({ reason: out.reason });
     // The coach reads the new ride now; a replaced copy is summarized again. A scan never uploads to Garmin: that only happens when the person asks.
-    if (!out.same) { try { a.runtime.rideReplaced(a.profileId, rideId); a.runtime.scan(); } catch { /* the next scan reads it */ } }
+    if (a && !out.same) { try { a.runtime.rideReplaced(a.profileId, rideId); a.runtime.scan(); } catch { /* the next scan reads it */ } }
     return { sha256: out.sha256, same: out.same };
+  });
+
+  // ---- The move from the Mac ----
+
+  // Answers name only states, item names and ride ids: never content, never a secret.
+  const deskError = (reply: FastifyReply, e: unknown) => {
+    if (e instanceof MigrationError) return reply.code(e.reason === 'invalid' ? 400 : e.reason === 'too-large' ? 413 : 409).send({ reason: e.reason });
+    return reply.code(500).send({ error: 'migration failed' });
+  };
+
+  app.post('/migrate/begin', { bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+    const m = parseManifest(req.body);
+    if (!m) return reply.code(400).send({ reason: 'invalid' });
+    try {
+      const out = desk.begin(authorised(req.raw)!, m);
+      return out.state === 'refused' ? reply.code(409).send(out) : out;
+    } catch (e) { return deskError(reply, e); }
+  });
+
+  app.post('/migrate/finish', { bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+    const m = parseManifest(req.body);
+    if (!m) return reply.code(400).send({ reason: 'invalid' });
+    try { return desk.finish(authorised(req.raw)!, m); } catch (e) { return deskError(reply, e); }
+  });
+
+  // Raw bodies: an item is streamed to disk, the meal file is read as bytes. Their parsers stay inside this scope.
+  void app.register(async (scope) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser('*', (_req, payload, done) => { done(null, payload); });
+    scope.put('/migrate/item/:name', async (req, reply) => {
+      const length = Number(req.headers['content-length']);
+      if (Number.isFinite(length) && length > MAX_ITEM_BYTES) return reply.code(413).send({ reason: 'too-large' });
+      const sha = req.headers['x-sha256'];
+      const body = req.body as NodeJS.ReadableStream | undefined;
+      if (!body || typeof (body as { pipe?: unknown }).pipe !== 'function') return reply.code(400).send({ reason: 'invalid' });
+      let out;
+      try { out = await desk.putItem(authorised(req.raw)!, (req.params as { name: string }).name, body, typeof sha === 'string' ? sha : ''); } catch (e) { return deskError(reply, e); }
+      if (out === 'unknown') return reply.code(404).send({ result: out });
+      if (out !== 'ok') return reply.code(409).send({ result: out });
+      return { result: out };
+    });
+  });
+  void app.register(async (scope) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: 4 * 1024 * 1024 }, (_req, body, done) => { done(null, body); });
+    scope.post('/migrate/meals', async (req, reply) => {
+      const body = req.body;
+      if (!Buffer.isBuffer(body)) return reply.code(400).send({ reason: 'invalid' });
+      let out;
+      try { out = desk.meals(authorised(req.raw)!, body); } catch (e) { return deskError(reply, e); }
+      return out === 'ok' ? { result: out } : reply.code(404).send({ result: out });
+    });
   });
 
   // ---- The coach socket ----

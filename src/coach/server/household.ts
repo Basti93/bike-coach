@@ -11,6 +11,7 @@ import type { RecordStore } from '../tracking/store';
 import { ChangeClock } from './change-clock';
 import { HeavyLock, inQuietHours } from './heavy';
 import { internalLinks } from './internal-links';
+import { MigrationDesk } from './migration';
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object; timeoutMs?: number }) => Promise<unknown>;
 
@@ -83,6 +84,7 @@ export class Household {
   private readonly ask: Ask;
   private mealCoach: MealCoach | null = null;
   private clock: ChangeClock | null = null;
+  private desk: MigrationDesk | null = null;
   /** Accounts whose start failed, so the log says it once. */
   private readonly failed = new Set<number>();
 
@@ -91,7 +93,9 @@ export class Household {
     this.ask = (input) => this.lock.run(() => opts.ask(input));
   }
 
-  private accountDir(accountId: number): string { return path.join(this.opts.root, 'accounts', String(accountId)); }
+  /** `<root>/accounts`: one folder per account. */
+  accountsDir(): string { return path.join(this.opts.root, 'accounts'); }
+  private accountDir(accountId: number): string { return path.join(this.accountsDir(), String(accountId)); }
   private mealsDir(): string { return path.join(this.opts.root, 'household', 'meals'); }
   private quiet(): boolean { return inQuietHours(this.nowMs()); }
 
@@ -181,6 +185,59 @@ export class Household {
       const p = readProfile(path.join(dir, 'profile.json'));
       return p ? [{ accountId: Number(name), profileId: p.id, dir }] : [];
     });
+  }
+
+  /** The desk that takes a profile over from the Mac. One per household; a finished move starts the account's coach. */
+  migrationDesk(): MigrationDesk {
+    this.desk ??= new MigrationDesk({
+      root: this.opts.root, secretKey: this.opts.secretKey,
+      onMoved: (accountId) => { this.tryStart(accountId); this.settleMeals(); },
+      meals: (profileId, upload) => this.importMeals(profileId, upload),
+    });
+    return this.desk;
+  }
+
+  /**
+   * A moved person's meal file from the Mac. The household's first one is taken whole; after that only the person's own settings,
+   * and only when the household has none for them. Once the meal plan is open, that goes through it, so its cached file stays the truth.
+   */
+  importMeals(profileId: string, upload: Record<string, unknown>): void {
+    const settings = upload.settings;
+    const own = typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.prototype.hasOwnProperty.call(settings, profileId)
+      ? (settings as Record<string, unknown>)[profileId] : undefined;
+    const open = this.openMeals();
+    if (open) {
+      if (own !== undefined) open.adoptSettings(profileId, own);
+    } else {
+      // Not moved yet: no meal plan is open, so nobody holds the file in memory.
+      const file = path.join(this.mealsDir(), 'household.json');
+      fs.mkdirSync(this.mealsDir(), { recursive: true, mode: 0o700 });
+      let current: unknown = null;
+      try { current = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none yet */ }
+      if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+        writeJson(file, upload);
+        // The stamps of the shared items belong to the file they were made on; a new file starts a new clock.
+        this.clock = null;
+        fs.rmSync(path.join(this.mealsDir(), 'clock.json'), { force: true });
+      } else if (own !== undefined) {
+        const d = current as Record<string, unknown>;
+        const have = typeof d.settings === 'object' && d.settings !== null && !Array.isArray(d.settings) ? d.settings as Record<string, unknown> : {};
+        if (!Object.prototype.hasOwnProperty.call(have, profileId)) writeJson(file, { ...d, settings: { ...have, [profileId]: own } });
+      }
+    }
+    this.settleMeals();
+  }
+
+  /** Writes `household/meals/moved.json` once every person in the meal file has moved; from then on the meal plan runs. */
+  settleMeals(): void {
+    const dir = this.mealsDir();
+    if (fs.existsSync(path.join(dir, 'moved.json'))) return;
+    let d: unknown;
+    try { d = JSON.parse(fs.readFileSync(path.join(dir, 'household.json'), 'utf8')); } catch { return; }
+    const settings = (d as { settings?: unknown } | null)?.settings;
+    const people = typeof settings === 'object' && settings !== null && !Array.isArray(settings) ? Object.keys(settings) : [];
+    const moved = new Set(this.movedAccounts().map((a) => a.profileId));
+    if (people.every((id) => moved.has(id))) writeJson(path.join(dir, 'moved.json'), { atMs: this.nowMs() });
   }
 
   /** Starts every moved account that is not running yet, and returns all running ones. Starts no run of its own. */

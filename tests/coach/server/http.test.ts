@@ -107,8 +107,10 @@ test('a socket for an account that has not moved closes with 4404', async () => 
   const t = await start({ accounts: [[1, P1], [3, { id: 'pc', name: 'C', ftpW: 150 }, false]] });
   expect(await t.connect({ 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '3' }).closed).toBe(4404);
   expect(await t.connect({ 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '9' }).closed).toBe(4404);
-  const res = await app!.inject({ method: 'GET', url: '/status', headers: { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': '3' } });
-  expect(res.json()).toEqual({ profileId: null, moved: false });
+  const status = async (account: string) => (await app!.inject({ method: 'GET', url: '/status', headers: { 'x-pandafit-internal': TOKEN, 'x-pandafit-account': account } })).json();
+  // Account 3 is bound to its profile (its move has begun) but has not moved.
+  expect(await status('3')).toEqual({ profileId: 'pc', moved: false });
+  expect(await status('9')).toEqual({ profileId: null, moved: false });
 });
 
 test('subscribe with the account\'s profile id answers coach-state with profile', async () => {
