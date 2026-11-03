@@ -24,7 +24,7 @@ function sim() {
   const db = new Map<string, { r: TrackedRecord; seq: number }>();
   let seq = 0;
   const s = {
-    calls: [] as Call[], hook: null as null | (() => void), status: 0, offline: false, wait: null as Promise<void> | null, db,
+    calls: [] as Call[], hook: null as null | (() => void), status: 0, /** An older server that does not know these kinds. */ unknownKinds: [] as string[], offline: false, wait: null as Promise<void> | null, db,
     add(r: TrackedRecord) { const k = `${r.kind}:${r.id}`; const cur = db.get(k)?.r; const { keep } = applyRecord(cur, r); if (keep !== cur) db.set(k, { r: keep, seq: ++seq }); },
     fetch: async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
       const u = new URL(String(input));
@@ -45,6 +45,7 @@ function sim() {
         const refused: { id: string; reason: string }[] = [];
         let accepted = 0;
         for (const r of (JSON.parse(body) as { records: TrackedRecord[] }).records) {
+          if (s.unknownKinds.includes(r.kind)) { refused.push({ id: r.id, reason: 'unknown kind' }); continue; }
           if (r.updatedMs > NOW + 7 * 24 * HOUR) { refused.push({ id: r.id, reason: 'updatedMs too far ahead' }); continue; }
           s.add(r); accepted++;
         }
@@ -287,6 +288,23 @@ describe('AccountSync', () => {
     w.now += 2 * MIN;
     await w.sync.tick(ID);
     expect(w.server.posted().filter((i) => i === 'future')).toEqual(['future']);
+  });
+
+  it('an older server that does not know the mealplan kind yet: nothing breaks, nothing alarms, it is offered again later', async () => {
+    const w = await linked(world());
+    w.server.unknownKinds = ['mealplan'];
+    w.store.putMany(ID, [rec('mealplan', 'week-2026-11-09', NOW, { week: '2026-11-09', meals: [] })]);
+    w.store.put(ID, finished('ok', NOW));
+    await w.sync.tick(ID);
+    expect(w.server.db.has('workout:ok')).toBe(true);
+    expect(w.sync.status(ID)).toMatchObject({ refused: 0, offline: false });
+    w.server.unknownKinds = [];
+    w.now += 2 * MIN;
+    await w.sync.tick(ID);
+    expect(w.server.db.has('mealplan:week-2026-11-09')).toBe(false);
+    w.now += 6 * 60 * MIN;
+    await w.sync.tick(ID);
+    expect(w.server.db.get('mealplan:week-2026-11-09')!.r.body).toEqual({ week: '2026-11-09', meals: [] });
   });
 
   it('the plan and open complaints go to the server as records, without churn', async () => {

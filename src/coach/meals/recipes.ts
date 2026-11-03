@@ -1,0 +1,115 @@
+import type { Ingredient, Section, Slot, Unit } from '../../shared/meals';
+
+/**
+ * Pandafit's own vegetarian recipes, for when the AI is not there or a dish fails the checks. Simple, protein-rich and from
+ * an ordinary supermarket. Amounts are per portion; protein is a rough figure per portion. `keepsDays`: how many days a
+ * cooked portion keeps in the fridge, so a lunch can be cooked once and eaten twice.
+ */
+export type Recipe = {
+  id: string; title: string; slots: Slot[]; vegan: boolean; minutes: number; proteinG: number; keepsDays: number;
+  ingredients: Ingredient[]; steps: string[];
+};
+
+const OG: Section = 'Obst und Gemüse', KR: Section = 'Kühlregal', BB: Section = 'Brot und Backwaren', VR: Section = 'Vorrat', TK: Section = 'Tiefkühl';
+const i = (name: string, amount: number, unit: Unit, section: Section, raw = false): Ingredient => ({ name, amount, unit, section, ...(raw ? { raw: true } : {}) });
+
+export const RECIPES: readonly Recipe[] = [
+  // Frühstück
+  { id: 'overnight-oats-skyr', title: 'Overnight Oats mit Skyr und Beeren', slots: ['fruehstueck'], vegan: false, minutes: 5, proteinG: 27, keepsDays: 2,
+    ingredients: [i('Haferflocken', 60, 'g', VR), i('Skyr', 150, 'g', KR), i('Milch', 100, 'ml', KR), i('TK-Beeren', 80, 'g', TK), i('Chiasamen', 1, 'EL', VR)],
+    steps: ['Haferflocken, Skyr, Milch und Chiasamen in einem Glas verrühren.', 'Beeren gefroren obendrauf geben.', 'Über Nacht in den Kühlschrank stellen.'] },
+  { id: 'quark-apfel-nuss', title: 'Quark-Schale mit Apfel und Walnüssen', slots: ['fruehstueck'], vegan: false, minutes: 5, proteinG: 30, keepsDays: 0,
+    ingredients: [i('Magerquark', 200, 'g', KR), i('Apfel', 1, 'Stk', OG, true), i('Walnüsse', 20, 'g', VR), i('Haferflocken', 30, 'g', VR), i('Zimt', 1, 'Prise', VR)],
+    steps: ['Quark mit einem Schuss Wasser cremig rühren.', 'Apfel klein schneiden, mit Haferflocken und Walnüssen darübergeben.', 'Mit Zimt bestreuen.'] },
+  { id: 'ruehrei-brot', title: 'Rührei mit Vollkornbrot und Tomate', slots: ['fruehstueck'], vegan: false, minutes: 10, proteinG: 26, keepsDays: 0,
+    ingredients: [i('Eier', 3, 'Stk', KR), i('Vollkornbrot', 2, 'Scheibe', BB), i('Tomaten', 1, 'Stk', OG, true), i('Butter', 1, 'TL', KR)],
+    steps: ['Eier verquirlen, leicht salzen.', 'In Butter bei mittlerer Hitze langsam stocken lassen.', 'Mit Brot und Tomatenscheiben essen.'] },
+  { id: 'tofu-ruehrei', title: 'Tofu-Rührei mit Spinat', slots: ['fruehstueck', 'abend'], vegan: true, minutes: 12, proteinG: 24, keepsDays: 1,
+    ingredients: [i('Tofu natur', 150, 'g', KR), i('Babyspinat', 50, 'g', OG), i('Vollkornbrot', 2, 'Scheibe', BB), i('Kurkuma', 1, 'Prise', VR), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Tofu mit der Gabel zerdrücken.', 'In Öl anbraten, mit Kurkuma, Salz und Pfeffer würzen.', 'Spinat unterheben, bis er zusammenfällt. Mit Brot essen.'] },
+  { id: 'huettenkaese-brot', title: 'Hüttenkäse-Brote mit Gurke', slots: ['fruehstueck'], vegan: false, minutes: 5, proteinG: 28, keepsDays: 0,
+    ingredients: [i('Vollkornbrot', 2, 'Scheibe', BB), i('Hüttenkäse', 200, 'g', KR), i('Gurke', 0.5, 'Stk', OG, true), i('Schnittlauch', 0.25, 'Bund', OG, true)],
+    steps: ['Brot mit Hüttenkäse bestreichen.', 'Gurke in Scheiben darauflegen.', 'Schnittlauch darüberschneiden, pfeffern.'] },
+  { id: 'skyr-granola', title: 'Skyr mit Banane und Knuspermüsli', slots: ['fruehstueck'], vegan: false, minutes: 3, proteinG: 27, keepsDays: 0,
+    ingredients: [i('Skyr', 250, 'g', KR), i('Bananen', 1, 'Stk', OG, true), i('Knuspermüsli', 30, 'g', VR)],
+    steps: ['Skyr in eine Schale geben.', 'Banane in Scheiben schneiden.', 'Mit Müsli bestreuen.'] },
+  { id: 'soja-bowl', title: 'Sojajoghurt-Schale mit Erdnussmus und Beeren', slots: ['fruehstueck'], vegan: true, minutes: 5, proteinG: 20, keepsDays: 1,
+    ingredients: [i('Sojajoghurt', 250, 'g', KR), i('Haferflocken', 40, 'g', VR), i('Erdnussmus', 1, 'EL', VR), i('TK-Beeren', 80, 'g', TK)],
+    steps: ['Beeren am Vorabend auftauen lassen.', 'Joghurt mit Haferflocken verrühren.', 'Beeren und Erdnussmus obendrauf.'] },
+  { id: 'protein-porridge', title: 'Porridge mit Quark und Banane', slots: ['fruehstueck'], vegan: false, minutes: 8, proteinG: 28, keepsDays: 0,
+    ingredients: [i('Haferflocken', 60, 'g', VR), i('Milch', 250, 'ml', KR), i('Magerquark', 100, 'g', KR), i('Bananen', 0.5, 'Stk', OG, true)],
+    steps: ['Haferflocken in Milch unter Rühren 3 bis 4 Minuten köcheln.', 'Vom Herd nehmen und den Quark einrühren.', 'Mit Bananenscheiben essen.'] },
+  { id: 'bircher', title: 'Bircher-Müsli mit Joghurt und Mandeln', slots: ['fruehstueck'], vegan: false, minutes: 5, proteinG: 19, keepsDays: 2,
+    ingredients: [i('Haferflocken', 50, 'g', VR), i('Griechischer Joghurt', 150, 'g', KR), i('Milch', 50, 'ml', KR), i('Apfel', 1, 'Stk', OG, true), i('Mandeln', 15, 'g', VR)],
+    steps: ['Haferflocken mit Joghurt und Milch verrühren.', 'Apfel grob reiben und unterheben.', 'Über Nacht kalt stellen, Mandeln vor dem Essen darüber.'] },
+
+  // Mittag zum Mitnehmen: hält ein paar Tage, schmeckt warm und kalt
+  { id: 'linsen-bolognese', title: 'Linsen-Bolognese mit Vollkornnudeln', slots: ['mittag', 'abend'], vegan: true, minutes: 30, proteinG: 28, keepsDays: 3,
+    ingredients: [i('Rote Linsen', 70, 'g', VR), i('Vollkornnudeln', 90, 'g', VR), i('Passierte Tomaten', 200, 'g', VR), i('Karotten', 1, 'Stk', OG), i('Zwiebeln', 0.5, 'Stk', OG), i('Knoblauch', 1, 'Zehe', OG), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Zwiebel, Karotte und Knoblauch fein würfeln und in Öl andünsten.', 'Linsen und Tomaten dazugeben, mit etwas Wasser 15 Minuten köcheln.', 'Nudeln kochen, mit der Soße mischen und portionsweise abfüllen.'] },
+  { id: 'chili-sin-carne', title: 'Chili sin Carne mit Reis', slots: ['mittag'], vegan: true, minutes: 35, proteinG: 27, keepsDays: 3,
+    ingredients: [i('Sojaschnetzel', 30, 'g', VR), i('Kidneybohnen', 0.5, 'Dose', VR), i('Mais', 0.25, 'Dose', VR), i('Paprika', 1, 'Stk', OG), i('Zwiebeln', 0.5, 'Stk', OG), i('Passierte Tomaten', 200, 'g', VR), i('Basmatireis', 60, 'g', VR), i('Paprikapulver', 1, 'TL', VR)],
+    steps: ['Sojaschnetzel 10 Minuten in heißer Brühe einweichen, ausdrücken.', 'Zwiebel und Paprika würfeln, mit den Schnetzeln anbraten.', 'Tomaten, Bohnen, Mais und Gewürze dazu, 15 Minuten köcheln. Reis dazu kochen.'] },
+  { id: 'kichererbsen-curry', title: 'Kichererbsen-Curry mit Spinat und Reis', slots: ['mittag'], vegan: false, minutes: 30, proteinG: 22, keepsDays: 3,
+    ingredients: [i('Kichererbsen', 0.5, 'Dose', VR), i('Basmatireis', 70, 'g', VR), i('Babyspinat', 50, 'g', OG), i('Passierte Tomaten', 150, 'g', VR), i('Currypulver', 1, 'TL', VR), i('Griechischer Joghurt', 100, 'g', KR)],
+    steps: ['Reis kochen.', 'Kichererbsen abspülen, mit Tomaten und Curry 10 Minuten köcheln, Spinat unterheben.', 'Abfüllen, den Joghurt getrennt mitnehmen und vor dem Essen darübergeben.'] },
+  { id: 'quinoa-feta-salat', title: 'Quinoa-Salat mit Feta und Kichererbsen', slots: ['mittag'], vegan: false, minutes: 25, proteinG: 25, keepsDays: 2,
+    ingredients: [i('Quinoa', 70, 'g', VR), i('Kichererbsen', 0.5, 'Dose', VR), i('Feta', 50, 'g', KR), i('Gurke', 0.5, 'Stk', OG, true), i('Paprika', 0.5, 'Stk', OG, true), i('Zitronen', 0.5, 'Stk', OG), i('Olivenöl', 1, 'EL', VR)],
+    steps: ['Quinoa gründlich abspülen und 15 Minuten kochen, abkühlen lassen.', 'Gurke und Paprika würfeln, Kichererbsen abspülen.', 'Alles mit Zitronensaft und Öl mischen, Feta darüberbröseln.'] },
+  { id: 'halloumi-bulgur', title: 'Ofengemüse mit Halloumi und Bulgur', slots: ['mittag', 'abend'], vegan: false, minutes: 35, proteinG: 26, keepsDays: 2,
+    ingredients: [i('Halloumi', 80, 'g', KR), i('Bulgur', 70, 'g', VR), i('Zucchini', 0.5, 'Stk', OG), i('Paprika', 1, 'Stk', OG), i('Olivenöl', 1, 'EL', VR)],
+    steps: ['Ofen auf 200 Grad vorheizen. Gemüse würfeln, mit Öl mischen, 20 Minuten backen.', 'Bulgur mit der doppelten Menge Wasser 10 Minuten quellen lassen.', 'Halloumi in Scheiben braten und alles zusammen abfüllen.'] },
+  { id: 'nudelsalat-erbsen', title: 'Nudelsalat mit Erbsen, Mozzarella und Pesto', slots: ['mittag'], vegan: false, minutes: 20, proteinG: 27, keepsDays: 2,
+    ingredients: [i('Vollkornnudeln', 90, 'g', VR), i('TK-Erbsen', 80, 'g', TK), i('Mozzarella', 60, 'g', KR), i('Kirschtomaten', 100, 'g', OG, true), i('Pesto', 1, 'EL', VR)],
+    steps: ['Nudeln kochen, die Erbsen in den letzten 2 Minuten mitkochen. Abschrecken.', 'Tomaten halbieren, Mozzarella würfeln.', 'Alles mit Pesto mischen.'] },
+  { id: 'tofu-pfanne', title: 'Tofu-Gemüse-Pfanne mit Reis', slots: ['mittag', 'abend'], vegan: true, minutes: 25, proteinG: 25, keepsDays: 2,
+    ingredients: [i('Tofu natur', 150, 'g', KR), i('Brokkoli', 150, 'g', OG), i('Karotten', 1, 'Stk', OG), i('Basmatireis', 60, 'g', VR), i('Sojasoße', 1, 'EL', VR), i('Sesam', 1, 'TL', VR)],
+    steps: ['Reis kochen.', 'Tofu würfeln und knusprig braten.', 'Brokkoli und Karotte dazugeben, 5 Minuten mitbraten, mit Sojasoße ablöschen und mit Sesam bestreuen.'] },
+  { id: 'linsensalat-feta', title: 'Linsensalat mit Feta und Paprika', slots: ['mittag'], vegan: false, minutes: 30, proteinG: 26, keepsDays: 3,
+    ingredients: [i('Tellerlinsen', 70, 'g', VR), i('Feta', 50, 'g', KR), i('Paprika', 1, 'Stk', OG, true), i('Petersilie', 0.25, 'Bund', OG, true), i('Olivenöl', 1, 'EL', VR), i('Essig', 1, 'EL', VR)],
+    steps: ['Linsen 20 bis 25 Minuten bissfest kochen, abgießen.', 'Paprika würfeln, Petersilie hacken.', 'Mit Öl, Essig, Salz und Pfeffer mischen, Feta darüberbröseln.'] },
+  { id: 'frittata', title: 'Gemüse-Frittata mit Feta und Kartoffeln', slots: ['mittag', 'abend'], vegan: false, minutes: 30, proteinG: 27, keepsDays: 2,
+    ingredients: [i('Eier', 3, 'Stk', KR), i('Feta', 30, 'g', KR), i('Kartoffeln', 120, 'g', OG), i('Zucchini', 0.5, 'Stk', OG), i('Paprika', 0.5, 'Stk', OG), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Kartoffeln in dünne Scheiben schneiden und in Öl 10 Minuten braten.', 'Gemüse würfeln und mitbraten.', 'Verquirlte Eier und Feta darübergeben, zugedeckt bei kleiner Hitze stocken lassen. Kalt in Stücken mitnehmen.'] },
+  { id: 'linsen-eintopf', title: 'Kartoffel-Linsen-Eintopf', slots: ['mittag', 'abend'], vegan: true, minutes: 40, proteinG: 21, keepsDays: 3,
+    ingredients: [i('Kartoffeln', 200, 'g', OG), i('Tellerlinsen', 60, 'g', VR), i('Karotten', 1, 'Stk', OG), i('Lauch', 0.5, 'Stk', OG), i('Gemüsebrühe', 300, 'ml', VR), i('Essig', 1, 'TL', VR)],
+    steps: ['Kartoffeln, Karotte und Lauch klein schneiden.', 'Mit Linsen und Brühe 30 Minuten köcheln.', 'Mit Essig, Salz und Pfeffer abschmecken.'] },
+  { id: 'bulgur-bohnen', title: 'Bulgur-Pfanne mit weißen Bohnen und Tomaten', slots: ['mittag'], vegan: false, minutes: 25, proteinG: 23, keepsDays: 3,
+    ingredients: [i('Bulgur', 70, 'g', VR), i('Weiße Bohnen', 0.5, 'Dose', VR), i('Zucchini', 0.5, 'Stk', OG), i('Passierte Tomaten', 150, 'g', VR), i('Feta', 30, 'g', KR)],
+    steps: ['Zucchini würfeln und anbraten.', 'Bulgur, Tomaten und 150 ml Wasser pro Portion dazu, 10 Minuten zugedeckt quellen lassen.', 'Bohnen unterheben, Feta darüberbröseln.'] },
+  { id: 'erdnuss-nudeln', title: 'Erdnuss-Nudeln mit Tofu und Gemüse', slots: ['mittag'], vegan: true, minutes: 25, proteinG: 29, keepsDays: 2,
+    ingredients: [i('Vollkornnudeln', 80, 'g', VR), i('Tofu natur', 100, 'g', KR), i('Erdnussmus', 1, 'EL', VR), i('Sojasoße', 1, 'EL', VR), i('Karotten', 1, 'Stk', OG), i('TK-Erbsen', 60, 'g', TK)],
+    steps: ['Nudeln kochen, die Erbsen kurz mitkochen.', 'Tofu würfeln und braten, Karotte in feine Streifen schneiden.', 'Erdnussmus mit Sojasoße und etwas Nudelwasser glatt rühren und alles mischen.'] },
+  { id: 'gnocchi-bohnen', title: 'Ofen-Gnocchi mit Tomaten und Mozzarella', slots: ['mittag', 'abend'], vegan: false, minutes: 30, proteinG: 22, keepsDays: 2,
+    ingredients: [i('Gnocchi', 200, 'g', KR), i('Kirschtomaten', 150, 'g', OG), i('Weiße Bohnen', 0.5, 'Dose', VR), i('Mozzarella', 60, 'g', KR), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Ofen auf 200 Grad vorheizen.', 'Gnocchi, Tomaten, Bohnen und Öl in eine Form geben, 20 Minuten backen.', 'Mozzarella darüberzupfen und 5 Minuten weiterbacken.'] },
+
+  // Abend: eine kleine Portion
+  { id: 'tomatensuppe-bohnen', title: 'Tomatensuppe mit weißen Bohnen', slots: ['abend'], vegan: true, minutes: 20, proteinG: 15, keepsDays: 3,
+    ingredients: [i('Passierte Tomaten', 250, 'g', VR), i('Weiße Bohnen', 0.5, 'Dose', VR), i('Gemüsebrühe', 150, 'ml', VR), i('Vollkornbrot', 1, 'Scheibe', BB), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Tomaten und Brühe aufkochen.', 'Bohnen dazugeben, 5 Minuten ziehen lassen, nach Wunsch halb pürieren.', 'Mit Öl beträufeln, Brot dazu.'] },
+  { id: 'ofenkartoffel-quark', title: 'Ofenkartoffel mit Kräuterquark', slots: ['abend'], vegan: false, minutes: 40, proteinG: 23, keepsDays: 1,
+    ingredients: [i('Kartoffeln', 250, 'g', OG), i('Magerquark', 150, 'g', KR), i('Schnittlauch', 0.25, 'Bund', OG, true), i('Leinöl', 1, 'TL', VR)],
+    steps: ['Kartoffeln halbieren und bei 200 Grad 35 Minuten backen.', 'Quark mit Schnittlauch, Salz und etwas Wasser glatt rühren.', 'Leinöl darüber und zu den Kartoffeln essen.'] },
+  { id: 'rote-linsensuppe', title: 'Rote Linsensuppe mit Karotte', slots: ['abend'], vegan: true, minutes: 25, proteinG: 16, keepsDays: 3,
+    ingredients: [i('Rote Linsen', 60, 'g', VR), i('Karotten', 1, 'Stk', OG), i('Gemüsebrühe', 300, 'ml', VR), i('Kokosmilch', 50, 'ml', VR), i('Ingwer', 5, 'g', OG)],
+    steps: ['Karotte und Ingwer klein schneiden.', 'Mit Linsen und Brühe 15 Minuten köcheln.', 'Kokosmilch dazu, fein pürieren und abschmecken.'] },
+  { id: 'omelett-champignons', title: 'Omelett mit Champignons und Paprika', slots: ['abend'], vegan: false, minutes: 15, proteinG: 18, keepsDays: 0,
+    ingredients: [i('Eier', 2, 'Stk', KR), i('Champignons', 80, 'g', OG), i('Paprika', 0.5, 'Stk', OG), i('Geriebener Käse', 15, 'g', KR), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Pilze und Paprika in Öl anbraten.', 'Verquirlte Eier darübergießen.', 'Käse darüberstreuen, zugedeckt stocken lassen.'] },
+  { id: 'hummus-brot', title: 'Vollkornbrot mit Hummus und Gemüsesticks', slots: ['abend'], vegan: true, minutes: 5, proteinG: 14, keepsDays: 0,
+    ingredients: [i('Vollkornbrot', 2, 'Scheibe', BB), i('Hummus', 80, 'g', KR), i('Karotten', 1, 'Stk', OG, true), i('Gurke', 0.5, 'Stk', OG, true)],
+    steps: ['Brot mit Hummus bestreichen.', 'Karotte und Gurke in Sticks schneiden.', 'Zum Dippen dazu.'] },
+  { id: 'griechischer-salat', title: 'Griechischer Salat mit Kichererbsen', slots: ['abend'], vegan: false, minutes: 10, proteinG: 18, keepsDays: 1,
+    ingredients: [i('Feta', 50, 'g', KR), i('Kichererbsen', 0.5, 'Dose', VR), i('Gurke', 0.5, 'Stk', OG, true), i('Tomaten', 2, 'Stk', OG, true), i('Oliven', 20, 'g', VR), i('Olivenöl', 1, 'EL', VR)],
+    steps: ['Gurke und Tomaten würfeln.', 'Kichererbsen abspülen, Oliven dazu.', 'Mit Öl, Salz und Oregano mischen, Feta obendrauf.'] },
+  { id: 'shakshuka', title: 'Shakshuka mit Brot', slots: ['abend'], vegan: false, minutes: 20, proteinG: 17, keepsDays: 0,
+    ingredients: [i('Eier', 2, 'Stk', KR), i('Gehackte Tomaten', 0.5, 'Dose', VR), i('Paprika', 0.5, 'Stk', OG), i('Zwiebeln', 0.25, 'Stk', OG), i('Vollkornbrot', 1, 'Scheibe', BB), i('Kreuzkümmel', 1, 'Prise', VR)],
+    steps: ['Zwiebel und Paprika würfeln und weich dünsten.', 'Tomaten und Gewürze dazu, 5 Minuten köcheln.', 'Mulden formen, Eier hineingleiten lassen und zugedeckt stocken lassen.'] },
+  { id: 'erbsensuppe-feta', title: 'Grüne Erbsensuppe mit Feta', slots: ['abend'], vegan: false, minutes: 15, proteinG: 15, keepsDays: 2,
+    ingredients: [i('TK-Erbsen', 150, 'g', TK), i('Gemüsebrühe', 250, 'ml', VR), i('Feta', 30, 'g', KR), i('Minze', 0.25, 'Bund', OG)],
+    steps: ['Erbsen in der Brühe 5 Minuten kochen.', 'Mit einigen Minzblättern fein pürieren.', 'Feta darüberbröseln.'] },
+  { id: 'kartoffel-spinat-ei', title: 'Kartoffel-Spinat-Pfanne mit Spiegelei', slots: ['abend'], vegan: false, minutes: 25, proteinG: 17, keepsDays: 0,
+    ingredients: [i('Kartoffeln', 200, 'g', OG), i('Babyspinat', 80, 'g', OG), i('Eier', 2, 'Stk', KR), i('Olivenöl', 1, 'TL', VR)],
+    steps: ['Kartoffeln würfeln und in Öl 15 Minuten goldbraun braten.', 'Spinat unterheben, bis er zusammenfällt.', 'Spiegeleier daneben braten.'] },
+];

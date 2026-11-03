@@ -6,7 +6,7 @@ import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/
 import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
 import { generationOf, openDb } from './db';
 
-const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan'];
+const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
 const BODY_LIMIT = 5 * 1024 * 1024;
 const RECORD_BODY_LIMIT = 1024 * 1024;
 const MAX_RECORDS_PER_POST = 1000;
