@@ -100,19 +100,23 @@ export class GarminDb {
   runs(fromMs: number): GarminRun[] {
     return this.read<GarminRun[]>([], (db) => {
       const marks = RUN_TYPES.map(() => '?').join(',');
-      const rows = db.prepare(`SELECT activity_id, sport, json FROM activities WHERE start_time >= ? AND sport IN (${marks}) ORDER BY start_time`).all(gmt(fromMs), ...RUN_TYPES) as { activity_id: string; sport: RunType; json: string }[];
-      return rows.map((r) => {
-        const a = obj(JSON.parse(r.json));
-        return {
-          id: r.activity_id, type: r.sport,
-          startMs: num(a.beginTimestamp) ?? 0,
-          durationS: num(a.duration) ?? 0,
-          distanceM: positive(a.distance),
-          avgHr: positive(a.averageHR),
-          maxHr: positive(a.maxHR),
-          elevationGainM: notNegative(a.elevationGain),
-        };
-      });
+      const rows = db.prepare(`SELECT activity_id, start_time, sport, json FROM activities WHERE start_time >= ? AND sport IN (${marks}) ORDER BY start_time`).all(gmt(fromMs), ...RUN_TYPES) as { activity_id: string; start_time: string; sport: RunType; json: string }[];
+      const out: GarminRun[] = [];
+      for (const r of rows) {
+        try {
+          const a = obj(JSON.parse(r.json));
+          out.push({
+            id: r.activity_id, type: r.sport,
+            startMs: num(a.beginTimestamp) ?? Date.parse(`${r.start_time.replace(' ', 'T')}Z`),
+            durationS: num(a.duration) ?? 0,
+            distanceM: positive(a.distance),
+            avgHr: positive(a.averageHR),
+            maxHr: positive(a.maxHR),
+            elevationGainM: notNegative(a.elevationGain),
+          });
+        } catch { /* one broken row must not hide the other runs */ }
+      }
+      return out;
     });
   }
 

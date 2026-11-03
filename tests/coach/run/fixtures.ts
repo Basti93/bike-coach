@@ -34,5 +34,8 @@ export const zipOf = (name: string, data: Uint8Array, method: 0 | 8): Buffer => 
   h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(method, 8);
   h.writeUInt32LE(crc32(data), 14); h.writeUInt32LE(body.length, 18); h.writeUInt32LE(data.length, 22);
   h.writeUInt16LE(n.length, 26);
-  return Buffer.concat([h, n, body]);
+  // an end-of-central-directory record, so the zip looks complete
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  return Buffer.concat([h, n, body, end]);
 };

@@ -70,11 +70,65 @@ test('the pace cache is used: a second call does not read the file again', () =>
   garminRuns(db, 0, { fromBpm: 100, toBpm: 120 }, cache);
   expect(spy).toHaveBeenCalledTimes(2);
 });
-test('a broken file counts for kilometres and time and does not throw', () => {
+const putFile = (file: string, id: string, data: Uint8Array) => new DatabaseSync(file).prepare('INSERT OR REPLACE INTO activity_files VALUES (?,?,?,?)').run(id, 'zip', data, 't');
+test('a broken but complete file counts for kilometres and time, does not throw, and is cached', () => {
   const { file, act } = make();
   act('pa', 'running', { averageHR: 150 });
-  new DatabaseSync(file).prepare('INSERT INTO activity_files VALUES (?,?,?,?)').run('pa', 'zip', Buffer.from('PK\u0003\u0004junk'), 't');
-  expect(garminRuns(new GarminDb(file), 0, band, {})[0]).toMatchObject({ easyPace: null, hasHr: true, distanceM: 6000 });
+  putFile(file, 'pa', zipOf('x.fit', Buffer.from('this is not a fit file at all'), 0));
+  const db = new GarminDb(file);
+  const spy = vi.spyOn(db, 'activityFile');
+  const cache: PaceCache = {};
+  expect(garminRuns(db, 0, band, cache)[0]).toMatchObject({ easyPace: null, hasHr: true, distanceM: 6000 });
+  garminRuns(db, 0, band, cache);
+  expect(spy).toHaveBeenCalledTimes(1);
+});
+test('a run without a file is not cached, so a file arriving later is picked up', () => {
+  const { file, act } = make();
+  act('pa', 'running', { averageHR: 150 });
+  const cache: PaceCache = {};
+  expect(garminRuns(new GarminDb(file), 0, band, cache)[0].easyPace).toBeNull();
+  expect(cache).toEqual({});
+  putFile(file, 'pa', zipOf('x.fit', easyFit, 8));
+  expect(garminRuns(new GarminDb(file), 0, band, cache)[0].easyPace).not.toBeNull();
+});
+test('a file that looks cut off (still syncing) is not cached', () => {
+  const { file, act } = make();
+  act('pa', 'running');
+  const z = zipOf('x.fit', easyFit, 8);
+  putFile(file, 'pa', z.subarray(0, z.length - 40));
+  const cache: PaceCache = {};
+  expect(garminRuns(new GarminDb(file), 0, band, cache)[0]).toMatchObject({ easyPace: null, hasHr: false });
+  expect(cache).toEqual({});
+});
+test('a band change reads a road run again for the pace only, and a trail run not at all', () => {
+  const { file, act } = make();
+  act('pa', 'running', {}, easyFit);
+  act('pb', 'trail_running', {}, easyFit);
+  const db = new GarminDb(file);
+  const spy = vi.spyOn(db, 'activityFile');
+  const cache: PaceCache = {};
+  garminRuns(db, 0, band, cache);
+  expect(spy).toHaveBeenCalledTimes(2);
+  const runs = garminRuns(db, 0, { fromBpm: 100, toBpm: 120 }, cache);
+  expect(spy).toHaveBeenCalledTimes(3);
+  expect(runs.map((r) => r.hasHr)).toEqual([true, true]);
+});
+test('cache entries of runs that left the window or of an old band are pruned', () => {
+  const { file, act } = make();
+  act('pa', 'running', {}, easyFit);
+  act('pb', 'running', {}, easyFit);
+  const db = new GarminDb(file);
+  const cache: PaceCache = {};
+  garminRuns(db, 0, band, cache);
+  garminRuns(db, 0, { fromBpm: 100, toBpm: 120 }, cache);
+  expect(Object.keys(cache).sort()).toEqual(['pa', 'pa:100-120', 'pb', 'pb:100-120']);
+  garminRuns(db, Date.UTC(2026, 0, 11, 0), { fromBpm: 100, toBpm: 120 }, cache);
+  expect(Object.keys(cache).sort()).toEqual(['pb', 'pb:100-120']);
+});
+test('all-zero heart rate in the file is no heart rate', () => {
+  const { file, act } = make();
+  act('pa', 'running', {}, buildFit(900, () => ({ hr: 0, speed: 3 })));
+  expect(garminRuns(new GarminDb(file), 0, band, {})[0]).toMatchObject({ hasHr: false, easyPace: null });
 });
 test('Garmin not there: a missing database file gives []', () => {
   const missing = path.join(os.tmpdir(), 'no-such-dir-xyz', 'garmin.db');

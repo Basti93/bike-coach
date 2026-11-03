@@ -1,5 +1,6 @@
-import { avgTemp, bestWindowDistance, easyPace, readRunFit, unzipFit, type RunSample } from '../../../src/coach/run/fit';
+import { avgTemp, bestWindowDistance, easyPace, looksComplete, readRunFit, unzipFit, type RunSample } from '../../../src/coach/run/fit';
 import { buildFit, zipOf } from './fixtures';
+import { deflateRawSync } from 'node:zlib';
 
 const band = { fromBpm: 114, toBpm: 143 };
 const pace = (sPerKm: number) => 1000 / sPerKm;
@@ -15,7 +16,7 @@ describe('unzipFit', () => {
   });
   test('a truncated zip gives null', () => {
     const z = zipOf('a.fit', fit, 8);
-    expect(unzipFit(z.subarray(0, z.length - 10))).toBeNull();
+    expect(unzipFit(z.subarray(0, z.length - 40))).toBeNull();
     expect(unzipFit(z.subarray(0, 20))).toBeNull();
     expect(unzipFit(new Uint8Array(0))).toBeNull();
   });
@@ -42,21 +43,27 @@ test('readRunFit gives null for garbage', () => {
 describe('easyPace', () => {
   test('easyPace skips the first 5 minutes', () => {
     const p = easyPace(samplesOf(900, (s) => ({ hr: 130, speed: pace(s < 300 ? 240 : 360) })), band);
+    // 599 s, not 600: the last sample has no successor to weigh it
     expect(p).toEqual({ sPerKm: 360, seconds: 599 });
   });
   test('easyPace leaves out seconds outside the band and on steep stretches', () => {
-    // 600 s flat at 6:00, then 120 s of HR 160 at 4:00, then a 4 % climb at 6:00 (a different pace would leak in over the
-    // first seconds, while the 30 s window has not yet seen the climb).
+    // 600 s flat at 6:00, then 120 s of HR 160 at 4:00 on the flat, then a 4 % climb at 8:00.
     const at = (s: number) => {
+      if (s < 300) return { hr: 130, speed: pace(360), alt: 100 };
       if (s < 600) return { hr: 130, speed: pace(360), alt: 100 };
       if (s < 720) return { hr: 160, speed: pace(240), alt: 100 };
-      return { hr: 130, speed: pace(360), alt: 100 + (s - 720) * 0.04 * pace(360) };
+      return { hr: 130, speed: pace(480), alt: 100 + (s - 720) * 0.04 * pace(480) };
     };
-    const p = easyPace(samplesOf(1000, at), band)!;
+    const p = easyPace(samplesOf(1000, at), band);
+    // 300..599 are flat; the HR-160 part is out of the band; the climb is out from its first second
+    expect(p).toEqual({ sPerKm: 360, seconds: 300 });
+  });
+  test('a climb is left out from its first second, even at a pace unlike the flat', () => {
+    const at = (s: number) => (s < 700 ? { hr: 130, speed: pace(360), alt: 100 } : { hr: 130, speed: pace(480), alt: 100 + (s - 700) * 0.04 * pace(480) });
+    const p = easyPace(samplesOf(900, at), band)!;
     expect(p.sPerKm).toBe(360);
-    // 300..599 flat, plus only the first seconds of the climb before the window shows it
-    expect(p.seconds).toBeGreaterThanOrEqual(299);
-    expect(p.seconds).toBeLessThan(299 + 30);
+    expect(p.seconds).toBeLessThanOrEqual(400);
+    expect(p.seconds).toBeGreaterThanOrEqual(395);
   });
   test('gaps over 5 s are not counted', () => {
     const at = (s: number) => (s >= 400 && s < 700 ? null : { hr: 130, speed: pace(360) });
@@ -77,6 +84,30 @@ describe('easyPace', () => {
   });
 });
 
+test('bestWindowDistance tolerates one second for a recording of exactly the window', () => {
+  const samples = samplesOf(1800, () => ({ hr: 140, speed: 3 }));
+  expect(samples.at(-1)!.t).toBe(1799);
+  expect(bestWindowDistance(samples, 1800)!).toBeCloseTo(1799 * 3, -1);
+});
+test('readRunFit treats a heart rate of 0 as none', () => {
+  expect(samplesOf(10, () => ({ hr: 0, speed: 3 })).every((s) => s.hr === null)).toBe(true);
+});
+test('unzipFit refuses an entry that inflates beyond 64 MiB', () => {
+  const big = Buffer.alloc(70 * 1024 * 1024);
+  big.write('.FIT', 8);
+  expect(unzipFit(zipOf('a.fit', big, 8))).toBeNull();
+});
+describe('looksComplete', () => {
+  const fit = buildFit(20, () => ({ hr: 120, speed: 3 }));
+  test('a whole FIT and a whole zip are complete, a cut one is not', () => {
+    expect(looksComplete(fit)).toBe(true);
+    expect(looksComplete(fit.subarray(0, fit.length - 5))).toBe(false);
+    const z = zipOf('a.fit', fit, 8);
+    expect(looksComplete(z)).toBe(true);
+    expect(looksComplete(z.subarray(0, z.length - 30))).toBe(false);
+    expect(looksComplete(new Uint8Array(3))).toBe(false);
+  });
+});
 test('bestWindowDistance finds the best 1800 s', () => {
   // 3000 s: 2 m/s, except a fast stretch 1000..2200 at 4 m/s
   const samples = samplesOf(3000, (s) => ({ hr: 140, speed: s >= 1000 && s < 2200 ? 4 : 2 }));
