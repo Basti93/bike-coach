@@ -88,3 +88,26 @@ describe('pairVerdicts', () => {
     expect(pairVerdicts({})).toHaveLength(3);
   });
 });
+
+describe('the muscle pairs in the gym prompt', () => {
+  const bench = { templateId: 'BP', title: 'Bench Press (Barbell)' };
+  const row = { templateId: 'RW', title: 'Row (Cable)' };
+  const tpl = [...templates, { id: 'RW', title: 'Row (Cable)', type: 'weight_reps', primaryMuscle: 'lats', equipment: 'cable' }];
+  it('keeps the raw 4-week sum per group', () => {
+    const v = muscleVolume([workout(3, [{ ...bench, sets: 7 }]), workout(10, [{ ...bench, sets: 7 }])], tpl, NOW, 'muscle');
+    expect(v.find((g) => g.group === 'chest')!.sum4Weeks).toBe(14);
+  });
+  it('names the short side of a pair', () => {
+    const ws = [workout(3, [{ ...bench, sets: 7 }, { ...row, sets: 3 }]), workout(10, [{ ...bench, sets: 7 }, { ...row, sets: 3 }])];
+    const p = buildGymPrompt({ state: initialGymState('p'), workouts: ws, templates: tpl, nowMs: NOW, summaries: [], complaints: [], previous: null, wantNote: false });
+    expect(p).toContain('<muskelpaare-nur-daten>');
+    expect(p).toContain('"zuKurz":"Rücken"');
+    expect(GYM_SYSTEM_PROMPT).toContain('muskelpaare');
+    expect(GYM_SYSTEM_PROMPT).toContain('Steht in muskelpaare eine Seite unter zuKurz, plane sie in den nächsten Trainings bevorzugt ein; das ist ein Hinweis, keine Pflicht.');
+  });
+  it('gives null when balanced', () => {
+    const ws = [workout(3, [{ ...bench, sets: 8 }, { ...row, sets: 8 }])];
+    const p = buildGymPrompt({ state: initialGymState('p'), workouts: ws, templates: tpl, nowMs: NOW, summaries: [], complaints: [], previous: null, wantNote: false });
+    expect(p).toContain('"paar":"Brust : Rücken","seiteA":8,"seiteB":8,"zuKurz":null');
+  });
+});
