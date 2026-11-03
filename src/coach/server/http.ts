@@ -89,8 +89,8 @@ export const buildCoachServer = (opts: CoachServerOptions): FastifyInstance => {
     let out;
     try { out = storeRide({ ridesDir: path.join(a.dir, 'rides'), profileId: a.profileId, upload, nowMs: nowMs() }); } catch { return reply.code(500).send({ error: 'store failed' }); }
     if (!out.ok) return reply.code(409).send({ reason: out.reason });
-    // The coach reads the new ride now. A scan never uploads to Garmin: that only happens when the person asks.
-    if (!out.same) { try { a.runtime.scan(); } catch { /* the next scan reads it */ } }
+    // The coach reads the new ride now; a replaced copy is summarized again. A scan never uploads to Garmin: that only happens when the person asks.
+    if (!out.same) { try { a.runtime.rideReplaced(a.profileId, rideId); a.runtime.scan(); } catch { /* the next scan reads it */ } }
     return { sha256: out.sha256, same: out.same };
   });
 

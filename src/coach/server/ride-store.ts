@@ -13,6 +13,9 @@ const writeSynced = (file: string, data: string | Buffer): void => {
   try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 };
 
+/** A FIT file starts with a header of at least 14 bytes that has `.FIT` at bytes 8 to 11. */
+const isFit = (b: Buffer): boolean => b.length >= 14 && b.subarray(8, 12).toString('latin1') === '.FIT';
+
 type Parsed = { rideId: string; files: RideFiles; fit: Buffer | null; sha256: string; meta: Record<string, unknown> };
 
 const parseUpload = (upload: unknown): Parsed | null => {
@@ -25,7 +28,9 @@ const parseUpload = (upload: unknown): Parsed | null => {
   let meta: unknown;
   try { meta = JSON.parse(files['meta.json']); JSON.parse(files['session.json']); } catch { return null; }
   if (!isObj(meta) || meta.rideId !== upload.rideId || typeof meta.profileId !== 'string' || typeof meta.status !== 'string') return null;
-  const fit = typeof upload.fit === 'string' && upload.fit.length > 0 ? Buffer.from(upload.fit, 'base64') : null;
+  // FIT bytes are not in the hash: anything that is no FIT file is dropped and made from the samples instead.
+  const decoded = typeof upload.fit === 'string' ? Buffer.from(upload.fit, 'base64') : null;
+  const fit = decoded && isFit(decoded) ? decoded : null;
   return { rideId: upload.rideId, files, fit, sha256: upload.sha256, meta };
 };
 
@@ -44,10 +49,23 @@ export const storeRide = (opts: { ridesDir: string; profileId: string; upload: u
   const { ridesDir } = opts;
   const finalDir = path.join(ridesDir, u.rideId);
   const incoming = path.join(ridesDir, `.incoming-${u.rideId}`);
+  const fitFile = path.join(ridesDir, 'exports', `${u.rideId}.fit`);
+  const fitTmp = `${fitFile}.incoming`;
   fs.mkdirSync(path.join(ridesDir, 'exports'), { recursive: true });
 
   if (fs.existsSync(finalDir)) {
-    try { if (rideHash(readRideFiles(finalDir)) === u.sha256) return { ok: true, sha256: u.sha256, same: true }; } catch { /* unreadable copy: replace it */ }
+    let same = false;
+    try { same = rideHash(readRideFiles(finalDir)) === u.sha256; } catch { /* unreadable copy: replace it */ }
+    if (same) {
+      // A crash can leave the ride without its FIT; the retry makes it good again.
+      let size = 0;
+      try { size = fs.statSync(fitFile).size; } catch { /* missing */ }
+      if (size === 0) {
+        writeSynced(fitTmp, u.fit ?? exportFit(readRide(ridesDir, u.rideId)));
+        fs.renameSync(fitTmp, fitFile);
+      }
+      return { ok: true, sha256: u.sha256, same: true };
+    }
   }
 
   fs.rmSync(incoming, { recursive: true, force: true });
@@ -55,12 +73,12 @@ export const storeRide = (opts: { ridesDir: string; profileId: string; upload: u
   try {
     for (const n of RIDE_FILE_NAMES) writeSynced(path.join(incoming, n), u.files[n]);
     // A FIT file from the Mac is kept; otherwise one is made from the samples.
-    const fit = u.fit ?? exportFit(readRide(ridesDir, `.incoming-${u.rideId}`));
-    const fitFile = path.join(ridesDir, 'exports', `${u.rideId}.fit`);
-    writeSynced(`${fitFile}.incoming`, fit);
+    writeSynced(fitTmp, u.fit ?? exportFit(readRide(ridesDir, `.incoming-${u.rideId}`)));
+    // The FIT goes first: a ride folder under its real name always has its FIT. The old FIT is kept next to the old folder.
+    if (fs.existsSync(fitFile)) fs.renameSync(fitFile, path.join(ridesDir, 'exports', `${u.rideId}.replaced-${opts.nowMs}.fit`));
+    fs.renameSync(fitTmp, fitFile);
     if (fs.existsSync(finalDir)) fs.renameSync(finalDir, path.join(ridesDir, `${u.rideId}.replaced-${opts.nowMs}`));
     fs.renameSync(incoming, finalDir);
-    fs.renameSync(`${fitFile}.incoming`, fitFile);
   } catch (e) {
     fs.rmSync(incoming, { recursive: true, force: true });
     throw e;

@@ -125,8 +125,8 @@ test('without a FIT file one is made from the samples', async () => {
 
 test('a FIT file from the Mac is kept as it is', async () => {
   const t = start();
-  await t.put(RID, uploadOf(filesOf(), { fit: Buffer.from('fit-bytes').toString('base64') }));
-  expect(fs.readFileSync(path.join(t.rides, 'exports', `${RID}.fit`), 'utf8')).toBe('fit-bytes');
+  await t.put(RID, uploadOf(filesOf(), { fit: fakeFit('mine').toString('base64') }));
+  expect(fs.readFileSync(path.join(t.rides, 'exports', `${RID}.fit`))).toEqual(fakeFit('mine'));
 });
 
 test('a crash between the temp folder and the rename leaves no half ride the coach reads', async () => {
@@ -156,4 +156,72 @@ test('the route needs the internal token', async () => {
   const res = await app!.inject({ method: 'PUT', url: `/rides/${RID}`, payload: '{}', headers: { 'content-type': 'application/json' } });
   expect(res.statusCode).toBe(401);
   expect((await t.put(RID, uploadOf(filesOf()), '2')).statusCode).toBe(404);
+});
+
+// ---- Fix round 1 ----
+
+const fakeFit = (tag: string) => { const b = Buffer.alloc(16, 0); b[0] = 14; b.write('.FIT', 8, 'latin1'); b.write(tag, 12, 'latin1'); return b; };
+
+test('a crash after the folder rename heals: a missing FIT is made on the next upload', async () => {
+  const t = start();
+  const up = uploadOf(filesOf());
+  await t.put(RID, up);
+  fs.rmSync(path.join(t.rides, 'exports', `${RID}.fit`));
+  fs.writeFileSync(path.join(t.rides, 'exports', `${RID}.fit.incoming`), 'half');
+  const res = await t.put(RID, up);
+  expect(res.json()).toMatchObject({ same: true });
+  expect(fs.statSync(path.join(t.rides, 'exports', `${RID}.fit`)).size).toBeGreaterThan(14);
+  // An empty FIT is repaired too, from the upload's own FIT when it has one.
+  fs.writeFileSync(path.join(t.rides, 'exports', `${RID}.fit`), '');
+  const withFit = uploadOf(filesOf(), { fit: fakeFit('mine').toString('base64') });
+  expect((await t.put(RID, withFit)).json()).toMatchObject({ same: true });
+  expect(fs.readFileSync(path.join(t.rides, 'exports', `${RID}.fit`))).toEqual(fakeFit('mine'));
+});
+
+test('the FIT is in place before the ride folder is renamed in', () => {
+  const t = start();
+  const real = fs.renameSync;
+  const spy = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+    if (String(to) === path.join(t.rides, RID)) throw new Error('crash');
+    return real(from, to);
+  });
+  try {
+    expect(() => storeRide({ ridesDir: t.rides, profileId: 'pa', upload: uploadOf(filesOf()), nowMs: 1 })).toThrow();
+  } finally { spy.mockRestore(); }
+  expect(fs.existsSync(path.join(t.rides, RID))).toBe(false);
+  expect(fs.statSync(path.join(t.rides, 'exports', `${RID}.fit`)).size).toBeGreaterThan(0);
+  // The retry stores the ride.
+  expect(storeRide({ ridesDir: t.rides, profileId: 'pa', upload: uploadOf(filesOf()), nowMs: 2 })).toMatchObject({ ok: true, same: false });
+});
+
+test('a replaced ride keeps its old FIT next to the old folder', () => {
+  const t = start();
+  storeRide({ ridesDir: t.rides, profileId: 'pa', upload: uploadOf(filesOf(), { fit: fakeFit('old').toString('base64') }), nowMs: 1 });
+  storeRide({ ridesDir: t.rides, profileId: 'pa', upload: uploadOf(filesOf({ power: 160 }), { fit: fakeFit('new').toString('base64') }), nowMs: 77 });
+  expect(fs.readFileSync(path.join(t.rides, 'exports', `${RID}.replaced-77.fit`))).toEqual(fakeFit('old'));
+  expect(fs.readFileSync(path.join(t.rides, 'exports', `${RID}.fit`))).toEqual(fakeFit('new'));
+});
+
+test('a changed upload of an already summarized ride is summarized again', async () => {
+  const t = start();
+  await t.put(RID, uploadOf(filesOf({ power: 130 })));
+  const c = () => t.household.account(1)!.runtime.coachState('pa')!;
+  const first = c().summaries[0].avgPowerW;
+  await t.put(RID, uploadOf(filesOf({ power: 170 })));
+  expect(c().summaries).toHaveLength(1);
+  expect(c().summaries[0].avgPowerW).not.toBe(first);
+});
+
+test('FIT bytes that are no FIT file are replaced by one made from the samples', () => {
+  const t = start();
+  storeRide({ ridesDir: t.rides, profileId: 'pa', upload: uploadOf(filesOf(), { fit: Buffer.from('not a fit file at all').toString('base64') }), nowMs: 1 });
+  const fit = fs.readFileSync(path.join(t.rides, 'exports', `${RID}.fit`));
+  expect(fit.subarray(8, 12).toString('latin1')).toBe('.FIT');
+});
+
+test('a body of 1.5 MiB is accepted, so the route limit is above the global one', async () => {
+  const t = start();
+  const files = filesOf({ seconds: 12000 });
+  expect(files['samples.jsonl'].length).toBeGreaterThan(1.4 * 1024 * 1024);
+  expect((await t.put(RID, uploadOf(files))).statusCode).toBe(200);
 });

@@ -68,6 +68,8 @@ export type CoachRuntime = {
   handle(m: CoachClientMessage, reply: (m: CoachServerMessage) => void): void;
   view(profileId: string): CoachStateMessage | null;
   scan(): void;
+  /** The files of a ride were replaced: its summary is made again from the new files. */
+  rideReplaced(profileId: string, rideId: string): void;
   /** profileId: that profile's records changed. null: anything else changed. A view is worth sending again either way. */
   onChange(fn: (profileId: string | null) => void): () => void;
   /** Tells the listeners that the profile's records changed, e.g. when a shared meal plan wrote them outside this runtime. */
@@ -408,6 +410,12 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
 
   return {
     handle, view, scan,
+    rideReplaced: (profileId, rideId) => {
+      try {
+        coach.scanRides(profiles()); // loads the profile's state
+        coach.reprocessRide(profileId, rideId);
+      } catch { /* the next scan reads what it can */ }
+    },
     onChange: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
     notify: (profileId) => notifyRecords(profileId),
     coachState: (profileId) => { if (!known(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
