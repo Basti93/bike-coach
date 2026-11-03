@@ -87,3 +87,30 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .pm-reply.pending { font-style: italic; }
 .pm-chat-before summary { color: var(--muted); font-size: .9rem; padding-top: .6rem; }
 .pm-asked { margin: 0; color: var(--muted); font-size: .85rem; }
+
+/* Gemeinsam: the compact card on Heute and the full page. Time and regularity only, the same look for everyone. */
+.tk-screen button.gm-card { display: flex; flex-direction: column; align-items: stretch; gap: .45rem; width: 100%; text-align: left; border-radius: 1.1rem; padding: .9rem 1rem; background: var(--card); color: var(--text); font-weight: 400; border-top: 4px solid var(--accent); }
+.gm-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.1rem; }
+.gm-head span { color: var(--accent); font-size: 1.4rem; line-height: 1; }
+.gm-label { margin: 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.gm-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .4rem; }
+.gm-person { display: flex; flex-direction: column; padding: .4rem .6rem; border-radius: .8rem; background: var(--bg); }
+.gm-person span { color: var(--muted); font-size: .9rem; }
+.gm-recent { display: flex; flex-direction: column; gap: .1rem; font-size: .88rem; color: var(--muted); }
+.gm-peak { font-size: .92rem; }
+.gm-bar { position: relative; height: .7rem; border-radius: 999px; background: var(--bg); overflow: hidden; border: 1px solid var(--line); }
+.gm-bar i { display: block; height: 100%; background: var(--good); border-radius: 999px; }
+.gm-bar-thin { height: .45rem; grid-column: 1 / -1; }
+.gm-stand { font-size: .8rem; color: var(--muted); }
+.tk-screen.gm h3.gm-label { margin-top: .3rem; }
+.gm-list { list-style: none; padding: 0; display: grid; gap: 0; }
+.gm-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; align-items: baseline; padding: .45rem 0; border-top: 1px solid var(--line); }
+.gm-list li:first-child { border-top: 0; }
+.gm-list li span { color: var(--muted); font-size: .9rem; text-align: right; }
+.gm-rhythm { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; }
+.gm-rhythm th { width: 3.6rem; text-align: left; font-size: .85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-rhythm td { padding: 0; }
+.gm-cell { aspect-ratio: 1; border-radius: .3rem; background: var(--bg); border: 1px solid var(--line); }
+@media (prefers-color-scheme: light) { .gm-bar i, .gm-cell[style] { background: #6fa043 !important; } }
+.gm-stack li { grid-template-columns: minmax(0, 1fr); gap: .1rem; }
+.gm-stack li span { text-align: left; }
