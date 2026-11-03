@@ -40,6 +40,8 @@ type Deps = {
   store?: Pick<RecordStore, 'all' | 'putMany'>;
   linked?: (id: string) => boolean;
   random?: () => number;
+  /** Profiles whose records were just written, so their sync can go soon. */
+  onExport?: (ids: string[]) => void;
 };
 type FileData = { settings: Record<string, MealSettings>; plans: Record<string, MealPlan>; states: Record<string, MealState>; notices: Record<string, string | null>; lastAuto: string | null };
 
@@ -331,6 +333,7 @@ export class MealCoach {
         if (out.length > 0) { store.putMany(p.id, out); touched.push(p.id); }
       } catch { /* the next tick tries again */ }
     }
+    if (touched.length > 0) { try { this.deps.onExport?.(touched); } catch { /* a listener never matters here */ } }
     return touched;
   }
 }

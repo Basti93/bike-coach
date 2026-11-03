@@ -45,3 +45,11 @@ test('never during a ride: the ride screen stays exactly as it is', () => {
   expect(showMenu({ profile: true, riding: false, film: true, waiting: false })).toBe(false);
   expect(showMenu({ profile: true, riding: false, film: false, waiting: true })).toBe(false);
 });
+
+test('Essen only for a profile that turned the meal plan on, right after Kraft', () => {
+  expect(menuItems({ overview: true, gym: true, history: true, health: true, together: true, meals: false })).not.toContain('essen');
+  expect(menuItems({ overview: true, gym: true, history: true, health: false, together: false, meals: true })).toEqual(['start', 'rad', 'kraft', 'essen', 'verlauf']);
+  expect(open('essen', 'a')).toEqual({ ...HOME, meals: true });
+  expect(activeItem(open('essen', 'a'), 'a', 'overview')).toBe('essen');
+  expect(MENU_LABEL.essen).toBe('Essen');
+});
