@@ -1,6 +1,6 @@
 import {
   addExercise, addSet, confirmSet, editSet, finish, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
-  startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
+  durationLabel, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
 import type { GymWorkout } from '../../src/coach/gym/types';
@@ -152,4 +152,13 @@ test('decimal comma and dot both parse; display uses a comma', () => {
   expect(parseDecimal('abc')).toBeUndefined();
   expect(formatDecimal(62.5)).toBe('62,5');
   expect(formatDecimal(null)).toBe('');
+});
+
+describe('durationLabel', () => {
+  it('shows minutes and seconds, and hours once past an hour', () => {
+    expect(durationLabel(0)).toBe('0:00');
+    expect(durationLabel(99_000)).toBe('1:39');
+    expect(durationLabel(3_725_000)).toBe('1:02:05');
+    expect(durationLabel(-5_000)).toBe('0:00');
+  });
 });

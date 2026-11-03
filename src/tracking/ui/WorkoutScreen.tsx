@@ -5,7 +5,7 @@ import type { Exercise } from '../../shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, startEmpty, startFromPlan,
+  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, startEmpty, startFromPlan,
   swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -38,7 +38,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const [notice, setNotice] = useState<string | null>(null);
   const pendingLeave = useRef<string | null>(null);
   useWakeLock(true);
-  useTick(w.rest != null);
+  useTick(true); // the rest countdown and the total time
   // Leaving the screen: a clean store is let go, a dirty one keeps retrying in the registry until it is clean.
   useEffect(() => () => releaseStore(port, store), [store, port]);
   const remaining = restRemainingS(w, now());
@@ -102,7 +102,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   return (
     <div className="tk-screen">
       <h1 className="tk-title">{w.title}</h1>
-      <p className="muted">Gestartet {dateLabel(w.startMs)}</p>
+      <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
           Gerade nicht gespeichert. Dein Training bleibt hier offen und wird mit dem nächsten Schritt erneut gespeichert.
@@ -111,7 +111,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       )}
       {notice && <p role="note" className="tk-note">{notice}</p>}
       {w.rest && remaining > 0 && (
-        <div role="timer" className="tk-rest">
+        <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
           <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>

@@ -100,3 +100,5 @@
 .tk-screen button.tk-day { min-width: 44px; min-height: 44px; padding: 0 .5rem; }
 .tk-switch { display: flex; align-items: center; gap: .7rem; min-height: 44px; }
 .tk-garmin { margin-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
+
+.tk-elapsed { font-variant-numeric: tabular-nums; font-weight: 600; }

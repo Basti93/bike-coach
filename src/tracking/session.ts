@@ -159,3 +159,10 @@ export function finish(w: TrackedWorkout, nowMs: number, choice?: FinishChoice):
     : w.exercises;
   return { status: 'finished', workout: { ...w, exercises, endMs, rest: null } };
 }
+
+/** A running time: "1:39", past an hour "1:02:05". */
+export function durationLabel(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}

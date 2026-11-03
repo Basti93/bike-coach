@@ -56,7 +56,7 @@ test('the rest timer survives a reload through its stored start', async () => {
   const { port } = fakePort([rec(w as LoggedWorkout)]);
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
-  expect((await screen.findByRole('timer')).textContent).toContain('1:00');
+  expect((await screen.findByRole('timer', { name: 'Satzpause' })).textContent).toContain('1:00');
 });
 
 test('the rest end is armed once with the end time, and skipping or unmounting cancels it', async () => {
@@ -66,7 +66,7 @@ test('the rest end is armed once with the end time, and skipping or unmounting c
   port.restAlarm = restAlarm;
   const view = render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
-  await screen.findByRole('timer');
+  await screen.findByRole('timer', { name: 'Satzpause' });
   expect(restAlarm.mock.calls).toEqual([[160_000]]);
   fireEvent.click(screen.getByRole('button', { name: 'Pause überspringen' }));
   await waitFor(() => expect(restAlarm).toHaveBeenLastCalledWith(null));
@@ -88,7 +88,7 @@ test('a rest that is already over arms nothing, and a port without restAlarm wor
   const plain = fakePort([rec({ ...open(), rest: { startMs: 70_000, durationS: 90 } } as LoggedWorkout)]);
   render(<WorkoutScreen port={plain.port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
-  expect(await screen.findByRole('timer')).toBeTruthy();
+  expect(await screen.findByRole('timer', { name: 'Satzpause' })).toBeTruthy();
 });
 
 test('starting from the plan prefills the range and saves at once', async () => {
@@ -613,4 +613,11 @@ test('a plan without weights says "Gewicht nach Gefühl" once, under the title',
   fireEvent.click(await screen.findByRole('button', { name: /Plan starten/ }));
   expect(await screen.findAllByText('Gewicht nach Gefühl')).toHaveLength(1);
   expect((screen.getByLabelText('Gewicht Satz 1') as HTMLInputElement).placeholder).toBe('–');
+});
+
+test('the workout shows how long it has been running', async () => {
+  const { port } = fakePort([rec(open())]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  expect((await screen.findByRole('timer', { name: 'Trainingsdauer' })).textContent).toBe('1:39');
 });
