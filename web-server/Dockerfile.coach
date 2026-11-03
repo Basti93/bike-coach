@@ -7,7 +7,7 @@ ENV NODE_ENV=production
 COPY --from=ghcr.io/astral-sh/uv:0.9.0 /uv /usr/local/bin/uv
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
   && UV_PYTHON_INSTALL_DIR=/opt/python uv venv --python 3.12 /opt/garmin-venv \
-  && UV_PYTHON_INSTALL_DIR=/opt/python uv pip install --python /opt/garmin-venv/bin/python --no-cache garminconnect==0.3.20 \
+  && UV_PYTHON_INSTALL_DIR=/opt/python uv pip install --python /opt/garmin-venv/bin/python --no-cache 'garminconnect[workout]==0.3.20' \
   && rm /usr/local/bin/uv
 # Claude CLI pinned to the version current on the build day; raise it deliberately. tsx runs the TypeScript sources.
 RUN npm install -g --no-fund --no-audit @anthropic-ai/claude-code@2.1.317 tsx@4.23.15 && npm cache clean --force
