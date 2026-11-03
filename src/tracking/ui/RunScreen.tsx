@@ -9,6 +9,7 @@ import { DAY_NAMES, DAY_SHORT, dateKeyOf, dayText, kmFromKm, nextUpdatedMs, runV
 const KIND: Record<PlannedRun['kind'], string> = { easy: 'Ruhiger Lauf', long: 'Langer, ruhiger Lauf', test: 'Testlauf über 30 Minuten' };
 const CHANGED = 'Der Plan hat sich geändert. Bitte bestätige noch einmal, dann geht die neue Version an Garmin.';
 const STALE = 'Inzwischen gibt es einen neueren Plan. Bitte schau ihn dir an und bestätige noch einmal.';
+const LEFT_ON_WATCH = 'Auf deiner Uhr sind noch geplante Läufe. Sollen sie entfernt werden?';
 const PAUSE = 'Laufen pausiert, solange die Beschwerde offen ist. Sobald sie vorbei ist, geht es ruhig weiter.';
 const GENTLE = 'Wir planen gerade sanft.';
 const FAILED = 'Das Senden hat gerade nicht geklappt. Du kannst es später noch einmal versuchen.';
@@ -191,6 +192,8 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
   const sendBody = sendRec && !sendRec.deleted ? (sendRec.body as RunSendBody) : null;
   const pending = !!(week && sendBody && sendBody.week === week.week && sendBody.fp === fp && sendBody.atMs > (week.garmin?.confirmedMs ?? 0));
   const send = () => { if (week) put(runSendId(week.week), { type: 'send', week: week.week, fp, atMs: now() } satisfies RunSendBody); };
+  // Workouts sent before the pause that are still ahead on the watch: the same confirmation, with the paused week, removes them.
+  const leftOnWatch = paused && status.garmin && !!week?.garmin && Object.keys(week.garmin.sent).some((d) => d >= todayKey);
 
   return (
     <div className="tk-screen tk-run">
@@ -200,6 +203,12 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
         <Questions suggested={status.suggestedDays} onSave={(answers, days) => { void writeSettings(port, all, now(), () => ({ type: 'settings', on: true, weekdays: days, answers })).catch(() => {}); }} />
       )}
       {status.on && paused && <p role="status" className="tk-note">{PAUSE}</p>}
+      {status.on && leftOnWatch && week && (
+        <section className="card tk-garmin">
+          <p>{LEFT_ON_WATCH}</p>
+          <button type="button" disabled={week.garmin?.status === 'sending' || pending} onClick={send}>Entfernen</button>
+        </section>
+      )}
       {status.on && gentle && !paused && <p role="status" className="tk-note">{GENTLE}</p>}
       {status.on && !paused && today && (
         <section className="card">

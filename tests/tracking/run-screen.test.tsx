@@ -161,6 +161,34 @@ describe('Garmin', () => {
     expect(((await screen.findByRole('button', { name: 'An Garmin senden' })) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  test('during a pause, workouts still on the watch can be removed with the paused week fingerprint', async () => {
+    const question = 'Auf deiner Uhr sind noch geplante Läufe. Sollen sie entfernt werden?';
+    const sent = { '2026-11-03': { workoutId: 'w-past', scheduleId: null, fp: 'x' }, '2026-11-06': { workoutId: 'w6', scheduleId: null, fp: 'y' } };
+    // The paused week: only the past run is left.
+    const paused = weekBody([planned({ date: '2026-11-03' })], garminOf({ status: 'changed', sent }));
+    const seed = (g: boolean, w: RunWeekBody) => fakePort([rec('status', statusBody({ garmin: g, complaint: 'pause' })), rec(`week-${WEEK}`, w)]);
+    const a = seed(true, paused);
+    render(<RunScreen port={a.port} {...ids} />);
+    expect(await screen.findByText(question)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Diese Woche' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
+    await waitFor(() => expect(bodyOf(a.map, `send-${WEEK}`)).toEqual({ type: 'send', week: WEEK, fp: weekFp(paused.runs), atMs: NOW }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Entfernen' }) as HTMLButtonElement).disabled).toBe(true));
+    cleanup();
+    // Only past dates on the watch, no Garmin, or nothing sent: no question.
+    for (const [g, w] of [
+      [true, weekBody([planned({ date: '2026-11-03' })], garminOf({ status: 'changed', sent: { '2026-11-03': sent['2026-11-03'] } }))],
+      [false, paused],
+      [true, weekBody([planned({ date: '2026-11-03' })], garminOf({ status: 'sent' }))],
+    ] as const) {
+      const b = seed(g, w);
+      render(<RunScreen port={b.port} {...ids} />);
+      await screen.findByText(/Laufen pausiert/);
+      expect(screen.queryByText(question)).toBeNull();
+      cleanup();
+    }
+  });
+
   test('a tap is not repeated while the coach has not handled it yet', async () => {
     const a = seeded(true, garminOf());
     render(<RunScreen port={a.port} {...ids} />);

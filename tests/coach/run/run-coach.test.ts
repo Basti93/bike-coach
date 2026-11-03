@@ -829,6 +829,31 @@ describe('sending to Garmin after confirmation', () => {
     expect(week(W0)!.garmin).toMatchObject({ status: 'failed', reason: 'failed' });
   });
 
+  test('a paused week with workouts on the watch says changed, and its confirmation only deletes them', async () => {
+    const coach = garminCoach();
+    await coach.tick('pa');
+    confirm(fpNow());
+    await coach.tick('pa');
+    coach.sendResult('pa', W0, okFor(sends[0]!.ops));
+    const sentIds = Object.values(week(W0)!.garmin!.sent).map((s) => s.workoutId).sort();
+    expect(sentIds.length).toBeGreaterThan(0);
+    complaints = [{ id: 'c1', text: 'Das Knie zieht', status: 'active', startedMs: now, updatedMs: now }];
+    now += HOUR;
+    await coach.tick('pa');
+    expect(week(W0)!.runs.filter((r) => r.date >= '2026-11-04')).toEqual([]);
+    expect(week(W0)!.garmin!.status).toBe('changed');
+    expect(sends).toHaveLength(1);
+    // The phone confirms the removal with the paused week's fingerprint.
+    now += 60_000;
+    confirm(fpNow());
+    await coach.tick('pa');
+    expect(sends).toHaveLength(2);
+    expect(sends[1]!.ops.create).toEqual([]);
+    expect(sends[1]!.ops.delete.map((d) => d.workoutId).sort()).toEqual(sentIds);
+    coach.sendResult('pa', W0, okFor(sends[1]!.ops));
+    expect(week(W0)!.garmin).toMatchObject({ status: 'sent', sent: {} });
+  });
+
   test('a test run is named so and its main step has no target', async () => {
     const coach = garminCoach();
     await coach.tick('pa');
