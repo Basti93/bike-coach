@@ -64,6 +64,7 @@ test('UI client reconnects 20 times during ride without losing samples', async (
 test('kill during write leaves readable ride', async () => {
   const dir = tempDir();
   await begin(dir, 1000);
+  await waitForSamples(dir, 1); // the ride exists on disk before the first kill (under load the start can take longer than the send)
   for (let i = 0; i < 6; i++) {
     await sleep(100 + Math.random() * 200);
     await hardKill(running!);
