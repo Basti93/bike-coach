@@ -192,9 +192,10 @@ export function mealWeekOf(r: { kind: string; id: string; deleted: boolean; body
   return Number.isFinite(start) && start + 8 * 86_400_000 > nowMs ? m[1]! : null;
 }
 
-/** The run plan of a week (`run` record `week-YYYY-MM-DD`) that the coach announces and that is not over yet. Nothing else of it is read. */
+/** The run plan of a week (`run` record `week-YYYY-MM-DD`) that the coach announces, that has runs and that is not over yet. Nothing else of it is read. */
 export function runWeekOf(r: { kind: string; id: string; deleted: boolean; body: unknown }, nowMs: number): string | null {
-  if (r.kind !== 'run' || r.deleted || (r.body as { announce?: unknown } | null)?.announce !== true) return null;
+  const b = r.body as { announce?: unknown; runs?: unknown } | null;
+  if (r.kind !== 'run' || r.deleted || b?.announce !== true || !Array.isArray(b.runs) || b.runs.length === 0) return null;
   const m = /^week-(\d{4}-\d{2}-\d{2})$/.exec(r.id);
   const week = (r.body as { week?: unknown } | null)?.week;
   if (!m || week !== m[1]) return null;

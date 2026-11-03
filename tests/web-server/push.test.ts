@@ -13,7 +13,7 @@ const AUTH = b64u(Buffer.alloc(16, 3));
 const sub = (n: string, host = 'web.push.apple.com') => ({ endpoint: `https://${host}/sub/${n}`, keys: { p256dh: KEY, auth: AUTH } });
 const H = (cookie: string) => ({ cookie, host: 'x.test', origin: 'https://x.test' });
 const week = (key: string, over: Record<string, unknown> = {}) => ({ kind: 'mealplan', id: `week-${key}`, updatedMs: NOW, deleted: false, body: { week: key, people: [], meals: [] }, ...over });
-const runWeek = (key: string, over: Record<string, unknown> = {}, body: Record<string, unknown> = {}) => ({ kind: 'run', id: `week-${key}`, updatedMs: NOW, deleted: false, body: { week: key, announce: true, days: [], ...body }, ...over });
+const runWeek = (key: string, over: Record<string, unknown> = {}, body: Record<string, unknown> = {}) => ({ kind: 'run', id: `week-${key}`, updatedMs: NOW, deleted: false, body: { week: key, announce: true, runs: [{ date: key, kind: 'easy', minutes: 30 }], ...body }, ...over });
 // NOW is 2027-01-15 (Friday); the coming week starts 2027-01-18.
 const NEXT = '2027-01-18', THIS = '2027-01-11';
 
@@ -267,14 +267,29 @@ describe('run week notification', () => {
       { kind: 'run', id: 'status', updatedMs: NOW, deleted: false, body: { week: NEXT, announce: true } }, runWeek('2027-02-01', { deleted: true })]);
     await settle();
     expect(sent).toEqual([]);
-    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true } }, NOW)).toBe(NEXT);
-    expect(runWeekOf({ kind: 'mealplan', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true } }, NOW)).toBeNull();
+    const runs = [{ date: NEXT, kind: 'easy', minutes: 30 }];
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs } }, NOW)).toBe(NEXT);
+    expect(runWeekOf({ kind: 'mealplan', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs } }, NOW)).toBeNull();
+    // A paused week without runs is no plan to announce.
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true, runs: [] } }, NOW)).toBeNull();
+    expect(runWeekOf({ kind: 'run', id: `week-${NEXT}`, deleted: false, body: { week: NEXT, announce: true } }, NOW)).toBeNull();
     // Announced first as a quiet week, later announced: that is the first announcement.
     await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 1 })]);
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 2 })]);
     await settle();
     expect(sent).toHaveLength(1);
+  });
+
+  it('a paused run week without runs sends no push; once it has runs it does, once', async () => {
+    const { app, sent } = await server();
+    const a = (await login(app, 'anna', PW_A)).cookie!;
+    await subscribe(app, a, sub('anna'));
+    await post(app, H(a), [runWeek(NEXT, {}, { runs: [] })]);
+    await settle();
+    expect(sent).toEqual([]);
+    await post(app, H(a), [runWeek(NEXT, { updatedMs: NOW + 1 })]);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
   });
 
   it('run weeks stored before the table existed count as announced', async () => {
