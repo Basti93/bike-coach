@@ -23,6 +23,9 @@ services:
       PANDAFIT_DB: /data/pandafit.db
       PANDAFIT_STATIC: /app/out/web
       PANDAFIT_TRUST_PROXY_CIDR: ${PANDAFIT_TRUST_PROXY_CIDR:-172.16.0.0/12}
+      # Web Push: VAPID subject (mailto: or https:); empty means the public origin. PANDAFIT_PUSH=off sends nothing.
+      PANDAFIT_PUSH_SUBJECT: ${PANDAFIT_PUSH_SUBJECT:-}
+      PANDAFIT_PUSH: ${PANDAFIT_PUSH:-on}
     ports:
       - "127.0.0.1:${PANDAFIT_PORT:-7004}:8080"
     volumes:

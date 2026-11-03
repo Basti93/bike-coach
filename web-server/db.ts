@@ -10,6 +10,7 @@ export const openDb = (path: string): DatabaseSync => {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   }
   const db = new DatabaseSync(path, { timeout: 5000 });
+  const hadMealWeeks = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'push_meal_weeks'").get();
   db.exec(`PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE COLLATE NOCASE, salt TEXT NOT NULL, hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id INTEGER NOT NULL, expires_ms INTEGER NOT NULL);
@@ -18,7 +19,15 @@ export const openDb = (path: string): DatabaseSync => {
     CREATE INDEX IF NOT EXISTS records_seq ON records (account_id, seq);
     CREATE TABLE IF NOT EXISTS overwritten (n INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, updated_ms REAL NOT NULL, body TEXT NOT NULL, at_ms INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, stale INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS login_attempts (at_ms INTEGER NOT NULL, ip TEXT NOT NULL, account_key TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, account_id INTEGER NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, session_hash TEXT, device_id INTEGER, created_ms INTEGER NOT NULL);
+    CREATE INDEX IF NOT EXISTS push_subs_account ON push_subs (account_id);
+    CREATE TABLE IF NOT EXISTS push_meal_weeks (account_id INTEGER NOT NULL, week TEXT NOT NULL, PRIMARY KEY (account_id, week));`);
+  // Weeks already stored before notifications existed count as announced, so a later resend does not notify.
+  if (!hadMealWeeks) {
+    db.exec(`INSERT OR IGNORE INTO push_meal_weeks SELECT account_id, substr(id, 6) FROM records
+      WHERE kind = 'mealplan' AND deleted = 0 AND id GLOB 'week-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`);
+  }
   // A database from before these columns gets them here.
   const columns = (db.prepare('PRAGMA table_info(overwritten)').all() as { name: string }[]).map((c) => c.name);
   for (const c of ['deleted', 'stale']) if (!columns.includes(c)) db.exec(`ALTER TABLE overwritten ADD COLUMN ${c} INTEGER NOT NULL DEFAULT 0`);

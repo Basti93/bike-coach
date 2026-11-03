@@ -30,6 +30,16 @@ test('no secret or host name appears in the deploy files', () => {
   }
   expect(read('web-server/.env.example')).toMatch(/^TS_AUTHKEY=$/m);
   expect(read('web-server/.env.example')).toMatch(/^PANDAFIT_PORT=$/m);
+  expect(read('web-server/.env.example')).toMatch(/^PANDAFIT_PUSH_SUBJECT=$/m);
+});
+
+test('push: the subject comes from the environment, and the restore drill never notifies', () => {
+  const env = compose().services.api!.environment!;
+  expect(env.PANDAFIT_PUSH_SUBJECT).toBe('${PANDAFIT_PUSH_SUBJECT:-}');
+  expect(env.PANDAFIT_PUSH).toBe('${PANDAFIT_PUSH:-on}');
+  expect(read('web-server/restore-drill.sh')).toMatch(/docker run -d --name "\$app" -e PANDAFIT_PUSH=off /);
+  // VAPID keys live in the database, never in the image or repo.
+  for (const f of ['web-server/Dockerfile', 'web-server/compose.yaml', 'web-server/.env.example']) expect(read(f), f).not.toMatch(/VAPID_(PRIVATE|PUBLIC)/i);
 });
 
 type Service = Record<string, unknown> & { environment?: Record<string, string>; ports?: string[]; logging?: { options?: Record<string, string> } };

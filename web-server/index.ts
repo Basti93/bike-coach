@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { applyRecord, type RecordKind, type TrackedRecord } from '../src/shared/records';
 import { clientIp, dropAttempt, hashToken, isLimited, MAX_PASSWORD, newToken, recordAttempt, safeEqual, verifyPassword } from './auth';
 import { generationOf, openDb } from './db';
+import { announceVersion, buildVersion, createPush, MAX_SUBSCRIPTIONS, mealWeekOf, rememberOrigin, storedOrigin, validEndpoint, validKeys, vapidKeys, webPushSender, type Sender } from './push';
 
 const KINDS: readonly RecordKind[] = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan'];
 const BODY_LIMIT = 5 * 1024 * 1024;
@@ -12,6 +13,7 @@ const RECORD_BODY_LIMIT = 1024 * 1024;
 const MAX_RECORDS_PER_POST = 1000;
 const MAX_PAGE = 500;
 const LOGIN_BODY_LIMIT = 8192;
+const PUSH_BODY_LIMIT = 4096;
 const MAX_AHEAD_MS = 7 * 24 * 3600 * 1000;
 const SESSION_MS = 90 * 24 * 3600 * 1000;
 const KEEP_OVERWRITTEN = 500;
@@ -29,12 +31,26 @@ const toRecord = (r: Row): TrackedRecord => ({ kind: r.kind as RecordKind, id: r
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 
-export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string }): FastifyInstance => {
+export type PushOptions = {
+  /** 'web': the real push services. Null or missing: nothing is ever sent (tests, the restore drill). */
+  send?: Sender | 'web' | null;
+  /** VAPID subject (mailto: or https:); defaults to the public origin the app is used from. */
+  subject?: string;
+  /** The build version of the web app; announced once when it differs from the last one. */
+  version?: string | null;
+};
+
+export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: () => number; trustProxyCidr?: string; push?: PushOptions }): FastifyInstance => {
   const db = openDb(opts.dbPath);
   const now = opts.nowMs ?? Date.now;
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, requestTimeout: 30000 });
   const staticRoot = opts.staticDir && existsSync(opts.staticDir) ? realpathSync(opts.staticDir) : null;
   const accounts = new WeakMap<FastifyRequest, number>();
+  /** How the request logged in: a push subscription is bound to it and ends with it. */
+  const owners = new WeakMap<FastifyRequest, { session: string } | { device: number }>();
+  const pushKeys = vapidKeys(db);
+  const send = opts.push?.send === 'web' ? webPushSender({ keys: pushKeys, subject: () => opts.push?.subject ?? storedOrigin(db), now }) : opts.push?.send ?? null;
+  const push = createPush(db, send, now);
 
   app.setErrorHandler((err: { statusCode?: number; name?: string }, req, reply) => {
     const code = typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500 ? err.statusCode : 500;
@@ -67,8 +83,8 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     if (typeof auth === 'string') {
       const m = /^Bearer ([0-9a-f]{64})$/.exec(auth);
       const h = m ? hashToken(m[1]!) : null;
-      const row = h ? (db.prepare('SELECT account_id, token_hash FROM devices WHERE token_hash = ? AND revoked = 0').get(h) as { account_id: number; token_hash: string } | undefined) : undefined;
-      if (row && h && safeEqual(Buffer.from(row.token_hash), Buffer.from(h))) { accounts.set(req, row.account_id); return; }
+      const row = h ? (db.prepare('SELECT id, account_id, token_hash FROM devices WHERE token_hash = ? AND revoked = 0').get(h) as { id: number; account_id: number; token_hash: string } | undefined) : undefined;
+      if (row && h && safeEqual(Buffer.from(row.token_hash), Buffer.from(h))) { accounts.set(req, row.account_id); owners.set(req, { device: row.id }); return; }
       return reply.code(401).send({ error: 'unauthorized' });
     }
     const token = cookieOf(req);
@@ -80,6 +96,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
         db.prepare('UPDATE sessions SET expires_ms = ? WHERE token_hash = ?').run(t + SESSION_MS, h);
         if (req.routeOptions.url !== '/logout') setCookie(reply, token);
         accounts.set(req, row.account_id);
+        owners.set(req, { session: h });
         return;
       }
     }
@@ -115,7 +132,10 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
 
   app.post('/logout', { onRequest: requireAuth }, async (req, reply) => {
     const token = cookieOf(req);
-    if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+    if (token) {
+      db.prepare('DELETE FROM push_subs WHERE session_hash = ?').run(hashToken(token));
+      db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+    }
     setCookie(reply, '', 0);
     return { ok: true };
   });
@@ -135,12 +155,39 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     return { name: r.name };
   });
 
+  // --- push notifications: the public key, and one subscription per browser, bound to the login it came with ---
+  app.get('/push/key', { onRequest: requireAuth }, async () => ({ key: pushKeys.publicKey }));
+
+  app.post('/push/subscribe', { onRequest: requireAuth, bodyLimit: PUSH_BODY_LIMIT }, async (req, reply) => {
+    const b = isObj(req.body) ? req.body : {};
+    if (!validEndpoint(b.endpoint) || !validKeys(b.keys)) return reply.code(400).send({ error: 'bad request' });
+    const account = acct(req), owner = owners.get(req)!;
+    // The subject of the VAPID token defaults to the public origin the app is used from.
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin : `https://${req.headers.host ?? ''}`;
+    if (/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin)) rememberOrigin(db, origin.toLowerCase());
+    db.prepare(`INSERT INTO push_subs (endpoint, account_id, p256dh, auth, session_hash, device_id, created_ms) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (endpoint) DO UPDATE SET account_id = excluded.account_id, p256dh = excluded.p256dh, auth = excluded.auth,
+        session_hash = excluded.session_hash, device_id = excluded.device_id, created_ms = excluded.created_ms`)
+      .run(b.endpoint, account, b.keys.p256dh, b.keys.auth, 'session' in owner ? owner.session : null, 'device' in owner ? owner.device : null, now());
+    db.prepare('DELETE FROM push_subs WHERE account_id = ? AND endpoint NOT IN (SELECT endpoint FROM push_subs WHERE account_id = ? ORDER BY created_ms DESC, rowid DESC LIMIT ?)')
+      .run(account, account, MAX_SUBSCRIPTIONS);
+    return { ok: true };
+  });
+
+  app.post('/push/unsubscribe', { onRequest: requireAuth, bodyLimit: PUSH_BODY_LIMIT }, async (req, reply) => {
+    const b = isObj(req.body) ? req.body : {};
+    if (!str(b.endpoint, 1024)) return reply.code(400).send({ error: 'bad request' });
+    db.prepare('DELETE FROM push_subs WHERE endpoint = ? AND account_id = ?').run(b.endpoint, acct(req));
+    return { ok: true };
+  });
+
   app.post('/records', { onRequest: requireAuth }, async (req, reply) => {
     const list = isObj(req.body) ? req.body.records : undefined;
     if (!Array.isArray(list) || list.length > MAX_RECORDS_PER_POST) return reply.code(400).send({ error: 'bad request' });
     const account = acct(req), t = now();
     const refused: { kind: unknown; id: unknown; reason: string }[] = [];
-    let accepted = 0;
+    let accepted = 0, newMealWeek = false;
+    const weekStmt = db.prepare('INSERT OR IGNORE INTO push_meal_weeks VALUES (?, ?)');
     const getStmt = db.prepare('SELECT * FROM records WHERE account_id = ? AND kind = ? AND id = ?');
     const putStmt = db.prepare(`INSERT INTO records (account_id, kind, id, updated_ms, deleted, body, seq)
       VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM records WHERE account_id = ?))
@@ -174,7 +221,11 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
           if (!haveLostStmt.get(account, overwritten.kind, overwritten.id, overwritten.updatedMs, del, body)) lostStmt.run(account, overwritten.kind, overwritten.id, overwritten.updatedMs, body, t, del, overwritten === incoming ? 1 : 0);
           if (keep === incoming) trimStmt.run(account, keep.kind, keep.id, account, keep.kind, keep.id, KEEP_PER_RECORD);
         }
-        if (keep === incoming) putStmt.run(account, keep.kind, keep.id, keep.updatedMs, keep.deleted ? 1 : 0, JSON.stringify(keep.body), account);
+        if (keep === incoming) {
+          putStmt.run(account, keep.kind, keep.id, keep.updatedMs, keep.deleted ? 1 : 0, JSON.stringify(keep.body), account);
+          const w = mealWeekOf(keep, t);
+          if (w && weekStmt.run(account, w).changes > 0) newMealWeek = true;
+        }
         accepted++;
       }
       db.prepare('DELETE FROM overwritten WHERE account_id = ? AND n NOT IN (SELECT n FROM overwritten WHERE account_id = ? ORDER BY stale DESC, n DESC LIMIT ?)').run(account, account, KEEP_OVERWRITTEN);
@@ -183,6 +234,7 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
       db.exec('ROLLBACK');
       throw e;
     }
+    if (newMealWeek) void push.notifyAccount(account, 'meal'); // fire and forget, after the data is safe
     return { accepted, refused };
   });
 
@@ -219,16 +271,25 @@ export const buildServer = (opts: { dbPath: string; staticDir?: string; nowMs?: 
     }
   });
 
+  const version = opts.push?.version;
+  if (version) app.addHook('onReady', async () => { void announceVersion(db, push, version); });
   app.addHook('onClose', async () => { db.close(); });
   return app;
 };
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   if (!process.env.PANDAFIT_TRUST_PROXY_CIDR) console.warn('warning: PANDAFIT_TRUST_PROXY_CIDR is not set; all clients are seen at the proxy address and share one login limit');
+  const staticDir = process.env.PANDAFIT_STATIC;
+  let subject = process.env.PANDAFIT_PUSH_SUBJECT?.trim() || undefined;
+  if (subject && !/^(mailto:|https:\/\/)\S+$/.test(subject)) { console.warn('warning: PANDAFIT_PUSH_SUBJECT must start with mailto: or https://; using the public origin'); subject = undefined; }
+  let version: string | null = null;
+  try { if (staticDir && existsSync(staticDir)) version = buildVersion(staticDir); } catch { /* no announcement without a build */ }
   const app = buildServer({
     dbPath: process.env.PANDAFIT_DB ?? 'pandafit.db',
-    staticDir: process.env.PANDAFIT_STATIC,
+    staticDir,
     trustProxyCidr: process.env.PANDAFIT_TRUST_PROXY_CIDR,
+    // PANDAFIT_PUSH=off sends nothing (the restore drill runs on a copy that holds real subscriptions).
+    push: process.env.PANDAFIT_PUSH === 'off' ? undefined : { send: 'web', subject, version },
   });
   app.listen({ port: Number(process.env.PORT ?? 8080), host: process.env.HOST ?? '127.0.0.1' });
 }

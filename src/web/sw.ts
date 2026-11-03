@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { handleFetch, precacheName, routeFor } from './swLogic';
+import { clickTarget, handleFetch, notificationFor, precacheName, routeFor } from './swLogic';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -31,4 +31,23 @@ self.addEventListener('fetch', (e) => {
       .then((cache) => handleFetch(req, self.location.origin, ALLOW, { cache, fetch: (u) => fetch(u) }))
       .then((res) => res ?? fetch(r)),
   );
+});
+
+// Push: only the two notices of the server (a new version, the meal plan of the week). A tag per type replaces a repeat.
+self.addEventListener('push', (e) => {
+  let text: string | null = null;
+  try { text = e.data?.text() ?? null; } catch { /* plain notice */ }
+  const n = notificationFor(text);
+  e.waitUntil(self.registration.showNotification(n.title, n.options));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const t = clickTarget(e.notification.data, wins, self.location.origin);
+    if ('open' in t) { await self.clients.openWindow(t.open); return; }
+    const w = wins[t.focus]!;
+    await w.focus();
+    if (t.tab) w.postMessage({ type: 'OPEN_TAB', tab: t.tab });
+  })());
 });

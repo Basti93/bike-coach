@@ -44,7 +44,8 @@ expected="$(gunzip -c "$dir/$base" | docker run -i --rm --network none --memory 
 echo "Counts in the backup:"; echo "$expected" | sed 's/^/  /'
 case "$expected" in "accounts 0"*) echo "Backup has 0 accounts; refusing to call this a good backup." >&2; exit 1;; esac
 
-docker run -d --name "$app" --memory 256m --cpus 1 --pids-limit 128 --read-only --tmpfs /tmp --cap-drop ALL \
+# PANDAFIT_PUSH=off: the copy holds real subscriptions and must never notify anyone.
+docker run -d --name "$app" -e PANDAFIT_PUSH=off --memory 256m --cpus 1 --pids-limit 128 --read-only --tmpfs /tmp --cap-drop ALL \
   --security-opt no-new-privileges:true -v "$vol:/data" -p 127.0.0.1::8080 "$IMAGE" >/dev/null
 port="$(docker port "$app" 8080/tcp | head -n 1 | sed 's/.*://')"
 ok=0
