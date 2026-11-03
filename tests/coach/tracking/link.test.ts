@@ -346,6 +346,19 @@ describe('AccountSync', () => {
     expect([...w.server.db.keys()].filter((k) => k.startsWith('complaint:'))).toEqual([`complaint:${id}`]);
   });
 
+  it('the plan keeps its date when only the mobility offer changes', async () => {
+    const w = await linked(world());
+    w.gym.start(ID);
+    w.gym.state(ID).next = { workout: { name: 'Oberkörper', exercises: [] } as never, reason: 'r', source: 'rules' };
+    await w.sync.tick(ID);
+    w.now += 3 * HOUR;
+    w.rides = [{ status: 'finished', startedAtMs: w.now - 2 * HOUR, durationS: 3600 }];
+    await w.sync.tick(ID);
+    const body = w.server.db.get('plan:current')!.r.body as { atMs: number; mobility: unknown };
+    expect(body.mobility).not.toBeNull();
+    expect(body.atMs).toBe(NOW);
+  });
+
   it('a mobility session done on the phone counts on the Mac', async () => {
     const w = await linked(world());
     const end = NOW - 2 * HOUR;

@@ -193,12 +193,16 @@ export class AccountSync {
     try { mobility = this.deps.mobility.view(id).session; } catch { /* no offer then */ }
     const content = { workout: g.next.workout, reason: g.next.reason, source: g.next.source, note: g.lastNote?.text ?? null, questions: g.lastNote?.questions ?? [] };
     const have = store.all(id, 'plan').find((r) => r.id === 'current');
-    if (have && !have.deleted && isObj(have.body)) {
-      const { atMs: _at, mobility: m, ...rest } = have.body;
-      if (JSON.stringify(rest) === JSON.stringify(content) && JSON.stringify(m ?? null) === JSON.stringify(mobility)) return;
-    }
     const now = this.deps.nowMs();
-    store.put(id, { kind: 'plan', id: 'current', updatedMs: Math.max(now, (have?.updatedMs ?? 0) + 1), deleted: false, body: { ...content, atMs: now, mobility } });
+    // "Plan vom" is the plan's own date: a changed mobility offer alone keeps it.
+    let atMs = now;
+    if (have && !have.deleted && isObj(have.body)) {
+      const { atMs: at, mobility: m, ...rest } = have.body;
+      const samePlan = JSON.stringify(rest) === JSON.stringify(content);
+      if (samePlan && JSON.stringify(m ?? null) === JSON.stringify(mobility)) return;
+      if (samePlan && typeof at === 'number') atMs = at;
+    }
+    store.put(id, { kind: 'plan', id: 'current', updatedMs: Math.max(now, (have?.updatedMs ?? 0) + 1), deleted: false, body: { ...content, atMs, mobility } });
   }
 
   /** The bike coach's complaints as records. The id is the complaint's own, so a copy coming back is the same complaint. */
