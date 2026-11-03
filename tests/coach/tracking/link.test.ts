@@ -232,6 +232,31 @@ describe('AccountSync', () => {
     expect(w.sync.status(ID).lastSyncMs).toBe(w.now);
   });
 
+  it('a 403 is logged once, without the token, and the sync keeps retrying', async () => {
+    const w = await linked(world());
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    w.server.status = 403;
+    await w.sync.tick(ID);
+    expect(w.sync.status(ID)).toMatchObject({ state: 'linked', offline: true });
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0]![0])).toContain('403');
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+    const n = w.server.calls.length;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(w.server.calls.length).toBeGreaterThan(n);
+    expect(log).toHaveBeenCalledTimes(1);
+    // Once a run went through, a new 403 is worth one more line.
+    w.server.status = 0;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(w.sync.status(ID).offline).toBe(false);
+    w.server.status = 403;
+    w.now += MIN + 1;
+    await w.sync.tick(ID);
+    expect(log).toHaveBeenCalledTimes(2);
+  });
+
   it('a rejected token shows calmly and stops calling', async () => {
     const w = await linked(world());
     w.server.status = 401;

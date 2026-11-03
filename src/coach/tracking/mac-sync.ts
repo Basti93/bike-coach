@@ -35,6 +35,8 @@ type Deps = {
 };
 
 class Rejected extends Error {}
+/** 403: on the server, the api's internal listener refused the peer (an address check), which no token change fixes. */
+class Forbidden extends Error {}
 type Per = {
   lastStartMs: number | null; dirty: boolean; running: Promise<void> | null; offline: boolean; lastSyncMs: number | null;
   refused: Set<string>; linking: boolean; failure: LinkFailure | null;
@@ -42,6 +44,8 @@ type Per = {
   later: Map<string, number>;
   /** The store's sequence the last run sent up to, when that run went through to its end. Null otherwise. */
   settledAt: number | null;
+  /** A 403 was logged and no run has gone through since: the next one stays quiet. */
+  forbiddenLogged: boolean;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -58,7 +62,7 @@ export class AccountSync {
 
   private st(id: string): Per {
     let s = this.per.get(id);
-    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map(), settledAt: null }; this.per.set(id, s); }
+    if (!s) { s = { lastStartMs: null, dirty: false, running: null, offline: false, lastSyncMs: null, refused: new Set(), linking: false, failure: null, later: new Map(), settledAt: null, forbiddenLogged: false }; this.per.set(id, s); }
     return s;
   }
 
@@ -129,6 +133,7 @@ export class AccountSync {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (res.status === 401) throw new Rejected();
+      if (res.status === 403) throw new Forbidden();
       if (!res.ok) throw new Error(`server answered ${res.status}`);
       return res.json();
     };
@@ -166,12 +171,17 @@ export class AccountSync {
           }
         },
       });
-      s.offline = false; s.lastSyncMs = this.deps.nowMs();
+      s.offline = false; s.lastSyncMs = this.deps.nowMs(); s.forbiddenLogged = false;
       // Settled only when the run sent everything: a run stopped by a ride leaves its cursor behind the store.
       const c = await links.cursors(id).get();
       if (!c.resend) s.settledAt = c.sent;
     } catch (e) {
       if (e instanceof Rejected) { links.reject(id); s.offline = false; } else s.offline = true;
+      // Kept retrying like any failure, but said once: a refusal that never ends would otherwise go unnoticed.
+      if (e instanceof Forbidden && !s.forbiddenLogged) {
+        s.forbiddenLogged = true;
+        console.error(`Records-Abgleich für Profil ${id}: der Server antwortet 403, neuer Versuch beim nächsten Lauf`);
+      }
     }
   }
 
