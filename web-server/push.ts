@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 /**
  * Web Push with Node's own crypto: VAPID (RFC 8292, ES256 JWT) and aes128gcm payload encryption (RFC 8291).
- * Only three messages exist, both short and without health details, because they pass through the browser vendor's push service.
+ * Only three messages exist, all short and without health details, because they pass through the browser vendor's push service.
  */
 export type PushType = 'version' | 'meal' | 'run';
 export const MESSAGES: Record<PushType, { title: string; body: string }> = {
