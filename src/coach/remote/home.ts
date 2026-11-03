@@ -31,7 +31,7 @@ export const clearMoved = (coachDir: string, profileId: string, nowMs: number = 
   if (!SAFE_ID.test(profileId)) return;
   fs.rmSync(marker(coachDir, profileId), { force: true });
   const dir = remoteDir(coachDir, profileId);
-  for (const name of ['state', 'queue']) {
+  for (const name of ['state', 'queue', 'drift']) {
     try { fs.renameSync(path.join(dir, `${name}.json`), path.join(dir, `${name}.unlinked-${nowMs}.json`)); } catch { /* not there */ }
   }
 };
@@ -67,4 +67,23 @@ export const mealsDue = (coachDir: string, profileIds: string[], onServer: (id: 
   if (mealsMoved(coachDir)) return false;
   const people = mealPeople(coachDir, profileIds);
   return people.every((id) => { try { return onServer(id); } catch { return false; } });
+};
+
+const driftFile = (coachDir: string, profileId: string): string => path.join(remoteDir(coachDir, profileId), 'drift.json');
+
+/** Items changed here after the server took over: kept on this Mac, not on the server. Empty when none. */
+export const driftOf = (coachDir: string, profileId: string): string[] => {
+  if (!SAFE_ID.test(profileId)) return [];
+  try {
+    const d = JSON.parse(fs.readFileSync(driftFile(coachDir, profileId), 'utf8')) as { items?: unknown };
+    return Array.isArray(d.items) ? d.items.filter((x): x is string => typeof x === 'string') : [];
+  } catch { return []; }
+};
+
+export const recordDrift = (coachDir: string, profileId: string, items: string[], atMs: number): void => {
+  if (!SAFE_ID.test(profileId)) return;
+  const f = driftFile(coachDir, profileId);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify({ atMs, items }));
+  fs.renameSync(`${f}.tmp`, f);
 };

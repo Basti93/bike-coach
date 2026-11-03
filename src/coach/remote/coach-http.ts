@@ -4,15 +4,20 @@ import type { BeginResult, FinishResult, Manifest, MigrationItem } from '../serv
 
 /** Without an answer for this long, a call is given up. For uploads: without a byte moving for this long. */
 const TIMEOUT_MS = 60_000;
+/** The finish checks and installs everything on the server, a large database included: it gets longer. */
+const FINISH_TIMEOUT_MS = 5 * 60_000;
+/** How often an upload looks whether a ride opened. */
+const CHECK_MS = 1000;
 const CHUNK = 64 * 1024;
 
 /**
  * offline: no answer, a cut connection, a timeout or a server that cannot take it now (5xx): try again later.
  * rejected: the login itself failed (401); the link is rejected. refused: the server said no to this request (4xx).
+ * stopped: a ride opened, so the request was given up; tried again after the ride.
  * Carries no body and no header: never a secret.
  */
 export class CoachHttpError extends Error {
-  constructor(readonly kind: 'offline' | 'rejected' | 'refused', readonly status: number | null = null, readonly reason: string | null = null) {
+  constructor(readonly kind: 'offline' | 'rejected' | 'refused' | 'stopped', readonly status: number | null = null, readonly reason: string | null = null) {
     super(`Coach-Server: ${kind}${status === null ? '' : ` ${status}`}${reason ? ` ${reason}` : ''}`);
   }
 }
@@ -43,24 +48,41 @@ async function* pieces(b: Buffer): AsyncIterable<Buffer> {
  * Uploads (rides, items) are given up only when no byte moved for a minute, so a slow line still gets 128 MiB through; every
  * other call has a minute in total. A 401 rejects the link: nothing is tried again until it is linked anew.
  */
-export const coachHttp = (opts: { url: string; token: string; fetchFn?: typeof fetch; reject?: () => void; timeoutMs?: number }): CoachHttp => {
+export const coachHttp = (opts: {
+  url: string; token: string; fetchFn?: typeof fetch; reject?: () => void;
+  /** False once a ride opened: an upload under way is given up within `checkMs` ('stopped'). */
+  mayContinue?: () => boolean;
+  timeoutMs?: number; finishTimeoutMs?: number; checkMs?: number;
+}): CoachHttp => {
   const fetchFn = opts.fetchFn ?? fetch;
   const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
+  const may = (): boolean => { try { return opts.mayContinue?.() ?? true; } catch { return false; } };
   const base = `${opts.url.replace(/\/+$/, '')}/coach`;
 
-  const call = async (method: 'GET' | 'POST' | 'PUT', route: string, body: Body, o: { idle: boolean; headers?: Record<string, string>; conflictAnswer?: (d: unknown) => boolean }): Promise<unknown> => {
+  const call = async (method: 'GET' | 'POST' | 'PUT', route: string, body: Body, o: { idle: boolean; totalMs?: number; headers?: Record<string, string>; conflictAnswer?: (d: unknown) => boolean }): Promise<unknown> => {
     const ctrl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const arm = (): void => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      timer = setTimeout(() => ctrl.abort(), o.totalMs ?? timeoutMs);
       timer.unref?.();
     };
     arm();
     // A total timeout is armed once; an idle one again with every byte that moves.
     const moved = o.idle ? arm : () => {};
+    // An upload stops when a ride opens: before every chunk, and every second while it waits.
+    let stopped = false;
+    const stop = (): boolean => {
+      if (!stopped && !may()) { stopped = true; ctrl.abort(); }
+      return stopped;
+    };
+    const watch = o.idle && opts.mayContinue ? setInterval(stop, opts.checkMs ?? CHECK_MS) : null;
+    watch?.unref?.();
     async function* watched(src: AsyncIterable<Buffer>): AsyncIterable<Buffer> {
-      for await (const c of src) { moved(); yield c; moved(); }
+      for await (const c of src) {
+        if (o.idle && stop()) throw new CoachHttpError('stopped');
+        moved(); yield c; moved();
+      }
     }
     const headers: Record<string, string> = { authorization: `Bearer ${opts.token}`, ...(o.headers ?? {}) };
     const init: RequestInit & { duplex?: 'half' } = { method, headers, signal: ctrl.signal };
@@ -80,9 +102,10 @@ export const coachHttp = (opts: { url: string; token: string; fetchFn?: typeof f
       text = await res.text();
     } catch {
       // Deliberately without the cause: it may name the address or a header.
-      throw new CoachHttpError('offline');
+      throw new CoachHttpError(stopped ? 'stopped' : 'offline');
     } finally {
       if (timer) clearTimeout(timer);
+      if (watch) clearInterval(watch);
     }
     if (res.status === 401) {
       try { opts.reject?.(); } catch { /* the token stays unused anyway */ }
@@ -122,7 +145,7 @@ export const coachHttp = (opts: { url: string; token: string; fetchFn?: typeof f
       await call('PUT', `/migrate/item/${encodeURIComponent(name)}`, { kind: 'stream', chunks: fileChunks(file), type: 'application/octet-stream' }, { idle: true, headers: { 'x-sha256': sha256 } });
     },
     finish: async (m) => {
-      const d = await call('POST', '/migrate/finish', { kind: 'json', value: m }, { idle: false });
+      const d = await call('POST', '/migrate/finish', { kind: 'json', value: m }, { idle: false, totalMs: opts.finishTimeoutMs ?? FINISH_TIMEOUT_MS });
       return answer<FinishResult>(d, (x) => (x.state === 'done' && isObj(x.counts)) || (x.state === 'missing' && Array.isArray(x.items) && Array.isArray(x.rides)));
     },
     meals: async (file) => {

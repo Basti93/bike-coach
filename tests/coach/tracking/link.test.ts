@@ -416,6 +416,18 @@ describe('AccountSync', () => {
     expect(w.store.all(ID, 'routine').length).toBe(1);
   });
 
+  it('settled: a run that leaves its resend open is not settled, even when the sent cursor is past every record', async () => {
+    const w = await linked(world());
+    w.store.put(ID, rec('mobility', 'm1', NOW, { text: 'a' }));
+    // The server's database was replaced: everything must go up again from the start.
+    await w.links.cursors(ID).set({ sent: 1_000_000, received: 0, resend: true });
+    // A ride opens with the first request, so the run stops before it cleared resend.
+    w.server.hook = () => { w.ride = true; };
+    await w.sync.tick(ID);
+    expect((await w.links.cursors(ID).get()).resend).toBe(true);
+    expect(w.sync.settled(ID)).toBe(false);
+  });
+
   it('settled: only after a run that went through, and not once something changed here since', async () => {
     const w = await linked(world());
     expect(w.sync.settled(ID)).toBe(false);

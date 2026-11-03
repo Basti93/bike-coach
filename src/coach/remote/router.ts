@@ -1,7 +1,7 @@
 import type { CoachClientMessage, CoachHome, CoachServerMessage, CoachStateMessage } from '../../shared/coach-protocol';
 import type { GarminHealth } from '../../shared/garmin';
 import type { CoachRuntime } from '../runtime';
-import { clearMoved, mealsMoved } from './home';
+import { clearMoved, driftOf, mealsMoved } from './home';
 import type { RemoteCoach } from './remote-coach';
 
 /** How long a request to the server waits for its answer before the interface gets the empty one. */
@@ -73,6 +73,9 @@ export const createRouter = (opts: RouterOptions) => {
     let account = v.account;
     try { account = local.accountSync.status(profileId); } catch { /* the server's then */ }
     const out: CoachStateMessage = { ...v, ...(account ? { account } : {}) };
+    // Items changed here after the server took over are shown, never dropped silently.
+    const drift = driftOf(opts.coachDir, profileId);
+    if (drift.length > 0 && out.coachHome?.where === 'server') out.coachHome = { ...out.coachHome, drift };
     if (mealsLocal()) out.meals = local.mealsView(profileId);
     if (togetherLocal()) { try { out.together = local.together(); } catch { /* the server's then */ } }
     return out;

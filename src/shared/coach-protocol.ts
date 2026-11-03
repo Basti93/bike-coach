@@ -93,9 +93,16 @@ export const QUEUEABLE: ReadonlySet<CoachClientMessage['type']> = new Set<CoachC
 /** Where a profile's coach runs, as the Mac shows it. */
 export type CoachHome =
   | { where: 'local' }
-  | { where: 'moving'; done: number; total: number; problem: 'other-profile' | 'offline' | null }
-  /** full: the queue holds its most entries, so further writes are refused until the server is back. */
-  | { where: 'server'; online: boolean; sinceMs: number | null; session: 'server' | 'cached' | 'rules'; queued: number; full: boolean };
+  /**
+   * problem: other-profile (the account holds another profile), offline (server not reached; tried again), unreadable (an item here
+   * cannot be read), missing (the server keeps missing an item), too-large (a ride over the upload limit), refused (the server refused a request).
+   */
+  | { where: 'moving'; done: number; total: number; problem: 'other-profile' | 'offline' | 'unreadable' | 'missing' | 'too-large' | 'refused' | null }
+  /**
+   * full: the queue holds its most entries, so further writes are refused until the server is back. drift: items changed here after
+   * the server took over on a cut-off finish; they stay on this Mac and did not reach the server.
+   */
+  | { where: 'server'; online: boolean; sinceMs: number | null; session: 'server' | 'cached' | 'rules'; queued: number; full: boolean; drift?: string[] };
 export type RideDetail = { rideId: string; points: { t: number; powerW: number | null; hrBpm: number | null; cadenceRpm: number | null }[] };
 export type GymConfirmResult = 'written' | 'stale' | 'failed';
 /** queued-ack: the queued entry was handled (applied, skipped as stale or ignored as invalid) and may leave the client's queue. */

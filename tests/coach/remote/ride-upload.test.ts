@@ -124,3 +124,61 @@ test('a ride that opens mid-list stops the uploads before the next request', asy
   await t.uploads.tick('pa');
   expect(t.w.got.map((u) => u.rideId)).toEqual(['ride-1', 'ride-2', 'ride-3']);
 });
+
+// ---- Fix round 1 ----
+
+test('a ride over the size limit is not sent, waits longer each time up to six hours, and does not hold up the others', async () => {
+  const root = temp();
+  const ridesDir = path.join(root, 'rides');
+  const coachDir = path.join(root, 'coach');
+  fs.mkdirSync(ridesDir, { recursive: true });
+  writeRide(ridesDir, 'ride-1', 'finished');
+  writeRide(ridesDir, 'ride-2', 'finished');
+  // ride-1 is far larger than the others.
+  fs.appendFileSync(path.join(ridesDir, 'ride-1', 'samples.jsonl'), 'x'.repeat(4000) + '\n');
+  const s = fakeServer();
+  const st = { now: 1_000_000 };
+  const uploads = new RideUploads({ ridesDir, dir: coachDir, http: () => s.http, noOpenRide: () => true, nowMs: () => st.now, maxBytes: 2000 });
+  await uploads.tick('pa');
+  expect(s.w.got.map((u) => u.rideId)).toEqual(['ride-2']);
+  expect(uploads.refused('pa')).toEqual([{ rideId: 'ride-1', reason: 'too-large', tries: 1 }]);
+  // Waits 1 min, then 2, 4 ... and never more than six hours.
+  const waits: number[] = [];
+  let last = st.now;
+  for (let i = 0; i < 12; i++) {
+    let tries = uploads.refused('pa')[0]!.tries;
+    while (uploads.refused('pa')[0]!.tries === tries) { st.now += 60_000; await uploads.tick('pa'); }
+    tries = uploads.refused('pa')[0]!.tries;
+    waits.push(st.now - last);
+    last = st.now;
+  }
+  expect(waits.slice(0, 4)).toEqual([60_000, 120_000, 240_000, 480_000]);
+  expect(Math.max(...waits)).toBe(6 * 3_600_000);
+  expect(s.w.got.map((u) => u.rideId)).toEqual(['ride-2']);
+  // Kept across a restart.
+  const again = new RideUploads({ ridesDir, dir: coachDir, http: () => s.http, noOpenRide: () => true, nowMs: () => st.now, maxBytes: 2000 });
+  expect(again.refused('pa')[0]!.reason).toBe('too-large');
+});
+
+test('a ride the server refuses as too large (413) is put on the same long wait', async () => {
+  const t = setup();
+  writeRide(t.ridesDir, 'ride-1', 'finished');
+  t.http.putRide = async () => { throw new CoachHttpError('refused', 413, 'too-large'); };
+  await t.uploads.tick('pa');
+  expect(t.uploads.refused('pa')).toEqual([{ rideId: 'ride-1', reason: 'too-large', tries: 1 }]);
+});
+
+test('an upload stopped by a ride opening is no failure: it goes on right after the ride', async () => {
+  const t = setup();
+  writeRide(t.ridesDir, 'ride-1', 'finished');
+  let stop = true;
+  const put = t.http.putRide;
+  t.http.putRide = async (u) => { if (stop) throw new CoachHttpError('stopped'); return put(u); };
+  await t.uploads.tick('pa');
+  stop = false;
+  // No minute's wait as after a failure.
+  t.st.now += 1000;
+  await t.uploads.tick('pa');
+  expect(t.w.got.map((u) => u.rideId)).toEqual(['ride-1']);
+  expect(t.uploads.refused('pa')).toEqual([]);
+});

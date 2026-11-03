@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -5,8 +6,8 @@ import { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CoachHttpError, coachHttp } from '../../../src/coach/remote/coach-http';
-import { homeOf, mealsMoved } from '../../../src/coach/remote/home';
-import { migrate } from '../../../src/coach/remote/migrate';
+import { driftOf, homeOf, mealsMoved } from '../../../src/coach/remote/home';
+import { migrate, moveMeals } from '../../../src/coach/remote/migrate';
 import { RideUploads } from '../../../src/coach/remote/ride-upload';
 import { createRouter } from '../../../src/coach/remote/router';
 import { openText } from '../../../src/coach/secrets/secret-box';
@@ -185,7 +186,7 @@ test('a cut-off migration resumes and skips what the server already has', async 
   // The connection breaks at the third item.
   let items = 0;
   s.w.fault = ({ route }) => (route.startsWith('/migrate/item/') && ++items === 3 ? 'before' : null);
-  expect(await run(mac, s.http).out).toEqual({ state: 'failed' });
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'offline' });
   expect(homeOf(mac.coach, 'pa', true)).toBe('local');
   const first = s.w.reqs.filter((q) => q.method === 'PUT').map((q) => q.route);
   s.w.reqs = [];
@@ -206,7 +207,7 @@ test('a finish cut off after the server switched is asked again with the same sn
   const mac = macData();
   const s = await server();
   s.w.fault = ({ route }) => (route === '/migrate/finish' ? 'after' : null);
-  expect(await run(mac, s.http).out).toEqual({ state: 'paused' });
+  expect(await run(mac, s.http).out).toEqual({ state: 'paused', reason: 'finish' });
   expect(homeOf(mac.coach, 'pa', true)).toBe('local');
   s.w.fault = null;
   s.w.reqs = [];
@@ -249,7 +250,7 @@ test('a coach that keeps changing never switches with a stale snapshot', async (
     if (route === '/migrate/begin') fs.writeFileSync(path.join(mac.coach, 'pa.json'), JSON.stringify({ profileId: 'pa', ftpW: 200 + ++n }));
     return null;
   };
-  expect(await run(mac, s.http).out).toEqual({ state: 'failed' });
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'changing' });
   expect(s.w.reqs.filter((q) => q.route === '/migrate/finish')).toEqual([]);
   expect(homeOf(mac.coach, 'pa', true)).toBe('local');
   expect(fs.existsSync(path.join(s.acc, 'moved.json'))).toBe(false);
@@ -259,7 +260,7 @@ test('unsent records hold the switch until they are on the server', async () => 
   const mac = macData();
   const s = await server();
   let settled = false;
-  expect(await run(mac, s.http, { settled: () => settled }).out).toEqual({ state: 'paused' });
+  expect(await run(mac, s.http, { settled: () => settled }).out).toEqual({ state: 'paused', reason: 'records' });
   expect(s.w.reqs.filter((q) => q.route === '/migrate/finish')).toEqual([]);
   expect(homeOf(mac.coach, 'pa', true)).toBe('local');
   settled = true;
@@ -274,7 +275,7 @@ test('an open ride pauses the move before the next request', async () => {
   const s = await server();
   let open = false;
   s.w.fault = ({ route }) => { if (route === '/rides/ride-1') open = true; return null; };
-  expect(await run(mac, s.http, { open: () => open }).out).toEqual({ state: 'paused' });
+  expect(await run(mac, s.http, { open: () => open }).out).toEqual({ state: 'paused', reason: 'ride' });
   expect(s.w.reqs.map((q) => q.route)).toEqual(['/migrate/begin', '/rides/ride-1']);
 });
 
@@ -320,7 +321,7 @@ test('the Hevy key and Garmin tokens go only to the migration route and never in
   // A failed run too: errors carry no secret either.
   let cut = true;
   s.w.fault = ({ route }) => (route === '/migrate/item/garmin-tokens' && cut ? 'after' : null);
-  expect(await run(mac, s.http).out).toEqual({ state: 'failed' });
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'offline' });
   cut = false;
   expect(await run(mac, s.http).out).toEqual({ state: 'done' });
   const secret = /12345678-1234-1234-1234-123456789abc|garmin-test-only-token/;
@@ -340,7 +341,7 @@ test('server unreachable: nothing changes locally, and it tries again', async ()
   const s = await server();
   const before = userData(mac.root);
   s.w.fault = () => 'before';
-  expect(await run(mac, s.http).out).toEqual({ state: 'failed' });
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'offline' });
   expect(homeOf(mac.coach, 'pa', true)).toBe('local');
   expect(userData(mac.root)).toEqual(before);
   expect(mealsMoved(mac.coach)).toBe(false);
@@ -379,4 +380,102 @@ test('an upload is given up only when no byte moved for the idle time, never for
   // A call that is no upload has the timeout in total.
   const hang = (async (_u: string | URL, init: RequestInit = {}) => new Promise((_, reject) => init.signal!.addEventListener('abort', () => reject(new Error('aborted'))))) as typeof fetch;
   await expect(coachHttp({ url: 'https://coach.test', token: 't', timeoutMs: 50, fetchFn: hang }).status()).rejects.toMatchObject({ kind: 'offline' });
+});
+
+// ---- Fix round 1 ----
+
+const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
+
+test('an item that is there but cannot be staged fails the move; the profile stays local', async () => {
+  const mac = macData({ garmin: false });
+  fs.mkdirSync(path.join(mac.root, 'garmin', 'data', 'pa'), { recursive: true });
+  fs.writeFileSync(path.join(mac.root, 'garmin', 'data', 'pa', 'garmin.db'), 'this is not a database, SQLite cannot open it');
+  const s = await server();
+  expect(await run(mac, s.http).out).toEqual({ state: 'failed', reason: 'unreadable', items: ['garmin-db'] });
+  expect(homeOf(mac.coach, 'pa', true)).toBe('local');
+  expect(s.w.reqs.filter((q) => q.route === '/migrate/finish' || q.route === '/migrate/item/garmin-db')).toEqual([]);
+  expect(fs.existsSync(path.join(s.acc, 'moved.json'))).toBe(false);
+});
+
+test('begin answering done for another profile is a refusal; the profile stays local', async () => {
+  const s = await server();
+  const other = { profile: { id: 'pz', name: 'Z', ftpW: 180 }, rides: [], items: [] };
+  const desk = s.household.migrationDesk();
+  desk.begin(1, other);
+  expect(desk.finish(1, other).state).toBe('done');
+  const mac = macData();
+  expect(await run(mac, s.http).out).toEqual({ state: 'refused', reason: 'other-profile' });
+  expect(homeOf(mac.coach, 'pa', true)).toBe('local');
+});
+
+test('a change here after the server switched on a cut finish is kept, logged once and shown, never dropped silently', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const mac = macData();
+  const s = await server();
+  s.w.fault = ({ route }) => (route === '/migrate/finish' ? 'after' : null);
+  expect(await run(mac, s.http).out).toEqual({ state: 'paused', reason: 'finish' });
+  s.w.fault = null;
+  // The local coach writes again before the next run.
+  const newer = JSON.stringify({ profileId: 'pa', ftpW: 222 });
+  fs.writeFileSync(path.join(mac.coach, 'pa.json'), newer);
+  expect(await run(mac, s.http).out).toEqual({ state: 'done', drift: ['coach-state'] });
+  expect(homeOf(mac.coach, 'pa', true)).toBe('server');
+  // Kept here as it is; the server has the switched snapshot.
+  expect(fs.readFileSync(path.join(mac.coach, 'pa.json'), 'utf8')).toBe(newer);
+  expect(driftOf(mac.coach, 'pa')).toEqual(['coach-state']);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(String(warn.mock.calls[0]![0])).toContain('coach-state');
+  expect(String(warn.mock.calls[0]!.join(' '))).not.toContain('222');
+  // Shown on the moved profile's coachHome.
+  const remote = { view: () => ({ type: 'coach-state', state: { profileId: 'pa' }, thinking: false, together: { summits: [] }, coachHome: { where: 'server', online: true, sinceMs: 1, session: 'server', queued: 0, full: false } }) };
+  const local = { view: () => null, handle: () => {}, accountSync: { status: () => null } } as unknown as CoachRuntime;
+  const router = createRouter({ local, remote: () => remote as never, mealsLocal: () => false, togetherLocal: () => false, coachDir: mac.coach });
+  expect(router.view('pa')!.coachHome).toMatchObject({ where: 'server', drift: ['coach-state'] });
+});
+
+test('a ride opening between items pauses before the next item', async () => {
+  const mac = macData();
+  const s = await server();
+  let open = false;
+  s.w.fault = ({ route }) => { if (route === '/migrate/item/coach-state') open = true; return null; };
+  expect(await run(mac, s.http, { open: () => open }).out).toEqual({ state: 'paused', reason: 'ride' });
+  expect(s.w.reqs.map((q) => q.route).at(-1)).toBe('/migrate/item/coach-state');
+});
+
+test('a paused move resumes with the same snapshot: nothing is staged again while the live data is unchanged', async () => {
+  const mac = macData();
+  const s = await server();
+  expect(await run(mac, s.http, { settled: () => false }).out).toEqual({ state: 'paused', reason: 'records' });
+  const staging = path.join(mac.coach, 'remote', 'pa', 'staging');
+  const stats = () => fs.readdirSync(staging).sort().map((n) => { const st = fs.statSync(path.join(staging, n)); return `${n} ${st.ino} ${st.mtimeMs}`; });
+  const before = stats();
+  expect(await run(mac, s.http, { settled: () => false }).out).toEqual({ state: 'paused', reason: 'records' });
+  expect(stats()).toEqual(before);
+});
+
+test('the snapshot file holds no hash of a secret', async () => {
+  const mac = macData();
+  const s = await server();
+  expect(await run(mac, s.http, { settled: () => false }).out).toEqual({ state: 'paused', reason: 'records' });
+  const text = fs.readFileSync(path.join(mac.coach, 'remote', 'pa', 'staging', 'snapshot.json'), 'utf8');
+  expect(text).not.toContain(sha(HEVY_KEY));
+  expect(text).not.toContain(sha(GARMIN_TOKENS));
+  // The secrets still arrive with their hash checked.
+  expect(await run(mac, s.http).out).toEqual({ state: 'done' });
+  expect(openText(KEY, '1:hevy', fs.readFileSync(path.join(s.acc, 'hevy', 'pa', 'api-key'), 'utf8'))).toBe(HEVY_KEY);
+});
+
+test('without a meal file here, the empty placeholder moves the meal plan on the server', async () => {
+  const mac = macData();
+  const s = await server();
+  expect(await run(mac, s.http).out).toEqual({ state: 'done' });
+  const onServer = (id: string) => homeOf(mac.coach, id, true) === 'server';
+  expect(await moveMeals({ coachDir: mac.coach, profileIds: ['pa'], onServer, http: () => s.http, nowMs: () => NOON })).toBe(true);
+  expect(mealsMoved(mac.coach)).toBe(true);
+  expect(fs.existsSync(path.join(s.sroot, 'household', 'meals', 'moved.json'))).toBe(true);
+  expect(JSON.parse(fs.readFileSync(path.join(s.sroot, 'household', 'meals', 'household.json'), 'utf8'))).toMatchObject({ settings: {} });
+  // Once moved, nothing goes again.
+  s.w.reqs = [];
+  expect(await moveMeals({ coachDir: mac.coach, profileIds: ['pa'], onServer, http: () => s.http, nowMs: () => NOON })).toBe(false);
+  expect(s.w.reqs).toEqual([]);
 });

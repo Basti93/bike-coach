@@ -6,10 +6,19 @@ import { parseProfile, type Profile } from '../../shared/profiles';
 import { readRideFiles, rideHash } from '../ride-upload-format';
 import type { Manifest, MigrationItem } from '../server/migration';
 import { CoachHttpError, type CoachHttp } from './coach-http';
-import { markMoved, remoteDir } from './home';
+import { markMealsMoved, markMoved, mealFile, mealsDue, recordDrift, remoteDir } from './home';
 import type { RideUploads } from './ride-upload';
 
-export type MigrateResult = { state: 'done' } | { state: 'refused'; reason: 'other-profile' } | { state: 'paused' } | { state: 'failed' };
+/**
+ * paused: ride (a ride opened), records (records not on the server yet), finish (the finish was cut off; asked again with the same
+ * snapshot). failed: offline (not reached), changing (the live data kept changing), unreadable (an item here cannot be read),
+ * missing (the server misses items after finish), too-large / refused (the server refused a ride or an item).
+ */
+export type MigrateResult =
+  | { state: 'done'; drift?: string[] }
+  | { state: 'refused'; reason: 'other-profile' }
+  | { state: 'paused'; reason: 'ride' | 'records' | 'finish' }
+  | { state: 'failed'; reason: 'offline' | 'changing' | 'unreadable' | 'missing' | 'too-large' | 'refused'; items?: string[] };
 
 export type MigrateOptions = {
   /** Holds `rides/`, `coach/`, `garmin/` and `hevy/`, as the Mac keeps them. Only read, never changed. */
@@ -43,15 +52,25 @@ const sources = (root: string, p: string): Source[] => {
     { name: 'garmin-tokens', file: path.join(root, 'garmin', 'tokens', p, 'garmin_tokens.json'), kind: 'secret' },
   ];
 };
+const SECRET = new Set<string>(sources('', 'x').filter((s) => s.kind === 'secret').map((s) => s.name));
 
 /** What a run compares to see whether the live data changed since its snapshot. */
 type Snapshot = {
+  /** A secret's hash is never stored: it is '' on disk and computed from its file when the snapshot is used. */
   manifest: Manifest;
-  /** Per item, how the live file looked when the snapshot was taken: absent, a content hash, or for the database its files' sizes and times. */
+  /**
+   * Per item, how the live file looked when the snapshot was taken: absent, a content hash, or for the database and the secrets
+   * the files' size, time and inode. Also the profile and the closed rides.
+   */
   live: Record<string, string>;
   /** The item's bytes to send: the staged copy, or for a secret its own file. */
   files: Partial<Record<MigrationItem, string>>;
 };
+
+/** An item that is there but cannot be read or copied: never left out, the move fails. */
+class Unreadable extends Error {
+  constructor(readonly items: string[]) { super('Umzug: Datei nicht lesbar'); }
+}
 
 const hashFile = async (file: string): Promise<{ sha256: string; bytes: number }> => {
   const h = createHash('sha256');
@@ -60,13 +79,17 @@ const hashFile = async (file: string): Promise<{ sha256: string; bytes: number }
   return { sha256: h.digest('hex'), bytes };
 };
 
-const statOf = (file: string): string => { try { const s = fs.statSync(file); return `${s.size}:${s.mtimeMs}`; } catch { return '-'; } };
+const statOf = (file: string): string => { try { const s = fs.statSync(file); return `${s.size}:${s.mtimeMs}:${s.ino}`; } catch { return '-'; } };
 
-/** How a live file looks now. The database by its files, as hashing it whole on every check costs too much. */
+/**
+ * How a live file looks now. The database by its files, as hashing it whole on every check costs too much; a secret by its file
+ * too, so no hash of it is ever kept. A file that is there but cannot be read counts as unreadable, never as absent.
+ */
 const fingerprint = async (s: Source): Promise<string> => {
   if (!fs.existsSync(s.file)) return 'absent';
   if (s.kind === 'database') return `db ${statOf(s.file)} ${statOf(`${s.file}-wal`)}`;
-  try { return (await hashFile(s.file)).sha256; } catch { return 'absent'; }
+  if (s.kind === 'secret') return `stat ${statOf(s.file)}`;
+  try { return (await hashFile(s.file)).sha256; } catch { return 'unreadable'; }
 };
 
 const readProfile = (root: string, profileId: string): Profile | null => {
@@ -90,12 +113,15 @@ const writeJson = (file: string, data: unknown): void => {
   fs.renameSync(`${file}.tmp`, file);
 };
 
+/** The reason a refused upload gives the move. */
+const refusal = (e: CoachHttpError): 'too-large' | 'refused' => (e.status === 413 || e.reason === 'too-large' ? 'too-large' : 'refused');
+
 /**
  * Moves a linked profile to the server coach, once. Everything the Mac holds for it goes up checked by hash: a snapshot of the
  * coach files in `<coachDir>/remote/<profileId>/staging/`, the rides through the ride uploads, the secrets straight from their
  * files. Before the switch the live files are checked again; a change starts a fresh snapshot. The profile counts as moved only
- * when the server says done. A cut-off run resumes with the same snapshot and skips what the server already holds. The local
- * files are never changed, and nothing is logged.
+ * when the server says done for this profile. A cut-off run resumes with the same snapshot and skips what the server already holds.
+ * The local files are never changed, and nothing of their content is logged.
  */
 export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
   const { root, profileId: p, http } = opts;
@@ -116,16 +142,25 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
     out.rides = opts.uploads.closed(p).join(',');
     return out;
   };
-  const same = (a: Record<string, string>, b: Record<string, string>): boolean =>
-    Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v);
+  const differing = (a: Record<string, string>, b: Record<string, string>): string[] =>
+    [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => a[k] !== b[k]);
 
-  /** The snapshot an earlier run left, when the live data is still as it was then. */
-  const resume = async (): Promise<Snapshot | null> => {
+  /** The snapshot an earlier run left, as it was written. */
+  const load = (): Snapshot | null => {
     let s: Snapshot;
     try { s = JSON.parse(fs.readFileSync(saved, 'utf8')) as Snapshot; } catch { return null; }
     if (!s || typeof s !== 'object' || !s.manifest || !s.live || !s.files) return null;
+    return s;
+  };
+  /** A loaded snapshot ready to send: its files there and the secrets' hashes computed from their files. Null if it cannot be used. */
+  const ready = async (s: Snapshot): Promise<Snapshot | null> => {
     if (!Object.values(s.files).every((f) => typeof f === 'string' && fs.existsSync(f))) return null;
-    return same(s.live, await liveNow()) ? s : null;
+    const items: Manifest['items'] = [];
+    for (const i of s.manifest.items) {
+      if (!SECRET.has(i.name)) { items.push(i); continue; }
+      try { items.push({ name: i.name, ...(await hashFile(s.files[i.name]!)) }); } catch { return null; }
+    }
+    return { ...s, manifest: { ...s.manifest, items } };
   };
 
   const take = async (): Promise<Snapshot | null> => {
@@ -135,44 +170,61 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
     const live = await liveNow();
     const profile = readProfile(root, p);
     if (!profile) return null;
+    const unreadable = all.filter((s) => live[s.name] === 'unreadable').map((s) => s.name);
     const items: Manifest['items'] = [];
     const files: Snapshot['files'] = {};
     for (const s of all) {
-      if (live[s.name] === 'absent') continue;
+      // Only an item that is not there is left out.
+      if (live[s.name] === 'absent' || live[s.name] === 'unreadable') continue;
       let file = s.file;
       try {
         if (s.kind === 'database') { file = path.join(staging, s.name); vacuumInto(s.file, file); }
         else if (s.kind === 'copy') { file = path.join(staging, s.name); fs.copyFileSync(s.file, file); }
-        const h = await hashFile(file);
-        items.push({ name: s.name, ...h });
+        items.push({ name: s.name, ...(await hashFile(file)) });
         files[s.name] = file;
       } catch {
-        // Gone between the look and the copy: the check before the switch sees it.
-        continue;
+        unreadable.push(s.name);
       }
     }
+    if (unreadable.length > 0) throw new Unreadable(unreadable);
     const rides: Manifest['rides'] = [];
     for (const rideId of opts.uploads.closed(p)) {
       try { rides.push({ rideId, sha256: rideHash(readRideFiles(path.join(root, 'rides', rideId))) }); } catch { /* unreadable: not part of the move */ }
     }
     const snap: Snapshot = { manifest: { profile, rides, items }, live, files };
-    writeJson(saved, snap);
+    // No hash of a secret on disk.
+    writeJson(saved, { ...snap, manifest: { ...snap.manifest, items: items.map((i) => (SECRET.has(i.name) ? { ...i, sha256: '' } : i)) } });
     return snap;
   };
 
-  const done = (counts: { rides: number; items: number }): MigrateResult => {
+  /**
+   * The server switched. When it did on an earlier, cut-off finish and the data here changed since that snapshot, the changes stay
+   * here, are listed for the coach view and logged once by item name. Records travel through the account sync anyway; rides closed
+   * later through the ride uploads.
+   */
+  const done = (counts: { rides: number; items: number }, switched: Snapshot | null, live: Record<string, string>): MigrateResult => {
+    const drift = switched ? differing(switched.live, live).filter((k) => k !== 'rides') : [];
     markMoved(coachDir, p, { atMs: nowMs(), counts });
+    if (drift.length > 0) {
+      recordDrift(coachDir, p, drift, nowMs());
+      console.warn(`Coach-Umzug: nach dem Wechsel hier geändert und nicht übertragen: ${drift.join(', ')}`);
+    }
     fs.rmSync(staging, { recursive: true, force: true });
-    return { state: 'done' };
+    return drift.length > 0 ? { state: 'done', drift } : { state: 'done' };
   };
 
   /** One pass with one snapshot: 'changed' when the live data moved on under it. */
-  const pass = async (snap: Snapshot): Promise<MigrateResult | 'changed'> => {
+  const pass = async (snap: Snapshot, earlier: Snapshot | null): Promise<MigrateResult | 'changed'> => {
     const m = snap.manifest;
-    if (!may()) return { state: 'paused' };
+    if (!may()) return { state: 'paused', reason: 'ride' };
     const b = await http.begin(m);
     if (b.state === 'refused') return { state: 'refused', reason: 'other-profile' };
-    if (b.state === 'done') return done({ rides: m.rides.length, items: m.items.length });
+    if (b.state === 'done') {
+      // Done for another profile is not ours: the account holds someone else.
+      if (b.profileId !== p) return { state: 'refused', reason: 'other-profile' };
+      // The server took the snapshot an earlier finish sent: the drift is measured from that one.
+      return done({ rides: m.rides.length, items: m.items.length }, earlier ?? snap, await liveNow());
+    }
     const total = m.rides.length + m.items.length;
     let count = 0;
     const haveRides = new Set(b.haveRides);
@@ -182,39 +234,70 @@ export const migrate = async (opts: MigrateOptions): Promise<MigrateResult> => {
     progress(count, total);
     for (const r of m.rides) {
       if (haveRides.has(r.rideId)) continue;
-      if (!may()) return { state: 'paused' };
+      if (!may()) return { state: 'paused', reason: 'ride' };
       await opts.uploads.upload(p, r.rideId, http);
       progress(++count, total);
     }
     for (const i of m.items) {
       if (haveItems.has(i.name)) continue;
-      if (!may()) return { state: 'paused' };
+      if (!may()) return { state: 'paused', reason: 'ride' };
       await http.putItem(i.name, snap.files[i.name]!, i.sha256);
       progress(++count, total);
     }
-    if (!same(snap.live, await liveNow())) return 'changed';
+    if (differing(snap.live, await liveNow()).length > 0) return 'changed';
     // Records made here before the switch must be on the server first.
-    if (!settled() || !may()) return { state: 'paused' };
+    if (!settled()) return { state: 'paused', reason: 'records' };
+    if (!may()) return { state: 'paused', reason: 'ride' };
     let f;
     try { f = await http.finish(m); } catch (e) {
       // A cut connection or a timeout: the finish is asked again next time with the same snapshot, never counted as failed.
-      if (e instanceof CoachHttpError && e.kind === 'offline') return { state: 'paused' };
+      if (e instanceof CoachHttpError && (e.kind === 'offline' || e.kind === 'stopped')) return { state: 'paused', reason: 'finish' };
       throw e;
     }
-    if (f.state === 'missing') return { state: 'failed' };
-    return done(f.counts);
+    if (f.state === 'missing') return { state: 'failed', reason: 'missing', items: [...f.items, ...f.rides] };
+    return done(f.counts, null, snap.live);
   };
 
   try {
+    if (!may()) return { state: 'paused', reason: 'ride' };
+    // The snapshot an earlier run sent, kept to measure a change after a switch on a cut-off finish.
+    const earlier = load();
+    let first: Snapshot | null = null;
+    if (earlier && differing(earlier.live, await liveNow()).length === 0) first = await ready(earlier);
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      if (!may()) return { state: 'paused' };
-      const snap = (round === 0 ? await resume() : null) ?? await take();
-      if (!snap) return { state: 'failed' };
-      const out = await pass(snap);
+      if (!may()) return { state: 'paused', reason: 'ride' };
+      const snap = (round === 0 ? first : null) ?? await take();
+      if (!snap) return { state: 'failed', reason: 'unreadable', items: ['profile'] };
+      const out = await pass(snap, round === 0 ? earlier : null);
       if (out !== 'changed') return out;
     }
-    return { state: 'failed' };
-  } catch {
-    return { state: 'failed' };
+    return { state: 'failed', reason: 'changing' };
+  } catch (e) {
+    if (e instanceof Unreadable) return { state: 'failed', reason: 'unreadable', items: e.items };
+    if (e instanceof CoachHttpError) {
+      if (e.kind === 'stopped') return { state: 'paused', reason: 'ride' };
+      if (e.kind === 'refused') return { state: 'failed', reason: refusal(e) };
+    }
+    return { state: 'failed', reason: 'offline' };
   }
+};
+
+/**
+ * The household's meal file goes up through one moved profile, once everyone it counts has moved. Without a meal file here
+ * the server's meal plan starts empty. True when it went up now.
+ */
+export const moveMeals = async (o: { coachDir: string; profileIds: string[]; onServer: (id: string) => boolean; http: (id: string) => CoachHttp | null; nowMs?: () => number }): Promise<boolean> => {
+  if (!mealsDue(o.coachDir, o.profileIds, o.onServer)) return false;
+  const via = o.profileIds.find((id) => { try { return o.onServer(id); } catch { return false; } });
+  const http = via ? o.http(via) : null;
+  if (!http) return false;
+  let file = mealFile(o.coachDir);
+  if (!fs.existsSync(file)) {
+    file = path.join(o.coachDir, 'remote', 'meals-empty.json');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '{}');
+  }
+  await http.meals(file);
+  markMealsMoved(o.coachDir, (o.nowMs ?? Date.now)());
+  return true;
 };
