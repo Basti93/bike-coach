@@ -68,6 +68,8 @@ export type CoachRuntime = {
   onChange(fn: (profileId: string | null) => void): () => void;
   coachState(profileId: string): CoachState | null;
   profileIds(): string[];
+  /** Weekdays (Monday 0) the profile usually trains on, from rides and workouts. For a meal plan shared by several runtimes. */
+  trainingDays(profileId: string): number[];
   records: RecordStore;
   accountSync: AccountSync;
 };
@@ -160,13 +162,14 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     links: opts.links, store: records, nowMs, coach, gym, mobility, noOpenRide: () => noOpenRide(),
     onChange: (profileId) => notifyRecords(profileId),
   });
+  const trainingDays = (id: string): number[] => usualTrainingDays([...coach.state(id).summaries.map((r) => r.startedAtMs), ...gym.history(id).map((w) => w.startMs)], nowMs());
   // Optional and per profile, off by default: with no one in, nothing is read, asked or sent.
   const meals: MealCoach | null = opts.meals === 'own' ? new MealCoach({
     dir: path.join(coachDir, 'meals'), nowMs,
     profiles: () => profiles().map(({ id, name, avatar }) => ({ id, name, ...(avatar ? { avatar } : {}) })),
     noOpenRide: () => noOpenRide(),
     ask,
-    trainingDays: (id) => usualTrainingDays([...coach.state(id).summaries.map((r) => r.startedAtMs), ...gym.history(id).map((w) => w.startMs)], nowMs()),
+    trainingDays: (id) => trainingDays(id),
     store: records, linked: (id) => opts.links.status(id).state === 'linked',
     onExport: (touched) => mealsChanged(touched),
   }) : opts.meals;
@@ -389,8 +392,9 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   return {
     handle, view, scan,
     onChange: (fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
-    coachState: (profileId) => { try { return coach.state(profileId); } catch { return null; } },
+    coachState: (profileId) => { if (!known(profileId)) return null; try { return coach.state(profileId); } catch { return null; } },
     profileIds: () => profiles().map((p) => p.id),
+    trainingDays: (profileId) => (known(profileId) ? trainingDays(profileId) : []),
     records, accountSync,
   };
 };
