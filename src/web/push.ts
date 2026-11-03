@@ -1,4 +1,5 @@
 import { isIphoneBrowser } from './logic';
+import { REST_TAG } from './swLogic';
 
 export type SubJson = { endpoint?: string; keys?: Record<string, string> };
 
@@ -44,4 +45,13 @@ export function browserPush(o: { ua: string; standalone: boolean }): PushEnv {
       return s.endpoint;
     },
   };
+}
+
+/** Opening the app makes a rest notice pointless: close the ones still shown. Never throws; returns how many were closed. */
+export async function closeRestNotices(reg: { getNotifications(o: { tag: string }): Promise<readonly { close(): void }[]> }): Promise<number> {
+  try {
+    const shown = await reg.getNotifications({ tag: REST_TAG });
+    for (const n of shown) n.close();
+    return shown.length;
+  } catch { return 0; }
 }

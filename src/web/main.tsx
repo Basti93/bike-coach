@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App, type Env } from './App';
-import { browserPush } from './push';
+import { browserPush, closeRestNotices } from './push';
 import { setupServiceWorker, type OpenState } from './register';
 import './web.css';
 
@@ -37,6 +37,13 @@ const env: Env = {
 };
 
 createRoot(document.getElementById('root')!).render(<App env={env} />);
+
+// A rest notice still on the lock screen is pointless once the app is open.
+if (hasWorker) {
+  const clearRest = () => { void navigator.serviceWorker.ready.then((r) => closeRestNotices(r)).catch(() => {}); };
+  clearRest();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') clearRest(); });
+}
 
 // Registered from the module bundle (the server's CSP allows no inline scripts). Not in dev.
 if (hasWorker) {
