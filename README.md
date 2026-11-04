@@ -1,6 +1,10 @@
 # Pandafit
 
-A Mac app for indoor cycling training. It controls the smart trainer over Bluetooth, records every ride crash-safe and plans the next session with an AI coach.
+Training for two people across cycling, strength, running and mobility. A Mac app rides the smart trainer, a phone web app tracks strength workouts and runs, and an AI coach plans the week across all sports and can be talked to in a chat.
+
+- **Mac app:** controls the smart trainer over Bluetooth, records every ride crash-safe and plans the next ride.
+- **Phone web app (PWA):** strength workouts in the gym, the week plan with the coach chat, runs, meals and stats. Works offline and syncs when it can.
+- **Home server (optional):** the sync API for the phone, plus the coach in its own container, so the coach answers while the Mac is off.
 
 The code and docs are in English. The app's interface and coach texts are in German.
 
@@ -14,24 +18,48 @@ With made-up demo data.
 |---|---|---|
 | ![Start page with the next session and the coach](docs/images/coach.png) | ![Ride screen with power target, power and heart rate](docs/images/ride.png) | ![Shared overview of two riders](docs/images/together.png) |
 
-## What the app does
+## What it does
+
+**Coach for the whole week**
+
+- **Week plan and chat:** One coach knows all sports. Tell it "Freitag bin ich sicher im Studio" or "mein Knie zwickt", and it proposes a week plan that you accept or decline. It keeps at most two hard days, no hard day right after legs, and remembers complaints until you say they are gone.
+- **Long-term progress:** fitter, faster, stronger, more muscle. The coach keeps the direction in mind but stays flexible when a week or two does not go to plan. There is no rigid multi-week programme.
+- **Only when you want it:** a weekly conversation on Sunday evening and a note the evening before a session. Both are off by default and can be switched on per person.
+
+**On the phone**
+
+- **Strength:** plan of the day with a preview, routines, sets with last values, rest timer, an optional "how much was left?" question that drives the progression, exercise pictures and descriptions. During a workout you can ask the coach ("Gerät belegt", "nur noch 30 Minuten"); its change only applies after you confirm it.
+- **Running (optional):** a calm run plan with heart-rate caps, runs from Garmin or entered by hand, easy pace over 4 and 12 weeks, a weekly look back.
+- **Meals (optional):** a weekly meal plan per person.
+- **Stats:** a progress card (FTP and W/kg, easy pace, estimated maxima, muscle groups within their target), this week's minutes and hard days, sets per muscle over the last four weeks.
+- **Push notifications** for a new version, a new meal or run week, and a coach message.
+
+**On the Mac**
 
 - **Riding:** Power targets on the trainer, climb segments with a gentle start, live heart rate and cadence, an overview with charts after the ride, FIT export.
-- **Coach:** Plans the next session within fixed guardrails, responds to notes, remembers complaints and motivations. Without AI, a rule set takes over.
+- **Bike coach:** Plans the next session within fixed guardrails, follows the week plan, responds to notes, remembers complaints and motivations. Without AI, a rule set takes over.
 - **Heart rate:** Five zones from maximum heart rate, display during the ride and power reduction in segments with a set zone. In a session that holds a heart rate, the power follows it slowly within narrow limits.
 - **Progress:** Best power per duration, training load, and a comparison only with your own similar rides: same power, fewer beats.
-- **Garmin (optional):** Recovery, other sports and profile values from Garmin Connect. The access is unofficial and can break at any time.
+- **Garmin (optional):** Recovery, other sports and profile values from Garmin Connect. The access is unofficial and can break at any time. Nothing is uploaded to Garmin without asking first.
+- **Hevy (optional):** Each person can add their own Hevy API key in the app to import strength workouts. Without it, everything works with the app's own tracking.
 - **Troubleshooting:** A local log of the last three days and a problem report that stays on your Mac.
 - **Mountains:** Climb a real pass such as Alpe d'Huez across your rides, as a large profile on the ride screen. Your power moves you up, the trainer keeps following the session. Can be switched off.
-- **More:** Dutch vocabulary in quiet phases, multiple profiles, a shared overview, movie mode.
+- **More:** Dutch vocabulary in quiet phases, multiple profiles, a shared overview, movie mode, mobility sessions after rides and strength days.
 
 The training recommendations are not medical advice. Limits and own settings are described in [`docs/hr-zones.md`](docs/hr-zones.md), [`docs/motivation.md`](docs/motivation.md) and [`docs/ftp-estimate.md`](docs/ftp-estimate.md).
 
-## Requirements
+## Setup
+
+Ask your AI LOL
+
+The rest of this section is what it will need.
+
+### Requirements
 
 - macOS on Apple silicon and Node.js. Developed with Node 26.
 - A Bluetooth FTMS trainer. Built for Zwift Hub One, Polar chest strap and Zwift Click.
-- For the AI: [Claude Code](https://claude.com/claude-code) as `claude` on the path.
+- For the AI: [Claude Code](https://claude.com/claude-code) as `claude` on the path (on the Mac, or in the coach container on the server).
+- For the phone app: a server with Docker. [`web-server/README.md`](web-server/README.md) describes the setup with a Tailscale node and Funnel; the deploy files contain no host names or secrets.
 - For Garmin, optional:
 
   ```bash
@@ -39,12 +67,13 @@ The training recommendations are not medical advice. Limits and own settings are
   python3 -m venv "$V/venv" && "$V/venv/bin/pip" install "garminconnect[workout]==0.3.20"
   ```
 
-## Getting started
+### Getting started
 
 ```bash
 npm install
 npm run dev       # with real devices
 npm run dev:sim   # without a bike: simulates trainer and strap
+npm run dev:web   # the phone web app locally
 ```
 
 To build the finished app and install it to `/Applications`, never during an open ride:
@@ -61,14 +90,17 @@ The app is only ad hoc signed and is therefore meant for your own Mac. There are
 npm test            # main tests
 npm run test:chaos  # crash and failure tests
 npm run test:garmin # Garmin fetch (Python)
+npm run test:web-smoke # the phone app in a real browser against a real server
 npm run typecheck
 ```
 
 ## Data
 
-Everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, the device log under `rides/diagnostics/`, problem reports under `rides/reports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
+On the Mac, everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, the device log under `rides/diagnostics/`, problem reports under `rides/reports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
 
-The app does not back up this local data. The scripts under `server/mac/` only fetch the server's backups.
+The phone keeps its entries on the device (IndexedDB) and sends them to the home server when there is a connection. On the server, the Hevy key and Garmin tokens are stored encrypted (AES-256-GCM) with a key from the server's `.env`; this protects backups, not a running server.
+
+The app does not back up the Mac's local data. The scripts under `server/mac/` and `web-server/mac/` only fetch the server's backups.
 
 ## Structure
 
@@ -76,11 +108,14 @@ The app does not back up this local data. The scripts under `server/mac/` only f
 |---|---|
 | `src/main` | Electron main process, monitors the services and restarts them |
 | `src/service` | Ride service: Bluetooth, recording, ride logic |
-| `src/coach` | Coach, Garmin integration, analysis |
-| `src/ui` | Interface (React) |
+| `src/coach` | Coaches (bike, strength, run, mobility, meals, week chat), Garmin and Hevy, analysis |
+| `src/ui` | Mac interface (React) |
+| `src/tracking` | Screens shared by the Mac and the phone: strength, week, running, stats |
+| `src/web` | Phone web app (PWA, service worker, offline storage) |
 | `src/shared` | Shared types and rules |
 | `scripts/garmin` | Garmin fetch in Python |
-| `server` | Optional sync server (Docker, SQLite) |
+| `web-server` | Home server: sync API for the phone and the coach container (Docker, SQLite) |
+| `server` | Older sync server for rides from the Mac (Docker, SQLite) |
 
 Rules for changes during a running ride are in [`CLAUDE.md`](CLAUDE.md).
 
