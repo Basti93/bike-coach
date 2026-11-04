@@ -16,6 +16,7 @@ import type { RecordStore } from '../tracking/store';
 import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { readTasks, type CoachId } from '../coach-tasks';
+import { readOutlook } from '../../shared/gym-outlook';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
@@ -347,6 +348,8 @@ export class GymCoach {
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
     s.next = { workout, reason: (reason && honest(reason)) || fallback, source: 'claude' };
+    // A sketch without weights; an answer without one keeps the last sketch rather than none.
+    s.outlook = readOutlook(a.outlook) ?? s.outlook;
     s.emptyReason = null;
     s.lastError = null;
     const rule = clean(a.newRule, 200);

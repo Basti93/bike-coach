@@ -250,7 +250,7 @@ export class AccountSync {
     if (!g.next) return;
     let mobility: unknown = null;
     try { mobility = this.deps.mobility.view(id).session; } catch { /* no offer then */ }
-    const content = { workout: g.next.workout, reason: g.next.reason, source: g.next.source, note: g.lastNote?.text ?? null, questions: g.lastNote?.questions ?? [] };
+    const content = { workout: g.next.workout, reason: g.next.reason, source: g.next.source, note: g.lastNote?.text ?? null, questions: g.lastNote?.questions ?? [], ...(g.outlook ? { outlook: g.outlook } : {}) };
     const have = store.all(id, 'plan').find((r) => r.id === 'current');
     const now = this.deps.nowMs();
     // "Plan vom" is the plan's own date: a changed mobility offer alone keeps it.

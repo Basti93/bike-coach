@@ -4,6 +4,7 @@ import type { GymExercise, GymSet, GymWorkout } from '../../coach/gym/types';
 import type { CoachClientMessage, GymConfirmResult } from '../../shared/coach-protocol';
 import type { MobilityView } from '../../coach/mobility/mobility';
 import { MobilityCard } from './MobilityCard';
+import { GymOutlook } from '../../tracking/ui/GymOutlook';
 
 type Props = {
   profileId: string;
@@ -118,6 +119,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
                 <button className="secondary" onClick={() => adjust('harder')}>Härter</button>
                 <button className="secondary" onClick={() => adjust('shorter')}>Kürzer</button>
               </div>
+              <GymOutlook outlook={state.outlook} />
             </section>
           )}
           {previewFailed && !preview && !result && <p className="notice" role="status">Die Vorschau ist gerade nicht möglich. In Hevy wurde nichts verändert, du kannst es gleich noch einmal versuchen.</p>}

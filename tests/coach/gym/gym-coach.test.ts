@@ -41,7 +41,7 @@ beforeEach(() => { tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gym-coach-')); d
 afterEach(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
 
 type Input = { prompt: string; systemPrompt: string; schema: object };
-function harness(opts: { writer?: HevyRoutines | null } = {}) {
+function harness(opts: { writer?: HevyRoutines | null; giveTask?: (id: string, t: unknown) => void } = {}) {
   const h = {
     now: NOW, ready: true, workouts: history(), templates: TEMPLATES,
     summaries: [] as RideSummary[], complaints: [] as Complaint[],
@@ -63,6 +63,7 @@ function harness(opts: { writer?: HevyRoutines | null } = {}) {
         bike: () => ({ summaries: h.summaries, complaints: h.complaints }),
         complaint: (_id, text) => { h.filed.push(text); },
         writer: () => opts.writer ?? null,
+        ...(opts.giveTask ? { giveTask: opts.giveTask } : {}),
       });
     },
   };
@@ -90,6 +91,21 @@ describe('planning', () => {
     expect(s.next?.workout.name).toBe('Oberkörper');
     expect(s.dirty).toBe(false);
     expect(s.seenWorkoutIds.sort()).toEqual(['w14', 'w7']);
+  });
+
+  it('keeps the outlook of the answer, an answer without one keeps the last, and tasks go to the other coaches', async () => {
+    const given: unknown[] = [];
+    const h = harness({ giveTask: (_id: string, t: unknown) => given.push(t) });
+    const outlook = { direction: 'Mehr Beinbeuger.', sessions: [{ date: null, name: 'Beine', focus: 'Beinbeuger', exercises: [{ title: 'Beinbeugen sitzend', sets: 3 }] }] };
+    h.replies = [answer({ outlook, tasks: [{ coach: 'bike', text: 'Morgen locker', lasting: false }] })];
+    await h.coach.tick(ID);
+    expect(h.coach.state(ID).outlook).toEqual(outlook);
+    expect(given).toEqual([{ to: 'bike', text: 'Morgen locker', lasting: false }]);
+    expect(h.calls[0]!.systemPrompt).toContain('tasks');
+    h.coach.taskAdded(ID);
+    h.replies = [answer()];
+    await h.coach.tick(ID);
+    expect(h.coach.state(ID).outlook).toEqual(outlook);
   });
 
   it('an AI workout outside the limits gets one correction, then the rules take over', async () => {

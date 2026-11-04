@@ -2,11 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ClaudeErrorKind } from '../claude-client';
 import type { GymWorkout } from './types';
+import type { GymOutlook } from '../../shared/gym-outlook';
 
 export type GymState = {
   profileId: string;
   goal: 'muscle';
   next: { workout: GymWorkout; reason: string; source: 'claude' | 'rules' } | null;
+  /** The workouts after the next one, sketched, and where the training is heading. Null until the AI planned. */
+  outlook: GymOutlook | null;
   /** Why there is no workout right now: the rule workout found nothing to offer. Never stored as a workout. */
   emptyReason: string | null;
   lastNote: { workoutId: string; text: string; questions: string[]; atMs: number } | null;
@@ -38,7 +41,7 @@ export type GymState = {
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialGymState = (profileId: string): GymState => ({
-  profileId, goal: 'muscle', next: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
+  profileId, goal: 'muscle', next: null, outlook: null, emptyReason: null, lastNote: null, rules: [], notes: [], answers: [], seenWorkoutIds: [],
   routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null, localStart: false, links: {},
 });
 

@@ -1,4 +1,5 @@
 import type { TrackedRecord } from '../shared/records';
+import { readOutlook, type GymOutlook } from '../shared/gym-outlook';
 
 const DAY = 86_400_000;
 export const STALE_PLAN_MS = 7 * DAY;
@@ -7,7 +8,7 @@ const MOBILITY_PAUSE_MS = 2 * DAY;
 
 export type PlanBody = {
   workout: import('../coach/gym/types').GymWorkout | null; reason: string | null; source: string | null; note: string | null;
-  questions: string[]; atMs: number; mobility: MobilitySession | null;
+  questions: string[]; atMs: number; mobility: MobilitySession | null; outlook: GymOutlook | null;
 };
 export type MobilitySession = { id: string; forSession: 'bike' | 'strength' | 'run'; minutes: number; exercises: { id: string; title: string; howTo: string; area: string }[]; reason: string };
 export type Complaint = { text: string; status: string; atMs: number };
@@ -22,7 +23,7 @@ export function readPlan(r: TrackedRecord | undefined): PlanBody | null {
   return {
     workout: w, reason: typeof b.reason === 'string' ? b.reason : null, source: typeof b.source === 'string' ? b.source : null,
     note: typeof b.note === 'string' ? b.note : null, questions: Array.isArray(b.questions) ? b.questions.filter((q): q is string => typeof q === 'string') : [],
-    atMs: typeof b.atMs === 'number' ? b.atMs : r.updatedMs, mobility: m,
+    atMs: typeof b.atMs === 'number' ? b.atMs : r.updatedMs, mobility: m, outlook: readOutlook(b.outlook),
   };
 }
 

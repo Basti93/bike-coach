@@ -8,6 +8,7 @@ import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { TodayCard, todayPlan } from '../tracking/ui/TodayCard';
 import { runView } from '../tracking/ui/run-view';
 import { MobilityOffer } from '../tracking/ui/MobilityOffer';
+import { GymOutlook } from '../tracking/ui/GymOutlook';
 import { usePortRecords } from '../tracking/ui/hooks';
 import { openIdb } from './idbStore';
 import { mobilityToShow, planDateText, planIsStale, readPlan, shouldShowInstallHint } from './logic';
@@ -130,6 +131,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
       {p.note && <p>{p.note}</p>}
       {p.questions.length > 0 && <ul>{p.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>}
       <button type="button" onClick={goTraining}>Zum Krafttraining</button>
+      <GymOutlook outlook={p.outlook} />
     </>
   ) : (
     <>
