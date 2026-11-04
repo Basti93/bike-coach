@@ -13,6 +13,7 @@ import type { CoachServerMessage } from '../../src/shared/coach-protocol';
 import { sealedTokens } from '../../src/coach/secrets/garmin-tokens';
 import { sealedCodec } from '../../src/coach/secrets/secret-box';
 import { CHAT_SYSTEM_PROMPT } from '../../src/coach/meals/chat';
+import { CHAT_SYSTEM_PROMPT as WEEK_CHAT_PROMPT } from '../../src/coach/chat/chat-coach';
 import { MealCoach } from '../../src/coach/meals/meal-coach';
 import { computeTogether } from '../../src/coach/together';
 import { TOGETHER_ID } from '../../src/shared/together';
@@ -421,4 +422,27 @@ test('with a week plan taken for this week, a new activity has the chat look at 
     const prompts = (ask.mock.calls as unknown as [{ prompt: string }][]).map(([p]) => p.prompt);
     expect(prompts.some((p) => p.includes('<neueAktivitaeten-nur-daten>'))).toBe(withPlan);
   }
+});
+
+test('a change asked for in the week chat goes to the coach in charge, who plans again at once with it', async () => {
+  const prompts: { system: string; prompt: string }[] = [];
+  const ask = vi.fn(async (input: { prompt: string; systemPrompt: string }) => {
+    prompts.push({ system: input.systemPrompt, prompt: input.prompt });
+    if (input.systemPrompt === WEEK_CHAT_PROMPT) return { text: 'Gebe ich an den Rad-Coach weiter.', proposal: null, riderAskedForMore: false, newComplaint: null, complaintsOver: [], tasks: [{ coach: 'bike', text: 'Nächste Fahrt kürzer', lasting: false }] };
+    return answer;
+  });
+  const { root, runtime } = make({ ask: ask as never });
+  runtime.scan();
+  await settle();
+  runtime.scan();
+  await settle();
+  const store = new RecordStore({ dir: path.join(root, 'coach', 'tracking') });
+  store.putMany('pa', [{ kind: 'chat', id: 'r1', updatedMs: Date.now(), deleted: false, body: { role: 'rider', text: 'Nächste Fahrt bitte kürzer', atMs: Date.now() } }]);
+  prompts.length = 0;
+  for (let i = 0; i < 3; i++) { runtime.scan(); await settle(); }
+  const chat = prompts.find((p) => p.system === WEEK_CHAT_PROMPT);
+  expect(chat?.prompt).toContain('<einheiten-nur-daten>');
+  const bike = prompts.filter((p) => p.system !== WEEK_CHAT_PROMPT && p.prompt.includes('<auftraege-nur-daten>'));
+  expect(bike.length).toBeGreaterThan(0);
+  expect(bike[0]!.prompt).toContain('Nächste Fahrt kürzer');
 });

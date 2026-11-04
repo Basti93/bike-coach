@@ -189,3 +189,33 @@ describe('reviewWeek after a new activity', () => {
     expect(replies(s)).toEqual([]);
   });
 });
+
+describe('the chat and the other coaches', () => {
+  test('sees the planned sessions and hands a change the rider asked for to the coach in charge', async () => {
+    const s = store([rider('r1', 'Morgen bitte nur eine Trizepsübung')]);
+    const given: unknown[] = [];
+    const asks: string[] = [];
+    const c = new ChatCoach({
+      store: s as never, nowMs: () => NOW, newId: () => `c${++n}`,
+      sessions: () => ({ kraft: { name: 'Oberkörper', uebungen: ['Trizepsdrücken am Kabel', 'Trizepsdrücken mit Seil'] } }),
+      giveTask: (_id, t) => given.push(t),
+      ask: (async ({ prompt }: { prompt: string }) => { asks.push(prompt); return { text: 'Gebe ich an den Kraft-Coach weiter.', proposal: null, riderAskedForMore: false, newComplaint: null, complaintsOver: [], tasks: [{ coach: 'gym', text: 'Nur eine Trizepsübung', lasting: false }, { coach: 'meals', text: 'x', lasting: false }] }; }) as never,
+    });
+    expect(await c.tick('p')).toBe(true);
+    expect(given).toEqual([{ to: 'gym', text: 'Nur eine Trizepsübung', lasting: false }]);
+    expect(asks[0]).toContain('<einheiten-nur-daten>');
+    expect(asks[0]).toContain('Trizepsdrücken mit Seil');
+    expect(replies(s)[0]!.text).toBe('Gebe ich an den Kraft-Coach weiter.');
+  });
+
+  test('a message the coach opened by itself hands out no task', async () => {
+    const s = store();
+    const given: unknown[] = [];
+    const c = new ChatCoach({
+      store: s as never, nowMs: () => NOW, newId: () => `c${++n}`, giveTask: (_id, t) => given.push(t),
+      ask: (async () => ({ text: 'Woche?', proposal: null, riderAskedForMore: false, tasks: [{ coach: 'gym', text: 'mehr', lasting: false }] })) as never,
+    });
+    expect(await c.openWeek('p')).toBe(true);
+    expect(given).toEqual([]);
+  });
+});

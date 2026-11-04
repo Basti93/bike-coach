@@ -22,6 +22,7 @@ import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt
 import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
 import { manualRuns, mergeRuns } from './runs';
 import { loadRunCache, saveRunCache, type RunCache } from './state';
+import { readTasks, type CoachId } from '../coach-tasks';
 
 const DAY = 86_400_000;
 const RETRY_MS = 10 * 60_000;
@@ -52,6 +53,8 @@ export type RunDeps = {
   planHint?: (id: string) => string;
   /** Changes when the rider takes a new week plan; part of what makes a week plan again. */
   planKey?: (id: string, week: string) => string;
+  /** Hands a task from this coach to another one. */
+  giveTask?: (id: string, task: { to: CoachId; text: string; lasting: boolean }) => void;
   profile: (id: string) => Profile | null;
   garminDb: (id: string) => Pick<GarminDb, 'runs' | 'activityFile' | 'body'> | null;
   days: (id: string, dates: string[]) => Record<string, DayRating>;
@@ -306,10 +309,15 @@ export class RunCoach {
     }
 
     const numbers = runNumbers(ctx.runs, [...ctx.weeks.values()], now);
-    const ask = (rejection?: string) => this.deps.ask({
-      prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? ''),
-      systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
-    });
+    const ask = async (rejection?: string): Promise<unknown> => {
+      const raw = await this.deps.ask({
+        prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? ''),
+        systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
+      });
+      // Tasks for the other coaches; never in the way of the run plan.
+      try { for (const t of readTasks((raw as { tasks?: unknown } | null)?.tasks)) this.deps.giveTask?.(id, t); } catch { /* a task is a bonus */ }
+      return raw;
+    };
     // A ride that opened while Claude was thinking: the answer is held and written after the ride, without asking again.
     const rideOpened = (checked: RunCheck, retried: boolean): boolean => {
       if (this.deps.noOpenRide()) return false;

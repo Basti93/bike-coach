@@ -30,6 +30,7 @@ import { dateKey, dayRatings, type DayInput, type DayRating } from './day-load';
 import { allTraining } from './all-training';
 import { activitiesHint, activityData, allActivities, ActivitySeen } from './activity-feed';
 import { manualRuns } from './run/runs';
+import { CoachTasks, type CoachId, type TaskFrom } from './coach-tasks';
 import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
 import { ChatCoach } from './chat/chat-coach';
@@ -169,7 +170,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     ridesDir: dir, coachDir, nowMs, garmin: garminData,
     strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
     mobility: (profileId) => mobility.promptData(profileId),
-    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike') + longTermHint(records.all(profileId, 'stats'), nowMs()) + activityHintOf(profileId),
+    giveTask: (profileId, t) => giveTask(profileId, 'bike', t),
+    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike') + longTermHint(records.all(profileId, 'stats'), nowMs()) + activityHintOf(profileId) + tasks.hint(profileId, 'bike', nowMs()),
     ask,
   });
 
@@ -184,7 +186,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     dir: path.join(coachDir, 'gym'), nowMs,
     store: records, hevy: gymConnected,
     mobility: (id) => mobility.promptData(id),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id),
+    giveTask: (id, t) => giveTask(id, 'gym', t),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'gym', nowMs()),
     ask,
     workouts: (id) => hevy.workouts(id),
     templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
@@ -252,7 +255,34 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     complaints: (id) => (coach.state(id).complaints ?? []).map((c) => ({ id: c.id, text: c.text, status: c.status })),
     addComplaint: (id, text) => coach.addComplaintFromText(id, text),
     endComplaint: (id, cid) => coach.updateComplaint(id, cid, 'over', nowMs()),
+    sessions: (id) => sessionsOf(id),
+    giveTask: (id, t) => giveTask(id, 'chat', t),
   });
+  /** What the three coaches have planned next, short, for the week chat. */
+  const sessionsOf = (id: string): object => {
+    const bike = coach.state(id).next;
+    const g = gym.enabled(id) ? gym.state(id).next : null;
+    const runWeek = runView(records.all(id, 'run'), nowMs()).week;
+    return {
+      rad: bike ? { name: bike.session.name, minuten: Math.round(bike.session.steps.reduce((a, st) => a + st.durationS, 0) / 60), begruendung: bike.reason } : null,
+      kraft: g ? {
+        name: g.workout.name, begruendung: g.reason,
+        uebungen: g.workout.exercises.map((e) => {
+          const work = e.sets.filter((st) => st.type !== 'warmup');
+          return { titel: e.title, saetze: work.length, wdh: work[0]?.reps ?? null, kg: work[0]?.weightKg ?? null, hinweis: e.notes || undefined };
+        }),
+      } : null,
+      laufen: runWeek ? runWeek.runs.map((r) => ({ tag: r.date, art: r.kind, minuten: r.minutes, erledigt: r.done !== null })) : null,
+    };
+  };
+  /** The shared task board: the week chat and the coaches give each other tasks; the coach in charge plans again at once. */
+  const tasks = new CoachTasks(path.join(coachDir, 'chat', 'tasks.json'));
+  const giveTask = (id: string, from: TaskFrom, t: { to: CoachId; text: string; lasting: boolean }): void => {
+    if (!tasks.add(id, { from, ...t }, nowMs()) || from !== 'chat') return;
+    // Only the rider's task plans again at once; a coach's task waits for that coach's next plan. The run coach sees it in its plan key.
+    if (t.to === 'bike') coach.taskAdded(id);
+    if (t.to === 'gym') gym.taskAdded(id);
+  };
   /** Every activity of a profile from every source: rides, strength (app and Hevy), Garmin, runs entered by hand. */
   const activitiesOf = (id: string) => allActivities({
     rides: coach.state(id).summaries, workouts: gym.history(id), activities: garminData(id)?.activities,
@@ -276,9 +306,10 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   // Optional and per profile: without a settings record and without Garmin runs it writes nothing. Plans with no ride open only.
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id),
+    giveTask: (id, t) => giveTask(id, 'run', t),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'run', nowMs()),
     // A new activity of any source makes the week be planned again, from today on (from tomorrow after a run today).
-    planKey: (id, week) => `${weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week))}|a${activitySeen.version(id)}`,
+    planKey: (id, week) => `${weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week))}|a${activitySeen.version(id)}|t${tasks.version(id, 'run')}`,
     profile: (id) => profiles().find((p) => p.id === id) ?? null,
     garminDb: (id) => {
       if (!/^[A-Za-z0-9-]+$/.test(id)) return null;

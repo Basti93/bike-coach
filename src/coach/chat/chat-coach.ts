@@ -10,6 +10,7 @@ import { dateKey } from '../day-load';
 import { dataBlock } from '../meals/prompt';
 import type { RecordStore } from '../tracking/store';
 import { LONG_TERM_GUIDE, weekHistory } from './long-term';
+import { readTasks, tasksJsonSchema, type CoachId } from '../coach-tasks';
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = {
@@ -25,6 +26,10 @@ type Deps = {
   addComplaint?: (profileId: string, text: string) => void;
   /** Ends a complaint the rider said is over. */
   endComplaint?: (profileId: string, complaintId: string) => void;
+  /** What the bike, gym and run coach have planned next, for answers about a single session. */
+  sessions?: (profileId: string) => object | null;
+  /** Hands a change the rider asked for to the coach in charge, who plans again at once. */
+  giveTask?: (profileId: string, task: { to: CoachId; text: string; lasting: boolean }) => void;
 };
 
 /** A rider message older than this gets no late answer. */
@@ -32,7 +37,9 @@ const STALE_MS = 2 * 86_400_000;
 const DAYS_SHOWN = 28;
 
 export const CHAT_SYSTEM_PROMPT = `Du bist der Coach in Pandafit für Rad, Kraft, Laufen und Beweglichkeit, alles zusammen. Du sprichst Deutsch, kurz und warm, duzt, ohne Schuld und ohne Druck: keine Serien, kein Nachholen verpasster Einheiten, eine leichte Woche ist in Ordnung.
-Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart. Was in einer Einheit genau passiert (Übungen, Watt, Tempo), entscheiden die einzelnen Coaches; das planst du nicht. Ruhetage gehören zum Plan, nicht jeder Tag ist Training.
+Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart. Ruhetage gehören zum Plan, nicht jeder Tag ist Training.
+Die einzelnen Einheiten (Übungen, Sätze, Watt, Laufminuten) planen der Rad-Coach (bike), der Kraft-Coach (gym) und der Lauf-Coach (run); was sie als Nächstes geplant haben, steht in einheiten. Fragen dazu beantwortest du selbst, fachlich und sportwissenschaftlich begründet. Verweise die Person nie an einen anderen Coach oder ins Training.
+Will die Person an einer Einheit etwas ändern (etwa "nur eine Trizepsübung", "mehr Beine", "Samstag kürzer"), gib dem zuständigen Coach in tasks einen Auftrag: coach, text als klare Anweisung in ihren Worten, lasting true, wenn es ein Wunsch für länger ist, sonst false. Der Coach plant dann sofort neu. Sag in text kurz, was du weitergegeben hast. Ohne Änderungswunsch ist tasks leer.
 Die Person kann Mengen nennen ("2× Kraft, 3× Rad"), feste Tage ("Freitag Studio") oder dich vorschlagen lassen; oft eine Mischung. Feste Wünsche der Person markierst du mit fixed true.
 Stelle höchstens eine Frage auf einmal und nur, wenn die Antwort den Plan ändert. Wenn du genug weißt, mach einen Vorschlag.
 Ein Vorschlag (proposal) ist immer eine ganze Woche von Montag bis Sonntag (sieben Tage, date im Format JJJJ-MM-TT, aus wocheJetzt oder wocheNaechste) mit sport bike, gym, run, mobility oder rest und hardness easy, moderate oder hard. Bei Krafttagen sagt legs, ob Beine trainiert werden; long markiert die lange Rad- oder Laufeinheit. note ist optional und kurz. Ohne Vorschlag ist proposal null. Du änderst nie etwas still: Ein Vorschlag gilt erst, wenn die Person ihn übernimmt.
@@ -66,9 +73,10 @@ const workoutSchema = {
 };
 
 const answerSchema = {
-  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore', 'newComplaint', 'complaintsOver'],
+  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore', 'newComplaint', 'complaintsOver', 'tasks'],
   properties: {
     text: { type: 'string' },
+    tasks: tasksJsonSchema,
     newComplaint: { anyOf: [{ type: 'null' }, { type: 'string' }] },
     complaintsOver: { type: 'array', items: { type: 'string' } },
     riderAskedForMore: { type: 'boolean' },
@@ -131,11 +139,14 @@ export class ChatCoach {
         text: raw.text.trim().slice(0, 1500), proposal: this.proposalOf(raw.proposal, now), more: raw.riderAskedForMore === true,
         complaint: typeof raw.newComplaint === 'string' && raw.newComplaint.trim() ? raw.newComplaint.trim().slice(0, 200) : null,
         over: Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : [],
+        tasks: readTasks(raw.tasks),
       };
     };
     let a = await ask(prompt);
     // Only the rider's own words start or end a complaint, never a message the coach opened by itself.
     if (fromRider) this.applyComplaints(id, a.complaint, a.over);
+    // Only the rider's own words change a session; a message the coach opened by itself never does.
+    if (fromRider) for (const t of a.tasks) { try { this.deps.giveTask?.(id, t); } catch { /* the rider can ask again */ } }
     const careful = this.complaintList(id).length > 0;
     let broken = a.proposal ? checkWeekPlan(a.proposal.days) : [];
     if (broken.length && (!a.more || careful)) {
@@ -186,6 +197,10 @@ export class ChatCoach {
     const p = parseProposal(x);
     const monday = mondayOf(dateKey(now));
     return p && (p.weekStart === monday || p.weekStart === addDays(monday, 7)) ? p : null;
+  }
+
+  private sessionsOf(id: string): object | null {
+    try { return this.deps.sessions?.(id) ?? null; } catch { return null; }
   }
 
   /** The open complaints with their ids. */
@@ -251,6 +266,7 @@ export class ChatCoach {
       dataBlock('wocheJetzt', { montag: monday, plan: week(monday) }),
       dataBlock('wocheNaechste', { montag: addDays(monday, 7), plan: week(addDays(monday, 7)) }),
       dataBlock('letzteTage', days),
+      dataBlock('einheiten', this.sessionsOf(id)),
       dataBlock('wochenVerlauf', weekHistory(this.deps.store.all(id, 'stats'), now)),
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
       dataBlock('beschwerden', this.complaintList(id)),

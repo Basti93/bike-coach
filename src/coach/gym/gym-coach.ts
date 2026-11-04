@@ -15,6 +15,7 @@ import { historyFromLogged, mergeHistory } from '../tracking/merge';
 import type { RecordStore } from '../tracking/store';
 import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
+import { readTasks, type CoachId } from '../coach-tasks';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
@@ -45,6 +46,8 @@ type Deps = {
   mobility?: (id: string) => unknown;
   /** The accepted week plan as prompt text, or ''. */
   planHint?: (id: string) => string;
+  /** Hands a task from this coach to another one. */
+  giveTask?: (id: string, task: { to: CoachId; text: string; lasting: boolean }) => void;
   /** Own records of this Mac. Without one only Hevy counts, as before. */
   store?: RecordStore;
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
@@ -113,6 +116,8 @@ export class GymCoach {
   /** Begins strength training without Hevy. */
   /** The rider took a new week plan: the next workout is planned again for it. */
   weekPlanChanged(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
+  /** A task from the week chat or another coach: the next workout is planned again with it. */
+  taskAdded(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
   /** A new activity from any source, planned or not (a ride, a run, Garmin): the next workout is planned again. */
   activityAdded(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
   start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
@@ -304,10 +309,11 @@ export class GymCoach {
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
+      this.handOff(id, raw);
       const rejected = this.rejection(raw, ctx);
       if (rejected) {
         // Exactly one second attempt with the reason, after that the rules take over.
-        try { raw = await ask(rejected); } catch { /* The first answer decides. */ }
+        try { raw = await ask(rejected); this.handOff(id, raw); } catch { /* The first answer decides. */ }
       }
       const parsed = gymAnswerSchema.safeParse(raw);
       const checked = parsed.success ? checkWorkout(parsed.data.workout, ctx) : null;
@@ -320,6 +326,11 @@ export class GymCoach {
     } catch (e) {
       this.updateIf(gen, id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
     }
+  }
+
+  /** Tasks for the other coaches in an answer. Never throws. */
+  private handOff(id: string, raw: unknown): void {
+    try { for (const t of readTasks((raw as { tasks?: unknown } | null)?.tasks)) this.deps.giveTask?.(id, t); } catch { /* a task is a bonus */ }
   }
 
   private mobilityData(id: string): unknown { try { return this.deps.mobility?.(id) ?? undefined; } catch { return undefined; } }
