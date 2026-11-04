@@ -1,6 +1,6 @@
 # Security
 
-Please do not report security issues as a public issue. Use [GitHub's private reporting](https://github.com/Basti93/bike-coach/security/advisories/new) instead.
+Please do not report security issues as a public issue. Use [GitHub's private reporting](https://github.com/Basti93/pandafit/security/advisories/new) instead.
 
 ## What the app protects
 

@@ -96,7 +96,7 @@ npm run typecheck
 
 ## Data
 
-On the Mac, everything is stored locally in `~/Library/Application Support/bike-coach/`: rides under `rides/`, FIT files under `rides/exports/`, the device log under `rides/diagnostics/`, problem reports under `rides/reports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
+On the Mac, everything is stored locally in `~/Library/Application Support/bike-coach/` (the project's old name, kept so existing data stays where it is): rides under `rides/`, FIT files under `rides/exports/`, the device log under `rides/diagnostics/`, problem reports under `rides/reports/`, coach state under `coach/`, Garmin data under `garmin/`. A `config.json` with `syncUrl` and `syncToken` turns on the optional sync with your own server ([`server/`](server)). Without it, everything runs locally.
 
 The phone keeps its entries on the device (IndexedDB) and sends them to the home server when there is a connection. On the server, the Hevy key and Garmin tokens are stored encrypted (AES-256-GCM) with a key from the server's `.env`; this protects backups, not a running server.
 

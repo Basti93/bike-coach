@@ -1,5 +1,5 @@
 {
-  "name": "bike-coach",
+  "name": "pandafit",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -90,6 +90,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Basti93/bike-coach.git"
+    "url": "git+https://github.com/Basti93/pandafit.git"
   }
 }
