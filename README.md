@@ -1,3 +1,5 @@
+<p align="center"><img src="src/web/public/icons/icon-512.png" alt="Pandafit icon: a panda with a headband" width="128"></p>
+
 # Pandafit
 
 Training for two people across cycling, strength, running and mobility. A Mac app rides the smart trainer, a phone web app tracks strength workouts and runs, and an AI coach plans the week across all sports and can be talked to in a chat.
