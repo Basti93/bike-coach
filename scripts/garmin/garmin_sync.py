@@ -16,6 +16,8 @@ from pathlib import Path
 
 PAGE_SIZE = 100
 RECENT_DAYS = 3
+# New activities get their file at once, so the coach sees a fresh run in detail; older ones wait for the days.
+RECENT_FILE_DAYS = 7
 RETRY_PER_RUN = 50
 MAX_ATTEMPTS = 3
 PAUSE_S = 6 * 3600
@@ -276,11 +278,20 @@ class Sync:
             self.stats["files"] += 1
         self.sleep(ITEM_PAUSE_S)
 
+    MISSING_FILES = """SELECT activity_id FROM activities a WHERE NOT EXISTS (SELECT 1 FROM activity_files f WHERE f.activity_id = a.activity_id)
+                       AND NOT EXISTS (SELECT 1 FROM fetch_errors e WHERE e.key = 'file|' || a.activity_id)"""
+
+    def recent_files(self):
+        since = (self.today - dt.timedelta(days=RECENT_FILE_DAYS - 1)).isoformat()
+        rows = self.con.execute(f"{self.MISSING_FILES} AND start_time >= ? ORDER BY start_time DESC LIMIT ?", (since, self.options["max_files"])).fetchall()
+        for (activity_id,) in rows:
+            self.download(activity_id)
+
     def files(self):
-        missing = """SELECT activity_id FROM activities a WHERE NOT EXISTS (SELECT 1 FROM activity_files f WHERE f.activity_id = a.activity_id)
-                     AND NOT EXISTS (SELECT 1 FROM fetch_errors e WHERE e.key = 'file|' || a.activity_id)
-                     ORDER BY start_time DESC"""
-        for (activity_id,) in self.con.execute(f"{missing} LIMIT ?", (self.options["max_files"],)).fetchall():
+        missing = f"{self.MISSING_FILES} ORDER BY start_time DESC"
+        # One budget per run: what recent_files already took counts.
+        budget = max(0, self.options["max_files"] - self.stats["files"])
+        for (activity_id,) in self.con.execute(f"{missing} LIMIT ?", (budget,)).fetchall():
             self.download(activity_id)
         left = self.con.execute(f"SELECT COUNT(*) FROM ({missing})").fetchone()[0]
         self.set_state("files", None, left == 0)
@@ -304,6 +315,7 @@ class Sync:
     def run(self):
         self.singletons()
         self.activities()
+        self.recent_files()
         self.retry_errors()
         if self.daily():
             self.files()

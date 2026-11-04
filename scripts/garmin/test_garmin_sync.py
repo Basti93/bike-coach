@@ -254,6 +254,16 @@ class SyncTest(unittest.TestCase):
         self.run_sync(fake)
         self.assertEqual(self.count("activity_files"), 2)
 
+    def test_recent_activities_get_their_files_while_the_days_still_load(self):
+        fake = Fake(first="2026-01-01")
+        fake.items.insert(0, {"activityId": 9, "startTimeGMT": "2026-10-31 16:52:39", "activityType": {"typeKey": "running"}})
+        self.run_sync(fake)
+        self.assertEqual(self.state("daily")[1], 0)
+        self.assertEqual([r[0] for r in self.rows("SELECT activity_id FROM activity_files")], ["9"])
+        fake.calls.clear()
+        self.run_sync(fake)
+        self.assertNotIn("file:9", fake.calls)
+
     def test_reset_only_rewinds_one_stream_and_keeps_data(self):
         fake = Fake()
         self.run_sync(fake)
