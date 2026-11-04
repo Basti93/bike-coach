@@ -54,7 +54,7 @@ Coach: `(crontab -l; echo '10 7 * * * $HOME/pandafit/web-server/backup-coach.sh 
 
 ## Betrieb
 
-- Logs: json-file, 3 x 10 MB. Image `tailscale/tailscale:v1.76.1` bewusst manuell anheben.
+- Logs: json-file, 3 x 10 MB. Image `tailscale/tailscale:v1.104.4` bewusst manuell anheben.
 - Update: neu rsyncen **ohne `serve.json` zu überschreiben, falls du den Kill Switch benutzt hast** (`--exclude serve.json`, sonst ist der Funnel wieder an), `docker compose build` (nicht 02:00 bis 06:00), `docker compose up -d`, danach `./restore-drill.sh`.
 - `docker compose stop api` beendet den Prozess sofort (SIGTERM, kein Abwarten offener Anfragen); die Daten sind dank WAL sicher.
 - Speicher: api hat 256m, Node ist darin knapp; coach hat 768m (Claude, Python und Node nebeneinander). Beim ersten Start und nach den ersten Läufen `docker stats --no-stream` ansehen und den Höchstwert notieren. Zusammen 1152 MiB.

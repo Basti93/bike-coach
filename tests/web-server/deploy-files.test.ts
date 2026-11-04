@@ -16,7 +16,7 @@ test('the sync compose still has no Funnel and the new one has its own node', ()
   const c = read('web-server/compose.yaml');
   expect(c).toMatch(/^name: pandafit$/m);
   expect(c).toMatch(/hostname: pandafit$/m);
-  expect(c).toContain('tailscale/tailscale:v1.76.1');
+  expect(c).toContain('tailscale/tailscale:v1.104.4');
   expect(c).toContain('TS_USERSPACE: "true"');
   expect(c).toContain('name: pandafit_data');
   expect(c).not.toMatch(/^\s+env_file:/m);
