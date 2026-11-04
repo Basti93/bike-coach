@@ -37,5 +37,17 @@ if [ -n "$coach_newest" ]; then
   [ "$coach_age" -le 2 ] || fail "neueste Coach-Sicherung ist $coach_age Tage alt"
 fi
 
+# the server's configuration and credentials (paths relative to the home directory on the server), a new
+# server cannot be set up without them; they never go into the repository. A changed file keeps its previous
+# version with the time of the pull as suffix; these few small files are kept, KEEP_DAYS does not apply.
+SECRETS="$TARGET/secrets"
+umask 077
+mkdir -p "$SECRETS" && chmod 700 "$SECRETS"
+for file in ${SECRET_FILES:-pandafit/web-server/.env}; do
+  /usr/bin/rsync -a --backup --suffix=".$(date +%F-%H%M%S)" --timeout=120 \
+    -e "/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=20" "$SERVER:$file" "$SECRETS/" 2>> "$LOG" \
+    || fail "Zugangsdatei $file nicht kopiert (Details: $LOG)"
+done
+
 find "$TARGET" -type f \( -name 'pandafit-*.db.gz' -o -name 'pandafit-coach-*.tar.gz' \) -mtime "+$KEEP_DAYS" -delete
 echo "$(date '+%F %T') ok, newest $(basename "$newest"), $(du -sh "$TARGET" | cut -f1) in total" >> "$LOG"
