@@ -209,6 +209,33 @@ export class ChatCoach {
     } catch { return false; } finally { this.busy.delete(id); }
   }
 
+  /**
+   * After a new activity, planned or not: checks this week's accepted plan and, only when the rest of the week should change,
+   * proposes the updated week. The accepted plan stays until the rider takes the proposal. 'busy' means: try again later.
+   * Never throws.
+   */
+  async reviewWeek(id: string, activities: object[]): Promise<'busy' | 'done'> {
+    if (this.busy.has(id)) return 'busy';
+    const now = this.deps.nowMs();
+    const monday = mondayOf(dateKey(now));
+    if (!planOfWeek(this.deps.store.all(id, 'weekplan'), monday)) return 'done';
+    this.busy.add(id);
+    try {
+      const thread = chatThread(this.deps.store.all(id, 'chat'));
+      const prompt = this.prompt(id, thread.slice(-CHAT_CONTEXT), now, [
+        dataBlock('neueAktivitaeten', activities),
+        'Die Person hat dir gerade nicht geschrieben. Das sind neue Aktivitäten, geplant oder nicht. Prüf, ob der Rest dieser Woche (wocheJetzt) danach noch passt. '
+        + 'Wenn eine Aktivität den Plan verändert (zum Beispiel ungeplant, länger oder härter als geplant), schlag die angepasste Woche vor (wocheJetzt): '
+        + 'vergangene Tage so, wie sie wirklich waren, die kommenden Tage angepasst. Sag in ein bis zwei Sätzen, was du warum änderst; '
+        + 'die Person entscheidet, ob sie beim alten Plan bleibt. Passt der Plan weiterhin, gib proposal null.',
+      ].join('\n'));
+      const msg = await this.answer(id, prompt, now, false);
+      // Only an updated plan for this week is news; everything else stays silent.
+      if (msg.proposal?.weekStart === monday) this.put(id, { ...msg, push: true });
+      return 'done';
+    } catch { return 'done'; } finally { this.busy.delete(id); }
+  }
+
   private prompt(id: string, thread: ReturnType<typeof chatThread>, now: number, instruction = 'Antworte auf die letzte Nachricht der Person im Verlauf.'): string {
     const today = dateKey(now);
     const monday = mondayOf(today);

@@ -45,21 +45,21 @@ describe('ActivitySeen', () => {
   test('a new activity counts once, also one that started earlier than the newest', () => {
     const seen = new ActivitySeen(file());
     seen.check('p', [s('a', NOW - 2 * DAY)], NOW);
-    expect(seen.check('p', [s('a', NOW - 2 * DAY)], NOW)).toBe(false);
-    expect(seen.check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toBe(true);
-    expect(seen.check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toBe(false);
+    expect(seen.check('p', [s('a', NOW - 2 * DAY)], NOW)).toEqual([]);
+    expect(seen.check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toEqual([s('b', NOW - 3 * DAY)]);
+    expect(seen.check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toEqual([]);
     expect(seen.version('p')).toBe(1);
     // Kept across a restart.
-    expect(new ActivitySeen(file()).check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toBe(false);
+    expect(new ActivitySeen(file()).check('p', [s('a', NOW - 2 * DAY), s('b', NOW - 3 * DAY)], NOW)).toEqual([]);
     expect(new ActivitySeen(file()).version('p')).toBe(1);
   });
 
   test('the first look counts only an activity of the last day, old ones and removed ones never', () => {
     const seen = new ActivitySeen(file());
-    expect(seen.check('old', [s('a', NOW - 3 * DAY)], NOW)).toBe(false);
-    expect(seen.check('fresh', [s('a', NOW - 3 * DAY), s('b', NOW - 2 * HOUR)], NOW)).toBe(true);
-    expect(seen.check('fresh', [s('a', NOW - 3 * DAY)], NOW)).toBe(false);
+    expect(seen.check('old', [s('a', NOW - 3 * DAY)], NOW)).toEqual([]);
+    expect(seen.check('fresh', [s('a', NOW - 3 * DAY), s('b', NOW - 2 * HOUR)], NOW)).toEqual([s('b', NOW - 2 * HOUR)]);
+    expect(seen.check('fresh', [s('a', NOW - 3 * DAY)], NOW)).toEqual([]);
     // Older than the window: never news.
-    expect(seen.check('fresh', [s('a', NOW - 3 * DAY), s('ancient', NOW - 30 * DAY)], NOW)).toBe(false);
+    expect(seen.check('fresh', [s('a', NOW - 3 * DAY), s('ancient', NOW - 30 * DAY)], NOW)).toEqual([]);
   });
 });

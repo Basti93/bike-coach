@@ -17,6 +17,8 @@ import { MealCoach } from '../../src/coach/meals/meal-coach';
 import { computeTogether } from '../../src/coach/together';
 import { TOGETHER_ID } from '../../src/shared/together';
 import { weekFp, type RunWeekBody } from '../../src/shared/run';
+import { mondayOf, weekDates } from '../../src/shared/week-plan';
+import { dateKey } from '../../src/coach/day-load';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rt-'));
 const good = { id: 'ki', name: 'KI', steps: [
@@ -402,4 +404,21 @@ test('a new activity of any source, here a run entered by hand, makes the bike c
   runtime.scan();
   await settle();
   expect(ask).not.toHaveBeenCalled();
+});
+
+test('with a week plan taken for this week, a new activity has the chat look at the week; without one it asks nothing extra', async () => {
+  for (const withPlan of [true, false]) {
+    const { root, runtime, ask } = make();
+    const store = new RecordStore({ dir: path.join(root, 'coach', 'tracking') });
+    if (withPlan) {
+      const monday = mondayOf(dateKey(Date.now()));
+      store.putMany('pa', [{ kind: 'weekplan', id: monday, updatedMs: Date.now(), deleted: false, body: { weekStart: monday, days: weekDates(monday).map((date) => ({ date, sport: 'rest', hardness: 'easy', fixed: false })), fromMessage: 'm', acceptedMs: 1 } }]);
+    }
+    runtime.scan();
+    await settle();
+    runtime.scan();
+    await settle();
+    const prompts = (ask.mock.calls as unknown as [{ prompt: string }][]).map(([p]) => p.prompt);
+    expect(prompts.some((p) => p.includes('<neueAktivitaeten-nur-daten>'))).toBe(withPlan);
+  }
 });

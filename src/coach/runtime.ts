@@ -28,7 +28,7 @@ import { GarminWorkouts } from './run/garmin-workouts';
 import { RunCoach } from './run/run-coach';
 import { dateKey, dayRatings, type DayInput, type DayRating } from './day-load';
 import { allTraining } from './all-training';
-import { activitiesHint, allActivities, ActivitySeen } from './activity-feed';
+import { activitiesHint, activityData, allActivities, ActivitySeen } from './activity-feed';
 import { manualRuns } from './run/runs';
 import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
@@ -262,6 +262,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const activityHintOf = (id: string): string => { try { return activitiesHint(activitiesOf(id), nowMs()); } catch { return ''; } };
   // New activities, planned or not, make every coach plan again (the run coach sees it in its own key).
   const activitySeen = new ActivitySeen(path.join(coachDir, 'chat', 'activities-seen.json'));
+  /** New activities waiting for the chat's look at this week's plan. Only in memory: a restart skips one look. */
+  const weekReviews = new Map<string, object[]>();
   /** When each profile's stats were last made: at most every five minutes, or at once on a new date. */
   const statsMade = new Map<string, { atMs: number; date: string }>();
   const statsDue = (id: string): Omit<StatsBody, 'atMs'> | null => {
@@ -549,8 +551,20 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
-      // Never with a ride open: the ride itself becomes an activity only once it is closed.
-      if (free) for (const p of list) { try { if (activitySeen.check(p.id, activitiesOf(p.id), now)) { coach.activityAdded(p.id); gym.activityAdded(p.id); } } catch { /* next scan */ } }
+      // Never with a ride open (a ride becomes an activity only once it is closed), and only while coaches may plan.
+      if (runs) for (const p of list) {
+        try {
+          const fresh = activitySeen.check(p.id, activitiesOf(p.id), now);
+          if (fresh.length === 0) continue;
+          coach.activityAdded(p.id); gym.activityAdded(p.id);
+          weekReviews.set(p.id, [...(weekReviews.get(p.id) ?? []), ...fresh.map(activityData)]);
+        } catch { /* next scan */ }
+      }
+      // The accepted week plan is never changed: the chat proposes the updated week, the rider takes it or keeps the old one.
+      if (runs) for (const [id, acts] of weekReviews) {
+        if (!list.some((p) => p.id === id)) { weekReviews.delete(id); continue; }
+        void chat.reviewWeek(id, acts).then((r) => { if (r === 'done' && weekReviews.get(id) === acts) weekReviews.delete(id); if (r === 'done') mealsChanged([id]); }).catch(() => {}).finally(publish);
+      }
       if (free && scheduled()) for (const p of list) {
         try {
           const due = duePrompts({ id: p.id, records: { prefs: records.all(p.id, 'coachprefs'), weekplan: records.all(p.id, 'weekplan') }, nowMs: now, sent: sentPrompts, detail: (s) => detailOf(p.id, s) });

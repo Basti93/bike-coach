@@ -31,15 +31,18 @@ const clock = (ms: number): string => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+/** How an activity is shown to a coach. */
+export const activityData = (s: TrainingSession) => ({
+  tag: dateKey(s.startMs), uhrzeit: clock(s.startMs),
+  art: s.source === 'rad' ? 'Rad' : s.source === 'kraft' ? 'Kraft' : (s.sport ?? 'andere'),
+  titel: s.title, minuten: Math.round(s.minutes),
+});
+
 /** The block for a coach's prompt: every activity of the last days, planned or not. Empty without any. */
 export const activitiesHint = (sessions: TrainingSession[], nowMs: number): string => {
   const recent = sessions.filter((s) => s.startMs <= nowMs && nowMs - s.startMs <= HINT_DAYS * DAY).sort((a, b) => a.startMs - b.startMs);
   if (recent.length === 0) return '';
-  const data = recent.map((s) => ({
-    tag: dateKey(s.startMs), uhrzeit: clock(s.startMs),
-    art: s.source === 'rad' ? 'Rad' : s.source === 'kraft' ? 'Kraft' : (s.sport ?? 'andere'),
-    titel: s.title, minuten: Math.round(s.minutes),
-  }));
+  const data = recent.map(activityData);
   return `\n\n<aktivitaeten-nur-daten>\n${JSON.stringify(data)}\n</aktivitaeten-nur-daten>\nDas sind alle Aktivitäten der letzten ${HINT_DAYS} Tage aus allen Quellen (diese App, Hevy, Garmin, selbst eingetragen), geplant oder nicht. Plane mit dem, was wirklich gemacht wurde.`;
 };
 
@@ -68,17 +71,17 @@ export class ActivitySeen {
     } catch { /* then it only holds until the restart */ }
   }
 
-  /** True once when an activity of the last days appeared that was not seen before. */
-  check(profileId: string, sessions: { key: string; startMs: number }[], nowMs: number): boolean {
+  /** The activities of the last days not seen before, each returned once; empty when nothing is new. */
+  check<T extends { key: string; startMs: number }>(profileId: string, sessions: T[], nowMs: number): T[] {
     const all = this.load();
     const current = sessions.filter((s) => s.startMs <= nowMs && nowMs - s.startMs <= SEEN_DAYS * DAY);
     const keys = current.map((s) => s.key).sort();
     const old = all[profileId];
     const fresh = old
-      ? current.some((s) => !old.keys.includes(s.key))
-      : current.some((s) => nowMs - s.startMs <= FIRST_LOOK_MS);
-    const version = (old?.version ?? 0) + (fresh ? 1 : 0);
-    if (!old || fresh || keys.join('|') !== old.keys.join('|')) {
+      ? current.filter((s) => !old.keys.includes(s.key))
+      : current.filter((s) => nowMs - s.startMs <= FIRST_LOOK_MS);
+    const version = (old?.version ?? 0) + (fresh.length > 0 ? 1 : 0);
+    if (!old || fresh.length > 0 || keys.join('|') !== old.keys.join('|')) {
       all[profileId] = { keys, version };
       this.save();
     }

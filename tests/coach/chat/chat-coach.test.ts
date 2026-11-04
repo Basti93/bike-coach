@@ -149,3 +149,43 @@ test('the week conversation never starts or ends complaints by itself', async ()
   expect(added).toEqual([]);
   expect(ended).toEqual([]);
 });
+
+describe('reviewWeek after a new activity', () => {
+  const plan = (monday: string): TrackedRecord => ({ kind: 'weekplan', id: monday, updatedMs: 1, deleted: false, body: { weekStart: monday, days: days(monday, [1, 3]), fromMessage: 'm0', acceptedMs: 1 } });
+  const run = [{ tag: '2026-11-04', uhrzeit: '16:52', art: 'running', titel: 'Lauf <x>', minuten: 42 }];
+
+  test('with a plan for this week it proposes the updated week, the old one stays until taken', async () => {
+    const s = store([plan('2026-11-02')]);
+    const asks: string[] = [];
+    const c = coach(s, async ({ prompt }) => { asks.push(prompt); return { text: 'Der Lauf war nicht geplant, darum Freitag locker.', proposal: { weekStart: '2026-11-02', days: days('2026-11-02', [1]) }, riderAskedForMore: false }; });
+    expect(await c.reviewWeek('p', run)).toBe('done');
+    const [m] = replies(s);
+    expect(m).toMatchObject({ text: 'Der Lauf war nicht geplant, darum Freitag locker.', push: true });
+    expect(m!.proposal?.weekStart).toBe('2026-11-02');
+    expect(asks[0]).toContain('<neueAktivitaeten-nur-daten>');
+    expect(asks[0]).toContain('"minuten":42');
+    // Nothing written to the accepted plan: the rider decides.
+    expect((s.recs.get('weekplan:2026-11-02')!.body as { days: unknown[] }).days).toEqual(days('2026-11-02', [1, 3]));
+  });
+
+  test('no message when the plan still fits, none for a proposal of another week, and nothing without a plan', async () => {
+    const fits = store([plan('2026-11-02')]);
+    expect(await coach(fits, async () => ({ text: 'Passt.', proposal: null, riderAskedForMore: false })).reviewWeek('p', run)).toBe('done');
+    expect(replies(fits)).toEqual([]);
+
+    const next = store([plan('2026-11-02')]);
+    expect(await coach(next, async () => ({ text: 'Nächste.', proposal: { weekStart: '2026-11-09', days: days('2026-11-09', [1]) }, riderAskedForMore: false })).reviewWeek('p', run)).toBe('done');
+    expect(replies(next)).toEqual([]);
+
+    const none = store();
+    let asked = false;
+    expect(await coach(none, async () => { asked = true; return {}; }).reviewWeek('p', run)).toBe('done');
+    expect(asked).toBe(false);
+  });
+
+  test('a failed call writes nothing', async () => {
+    const s = store([plan('2026-11-02')]);
+    expect(await coach(s, async () => { throw new ClaudeError('limit', 'x'); }).reviewWeek('p', run)).toBe('done');
+    expect(replies(s)).toEqual([]);
+  });
+});
