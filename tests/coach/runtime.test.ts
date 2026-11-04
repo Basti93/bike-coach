@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream';
 import { vi } from 'vitest';
 import { createCoachRuntime, type RuntimeOptions } from '../../src/coach/runtime';
 import { AccountLinks } from '../../src/coach/tracking/link';
+import { RecordStore } from '../../src/coach/tracking/store';
 import { rampTest } from '../../src/coach/rules';
 import type { Profile } from '../../src/shared/profiles';
 import type { CoachServerMessage } from '../../src/shared/coach-protocol';
@@ -371,4 +372,34 @@ describe('the stats record on the scan', () => {
     runtime.scan();
     expect(mobilityMinutes(runtime)).toBeNull();
   });
+});
+
+test('a new activity of any source, here a run entered by hand, makes the bike coach plan again with it in the prompt', async () => {
+  const { root, runtime, ask } = make();
+  runtime.scan();
+  await settle();
+  runtime.scan();
+  await settle();
+  ask.mockClear();
+  runtime.scan();
+  await settle();
+  expect(ask).not.toHaveBeenCalled();
+
+  const store = new RecordStore({ dir: path.join(root, 'coach', 'tracking') });
+  const startMs = Date.now() - 2 * 3600_000;
+  store.putMany('pa', [{ kind: 'run', id: 'manual-abc', updatedMs: Date.now(), deleted: false, body: { type: 'manual', startMs, durationS: 1800, distanceM: 5000, avgHr: null, runType: 'running' } }]);
+  runtime.scan();
+  await settle();
+  runtime.scan();
+  await settle();
+  expect(ask).toHaveBeenCalled();
+  const prompt = (ask.mock.calls[0] as unknown as [{ prompt: string }])[0].prompt;
+  expect(prompt).toContain('<aktivitaeten-nur-daten>');
+  expect(prompt).toContain('"art":"running"');
+
+  // Seen once: the next scans do not plan again for it.
+  ask.mockClear();
+  runtime.scan();
+  await settle();
+  expect(ask).not.toHaveBeenCalled();
 });

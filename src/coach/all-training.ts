@@ -27,12 +27,8 @@ export const overlapsByHalf = (a: Span, b: Span): boolean => {
   return shorter > 0 && shared >= shorter * SAME_SHARE;
 };
 
-/**
- * Time and number of sessions per week and source, plus the newest sessions, from data that is already local.
- * Only counts and durations are combined: no load, watts or kilos, and no score. A session recorded in two places counts once,
- * as Rad or Kraft. Weeks start on Monday in local time, built from calendar dates because a week is not always 7 x 24 hours.
- */
-export const allTraining = (input: TrainingInput, nowMs: number): AllTraining | null => {
+/** Every session from the three inputs, each once. A Garmin copy of a ride or workout from this app is left out. */
+export const trainingSessions = (input: TrainingInput): TrainingSession[] => {
   const rides = input.rides ?? [];
   const workouts = input.workouts ?? [];
   const sessions: TrainingSession[] = [
@@ -46,6 +42,16 @@ export const allTraining = (input: TrainingInput, nowMs: number): AllTraining | 
     // A ride from this app that exists only at Garmin is still a ride from this app.
     sessions.push({ key: `garmin-${a.id}`, source: a.fromBikeCoach ? 'rad' : 'andere', title: a.name, sport: a.sport, startMs: a.startMs, minutes: a.durationS / 60 });
   }
+  return sessions;
+};
+
+/**
+ * Time and number of sessions per week and source, plus the newest sessions, from data that is already local.
+ * Only counts and durations are combined: no load, watts or kilos, and no score. A session recorded in two places counts once,
+ * as Rad or Kraft. Weeks start on Monday in local time, built from calendar dates because a week is not always 7 x 24 hours.
+ */
+export const allTraining = (input: TrainingInput, nowMs: number): AllTraining | null => {
+  const sessions = trainingSessions(input);
   if (sessions.length === 0) return null;
 
   const now = new Date(nowMs);

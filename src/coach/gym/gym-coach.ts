@@ -74,7 +74,8 @@ const clean = (text: string | undefined, max: number): string | null => {
 
 /**
  * The strength coach. It plans from the rider's Hevy history and only writes to Hevy in `confirm`, after a `preview`.
- * It reacts to real workouts, notes and changed open complaints: bike rides and the bike plan never trigger a replan.
+ * It reacts to real workouts, notes, changed open complaints and every new activity of other sports; the bike plan alone never
+ * triggers a replan.
  */
 export class GymCoach {
   private states = new Map<string, GymState>();
@@ -112,6 +113,8 @@ export class GymCoach {
   /** Begins strength training without Hevy. */
   /** The rider took a new week plan: the next workout is planned again for it. */
   weekPlanChanged(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
+  /** A new activity from any source, planned or not (a ride, a run, Garmin): the next workout is planned again. */
+  activityAdded(id: string): void { this.update(id, (s) => { s.dirty = true; s.attempts = 0; }); }
   start(id: string): void { if (!this.state(id).localStart) this.update(id, (s) => { s.localStart = true; }); }
 
   /**
