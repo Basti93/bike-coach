@@ -14,3 +14,11 @@ test('shows the next seven days across the week border, and names the sport', ()
   expect(h).not.toContain('2026-11-14');
   expect(h).toContain('sport "bike"');
 });
+
+test('a combination day shows both parts and counts for both planners', () => {
+  const rec = plan('2026-11-02', {});
+  (rec.body as { days: Record<string, unknown>[] }).days[6] = { date: '2026-11-08', sport: 'gym', hardness: 'moderate', fixed: false, also: { sport: 'bike', hardness: 'easy' } };
+  const h = planHint([rec], NOW, 'bike');
+  expect(h).toContain('"auch":{"sport":"bike","hardness":"easy"}');
+  expect(h).toContain('"sport":"gym"');
+});

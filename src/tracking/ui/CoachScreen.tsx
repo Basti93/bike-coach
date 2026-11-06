@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
-import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
+import { dayLabel, mondayOf, planOfWeek, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
 import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
@@ -14,7 +14,7 @@ import type { PlannedRun } from '../../shared/run';
 
 const localKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dayName = (date: string) => WEEKDAY_LABEL[(new Date(`${date}T12:00:00`).getDay() + 6) % 7]!;
-const dayText = (d: PlanDay) => (d.sport === 'rest' ? 'Ruhetag' : `${SPORT_LABEL[d.sport]}, ${HARDNESS_LABEL[d.hardness]}${d.long ? ', lang' : ''}${d.sport === 'gym' && d.legs ? ', mit Beinen' : ''}`);
+const dayText = (d: PlanDay) => dayLabel(d, (p, first) => `${first && d.long ? ', lang' : ''}${p.sport === 'gym' && d.legs ? ', mit Beinen' : ''}`);
 /** Waiting longer than this for an answer: say so calmly. */
 const SLOW_MS = 3 * 60_000;
 /** The coach no longer answers messages this old. */

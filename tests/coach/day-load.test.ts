@@ -130,3 +130,13 @@ test('rateRun: test is hard, long or 75 minutes and more is moderate, else easy'
   expect(rateRun({ durationS: 75 * 60, planned: null })).toBe('moderate');
   expect(rateRun({ durationS: 74 * 60, planned: 'easy' })).toBe('easy');
 });
+
+test('a bike and a gym session on the same day sum their minutes and take the harder rating and the legs', () => {
+  const sets = Array.from({ length: 3 }, () => ({ type: 'normal' as const, weightKg: 60, reps: 8 }));
+  const exercises = ['Back Squat', 'Bench Press', 'Row'].map((title, i) => ({ templateId: `t${i}`, title, restS: 90, supersetId: null, notes: '', sets }));
+  const gym = dayRatings(input({ gymNext: { name: 'Beine', exercises }, gymDays: [0] }), DATES)['2027-06-14'];
+  const bike = dayRatings(input({ bikeNext: session([0.5, 0.5, 0.5]), bikeDays: [0] }), DATES)['2027-06-14'];
+  const both = dayRatings(input({ bikeNext: session([0.5, 0.5, 0.5]), bikeDays: [0], gymNext: { name: 'Beine', exercises }, gymDays: [0] }), DATES)['2027-06-14'];
+  expect(bike.minutes).toBeGreaterThan(0);
+  expect(both).toMatchObject({ hardness: 'hard', legs: true, minutes: gym.minutes + bike.minutes });
+});

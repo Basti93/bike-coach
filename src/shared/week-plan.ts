@@ -6,7 +6,9 @@ import type { TrackedRecord } from './records';
  */
 export type Sport = 'bike' | 'gym' | 'run' | 'mobility' | 'rest';
 export type Hardness = 'easy' | 'moderate' | 'hard';
-export type PlanDay = { date: string; sport: Sport; hardness: Hardness; fixed: boolean; legs?: boolean; long?: boolean; note?: string };
+/** A second session on the same day, only on the person's wish. */
+export type AlsoPart = { sport: Sport; hardness: Hardness };
+export type PlanDay = { date: string; sport: Sport; hardness: Hardness; fixed: boolean; legs?: boolean; long?: boolean; note?: string; also?: AlsoPart };
 export type WeekProposal = { weekStart: string; days: PlanDay[] };
 /** The `weekplan` record, id = weekStart. Written only by the rider's device when they take a proposal. */
 export type WeekPlanBody = WeekProposal & { fromMessage: string; acceptedMs: number; takenFrom?: string; prior?: Record<string, unknown>; baseMs?: number };
@@ -17,6 +19,18 @@ export const HARDNESS_LABEL: Record<Hardness, string> = { easy: 'locker', modera
 export const WEEKDAY_LABEL = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const HARDNESSES: readonly Hardness[] = ['easy', 'moderate', 'hard'];
 const MAX_HARD_DAYS = 2;
+const HARD_RANK: Record<Hardness, number> = { easy: 0, moderate: 1, hard: 2 };
+export const TWO_HARD_MESSAGE = 'Zwei Einheiten an einem Tag nur, wenn höchstens eine davon hart ist.';
+
+/** The sessions of a day: the first, and the second if there is one. */
+export const dayParts = (d: PlanDay): AlsoPart[] => [{ sport: d.sport, hardness: d.hardness }, ...(d.also ? [d.also] : [])];
+/** Whether the day holds this sport, as its first or its second session. */
+export const hasSport = (d: PlanDay, sport: Sport): boolean => dayParts(d).some((p) => p.sport === sport);
+/** The day's hardness: the harder part counts. */
+export const dayHardness = (d: PlanDay): Hardness => dayParts(d).reduce<Hardness>((a, p) => (HARD_RANK[p.hardness] > HARD_RANK[a] ? p.hardness : a), 'easy');
+/** The day's parts as words: "Kraft, mittel + Rad, locker". `extra` adds to the first part. */
+export const dayLabel = (d: PlanDay, extra: (p: AlsoPart, first: boolean) => string = () => ''): string =>
+  dayParts(d).map((p, i) => (p.sport === 'rest' ? 'Ruhetag' : `${SPORT_LABEL[p.sport]}, ${HARDNESS_LABEL[p.hardness]}${extra(p, i === 0)}`)).join(' + ');
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const toDate = (key: string) => { const [y, m, d] = key.split('-').map(Number); return new Date(y!, m! - 1, d!); };
@@ -32,14 +46,16 @@ export const weekDates = (monday: string): string[] => Array.from({ length: 7 },
  */
 export function checkWeekPlan(days: PlanDay[]): string[] {
   const out: string[] = [];
-  if (days.filter((d) => d.sport !== 'rest' && d.hardness === 'hard').length > MAX_HARD_DAYS) out.push('Mehr als zwei harte Tage in der Woche.');
+  if (days.filter((d) => dayHardness(d) === 'hard').length > MAX_HARD_DAYS) out.push('Mehr als zwei harte Tage in der Woche.');
+  if (days.some((d) => d.also && d.also.hardness === 'hard' && d.hardness === 'hard')) out.push(TWO_HARD_MESSAGE);
   days.forEach((d, i) => {
     const before = days[i - 1];
     // A gym day that does not say counts as a leg day: the safe side.
-    if (!before || before.sport !== 'gym' || before.legs === false) return;
+    if (!before || !hasSport(before, 'gym') || before.legs === false) return;
     const name = WEEKDAY_LABEL[(toDate(d.date).getDay() + 6) % 7];
-    if (before.hardness === 'hard' && (d.sport === 'bike' || d.sport === 'run') && d.hardness === 'hard') out.push(`Harter Rad- oder Lauftag am Tag nach einem harten Beintag (${name}).`);
-    if (d.long && (d.sport === 'bike' || d.sport === 'run')) out.push(`Lange Einheit am Tag nach einem Beintag (${name}).`);
+    const hardOutdoor = dayParts(d).some((p) => (p.sport === 'bike' || p.sport === 'run') && p.hardness === 'hard');
+    if (dayHardness(before) === 'hard' && hardOutdoor) out.push(`Harter Rad- oder Lauftag am Tag nach einem harten Beintag (${name}).`);
+    if (d.long && (d.sport === 'bike' || d.sport === 'run' || d.also?.sport === 'bike' || d.also?.sport === 'run')) out.push(`Lange Einheit am Tag nach einem Beintag (${name}).`);
   });
   return out;
 }
@@ -58,6 +74,9 @@ export function parseProposal(x: unknown): WeekProposal | null {
     const day: PlanDay = { date: dates[i]!, sport: d.sport as Sport, hardness: d.hardness as Hardness, fixed: d.fixed === true };
     if (d.legs === true) day.legs = true; else if (d.legs === false) day.legs = false;
     if (d.long === true) day.long = true;
+    // Never rest plus something, never the same sport twice; such a second part is left out.
+    if (isObj(d.also) && SPORTS.includes(d.also.sport as Sport) && HARDNESSES.includes(d.also.hardness as Hardness)
+      && d.also.sport !== 'rest' && day.sport !== 'rest' && d.also.sport !== day.sport) day.also = { sport: d.also.sport as Sport, hardness: d.also.hardness as Hardness };
     if (typeof d.note === 'string' && d.note.trim()) day.note = d.note.trim().slice(0, 120);
     days.push(day);
   }
@@ -77,4 +96,4 @@ export const planFor = (records: TrackedRecord[], date: string): PlanDay | null 
 
 /** The first date from `from` on (within seven days) whose plan day has this sport, or null. */
 export const nextPlanDate = (records: TrackedRecord[], from: string, sport: Sport): string | null =>
-  [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(from, i)).find((d) => planFor(records, d)?.sport === sport) ?? null;
+  [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(from, i)).find((d) => { const p = planFor(records, d); return p ? hasSport(p, sport) : false; }) ?? null;
