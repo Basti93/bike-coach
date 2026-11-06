@@ -50,5 +50,7 @@ const mostCommon = (xs: string[]): string | undefined => {
  * exercise (see resolveExercise). A look-alike with other equipment never lends its text.
  */
 export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): ExerciseDescription | null {
-  return exerciseDescription(resolveExercise(current, catalog).exercise?.id ?? current.exerciseId);
+  const e = resolveExercise(current, catalog).exercise;
+  if (e?.description) return { text: e.description, source: { kind: 'own' } };
+  return exerciseDescription(e?.id ?? current.exerciseId);
 }

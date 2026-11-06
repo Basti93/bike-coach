@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Exercise } from '../../shared/exercises';
+import { mergeCatalog } from '../../shared/catalog';
 import { EXERCISES } from '../../shared/exercises';
 import type { LoggedWorkout, RecordKind, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
@@ -33,14 +34,10 @@ export function usePortRecords(port: TrackingPort, kind: RecordKind): PortRecord
 export const finishedWorkouts = (records: TrackedRecord[] | null): LoggedWorkout[] =>
   (records ?? []).map((r) => r.body as LoggedWorkout).filter((w) => typeof w === 'object' && w !== null && w.endMs !== null).sort((a, b) => (b.endMs ?? 0) - (a.endMs ?? 0));
 
-/** Own list plus the person's own exercises; an own record with the same id wins. */
+/** The one catalog: built-ins plus the person's exercise records (an own record with a built-in's id is an overlay). */
 export function useCatalog(port: TrackingPort): Exercise[] {
   const own = usePortRecords(port, 'exercise').records;
-  return useMemo(() => {
-    const mine = (own ?? []).map((r) => r.body as Exercise);
-    const ids = new Set(mine.map((e) => e.id));
-    return [...EXERCISES.filter((e) => !ids.has(e.id)), ...mine];
-  }, [own]);
+  return useMemo(() => mergeCatalog(EXERCISES, [], own ?? []), [own]);
 }
 
 export function useStoreView(store: WorkoutStore): StoreView {

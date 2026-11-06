@@ -2,7 +2,18 @@
  * Own exercise list. Structurally an ExerciseTemplate plus the exact English Hevy title; src/shared must not import from src/coach.
  * `aliases` are further exact titles under which the very same exercise (same movement, same equipment) is logged.
  */
-export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string; aliases?: string[] };
+/** An open question about a logged title: is it the same as an existing exercise, or a new one? Not an exercise yet. */
+export type ExerciseProposal = { forTitle: string; kind: 'same' | 'new'; targetId?: string; reason: string; atMs: number };
+
+export type Exercise = {
+  id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string; aliases?: string[];
+  secondaryMuscles?: string[];
+  /** German, own text. */
+  description?: string;
+  source?: 'pandafit' | 'fedb' | 'ai' | 'user';
+  fedbId?: string;
+  proposal?: ExerciseProposal;
+};
 
 const x = (id: string, title: string, type: string, primaryMuscle: string, equipment: string, hevyTitle?: string, aliases?: string[]): Exercise =>
   ({ id, title, type, primaryMuscle, equipment, ...(hevyTitle ? { hevyTitle } : {}), ...(aliases ? { aliases } : {}) });
