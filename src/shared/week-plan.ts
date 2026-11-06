@@ -9,7 +9,7 @@ export type Hardness = 'easy' | 'moderate' | 'hard';
 export type PlanDay = { date: string; sport: Sport; hardness: Hardness; fixed: boolean; legs?: boolean; long?: boolean; note?: string };
 export type WeekProposal = { weekStart: string; days: PlanDay[] };
 /** The `weekplan` record, id = weekStart. Written only by the rider's device when they take a proposal. */
-export type WeekPlanBody = WeekProposal & { fromMessage: string; acceptedMs: number };
+export type WeekPlanBody = WeekProposal & { fromMessage: string; acceptedMs: number; takenFrom?: string; prior?: Record<string, unknown>; baseMs?: number };
 
 export const SPORTS: readonly Sport[] = ['bike', 'gym', 'run', 'mobility', 'rest'];
 export const SPORT_LABEL: Record<Sport, string> = { bike: 'Rad', gym: 'Kraft', run: 'Laufen', mobility: 'Beweglichkeit', rest: 'Ruhetag' };
