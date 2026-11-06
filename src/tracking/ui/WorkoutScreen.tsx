@@ -23,6 +23,7 @@ import { NotesField } from './NotesField';
 import { EffortQuestion, EFFORT_LABEL, effortQuestionsOn } from './EffortQuestion';
 import { asksEffort } from '../effort';
 import { WorkoutCoach } from './WorkoutCoach';
+import { takenChanges, usedMarks } from '../../shared/changes';
 import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
@@ -360,17 +361,26 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
   const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
 
-  async function begin(w: TrackedWorkout) {
-    if (starting.current) return; // a double tap makes one workout
+  async function begin(w: TrackedWorkout): Promise<boolean> {
+    if (starting.current) return false; // a double tap makes one workout
     starting.current = true;
     try {
       const s = acquireStore(port, studio ? { ...w, studio } : w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
       setMessage(null);
       setStore({ s, autoEnd: false });
+      return true;
     } finally { starting.current = false; }
   }
-  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog, studio, studios));
+  // The changes taken for the next workout go in when it starts; each is marked used only after the workout is saved.
+  // A workout that already lists a change stops it from applying again (a start that died before the mark), and the mark is made up.
+  const startPlan = async (g: GymWorkout) => {
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [];
+    try { changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
+    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all });
+    if (!(await begin(w))) return;
+    try { for (const r of usedMarks(changeRecs, [...all, w], now())) await port.put(r); } catch { /* the next start marks them */ }
+  };
 
   useEffect(() => {
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }

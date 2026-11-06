@@ -31,6 +31,8 @@ export type ChatMessage = {
   /** Written during this open workout: the coach answers about the rest of it. */
   inWorkout?: string;
   workoutChange?: WorkoutChange;
+  /** The id of the `change` record (a change for the next workout) this message proposes. */
+  nextChange?: string;
 };
 export type ChatEntry = ChatMessage & { id: string };
 
@@ -52,6 +54,7 @@ export function readChat(x: unknown): ChatMessage | null {
   if (x.failed === true) m.failed = true;
   if (typeof x.inWorkout === 'string') m.inWorkout = x.inWorkout;
   if (x.push === true) m.push = true;
+  if (typeof x.nextChange === 'string') m.nextChange = x.nextChange;
   if (x.workoutChange !== undefined) { const c = readWorkoutChange(x.workoutChange); if (!c) return null; m.workoutChange = c; }
   if (x.proposal !== undefined) { const p = parseProposal(x.proposal); if (!p) return null; m.proposal = p; }
   if (x.warnings !== undefined) { if (!strings(x.warnings)) return null; m.warnings = x.warnings; }

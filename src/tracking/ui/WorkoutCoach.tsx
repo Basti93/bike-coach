@@ -4,6 +4,8 @@ import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
 import type { TrackedWorkout } from '../session';
 import { changeTaken, checkOps, gehtNicht, undoRefusal } from '../workout-change';
+import { changesOf } from '../../shared/changes';
+import { NextChangeCard } from './NextChangeCard';
 import { usePortRecords } from './hooks';
 
 /** One op in plain German, with the exercise names of this workout. */
@@ -26,10 +28,12 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   onTake: (id: string, c: WorkoutChange) => void; onUndo: (id: string) => void;
 }) {
   const chat = usePortRecords(port, 'chat').all;
+  const changeRecs = usePortRecords(port, 'change').all;
   const thread = chatThread(chat ?? []);
   const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines);
   const key = (m: ChatEntry) => `${m.id}:0`;
   const pending = mine.some((m) => m.workoutChange && proposalAnswer(thread, m.id) === null && !changeTaken(workout, key(m)));
+  const proposedNext = mine.some((m) => m.nextChange && changesOf(changeRecs ?? []).some((c) => c.id === m.nextChange && c.state === 'proposed'));
   const waiting = waitingMessage(thread)?.inWorkout === workout.id;
   const [line, setLine] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -38,7 +42,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   // A taken change stays visible (with "Rückgängig") until the panel is closed, also after a reload.
   const [closed, setClosed] = useState(false);
   const kept = mine.some((m) => m.workoutChange && changeTaken(workout, key(m)));
-  const shown = open || pending || waiting || (kept && !closed);
+  const shown = open || pending || proposedNext || waiting || (kept && !closed);
 
   const write = async (m: ChatMessage) => {
     setError(null);
@@ -69,6 +73,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
       {mine.slice(-6).map((m) => (
         <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
           <p>{m.text}</p>
+          {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
           {m.workoutChange && (
             <>
               <ul>{m.workoutChange.ops.map((o, i) => <li key={i}>{opText(o, workout, catalog)}</li>)}</ul>
@@ -92,7 +97,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
         <textarea aria-label="Nachricht an den Coach im Training" rows={1} value={text} maxLength={MAX_CHAT_TEXT} onChange={(e) => setText(e.target.value)} placeholder="Was ist los?" />
         <button type="submit" disabled={!text.trim()}>Senden</button>
       </form>
-      {!pending && !waiting && <button type="button" className="ghost" onClick={() => { setOpen(false); setClosed(true); }}>Schließen</button>}
+      {!pending && !proposedNext && !waiting && <button type="button" className="ghost" onClick={() => { setOpen(false); setClosed(true); }}>Schließen</button>}
     </section>
   );
 }

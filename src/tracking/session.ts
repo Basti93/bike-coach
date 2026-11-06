@@ -2,6 +2,7 @@ import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
+import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
 /** Pure workout logic. No browser, Node or Electron APIs, so the Mac app and the web app share it. */
@@ -93,8 +94,24 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
   return { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
 }
 
-export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS): TrackedWorkout {
-  return { id, title: w.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises: w.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios)), rest: null };
+/**
+ * `next`: the changes for this workout that are `taken` (see shared/changes). Applied oldest first, except those a workout
+ * already lists (`workouts`, any, open or finished): a second start never applies one twice. The new workout lists each applied
+ * change with empty rows, so there is no undo after the start, and a skipped op leaves a short line in the first exercise's notes.
+ */
+export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[] } = { changes: [], workouts: [] }): TrackedWorkout {
+  const listed = listedIds(next.workouts);
+  const todo = next.changes.filter((c) => c.state === 'taken' && !listed.has(c.id));
+  const { plan, notes } = applyNextChanges(w, todo, catalog);
+  const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios));
+  // Lighter also works on weights the last session gave (the plan had none); planned weights were lightened above.
+  for (const c of todo) for (const o of c.ops) {
+    const g = o.op === 'lighter' ? plan.exercises.findIndex((x) => x.templateId === o.exerciseId) : -1;
+    if (g >= 0) exercises[g] = { ...exercises[g]!, sets: exercises[g]!.sets.map((x, k) => (plan.exercises[g]!.sets[k]?.weightKg === null && x.weightKg !== null ? { ...x, weightKg: Math.round(x.weightKg * (1 - LIGHTER_PCT / 100) * 2) / 2 } : x)) };
+  }
+  if (notes.length && exercises[0]) exercises[0] = { ...exercises[0], notes: [exercises[0].notes, ...notes].filter(Boolean).join('\n') };
+  const changes = todo.map((c) => ({ id: c.id, atMs: nowMs, prior: [], pos: [], after: [] }));
+  return { id, title: plan.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises, rest: null, ...(changes.length ? { changes } : {}) };
 }
 /** Sets (or, with an empty name, clears) the studio. */
 export function setStudio(w: TrackedWorkout, raw: string): TrackedWorkout {

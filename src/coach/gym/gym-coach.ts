@@ -24,6 +24,8 @@ import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
 import { defaultStudio, NO_STUDIOS, type StudioState } from '../../shared/studio';
 import { studiosOf } from '../tracking/studios';
 import { loadStepsOf } from '../tracking/load-steps';
+import { takenChangesOf } from '../tracking/changes';
+import { considered } from '../../shared/changes';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
@@ -112,6 +114,12 @@ export class GymCoach {
   private catalog(id: string): Exercise[] {
     if (this.deps.catalog) return this.deps.catalog(id);
     return this.deps.store ? mergeCatalog(EXERCISES, FEDB_EXERCISES, this.deps.store.all(id, 'exercise')) : EXERCISES;
+  }
+  /** The plan's reason with a short "Berücksichtigt: …" for the changes taken for the next workout. Never changes the plan itself. */
+  private withTaken(id: string, reason: string): string {
+    const base = reason.replace(/\s*Berücksichtigt:[\s\S]*$/, '');
+    const note = this.deps.store ? considered(takenChangesOf(this.deps.store, id)) : '';
+    return note ? `${base} ${note}`.trim() : base;
   }
   private loadSteps(id: string): LoadStepOverrides {
     if (this.deps.loadSteps) return this.deps.loadSteps(id);
@@ -330,7 +338,7 @@ export class GymCoach {
       if (real.length === 0) {
         // Nothing to learn from yet: the plain rule workout is the plan, and the AI is not asked.
         this.updateIf(gen, id, (x) => {
-          x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;
+          x.next = hasRule ? { workout: rule.workout, reason: this.withTaken(id, rule.reason), source: 'rules' } : null;
           x.emptyReason = hasRule ? null : rule.reason;
           x.lastError = null; x.dirty = false; x.planned = true; x.attempts = 0; x.seenWorkoutIds = [];
         });
@@ -338,7 +346,7 @@ export class GymCoach {
       }
       // An empty rule workout is never stored as an offer; only its reason is kept.
       this.updateIf(gen, id, (x) => {
-        x.next = hasRule ? { workout: rule.workout, reason: rule.reason, source: 'rules' } : null;
+        x.next = hasRule ? { workout: rule.workout, reason: this.withTaken(id, rule.reason), source: 'rules' } : null;
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
@@ -355,7 +363,7 @@ export class GymCoach {
       const parsed = gymAnswerSchema.safeParse(raw);
       const checked = parsed.success ? checkWorkout(parsed.data.workout, ctx) : null;
       this.updateIf(gen, id, (x) => {
-        if (parsed.success && checked?.ok) this.applyAnswer(x, parsed.data, checked.workout, real, wantNote, now);
+        if (parsed.success && checked?.ok) this.applyAnswer(x, parsed.data, checked.workout, real, wantNote, now, id);
         else x.lastError = 'invalid';
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
@@ -379,11 +387,11 @@ export class GymCoach {
     return checked.ok ? null : checked.reason;
   }
 
-  private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number): void {
+  private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number, id: string): void {
     const honest = (text: string) => honestFigures(text, figures(real, workout));
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
-    s.next = { workout, reason: (reason && honest(reason)) || fallback, source: 'claude' };
+    s.next = { workout, reason: this.withTaken(id, (reason && honest(reason)) || fallback), source: 'claude' };
     // A sketch without weights; an answer without one keeps the last sketch rather than none.
     s.outlook = readOutlook(a.outlook) ?? s.outlook;
     s.emptyReason = null;

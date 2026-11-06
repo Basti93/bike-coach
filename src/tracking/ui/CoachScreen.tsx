@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
 import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekPlanBody, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
+import { NextChangeCard } from './NextChangeCard';
 import { usePortRecords } from './hooks';
 import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
 import type { PlannedRun } from '../../shared/run';
@@ -79,6 +80,7 @@ function PrefsCard({ prefs, onChange }: { prefs: CoachPrefs; onChange: (p: Coach
 export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
+  const changeRecs = usePortRecords(port, 'change').all;
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
   const prefRecords = usePortRecords(port, 'coachprefs').all;
@@ -145,6 +147,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
           <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
             <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
             <p>{m.text}</p>
+            {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
             {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={proposalAnswer(thread, m.id)} past={m.proposal!.weekStart < monday} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
         )))}
