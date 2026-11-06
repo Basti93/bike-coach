@@ -35,6 +35,8 @@ export type ChatMessage = {
   workoutChange?: WorkoutChange;
   /** The id of the `change` record (a change for the next workout) this message proposes. */
   nextChange?: string;
+  /** The id of the `rule` record (a rule or goal change) this message proposes. */
+  rule?: string;
 };
 export type ChatEntry = ChatMessage & { id: string };
 
@@ -58,6 +60,7 @@ export function readChat(x: unknown): ChatMessage | null {
   if (typeof x.inWorkout === 'string') m.inWorkout = x.inWorkout;
   if (x.push === true) m.push = true;
   if (typeof x.nextChange === 'string') m.nextChange = x.nextChange;
+  if (typeof x.rule === 'string') m.rule = x.rule;
   if (x.workoutChange !== undefined) { const c = readWorkoutChange(x.workoutChange); if (!c) return null; m.workoutChange = c; }
   if (x.proposal !== undefined) { const p = parseProposal(x.proposal); if (!p) return null; m.proposal = p; }
   if (x.warnings !== undefined) { if (!strings(x.warnings)) return null; m.warnings = x.warnings; }

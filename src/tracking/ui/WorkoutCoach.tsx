@@ -7,6 +7,7 @@ import { changeTaken, checkOps, undoRefusal } from '../workout-change';
 import { DECLINE, DECLINED, gehtNicht, TAKE, UNDO } from '../../shared/wording';
 import { changesOf } from '../../shared/changes';
 import { NextChangeCard } from './NextChangeCard';
+import { RuleCard } from './RuleCard';
 import { useExcluded, usePortRecords } from './hooks';
 
 /** One op in plain German, with the exercise names of this workout. */
@@ -31,6 +32,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   const excluded = useExcluded(port);
   const chat = usePortRecords(port, 'chat').all;
   const changeRecs = usePortRecords(port, 'change').all;
+  const ruleRecs = usePortRecords(port, 'rule').all;
   const thread = chatThread(chat ?? []);
   const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines && !m.undoes);
   const key = (m: ChatEntry) => `${m.id}:0`;
@@ -80,6 +82,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
         <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
           <p>{m.text}</p>
           {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
+          {m.rule && <RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} />}
           {m.workoutChange && (
             <>
               <ul>{m.workoutChange.ops.map((o, i) => <li key={i}>{opText(o, workout, catalog)}</li>)}</ul>
