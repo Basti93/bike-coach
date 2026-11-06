@@ -66,10 +66,13 @@ services:
     environment:
       PANDAFIT_SECRET_KEY: ${PANDAFIT_SECRET_KEY:?set PANDAFIT_SECRET_KEY in .env (openssl rand -hex 32)}
       PANDAFIT_INTERNAL_TOKEN: ${PANDAFIT_INTERNAL_TOKEN:?set PANDAFIT_INTERNAL_TOKEN in .env (openssl rand -hex 32)}
+      # Claude runs in the home server's AI service (heimserver ki/README.md); empty = the local claude as before.
+      PANDAFIT_AI_URL: ${PANDAFIT_AI_URL:-}
+      PANDAFIT_AI_TOKEN: ${PANDAFIT_AI_TOKEN:-}
       TZ: ${TZ:-UTC}
-    # internal: shared with api, no way out. coach-egress: the coach's own way out to Claude, Hevy and Garmin; no other service joins it,
-    # so tailscale (on default) cannot reach the coach.
-    networks: [internal, coach-egress]
+    # internal: shared with api, no way out. coach-egress: the coach's own way out to Hevy and Garmin; no other service joins it,
+    # so tailscale (on default) cannot reach the coach. homeserver-ai: internal network of the shared AI service, no way out.
+    networks: [internal, coach-egress, homeserver-ai]
     volumes:
       - coach:/data
     tmpfs:
@@ -132,6 +135,9 @@ networks:
   internal:
     internal: true
   coach-egress: {}
+  homeserver-ai:
+    external: true
+    name: homeserver-ai
 
 volumes:
   coach:

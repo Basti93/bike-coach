@@ -100,3 +100,39 @@ test('SIGTERM and SIGINT close the server and exit cleanly; a bad config exits w
   await run({ env: { PANDAFIT_SECRET_KEY: 'x' }, on: () => {}, exit, log: () => {} });
   expect(exit).toHaveBeenCalledWith(1);
 });
+
+const AI_TOKEN = 'c3'.repeat(32);
+
+test('reads the AI service and refuses a URL without a valid token', () => {
+  const c = readCoachServerConfig({ PANDAFIT_SECRET_KEY: KEY, PANDAFIT_INTERNAL_TOKEN: TOKEN, PANDAFIT_AI_URL: 'http://homeserver-ai:8080', PANDAFIT_AI_TOKEN: AI_TOKEN });
+  expect(c.aiUrl).toBe('http://homeserver-ai:8080');
+  expect(c.aiToken).toBe(AI_TOKEN);
+  expect(readCoachServerConfig({ PANDAFIT_SECRET_KEY: KEY, PANDAFIT_INTERNAL_TOKEN: TOKEN }).aiUrl).toBeUndefined();
+  let message = '';
+  try { readCoachServerConfig({ PANDAFIT_SECRET_KEY: KEY, PANDAFIT_INTERNAL_TOKEN: TOKEN, PANDAFIT_AI_URL: 'http://homeserver-ai:8080', PANDAFIT_AI_TOKEN: 'short' }); } catch (e) { message = (e as Error).message; }
+  expect(message).toContain('PANDAFIT_AI_TOKEN');
+  expect(message).not.toContain('short');
+});
+
+test('remote_mode_never_spawns_local_claude', async () => {
+  const client = await import('../../../src/coach/claude-client');
+  const askSpy = vi.spyOn(client, 'askClaude');
+  const findSpy = vi.spyOn(client, 'findClaude');
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+  try {
+    const o = householdOptions(config({ dry: false, aiUrl: 'http://homeserver-ai:8080', aiToken: AI_TOKEN }));
+    await expect(o.ask({ prompt: 'p', systemPrompt: 's', schema: {} })).rejects.toMatchObject({ kind: 'failed' });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(askSpy).not.toHaveBeenCalled();
+    expect(findSpy).not.toHaveBeenCalled();
+  } finally { askSpy.mockRestore(); findSpy.mockRestore(); fetchSpy.mockRestore(); }
+});
+
+test('no_url_keeps_local_claude', async () => {
+  const fetchSpy = vi.spyOn(globalThis, 'fetch');
+  try {
+    const o = householdOptions(config({ dry: false, claudeBin: '/nonexistent/claude' }));
+    await expect(o.ask({ prompt: 'p', systemPrompt: 's', schema: {} })).rejects.toMatchObject({ kind: 'missing' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  } finally { fetchSpy.mockRestore(); }
+});

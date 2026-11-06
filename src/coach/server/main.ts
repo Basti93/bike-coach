@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { askClaude, findClaude } from '../claude-client';
+import { askRemote } from '../remote-claude-client';
 import { secretKeyFrom } from '../secrets/secret-box';
 import { buildCoachServer } from './http';
 import type { FastifyInstance } from 'fastify';
@@ -15,6 +16,8 @@ const HEX_TOKEN = /^[0-9a-f]{64}$/i;
 export type CoachServerConfig = {
   port: number; host: string; root: string; secretKey: Buffer; internalToken: string; apiUrl: string;
   claudeBin: string | undefined; python: string; garminScripts: string;
+  /** The home server's AI service (heimserver ki/). When set, Claude never runs in this container. */
+  aiUrl?: string; aiToken?: string;
   /** The restore drill: no scan, no Claude, no Hevy and no Garmin. */
   dry: boolean;
 };
@@ -26,6 +29,9 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
   if (typeof internalToken !== 'string' || !HEX_TOKEN.test(internalToken)) throw new Error('PANDAFIT_INTERNAL_TOKEN fehlt oder ist ungültig (64 Hex-Zeichen)');
   const port = Number(env.PORT ?? 8090);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT ist ungültig');
+  const aiUrl = env.PANDAFIT_AI_URL || undefined;
+  const aiToken = env.PANDAFIT_AI_TOKEN;
+  if (aiUrl && (typeof aiToken !== 'string' || !HEX_TOKEN.test(aiToken))) throw new Error('PANDAFIT_AI_TOKEN fehlt oder ist ungültig (64 Hex-Zeichen)');
   return {
     port, host: env.HOST ?? '0.0.0.0',
     root: env.PANDAFIT_COACH_DATA ?? '/data',
@@ -35,6 +41,7 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
     python: env.PANDAFIT_GARMIN_PYTHON ?? '/opt/garmin-venv/bin/python',
     garminScripts: env.PANDAFIT_GARMIN_SCRIPTS ?? '/app/scripts/garmin',
     dry: env.PANDAFIT_COACH_DRY === '1',
+    ...(aiUrl ? { aiUrl, aiToken } : {}),
   };
 };
 
@@ -47,7 +54,9 @@ export const householdOptions = (config: CoachServerConfig): HouseholdOptions =>
     python: config.python, garminScripts: config.garminScripts,
     apiUrl: config.apiUrl, internalToken: config.internalToken,
     // askClaude ends every call at its timeout, so the household's one-at-a-time lock never stays held.
-    ask: config.dry ? async () => refuse('Claude')() : async (input) => askClaude({ ...input, workDir, bin: config.claudeBin ?? (await findClaude()) }),
+    ask: config.dry ? async () => refuse('Claude')()
+      : config.aiUrl ? async (input) => askRemote(input, { url: config.aiUrl as string, token: config.aiToken as string })
+      : async (input) => askClaude({ ...input, workDir, bin: config.claudeBin ?? (await findClaude()) }),
     ...(config.dry ? { spawnFn: refuse('Garmin') as never, fetchFn: (async () => refuse('Hevy')()) as never } : {}),
   };
 };
