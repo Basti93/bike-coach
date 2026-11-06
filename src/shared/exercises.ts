@@ -152,14 +152,14 @@ export function linkHevyTemplates(templates: { id: string; title: string }[]): M
 /** Hevy shows the equipment in the app's language; the same exercise can be logged under either title. */
 const EQUIPMENT_DE: Record<string, string> = { Barbell: 'Langhantel', Dumbbell: 'Kurzhantel', Machine: 'Maschine', Cable: 'Kabel', 'Smith Machine': 'Smith-Maschine', Bodyweight: 'Körpergewicht' };
 
-/** Every title an own exercise may be logged under: German, English Hevy, Hevy with the equipment in German, and its aliases. */
+/** Every title an own exercise may be logged under: German, English Hevy, Hevy and German with the Hevy equipment in German, and its aliases. */
 export function exerciseTitles(e: Exercise): string[] {
   const out = [e.title];
   if (e.hevyTitle) {
     out.push(e.hevyTitle);
     const m = /^(.*)\(([^)]+)\)\s*$/.exec(e.hevyTitle);
     const de = m ? EQUIPMENT_DE[m[2]!.trim()] : undefined;
-    if (m && de) out.push(`${m[1]}(${de})`);
+    if (m && de) out.push(`${m[1]}(${de})`, `${e.title} (${de})`);
   }
   out.push(...(e.aliases ?? []));
   return out;

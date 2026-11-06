@@ -1,9 +1,9 @@
 import { EXERCISES } from '../shared/exercises';
 import { dedupeSessions, onePerSession } from '../shared/history';
-import { MUSCLE_TARGETS, PAIRS, muscleGroupOf, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
+import { MUSCLE_TARGETS, PAIRS, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
 import type { LoggedWorkout } from '../shared/records';
 import { SPORTS, type Sport, type StatsBody } from '../shared/stats';
-import { ownExerciseFor } from './similar';
+import { resolveExercise } from './exercise-identity';
 
 export type DayCounts = { easy: number; moderate: number; hard: number; rest: number };
 export type WeekStats = {
@@ -58,11 +58,7 @@ export function wellFormed(all: unknown[]): LoggedWorkout[] {
 }
 
 function groupOf(ex: { exerciseId: string; title: string }, stats: StatsBody | null): MuscleGroup | null {
-  const own = ownExerciseFor({ title: ex.title, exerciseId: ex.exerciseId }, EXERCISES);
-  if (own) return muscleGroupOf({ id: own.id, title: own.title, primaryMuscle: own.primaryMuscle });
-  const m = stats && Object.hasOwn(stats.muscles, ex.exerciseId) ? stats.muscles[ex.exerciseId] : undefined;
-  if (typeof m === 'string' && m) return Object.hasOwn(MUSCLE_TARGETS, m) ? (m as MuscleGroup) : muscleGroupOf({ id: ex.exerciseId, title: ex.title, primaryMuscle: m });
-  return null;
+  return resolveExercise(ex, EXERCISES, stats?.muscles).group;
 }
 
 /** The numbers of the statistics page: minutes and hard days from the stats record, sets from the workouts. */

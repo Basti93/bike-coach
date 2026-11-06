@@ -1,5 +1,6 @@
 import { exerciseDescription, type ExerciseDescription } from '../shared/exercise-descriptions';
 import type { Exercise } from '../shared/exercises';
+import { resolveExercise } from './exercise-identity';
 import { muscleLabel } from './ui/labels';
 
 /** The movement without the equipment in brackets: "Squat (Smith Machine)" → "squat". */
@@ -44,33 +45,10 @@ const mostCommon = (xs: string[]): string | undefined => {
   return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 };
 
-/** The own exercise by id, else by the exact German or English title. */
-export const exactExercise = (current: { title: string; exerciseId: string }, catalog: Exercise[]): Exercise | null =>
-  catalog.find((e) => e.id === current.exerciseId) ?? catalog.find((e) => names(e).includes(current.title)) ?? null;
-
 /**
- * The own exercise behind a logged one (Hevy ids are template ids): by id, then by the exact German or English title,
- * then by the same movement with other equipment ("Squat (Smith Machine)" → Kniebeuge).
+ * How to do an exercise, also for Hevy exercises (whose ids are Hevy template ids): only the text of the very same
+ * exercise (see resolveExercise). A look-alike with other equipment never lends its text.
  */
-export function ownExerciseFor(current: { title: string; exerciseId: string }, catalog: Exercise[]): Exercise | null {
-  const want = base(current.title);
-  return exactExercise(current, catalog) ?? catalog.find((e) => names(e).map(base).includes(want)) ?? null;
-}
-
-/**
- * How to do an exercise, also for Hevy exercises (whose ids are Hevy template ids): by own id, then by the exact
- * German or English title, then by the same movement with other equipment. `via` names that stand-in, else null.
- */
-export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): { description: ExerciseDescription; via: string | null } | null {
-  const own = exerciseDescription(current.exerciseId);
-  if (own) return { description: own, via: null };
-  const exact = exactExercise(current, catalog);
-  const d = exact && exerciseDescription(exact.id);
-  if (d) return { description: d, via: null };
-  const want = base(current.title);
-  for (const e of catalog) {
-    const d = names(e).map(base).includes(want) ? exerciseDescription(e.id) : null;
-    if (d) return { description: d, via: e.title };
-  }
-  return null;
+export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): ExerciseDescription | null {
+  return exerciseDescription(resolveExercise(current, catalog).exercise?.id ?? current.exerciseId);
 }

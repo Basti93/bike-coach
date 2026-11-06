@@ -3,7 +3,8 @@ import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
 import { muscleGroupOf } from '../../shared/muscle-targets';
 import { exerciseImages, videoSearchUrl } from '../media';
-import { describeExercise, exactExercise, ownExerciseFor } from '../similar';
+import { resolveExercise } from '../exercise-identity';
+import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
@@ -141,10 +142,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const labels = setLabels(e.sets);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
-        const described = describeExercise(e, catalog);
-        const description = described?.description ?? null;
-        const own = ownExerciseFor(e, catalog);
-        const exact = exactExercise(e, catalog);
+        const description = describeExercise(e, catalog);
+        const own = resolveExercise(e, catalog).exercise;
         const icon = <MuscleIcon group={muscleGroupOf(own ?? { title: e.title, primaryMuscle: null })} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
@@ -177,8 +176,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
               </div>
             )}
             {showInfo && (
-              <ExerciseInfo title={e.title} description={description} via={described?.via ?? null} icon={icon}
-                images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: exact?.hevyTitle })}>
+              <ExerciseInfo title={e.title} description={description} icon={icon}
+                images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: own?.hevyTitle })}>
                 <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
               </ExerciseInfo>
             )}

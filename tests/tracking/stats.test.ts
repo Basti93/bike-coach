@@ -86,6 +86,14 @@ describe('statsView sets', () => {
     expect(v.unknown).toEqual(['Odd Machine']);
   });
 
+  it('counts a Smith machine squat by the stats muscle, not as the free-weight squat', () => {
+    const w = [workout('s1', thisMon, 'h-smith', 'Squat (Smith Machine)', [set(), set()], { source: 'hevy' })];
+    expect(statsView(stats([], { muscles: { 'h-smith': 'quadriceps' } }), w, NOW).thisWeek.sets.quads).toBe(2);
+    const v = statsView(stats([]), w, NOW);
+    expect(v.thisWeek.sets.quads).toBeUndefined();
+    expect(v.thisWeek.sets.other).toBe(2);
+  });
+
   it('puts sets into the week they were done in', () => {
     const w = [workout('old', at(2026, 9, 28), 'pf-bench-press', 'Bankdrücken', [set()])];
     const v = statsView(null, w, NOW);

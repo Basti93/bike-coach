@@ -40,3 +40,8 @@ it('links Hevy templates by alias as well', () => {
 it('lists aliases among the titles of an exercise', () => {
   expect(exerciseTitles(byId('pf-cable-curl'))).toContain('Cable Curl');
 });
+
+it('knows the German Hevy title: own German title with the equipment in German', () => {
+  expect(exerciseTitles(byId('pf-lateral-raise'))).toContain('Seitheben (Kurzhantel)');
+  expect(exerciseTitles(byId('pf-bench-press'))).toContain('Bankdrücken (Langhantel)');
+});
