@@ -1,36 +1,26 @@
-import { MUSCLE_TARGETS, muscleGroupOf, weeklySetRange, type MuscleGroup } from '../../shared/muscle-targets';
+import type { Exercise } from '../../shared/exercises';
+import { muscleBalance, type BalanceExercise, type BalanceItem, type GroupBalance } from '../../shared/muscle-balance';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate } from './types';
 
-const DAY_MS = 86_400_000;
-
-export type GroupVolume = {
-  group: MuscleGroup; label: string; last7Days: number; perWeek4Weeks: number; sum4Weeks: number;
-  target: { min: number; max: number }; reps: { min: number; max: number };
-};
-
-/** Working sets (no warm-ups) per muscle group: the last 7 days and the weekly average of the last 4 weeks. */
-export function muscleVolume(workouts: StrengthWorkout[], templates: ExerciseTemplate[], nowMs: number, goal: string | null | undefined): GroupVolume[] {
-  const byId = new Map(templates.map((t) => [t.id, t]));
-  const week = new Map<MuscleGroup, number>();
-  const month = new Map<MuscleGroup, number>();
+/**
+ * Thin adapter from Hevy-shaped workouts to the shared balance. An exercise is resolved by its template id through the
+ * profile's catalog (secondary muscles included); a template the catalog does not know counts by its primary muscle only;
+ * one nobody knows counts as Sonstiges. Warm-ups do not count.
+ */
+export function muscleVolume(workouts: StrengthWorkout[], templates: ExerciseTemplate[], catalog: Exercise[], nowMs: number, goal: string | null | undefined): GroupBalance[] {
+  const byCatalog = new Map(catalog.map((e) => [e.id, e]));
+  const byTemplate = new Map(templates.map((t) => [t.id, t]));
+  const items: BalanceItem[] = [];
   for (const w of workouts) {
-    const age = nowMs - w.startMs;
-    if (age < 0 || age > 28 * DAY_MS) continue;
     for (const e of w.exercises) {
-      const t = byId.get(e.templateId);
-      const g = muscleGroupOf({ primaryMuscle: t?.primaryMuscle });
-      const n = e.workSets.filter((s) => s.type !== 'warmup').length;
-      month.set(g, (month.get(g) ?? 0) + n);
-      if (age <= 7 * DAY_MS) week.set(g, (week.get(g) ?? 0) + n);
+      const own = byCatalog.get(e.templateId);
+      const known: BalanceExercise | undefined = own ?? byTemplate.get(e.templateId);
+      items.push({
+        exercise: known ? { primaryMuscle: known.primaryMuscle, secondaryMuscles: own?.secondaryMuscles } : null,
+        sets: e.workSets.filter((s) => s.type !== 'warmup').length, ageMs: nowMs - w.startMs,
+      });
     }
   }
-  return (Object.keys(MUSCLE_TARGETS) as MuscleGroup[])
-    .filter((g) => g !== 'other' || (month.get(g) ?? 0) > 0)
-    .map((g) => ({
-      group: g, label: MUSCLE_TARGETS[g].label, last7Days: week.get(g) ?? 0,
-      sum4Weeks: month.get(g) ?? 0,
-      perWeek4Weeks: Math.round(((month.get(g) ?? 0) / 4) * 10) / 10,
-      target: weeklySetRange(g, goal), reps: MUSCLE_TARGETS[g].reps,
-    }));
+  return muscleBalance(items, goal);
 }

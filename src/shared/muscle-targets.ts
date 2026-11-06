@@ -59,18 +59,27 @@ export function muscleGroupOf(e: { primaryMuscle: string | null | undefined }): 
 export const weeklySetRange = (g: MuscleGroup, goal: string | null | undefined): { min: number; max: number } =>
   goal === 'muscle' ? MUSCLE_TARGETS[g].muscle : MUSCLE_TARGETS[g].other;
 
-export const PAIRS: { a: MuscleGroup; b: MuscleGroup; label: string }[] = [
-  { a: 'chest', b: 'back', label: 'Brust : Rücken' },
-  { a: 'quads', b: 'hamstrings', label: 'Oberschenkel vorn : Oberschenkel hinten' },
-  { a: 'front_delts', b: 'side_delts', label: 'Schulter vorn : Schulter seitlich' },
+export type MusclePair = { a: MuscleGroup[]; b: MuscleGroup[]; label: string };
+const sideLabel = (side: MuscleGroup[]) => side.map((g) => LABELS[g]).join(' und ');
+const pair = (a: MuscleGroup[], b: MuscleGroup[]): MusclePair => ({ a, b, label: `${sideLabel(a)} : ${sideLabel(b)}` });
+export const PAIRS: MusclePair[] = [
+  pair(['chest'], ['back']),
+  pair(['quads'], ['hamstrings', 'glutes']),
+  pair(['front_delts'], ['side_delts', 'rear_delts']),
 ];
 
-/** Set counts of both sides of each pair. `short` is the smaller side when it is below two thirds of the larger and the larger has at least 6. */
-export function pairVerdicts(sets4Weeks: Partial<Record<MuscleGroup, number>>): { label: string; a: number; b: number; short: MuscleGroup | null }[] {
+export type PairVerdict = { label: string; aLabel: string; bLabel: string; a: number; b: number; short: 'a' | 'b' | null; shortLabel: string | null };
+
+/**
+ * Effective set counts of both sides of each pair (a side is the sum of its groups). `short` is the smaller side when
+ * it is below two thirds of the larger and the larger has at least 6.
+ */
+export function pairVerdicts(effective: Partial<Record<MuscleGroup, number>>): PairVerdict[] {
+  const side = (gs: MuscleGroup[]) => gs.reduce((n, g) => n + (effective[g] ?? 0), 0);
   return PAIRS.map((p) => {
-    const a = sets4Weeks[p.a] ?? 0, b = sets4Weeks[p.b] ?? 0;
+    const a = side(p.a), b = side(p.b);
     const large = Math.max(a, b), small = Math.min(a, b);
-    const short = large >= 6 && small < (2 / 3) * large ? (a < b ? p.a : p.b) : null;
-    return { label: p.label, a, b, short };
+    const short = large >= 6 && small < (2 / 3) * large ? (a < b ? 'a' : 'b') : null;
+    return { label: p.label, aLabel: sideLabel(p.a), bLabel: sideLabel(p.b), a, b, short, shortLabel: short === 'a' ? sideLabel(p.a) : short === 'b' ? sideLabel(p.b) : null };
   });
 }

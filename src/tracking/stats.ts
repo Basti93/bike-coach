@@ -2,7 +2,8 @@ import { mergeCatalog } from '../shared/catalog';
 import { EXERCISES, type Exercise } from '../shared/exercises';
 import { FEDB_EXERCISES } from '../shared/fedb';
 import { dedupeSessions, onePerSession } from '../shared/history';
-import { MUSCLE_TARGETS, PAIRS, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
+import { effectiveByGroup, muscleBalance, tally, type BalanceItem, type GroupBalance, type Tally } from '../shared/muscle-balance';
+import { MUSCLE_TARGETS, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
 import type { LoggedWorkout } from '../shared/records';
 import { SPORTS, type Sport, type StatsBody } from '../shared/stats';
 import { resolveExercise } from './exercise-identity';
@@ -12,7 +13,10 @@ export type WeekStats = {
   weekStart: string; minutes: Record<Sport, number>; hardDays: number;
   /** Days by hardness from the stats record; rest: days with no minutes, up to today. */
   days: DayCounts;
+  /** Direct working sets per group. */
   sets: Partial<Record<MuscleGroup, number>>;
+  /** Effective sets per group: direct plus half of the synergist sets (the unit of the targets). */
+  effective: Partial<Record<MuscleGroup, number>>;
 };
 export type StatsView = {
   asOfMs: number | null;
@@ -21,6 +25,8 @@ export type StatsView = {
   thisWeek: WeekStats;
   targets: Record<MuscleGroup, { min: number; max: number }>;
   pairs: ReturnType<typeof pairVerdicts>;
+  /** The one balance (last 7 days, 4-week average, state per group), as the coach sees it. */
+  balance: GroupBalance[];
   verdicts: string[];
   /** Titles counted under Sonstiges, unique. */
   unknown: string[];
@@ -59,16 +65,12 @@ export function wellFormed(all: unknown[]): LoggedWorkout[] {
   return out;
 }
 
-function groupOf(ex: { exerciseId: string; title: string }, stats: StatsBody | null, catalog: Exercise[]): MuscleGroup | null {
-  return resolveExercise(ex, catalog, stats?.muscles).group;
-}
-
 /** The numbers of the statistics page: minutes and hard days from the stats record, sets from the workouts. */
 export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], nowMs: number, catalog: Exercise[] = mergeCatalog(EXERCISES, FEDB_EXERCISES, [])): StatsView {
   const monday = mondayOf(nowMs);
   const starts = Array.from({ length: WEEKS }, (_, i) => isoDate(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (WEEKS - 1 - i))));
   const weeks: WeekStats[] = starts.map((weekStart) => ({
-    weekStart, minutes: { bike: 0, strength: 0, run: 0, mobility: 0, other: 0 }, hardDays: 0, days: { easy: 0, moderate: 0, hard: 0, rest: 0 }, sets: {},
+    weekStart, minutes: { bike: 0, strength: 0, run: 0, mobility: 0, other: 0 }, hardDays: 0, days: { easy: 0, moderate: 0, hard: 0, rest: 0 }, sets: {}, effective: {},
   }));
   const today = isoDate(new Date(nowMs));
   // A week that starts after the record was made has no data yet: no verdict is drawn from it.
@@ -86,31 +88,38 @@ export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], no
   }
 
   const unknown = new Set<string>();
+  const balanceItems: BalanceItem[] = [];
+  const weekItems = new Map<WeekStats, BalanceItem[]>(weeks.map((w) => [w, []]));
   for (const wo of onePerSession(dedupeSessions(wellFormed(workouts)))) {
     const w = weekOf(isoDate(new Date(wo.startMs)));
     if (!w) continue;
     for (const ex of wo.exercises) {
       const n = ex.sets.filter((s) => s.doneMs !== null && s.type !== 'warmup').length;
       if (n === 0) continue;
-      let g = groupOf(ex, stats, catalog);
-      if (!g) { g = 'other'; unknown.add(ex.title); }
-      else if (g === 'other') unknown.add(ex.title);
-      w.sets[g] = (w.sets[g] ?? 0) + n;
+      const r = resolveExercise(ex, catalog, stats?.muscles);
+      if (r.group === null || r.group === 'other') unknown.add(ex.title);
+      const item: BalanceItem = { exercise: r.exercise, group: r.group, sets: n, ageMs: nowMs - wo.startMs };
+      balanceItems.push(item);
+      weekItems.get(w)!.push(item);
     }
+  }
+  for (const w of weeks) {
+    const t: Tally = tally(weekItems.get(w)!);
+    for (const [g, v] of Object.entries(t)) w.sets[g as MuscleGroup] = v.direct;
+    w.effective = effectiveByGroup(t);
   }
 
   const complete = weeks.slice(0, WEEKS - 1);
   const last4 = complete.slice(-4);
   const sets4: Partial<Record<MuscleGroup, number>> = {};
-  for (const g of GROUPS) sets4[g] = sum(last4.map((w) => w.sets[g] ?? 0));
+  for (const g of GROUPS) sets4[g] = sum(last4.map((w) => w.effective[g] ?? 0));
   const pairs = pairVerdicts(sets4);
 
   const verdicts: string[] = [];
-  for (const [i, p] of pairs.entries()) {
+  for (const p of pairs) {
     if (!p.short) continue;
-    const shortG = p.short, otherG = PAIRS[i].a === shortG ? PAIRS[i].b : PAIRS[i].a;
-    const sn = sets4[shortG] ?? 0, on = sets4[otherG] ?? 0;
-    verdicts.push(`${MUSCLE_TARGETS[shortG].label} ${sn} Sätze, ${MUSCLE_TARGETS[otherG].label} ${on}: ${MUSCLE_TARGETS[shortG].label} kommt zu kurz.`);
+    const [shortLabel, shortN, otherLabel, otherN] = p.short === 'a' ? [p.aLabel, p.a, p.bLabel, p.b] : [p.bLabel, p.b, p.aLabel, p.a];
+    verdicts.push(`${shortLabel} ${shortN} Sätze, ${otherLabel} ${otherN}: ${shortLabel} kommt zu kurz.`);
   }
   for (const w of [complete[complete.length - 1], weeks[WEEKS - 1]]) {
     if (covered(w) && w.hardDays > 2) verdicts.push(`${w.hardDays} harte Tage in der Woche vom ${short(w.weekStart)} Mehr als zwei sind viel.`);
@@ -134,7 +143,7 @@ export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], no
   for (const g of GROUPS) targets[g] = weeklySetRange(g, stats?.goal);
 
   return {
-    asOfMs: stats?.atMs ?? null, weeks, thisWeek: weeks[WEEKS - 1], targets, pairs, verdicts, unknown: [...unknown],
+    asOfMs: stats?.atMs ?? null, weeks, thisWeek: weeks[WEEKS - 1], targets, pairs, balance: muscleBalance(balanceItems, stats?.goal), verdicts, unknown: [...unknown],
     sports: SPORTS.filter((s) => weeks.some((w) => w.minutes[s] > 0)),
   };
 }

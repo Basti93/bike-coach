@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MUSCLE_TARGETS, PAIRS, type MuscleGroup } from '../../shared/muscle-targets';
+import { MUSCLE_TARGETS, type MuscleGroup } from '../../shared/muscle-targets';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
 import type { TrackingPort } from '../ports';
@@ -154,7 +154,7 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
   const v = useMemo(() => statsView(stats, workouts, nowMs, catalog), [stats, workouts, nowMs, catalog]);
   const progress = useMemo(() => progressRows({
     nowMs, ftp: stats?.ftp ?? [], weightKg: stats?.weightKg ?? null, runPace: runView(runRecords ?? [], nowMs).status?.numbers.easyPace ?? null,
-    workouts, weeks: v.weeks.slice(0, -1), targets: v.targets,
+    workouts, weeks: v.weeks.slice(0, -1).map((w) => ({ sets: w.effective })), targets: v.targets,
   }), [stats, runRecords, workouts, v, nowMs]);
   if (statsQ.failed || workoutsQ.failed) {
     const retry = () => { if (statsQ.failed) statsQ.retry(); if (workoutsQ.failed) workoutsQ.retry(); };
@@ -191,7 +191,7 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
                 <>
                   <h3>Verhältnis der letzten 4 Wochen</h3>
                   <ul className="tk-pairs">
-                    {pairs.map(({ p, i }) => <li key={p.label}>{`${MUSCLE_TARGETS[PAIRS[i].a].label} ${p.a} : ${p.b} ${MUSCLE_TARGETS[PAIRS[i].b].label}`}</li>)}
+                    {pairs.map(({ p, i }) => <li key={p.label}>{`${p.aLabel} ${p.a} : ${p.b} ${p.bLabel}`}</li>)}
                   </ul>
                 </>
               )}

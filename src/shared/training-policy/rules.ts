@@ -5,10 +5,10 @@ const active: RuleStatus = { state: 'active' };
 const replace = (task: number, replacement: string): RuleStatus => ({ state: 'to-replace', task, replacement, untilThen: UNTIL_THEN });
 const planned = (task: number): RuleStatus => ({ state: 'planned', task });
 
-type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
+type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; lists?: Record<string, string[]>; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
 const r = (id: string, domain: PolicyRule['domain'], cls: RuleClass, enforcement: Enforcement, statement: string, decision: string, status: RuleStatus, o: Opt = {}): PolicyRule => ({
   id, domain, statement, decision, class: cls, enforcement,
-  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.unit ? { unit: o.unit } : {}),
+  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.lists ? { lists: o.lists } : {}), ...(o.unit ? { unit: o.unit } : {}),
   sourceIds: o.sourceIds ?? [], where: o.where ?? [], status, scenarioIds: o.scenarioIds ?? [],
 });
 
@@ -51,8 +51,9 @@ export const RULES: PolicyRule[] = [
   r('hypertrophy.compound-reps', 'gym', 'product', 'weighed', 'Viele Mehrgelenksübungen starten bei 6–15 Wiederholungen.', 'Wiederholungsbereich', planned(4), { value: { min: 6, max: 15 }, unit: 'Wiederholungen', sourceIds: ['S01', 'S04'], scenarioIds: ['F01'] }),
   r('hypertrophy.isolation-reps', 'gym', 'product', 'weighed', 'Geeignete Isolationsübungen starten bei 10–20 Wiederholungen.', 'Wiederholungsbereich', planned(4), { value: { min: 10, max: 20 }, unit: 'Wiederholungen', sourceIds: ['S01', 'S04'], scenarioIds: ['F03'] }),
   r('hypertrophy.target-rir', 'gym', 'product', 'weighed', 'Viele Arbeitssätze planen ungefähr 1–3 Wiederholungen Reserve; Versagen ist Option, kein Misserfolg.', 'Anstrengung', planned(4), { value: { min: 1, max: 3 }, unit: 'RIR', sourceIds: ['S05'], scenarioIds: ['F02'] }),
-  r('muscle.direct-weight', 'muscle', 'product', 'checked', 'Direkte Beiträge eines Satzes zählen 1.', 'Muskelbilanz', active, { value: 1, where: ['src/coach/gym/muscle-volume.ts'], sourceIds: ['S03'], scenarioIds: ['F04'] }),
-  r('muscle.indirect-weight', 'muscle', 'product', 'checked', 'Relevante indirekte Beiträge zählen 0,5, ohne exakt halbe Wachstumswirkung zu behaupten.', 'Muskelbilanz', active, { value: 0.5, where: ['src/coach/gym/muscle-volume.ts'], sourceIds: ['S03'], scenarioIds: ['F04'] }),
+  r('muscle.direct-weight', 'muscle', 'product', 'checked', 'Direkte Beiträge eines Satzes zählen 1.', 'Muskelbilanz', active, { value: 1, where: ['src/shared/muscle-balance.ts'], sourceIds: ['S03'], scenarioIds: ['F04'] }),
+  r('muscle.indirect-weight', 'muscle', 'product', 'checked', 'Relevante indirekte Beiträge zählen 0,5, ohne exakt halbe Wachstumswirkung zu behaupten.', 'Muskelbilanz', active, { value: 0.5, where: ['src/shared/muscle-balance.ts'], sourceIds: ['S03'], scenarioIds: ['F04'] }),
+  r('muscle.synergists', 'muscle', 'product', 'checked', 'Ein Muskel in secondaryMuscles zählt nur halb, wenn seine Gruppe mit der Hauptgruppe zusammenarbeitet (Synergist); Stabilisatoren zählen nicht.', 'Muskelbilanz', active, { lists: { chest: ['triceps', 'front_delts'], back: ['biceps', 'rear_delts'], front_delts: ['triceps', 'side_delts'], side_delts: ['front_delts', 'rear_delts', 'traps'], rear_delts: ['back', 'traps'], biceps: ['forearms'], triceps: [], quads: ['glutes'], hamstrings: ['glutes'], glutes: ['hamstrings', 'quads'], calves: [], abs: [], traps: ['side_delts'], forearms: [], other: [] }, where: ['src/shared/muscle-balance.ts'], sourceIds: ['S03'], scenarioIds: ['F04'] }),
   // Weekly set targets per group (value: building goal, ranges: other goals and reps), see src/shared/muscle-targets.ts.
   r('muscle.target.chest', 'muscle', 'product', 'weighed', 'Wöchentliche Sätze Brust: 12–18 bei Muskelaufbau, 6–8 sonst; 6–12 Wiederholungen als Start.', 'Umfangsverteilung', active, { value: { min: 12, max: 18 }, ranges: { other: { min: 6, max: 8 }, reps: { min: 6, max: 12 } }, unit: 'Sätze pro Woche', sourceIds: ['S03'], where: ['src/shared/muscle-targets.ts'], scenarioIds: ['F04'] }),
   r('muscle.target.back', 'muscle', 'product', 'weighed', 'Wöchentliche Sätze Rücken: 14–20 bei Muskelaufbau, 8–10 sonst; 6–12 Wiederholungen als Start.', 'Umfangsverteilung', active, { value: { min: 14, max: 20 }, ranges: { other: { min: 8, max: 10 }, reps: { min: 6, max: 12 } }, unit: 'Sätze pro Woche', sourceIds: ['S03'], where: ['src/shared/muscle-targets.ts'], scenarioIds: ['F04'] }),

@@ -32,7 +32,7 @@ type Input = {
   weightKg: number | null;
   runPace: { now: number | null; weeks4: number | null; weeks12: number | null } | null;
   workouts: LoggedWorkout[];
-  /** The stats page's weeks, oldest first, the current week last. */
+  /** The stats page's weeks (effective sets per group, the unit of the targets), oldest first, the current week last. */
   weeks: { sets: Partial<Record<MuscleGroup, number>> }[];
   targets: Record<MuscleGroup, { min: number; max: number }>;
 };
