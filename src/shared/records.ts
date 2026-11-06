@@ -9,7 +9,12 @@ export type LoggedSet = { type: 'warmup' | 'normal' | 'failure' | 'dropset'; wei
 /** How many more reps were left after an exercise: none (0), some (1–2), plenty (3+); skip means asked and not answered. */
 export type Effort = 'none' | 'some' | 'plenty';
 export type LoggedExercise = { exerciseId: string; title: string; supersetId: number | null; notes: string; sets: LoggedSet[]; effort?: Effort | 'skip' };
-export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Where it was done (trimmed, at most 40 characters). Old records have none, see shared/studio. */ studio?: string; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[] };
+/**
+ * A coach change taken during the workout, saved in the same write as the changed rows. `prior`: the touched rows before
+ * (`pos`: where each stood), `after`: the rows the change produced. Undo needs both. Old records have none.
+ */
+export type WorkoutChangeEntry = { id: string; atMs: number; prior: LoggedExercise[]; pos: number[]; after: LoggedExercise[] };
+export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Where it was done (trimmed, at most 40 characters). Old records have none, see shared/studio. */ studio?: string; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[]; /** Coach changes taken in this workout, see WorkoutChangeEntry. */ changes?: WorkoutChangeEntry[] };
 
 /** Newer wins; a tie goes to the greater JSON text so every device ends the same. The loser is returned, never dropped silently. */
 export function applyRecord(current: TrackedRecord | undefined, incoming: TrackedRecord): { keep: TrackedRecord; overwritten: TrackedRecord | null } {

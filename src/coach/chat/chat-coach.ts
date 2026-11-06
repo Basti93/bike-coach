@@ -1,6 +1,6 @@
 import { CHAT_CONTEXT, CHAT_KEEP_MS, chatThread, readWorkoutChange, waitingMessage, type ChatEntry, type ChatMessage } from '../../shared/chat';
 import { EXERCISES, type Exercise } from '../../shared/exercises';
-import { validOps } from '../../tracking/workout-change';
+import { checkOps, gehtNicht } from '../../tracking/workout-change';
 import type { TrackedWorkout } from '../../tracking/session';
 import type { TrackedRecord } from '../../shared/records';
 import { readStats, STATS_ID } from '../../shared/stats';
@@ -189,8 +189,10 @@ export class ChatCoach {
       Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : []);
     const msg: ChatMessage = { role: 'coach', text: raw.text.trim().slice(0, 1000) || 'Okay.', atMs: this.deps.nowMs(), inWorkout: w.id };
     const change = isObj(raw.change) ? readWorkoutChange({ workoutId: w.id, ops: raw.change.ops }) : null;
-    const ops = change ? validOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : [];
+    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : { ops: [], reasons: [] };
     if (ops.length > 0) msg.workoutChange = { workoutId: w.id, ops };
+    const line = gehtNicht(reasons);
+    if (line) msg.text = `${msg.text}\n${line}`;
     return msg;
   }
 

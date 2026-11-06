@@ -44,3 +44,17 @@ test('unknown rows, finished exercises, other workouts and unknown swap targets 
   expect(validOps({ workoutId: 'other', ops: [{ op: 'drop', ex: bench }] }, w, EXERCISES)).toEqual([]);
   expect(validOps(ch([{ op: 'drop', ex: bench }]), { ...w, endMs: 5 }, EXERCISES)).toEqual([]);
 });
+
+test('take lists the change once; undo of a drop and a swap restores rows and positions, done sets stay', async () => {
+  const { takeChange, undoChange } = await import('../../src/tracking/workout-change');
+  const w = start();
+  const [bench, squat] = w.exercises.map((e) => e.rid);
+  const c = ch([{ op: 'drop', ex: bench }, { op: 'swap', ex: squat, to: 'pf-leg-press' }]);
+  const t = takeChange(w, 'm1:0', c, [], EXERCISES, { renames: [], picks: [] } as never, 5);
+  expect(t.workout.changes).toHaveLength(1);
+  expect(t.workout.exercises[0]!.sets).toHaveLength(1);
+  expect(takeChange(t.workout, 'm1:0', c, [], EXERCISES, { renames: [], picks: [] } as never, 6).workout).toBe(t.workout);
+  const u = undoChange(t.workout, 'm1:0');
+  expect(u.refusal).toBeNull();
+  expect(u.workout).toEqual(w);
+});

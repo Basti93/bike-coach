@@ -23,7 +23,7 @@ import { NotesField } from './NotesField';
 import { EffortQuestion, EFFORT_LABEL, effortQuestionsOn } from './EffortQuestion';
 import { asksEffort } from '../effort';
 import { WorkoutCoach } from './WorkoutCoach';
-import { applyWorkoutChange } from '../workout-change';
+import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
@@ -182,7 +182,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       )}
       {notice && <p role="note" className="tk-note">{notice}</p>}
       <WorkoutCoach port={port} workout={w} catalog={catalog} now={now} newId={newId}
-        onApply={(c) => act((x) => applyWorkoutChange(x, c, history, catalog, studios))} />
+        onTake={(id, c) => act((x) => takeChange(x, id, c, history, catalog, studios, now()).workout)} onUndo={(id) => act((x) => undoChange(x, id).workout)} />
       {w.rest && remaining > 0 && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
