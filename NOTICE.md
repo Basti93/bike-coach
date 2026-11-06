@@ -14,6 +14,10 @@ The project's own code is under the MIT licence. Different terms apply to the fo
 
 The pictures in `src/web/public/exercises/` come from the exercise database of [wger Workout Manager](https://wger.de). Only images that wger lists under CC BY-SA (3.0 or 4.0) or CC0 1.0 were taken, and only the drawings by Everkinetic (single user uploads were left out); they were scaled down and saved as JPEG (`scripts/wger-images.mjs`). `src/shared/exercise-images.ts` records the author, licence and wger source page of each picture, and the app shows them under it. Each picture keeps its own licence; the CC BY-SA ones are shared under the same licence.
 
+## Exercise base: public domain
+
+`src/shared/fedb-exercises.json` is derived from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is released under the Unlicense (public domain). Names, muscles and equipment were mapped by `scripts/fedb-import.ts`; the German titles in `scripts/fedb-names-de.json` are our own. The English instructions are kept as source text only. No images were taken from it.
+
 ## Garmin FIT SDK
 
 `@garmin/fitsdk` is only loaded as a dependency and is not part of this repo. Garmin's FIT licence agreement applies, which everyone accepts themselves on installation. It restricts redistribution, which is why there are no prebuilt apps here that contain the SDK.

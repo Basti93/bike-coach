@@ -7,12 +7,13 @@ const str = (x: unknown): x is string => typeof x === 'string' && x !== '';
 const strings = (x: unknown): string[] => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string' && s !== '') : []);
 
 /**
- * The one exercise catalog: built-ins, then the base list, then the person's own exercises. An exercise record with
+ * The one exercise catalog: built-ins, then the base list (without entries a built-in names in `fedbId`), then the person's own exercises. An exercise record with
  * the id of a built-in/base entry is an overlay: it adds aliases and may set the description, nothing else. Records
  * that are deleted, carry a proposal (not an exercise yet) or are malformed are left out.
  */
 export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: TrackedRecord[]): Exercise[] {
-  const out: Exercise[] = [...builtIns, ...base].map((e) => ({ ...e }));
+  const covered = new Set(builtIns.flatMap((e) => (e.fedbId ? [e.fedbId] : [])));
+  const out: Exercise[] = [...builtIns, ...base.filter((e) => !covered.has(e.id))].map((e) => ({ ...e }));
   const index = new Map(out.map((e, i) => [e.id, i]));
   for (const r of records) {
     if (r.deleted || !isObj(r.body) || r.body.proposal !== undefined) continue;

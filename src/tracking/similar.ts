@@ -8,11 +8,11 @@ const base = (title: string) => title.replace(/\s*\(.*\)\s*$/, '').trim().toLowe
 const names = (e: Exercise) => [e.title, ...(e.hevyTitle ? [e.hevyTitle] : [])];
 const lastWord = (s: string) => s.split(/[\s-]+/).filter(Boolean).pop() ?? '';
 
-/** Search over the German name, the English Hevy name and the muscle. */
+/** Search over the German name, the English Hevy name, the aliases (for base entries the English name) and the muscle. */
 export function matchesSearch(e: Exercise, needle: string): boolean {
   const n = needle.trim().toLowerCase();
   if (!n) return true;
-  return [...names(e), muscleLabel(e.primaryMuscle)].some((s) => s.toLowerCase().includes(n));
+  return [...names(e), ...(e.aliases ?? []), muscleLabel(e.primaryMuscle)].some((s) => s.toLowerCase().includes(n));
 }
 
 /**

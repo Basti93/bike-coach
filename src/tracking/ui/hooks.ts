@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Exercise } from '../../shared/exercises';
 import { mergeCatalog } from '../../shared/catalog';
+import { FEDB_EXERCISES } from '../../shared/fedb';
 import { EXERCISES } from '../../shared/exercises';
 import type { LoggedWorkout, RecordKind, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
@@ -37,7 +38,7 @@ export const finishedWorkouts = (records: TrackedRecord[] | null): LoggedWorkout
 /** The one catalog: built-ins plus the person's exercise records (an own record with a built-in's id is an overlay). */
 export function useCatalog(port: TrackingPort): Exercise[] {
   const own = usePortRecords(port, 'exercise').records;
-  return useMemo(() => mergeCatalog(EXERCISES, [], own ?? []), [own]);
+  return useMemo(() => mergeCatalog(EXERCISES, FEDB_EXERCISES, own ?? []), [own]);
 }
 
 export function useStoreView(store: WorkoutStore): StoreView {

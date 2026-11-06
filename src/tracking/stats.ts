@@ -1,4 +1,6 @@
+import { mergeCatalog } from '../shared/catalog';
 import { EXERCISES, type Exercise } from '../shared/exercises';
+import { FEDB_EXERCISES } from '../shared/fedb';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import { MUSCLE_TARGETS, PAIRS, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
 import type { LoggedWorkout } from '../shared/records';
@@ -62,7 +64,7 @@ function groupOf(ex: { exerciseId: string; title: string }, stats: StatsBody | n
 }
 
 /** The numbers of the statistics page: minutes and hard days from the stats record, sets from the workouts. */
-export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], nowMs: number, catalog: Exercise[] = EXERCISES): StatsView {
+export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], nowMs: number, catalog: Exercise[] = mergeCatalog(EXERCISES, FEDB_EXERCISES, [])): StatsView {
   const monday = mondayOf(nowMs);
   const starts = Array.from({ length: WEEKS }, (_, i) => isoDate(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (WEEKS - 1 - i))));
   const weeks: WeekStats[] = starts.map((weekStart) => ({
