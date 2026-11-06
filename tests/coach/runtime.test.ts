@@ -299,7 +299,9 @@ describe('the run coach in the runtime', () => {
       children.push(child);
       return child;
     });
-    const { root, runtime } = make({ spawnFn: spawnFn as never });
+    // A fixed Monday: on the last days of a week the plan has no run left to send, so the test must not depend on today's date.
+    const monday = new Date(2026, 10, 2, 9).getTime();
+    const { root, runtime } = make({ spawnFn: spawnFn as never, nowMs: () => monday });
     connectHevyAndGarmin(root);
     runSettings(runtime);
     const workoutRuns = () => children.filter((c) => String(c.args[0]).endsWith('garmin_workout.py'));
@@ -316,7 +318,7 @@ describe('the run coach in the runtime', () => {
     const weekRec = runtime.records.all('pa', 'run').find((r) => r.id.startsWith('week-'))!;
     const week = weekRec.body as RunWeekBody;
     expect(week.garmin).toMatchObject({ status: 'none' });
-    runtime.records.put('pa', { kind: 'run', id: `send-${week.week}`, updatedMs: Date.now(), deleted: false, body: { type: 'send', week: week.week, fp: weekFp(week.runs), atMs: Date.now() } });
+    runtime.records.put('pa', { kind: 'run', id: `send-${week.week}`, updatedMs: monday, deleted: false, body: { type: 'send', week: week.week, fp: weekFp(week.runs), atMs: monday } });
     runtime.scan();
     await settle();
     expect(workoutRuns()).toHaveLength(2);

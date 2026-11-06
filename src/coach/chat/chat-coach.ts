@@ -1,6 +1,8 @@
+import { changeId, changeRecord, readNextOps, type NextOp } from '../../shared/changes';
 import { CHAT_CONTEXT, CHAT_KEEP_MS, chatThread, readWorkoutChange, waitingMessage, type ChatEntry, type ChatMessage } from '../../shared/chat';
 import { EXERCISES, type Exercise } from '../../shared/exercises';
-import { validOps } from '../../tracking/workout-change';
+import { checkOps } from '../../tracking/workout-change';
+import { gehtNicht } from '../../shared/wording';
 import type { TrackedWorkout } from '../../tracking/session';
 import type { TrackedRecord } from '../../shared/records';
 import { readStats, STATS_ID } from '../../shared/stats';
@@ -12,6 +14,7 @@ import type { RecordStore } from '../tracking/store';
 import { LONG_TERM_GUIDE, weekHistory } from './long-term';
 import { readTasks, tasksJsonSchema, type CoachId } from '../coach-tasks';
 
+type Draft = { ops: NextOp[]; reason: string };
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = {
   store: Pick<RecordStore, 'all' | 'put'>;
@@ -42,6 +45,7 @@ export const CHAT_SYSTEM_PROMPT = `Du bist der Coach in Pandafit für Rad, Kraft
 Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart. Ruhetage gehören zum Plan, nicht jeder Tag ist Training.
 Die einzelnen Einheiten (Übungen, Sätze, Watt, Laufminuten) planen der Rad-Coach (bike), der Kraft-Coach (gym) und der Lauf-Coach (run); was sie als Nächstes geplant haben, steht in einheiten. Fragen dazu beantwortest du selbst, fachlich und sportwissenschaftlich begründet. Verweise die Person nie an einen anderen Coach oder ins Training.
 Will die Person an einer Einheit etwas ändern (etwa "nur eine Trizepsübung", "mehr Beine", "Samstag kürzer"), gib dem zuständigen Coach in tasks einen Auftrag: coach, text als klare Anweisung in ihren Worten, lasting true, wenn es ein Wunsch für länger ist, sonst false. Der Coach plant dann sofort neu. Sag in text kurz, was du weitergegeben hast. Ohne Änderungswunsch ist tasks leer.
+Will die Person etwas fürs nächste Training ändern (etwa "nächstes Mal ohne Kniebeugen"), setze nextChange: ops mit exerciseId aus einheiten, und reason als ein Satz, warum. Ohne so einen Wunsch ist nextChange null. Es gilt erst, wenn die Person es übernimmt.
 Die Person kann Mengen nennen ("2× Kraft, 3× Rad"), feste Tage ("Freitag Studio") oder dich vorschlagen lassen; oft eine Mischung. Feste Wünsche der Person markierst du mit fixed true.
 Stelle höchstens eine Frage auf einmal und nur, wenn die Antwort den Plan ändert. Wenn du genug weißt, mach einen Vorschlag.
 Ein Vorschlag (proposal) ist immer eine ganze Woche von Montag bis Sonntag (sieben Tage, date im Format JJJJ-MM-TT, aus wocheJetzt oder wocheNaechste) mit sport bike, gym, run, mobility oder rest und hardness easy, moderate oder hard. Bei Krafttagen sagt legs, ob Beine trainiert werden; long markiert die lange Rad- oder Laufeinheit. note ist optional und kurz. Ohne Vorschlag ist proposal null. Du änderst nie etwas still: Ein Vorschlag gilt erst, wenn die Person ihn übernimmt.
@@ -56,12 +60,21 @@ export const WORKOUT_SYSTEM_PROMPT = `Du bist der Coach in Pandafit und begleite
 Sie sagt dir etwa "Gerät belegt", "Schulter zwickt" oder "nur noch 30 Minuten". Schlag dann vor, wie der Rest dieses Trainings aussieht, als change mit ops; ohne Änderung ist change null.
 ops: drop (die offenen Sätze einer Übung fallen weg), swap (die offenen Sätze wandern zu einer anderen Übung aus katalog, to ist deren id, nimm eine mit demselben Muskel und einem Gerät, das frei ist), sets (open: so viele offene Sätze bleiben), lighter (pct 5 bis 30: die offenen Sätze werden um so viel Prozent leichter). ex ist immer die ex-Kennung einer Übung aus training, die noch offene Sätze hat. Erledigte Sätze änderst du nie.
 Bei Schmerzen: die betroffene Bewegung weglassen oder deutlich leichter, nie durchziehen; keine medizinischen Ratschläge. Erzählt die Person von einem neuen Schmerz, setze newComplaint auf einen kurzen Text in ihren Worten; sonst null. Sagt sie, eine Beschwerde aus beschwerden ist vorbei, nenne deren id in complaintsOver.
-Nichts ändert sich, bevor die Person den Vorschlag übernimmt. text: ein bis zwei Sätze.`;
+Meint die Person das nächste Training statt dieses ("nächstes Mal"), setze statt change nextChange: ops mit exerciseId (die Übungs-id aus katalog oder training) und reason als ein Satz; sonst null. Nichts ändert sich, bevor die Person den Vorschlag übernimmt. text: ein bis zwei Sätze.`;
+
+const nextChangeSchema = { anyOf: [{ type: 'null' }, {
+  type: 'object', additionalProperties: false, required: ['ops', 'reason'],
+  properties: { reason: { type: 'string' }, ops: { type: 'array', items: {
+    type: 'object', additionalProperties: false, required: ['op', 'exerciseId'],
+    properties: { op: { enum: ['drop', 'swap', 'sets', 'lighter'] }, exerciseId: { type: 'string' }, toId: { type: 'string' }, sets: { type: 'integer' } },
+  } } },
+}] };
 
 const workoutSchema = {
-  type: 'object', additionalProperties: false, required: ['text', 'change', 'newComplaint', 'complaintsOver'],
+  type: 'object', additionalProperties: false, required: ['text', 'change', 'newComplaint', 'complaintsOver', 'nextChange'],
   properties: {
     text: { type: 'string' },
+    nextChange: nextChangeSchema,
     newComplaint: { anyOf: [{ type: 'null' }, { type: 'string' }] },
     complaintsOver: { type: 'array', items: { type: 'string' } },
     change: { anyOf: [{ type: 'null' }, {
@@ -75,9 +88,10 @@ const workoutSchema = {
 };
 
 const answerSchema = {
-  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore', 'newComplaint', 'complaintsOver', 'tasks'],
+  type: 'object', additionalProperties: false, required: ['text', 'proposal', 'riderAskedForMore', 'newComplaint', 'complaintsOver', 'tasks', 'nextChange'],
   properties: {
     text: { type: 'string' },
+    nextChange: nextChangeSchema,
     tasks: tasksJsonSchema,
     newComplaint: { anyOf: [{ type: 'null' }, { type: 'string' }] },
     complaintsOver: { type: 'array', items: { type: 'string' } },
@@ -121,19 +135,20 @@ export class ChatCoach {
       const now = this.deps.nowMs();
       if (!waiting || now - waiting.atMs > STALE_MS) return false;
       this.busy.add(id);
-      let answer: ChatMessage;
+      let answer: ChatMessage & { draft?: Draft };
       try {
         answer = waiting.inWorkout ? await this.answerWorkout(id, waiting, thread) : await this.answer(id, this.prompt(id, thread.slice(-CHAT_CONTEXT), now), now);
       } catch (e) {
         const limit = e instanceof ClaudeError && e.kind === 'limit';
         answer = { role: 'coach', text: limit ? 'Mein Claude-Kontingent ist gerade aufgebraucht. Schreib mir später nochmal.' : 'Ich komme gerade nicht durch. Schreib mir gleich nochmal.', atMs: this.deps.nowMs(), failed: true };
       }
-      this.put(id, { ...answer, replyTo: waiting.id, ...(waiting.inWorkout ? { inWorkout: waiting.inWorkout } : {}) });
+      const { draft, ...msg } = answer;
+      this.put(id, { ...msg, replyTo: waiting.id, ...(waiting.inWorkout ? { inWorkout: waiting.inWorkout } : {}) }, draft);
       return true;
     } catch { return false; } finally { this.busy.delete(id); }
   }
 
-  private async answer(id: string, prompt: string, now: number, fromRider = true): Promise<ChatMessage> {
+  private async answer(id: string, prompt: string, now: number, fromRider = true): Promise<ChatMessage & { draft?: Draft }> {
     const ask = async (p: string) => {
       const raw = await this.deps.ask({ prompt: p, systemPrompt: CHAT_SYSTEM_PROMPT, schema: answerSchema });
       if (!isObj(raw) || typeof raw.text !== 'string') throw new ClaudeError('invalid', 'Keine Antwort.');
@@ -142,6 +157,7 @@ export class ChatCoach {
         complaint: typeof raw.newComplaint === 'string' && raw.newComplaint.trim() ? raw.newComplaint.trim().slice(0, 200) : null,
         over: Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : [],
         tasks: readTasks(raw.tasks),
+        draft: this.draftOf(id, raw.nextChange),
       };
     };
     let a = await ask(prompt);
@@ -155,10 +171,12 @@ export class ChatCoach {
       try { a = await ask(`${prompt}\nDein Vorschlag bricht diese Regeln: ${broken.join(' ')} Korrigiere ihn.`); } catch { /* the first answer decides */ }
       broken = a.proposal ? checkWeekPlan(a.proposal.days) : [];
     }
-    const msg: ChatMessage = { role: 'coach', text: a.text || 'Okay.', atMs: this.deps.nowMs() };
+    const msg: ChatMessage & { draft?: Draft } = { role: 'coach', text: a.text || 'Okay.', atMs: this.deps.nowMs() };
+    // Only the rider's own words propose a change for the next workout.
+    if (fromRider && a.draft) msg.draft = a.draft;
     if (a.proposal && broken.length === 0) msg.proposal = a.proposal;
     else if (a.proposal && a.more && !careful) { msg.proposal = a.proposal; msg.warnings = broken; }
-    else if (a.proposal) msg.text += '\n\nMein Vorschlag passte nicht zu unseren Regeln für Erholung, deshalb lasse ich ihn weg. Sag mir, was dir wichtig ist, dann versuche ich es anders.';
+    else if (a.proposal) msg.text += `\n\nMein Vorschlag passte nicht zu unseren Regeln für Erholung (${broken.map((b) => b.replace(/\.$/, '')).join('; ')}), deshalb lasse ich ihn weg. Sag mir, was dir wichtig ist, dann versuche ich es anders.`;
     return msg;
   }
 
@@ -170,14 +188,14 @@ export class ChatCoach {
   }
 
   /** An answer about the rest of the open workout the message was written in. */
-  private async answerWorkout(id: string, waiting: ChatEntry, thread: ChatEntry[]): Promise<ChatMessage> {
+  private async answerWorkout(id: string, waiting: ChatEntry, thread: ChatEntry[]): Promise<ChatMessage & { draft?: Draft }> {
     const rec = this.deps.store.all(id, 'workout').find((r) => r.id === waiting.inWorkout && !r.deleted);
     const w = rec && isObj(rec.body) && Array.isArray(rec.body.exercises) ? rec.body as unknown as TrackedWorkout : null;
     const at = this.deps.nowMs();
     if (!w || w.endMs !== null) return { role: 'coach', text: 'Dieses Training ist schon beendet. Für die Woche schreib mir gern im Tab Woche.', atMs: at };
     const sets = (s: TrackedWorkout['exercises'][number]['sets'], done: boolean) => s.filter((x) => (x.doneMs !== null) === done).map((x) => ({ kg: x.weightKg, wdh: x.reps, typ: x.type }));
     const prompt = [
-      dataBlock('training', { name: w.title, minutenSeitStart: Math.round((at - w.startMs) / 60_000), uebungen: w.exercises.map((e) => ({ ex: e.rid, uebung: e.title, erledigt: sets(e.sets, true), offen: sets(e.sets, false) })) }),
+      dataBlock('training', { name: w.title, minutenSeitStart: Math.round((at - w.startMs) / 60_000), uebungen: w.exercises.map((e) => ({ ex: e.rid, uebungId: e.exerciseId, uebung: e.title, erledigt: sets(e.sets, true), offen: sets(e.sets, false) })) }),
       dataBlock('katalog', EXERCISES.map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, geraet: e.equipment }))),
       dataBlock('beschwerden', this.complaintList(id)),
       dataBlock('verlauf', thread.filter((m) => m.inWorkout === w.id).slice(-10).map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text }))),
@@ -187,11 +205,23 @@ export class ChatCoach {
     if (!isObj(raw) || typeof raw.text !== 'string') throw new ClaudeError('invalid', 'Keine Antwort.');
     this.applyComplaints(id, typeof raw.newComplaint === 'string' && raw.newComplaint.trim() ? raw.newComplaint.trim().slice(0, 200) : null,
       Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : []);
-    const msg: ChatMessage = { role: 'coach', text: raw.text.trim().slice(0, 1000) || 'Okay.', atMs: this.deps.nowMs(), inWorkout: w.id };
+    const msg: ChatMessage & { draft?: Draft } = { role: 'coach', text: raw.text.trim().slice(0, 1000) || 'Okay.', atMs: this.deps.nowMs(), inWorkout: w.id };
+    const draft = this.draftOf(id, raw.nextChange);
+    if (draft) msg.draft = draft;
     const change = isObj(raw.change) ? readWorkoutChange({ workoutId: w.id, ops: raw.change.ops }) : null;
-    const ops = change ? validOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : [];
+    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : { ops: [], reasons: [] };
     if (ops.length > 0) msg.workoutChange = { workoutId: w.id, ops };
+    const line = gehtNicht(reasons);
+    if (line) msg.text = `${msg.text}\n${line}`;
     return msg;
+  }
+
+  /** A change for the next workout the coach proposed: valid ops and a reason, or null. */
+  private draftOf(id: string, x: unknown): Draft | null {
+    if (!isObj(x)) return null;
+    const ops = readNextOps(x.ops, this.deps.catalog?.(id) ?? EXERCISES);
+    const reason = typeof x.reason === 'string' ? x.reason.trim().slice(0, 200) : '';
+    return ops && reason ? { ops, reason } : null;
   }
 
   /** A proposal for this or next week only. */
@@ -199,6 +229,13 @@ export class ChatCoach {
     const p = parseProposal(x);
     const monday = mondayOf(dateKey(now));
     return p && (p.weekStart === monday || p.weekStart === addDays(monday, 7)) ? p : null;
+  }
+
+  /** The exercises of the planned next strength workout, with their ids. */
+  private nextExercises(id: string): { exerciseId: string; titel: string }[] | null {
+    const body = this.deps.store.all(id, 'plan').find((r) => r.id === 'current' && !r.deleted)?.body;
+    const ex = isObj(body) && isObj(body.workout) && Array.isArray(body.workout.exercises) ? body.workout.exercises : null;
+    return ex ? ex.flatMap((e) => (isObj(e) && typeof e.templateId === 'string' ? [{ exerciseId: e.templateId, titel: String(e.title ?? '') }] : [])) : null;
   }
 
   private sessionsOf(id: string): object | null {
@@ -269,10 +306,11 @@ export class ChatCoach {
       dataBlock('wocheNaechste', { montag: addDays(monday, 7), plan: week(addDays(monday, 7)) }),
       dataBlock('letzteTage', days),
       dataBlock('einheiten', this.sessionsOf(id)),
+      dataBlock('naechstesKrafttraining', this.nextExercises(id)),
       dataBlock('wochenVerlauf', weekHistory(this.deps.store.all(id, 'stats'), now)),
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
       dataBlock('beschwerden', this.complaintList(id)),
-      dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}) }))),
+      dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}), ...(m.undoes ? { hatZurueckgenommen: true } : {}) }))),
       instruction,
     ].join('\n');
   }
@@ -280,8 +318,12 @@ export class ChatCoach {
   /** Writes a coach message the rider did not ask for. */
   say(id: string, m: ChatMessage): void { this.put(id, m); }
 
-  private put(id: string, m: ChatMessage): void {
-    const r: TrackedRecord = { kind: 'chat', id: this.deps.newId(), updatedMs: Math.max(m.atMs, this.deps.nowMs()), deleted: false, body: m };
+  /** The change record is written first, so the message never points at nothing. The coach only ever writes it as `proposed`. */
+  private put(id: string, m: ChatMessage, draft?: Draft | null): void {
+    const mid = this.deps.newId();
+    const body = { ...m };
+    if (draft) { this.deps.store.put(id, changeRecord(mid, draft.ops, draft.reason, this.deps.nowMs())); body.nextChange = changeId(mid); }
+    const r: TrackedRecord = { kind: 'chat', id: mid, updatedMs: Math.max(m.atMs, this.deps.nowMs()), deleted: false, body };
     this.deps.store.put(id, r);
   }
 

@@ -129,3 +129,25 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     throw e;
   }
 }
+
+/**
+ * Short plain German for a guardrail refusal, e.g. "zu viele Sätze". One table, in the order the checks can fire; the
+ * part before ": " (which exercise) is dropped. A reason nobody mapped yet gets the general phrase.
+ */
+const REASON_PHRASES: [RegExp, string][] = [
+  [/Schema/, 'die Antwort war nicht lesbar'],
+  [/mehr als \d+ Übungen/, 'zu viele Übungen'],
+  [/mehr als \d+ Sätze bis zum Versagen/, 'zu viele Sätze bis zum Versagen'],
+  [/mehr als \d+ Sätze/, 'zu viele Sätze'],
+  [/Widowmaker/, 'ein Widowmaker, der nicht passt'],
+  [/Muskelversagen/, 'Muskelversagen an der Langhantel'],
+  [/Gewicht zu hoch|Gewicht ohne Verlauf|Unterstützung/, 'ein Gewicht, das noch nicht dran ist'],
+  [/Wiederholungen außerhalb/, 'Wiederholungen außerhalb des Rahmens'],
+  [/Gerät in den letzten Monaten/, 'ein Gerät, das du länger nicht benutzt hast'],
+  [/unbekannte Übungsvorlage|nur Übungen mit Wiederholungen/, 'eine Übung, die ich nicht einplanen kann'],
+  [/keine (Übungen|Sätze)|Superset/, 'eine unvollständige Aufteilung'],
+];
+export function reasonPhrase(reason: string): string {
+  const plain = reason.replace(/^[^:]*: /, '');
+  return REASON_PHRASES.find(([re]) => re.test(reason) || re.test(plain))?.[1] ?? 'eine Angabe außerhalb der Grenzen';
+}

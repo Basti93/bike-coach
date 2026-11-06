@@ -44,6 +44,7 @@ test('a proposal that breaks a rule is asked again once, and dropped if still br
   const [m] = replies(s);
   expect(m!.proposal).toBeUndefined();
   expect(m!.text).toContain('passte nicht zu unseren Regeln');
+  expect(m!.text).toContain('Mehr als zwei harte Tage in der Woche');
 });
 
 test('when the rider asks for more, the proposal stays with its warnings', async () => {
@@ -119,6 +120,14 @@ describe('in a workout', () => {
     expect(prompt).toContain('Bank ist belegt');
     const [m] = replies(s);
     expect(m).toMatchObject({ inWorkout: 'w1', replyTo: 'r1', workoutChange: { workoutId: 'w1', ops: [{ op: 'swap', ex: 'e1', to: 'pf-chest-press-machine' }] } });
+    expect(m!.text).toContain('Geht nicht, weil die Übung nicht mehr da ist.');
+  });
+  it('says in words when no op fits, instead of dropping it silently', async () => {
+    const s = store([workout(), rider('r1', 'Bank ist belegt', NOW - 1000, { inWorkout: 'w1' })]);
+    await coach(s, async () => ({ text: 'Dann so.', newComplaint: null, complaintsOver: [], change: { ops: [{ op: 'swap', ex: 'e1', to: 'nope' }] } })).tick('p');
+    const [m] = replies(s);
+    expect(m!.workoutChange).toBeUndefined();
+    expect(m!.text).toBe('Dann so.\nGeht nicht, weil die Übung nicht im Katalog ist.');
   });
   it('a finished workout gets a kind note and no Claude call', async () => {
     const s = store([workout(NOW - 500), rider('r1', 'Noch was?', NOW - 1000, { inWorkout: 'w1' })]);

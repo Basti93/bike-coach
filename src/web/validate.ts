@@ -4,6 +4,7 @@ import { readRunBody } from '../shared/run';
 import { readStats } from '../shared/stats';
 import { readTogether } from '../shared/together';
 import { readLoadStep } from '../shared/loads';
+import { readChange } from '../shared/changes';
 import { readStudio } from '../shared/studio';
 import { readChat } from '../shared/chat';
 import { parseProposal } from '../shared/week-plan';
@@ -37,6 +38,7 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     case 'coachprefs': return true;
     case 'loadstep': return readLoadStep(body) !== null;
     case 'studio': return readStudio(body) !== null;
+    case 'change': return readChange('', body) !== null;
   }
 }
 

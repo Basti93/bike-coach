@@ -8,6 +8,7 @@ import { checkWorkout } from '../../../src/coach/gym/guardrails';
 import { suggestNext } from '../../../src/coach/gym/history';
 import { ruleWorkout } from '../../../src/coach/gym/rules';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
+import { NEUTRAL_REASON } from '../../../src/coach/gym/prompt';
 import { HevyError, type HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
 import type { StrengthWorkout } from '../../../src/coach/hevy';
@@ -127,7 +128,26 @@ describe('planning', () => {
     expect(h2.calls).toHaveLength(2);
     expect(h2.coach.state(ID).next?.source).toBe('rules');
     expect(h2.coach.state(ID).lastError).toBe('invalid');
+    const why = h2.coach.state(ID).next!.reason;
+    expect(why).toMatch(/^Mein Plan passte nicht zu deinen Grenzen \(.+\), deshalb heute ein einfacher Plan\.$/);
+    expect(why).not.toBe('Das passt zu deinem aktuellen Stand.');
+    expect(why).not.toMatch(/Übung \d|Satz \d/);
     expect(h2.coach.state(ID).dirty).toBe(false);
+  });
+
+  it('a rejected Claude plan never gets the neutral reason, also when the plan before it was a Claude plan', async () => {
+    const h = harness();
+    h.replies = [answer()];
+    await h.coach.tick(ID);
+    expect(h.coach.state(ID).next?.source).toBe('claude');
+    h.coach.taskAdded(ID);
+    const bad = () => answer({ workout: { name: 'Zu schwer', exercises: [ex('cp', [set(100, 9)])] } });
+    h.replies = [bad(), bad()];
+    await h.coach.tick(ID);
+    const next = h.coach.state(ID).next!;
+    expect(next.source).toBe('rules');
+    expect(next.reason).not.toBe(NEUTRAL_REASON);
+    expect(next.reason).toMatch(/^Mein Plan passte nicht zu deinen Grenzen/);
   });
 
   it('a new real workout replans once and writes a short note with at most two questions', async () => {
@@ -1040,5 +1060,26 @@ describe('shared exercise catalog', () => {
     const cat = mergeCatalog(EXERCISES, [], [alias([CUSTOM])]);
     expect([...linkHevyTemplates([{ id: 'x', title: CUSTOM }], cat)]).toEqual([['x', ROW]]);
     expect(linkHevyTemplates([{ id: 'x', title: CUSTOM }]).size).toBe(0);
+  });
+});
+
+describe('changes taken for the next workout', () => {
+  it('the plan reason mentions them once, replanning keeps them, and the coach never writes the record', async () => {
+    const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
+    const rec = { kind: 'change' as const, id: 'chg-m1', updatedMs: 5, deleted: false, body: { target: 'next', ops: [{ op: 'drop', exerciseId: 'lr' }], reason: 'Ohne Rudern, weil der Rücken müde ist', state: 'taken', atMs: 4 } };
+    store.putMany('p1', [rec]);
+    const coach = new GymCoach({
+      dir, nowMs: () => NOW, store, ask: async () => answer({ reason: 'Zuletzt 40 kg bei 8 Wiederholungen, jetzt eine mehr.' }),
+      workouts: () => history(), templates: async () => TEMPLATES, refreshTemplates: async () => TEMPLATES, ready: () => true,
+      bike: () => ({ summaries: [], complaints: [] }), complaint: () => {}, writer: () => null,
+    });
+    await coach.tick('p1');
+    const reason = coach.state('p1').next!.reason;
+    expect(reason).toContain('Berücksichtigt: Ohne Rudern, weil der Rücken müde ist.');
+    expect(reason.match(/Berücksichtigt/g)).toHaveLength(1);
+    coach.taskAdded('p1');
+    await coach.tick('p1');
+    expect(coach.state('p1').next!.reason.match(/Berücksichtigt/g)).toHaveLength(1);
+    expect(store.all('p1', 'change')).toEqual([rec]);
   });
 });
