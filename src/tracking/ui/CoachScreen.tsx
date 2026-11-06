@@ -6,6 +6,7 @@ import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { NextChangeCard } from './NextChangeCard';
 import { RuleCard } from './RuleCard';
+import { RulesCard } from './RulesCard';
 import { useCatalog, usePortRecords } from './hooks';
 import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
 import type { TrackedRecord } from '../../shared/records';
@@ -165,6 +166,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
         )}
         {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
       </section>
+      <RulesCard port={port} now={now} newId={newId} />
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
