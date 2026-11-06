@@ -109,6 +109,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Entscheidungen der Person (06.11.2026):** Stufen selbst lernen statt Einrichtung; mehrere Studios mit getrennten Verläufen; Scheibenrechner gehört in C.
 
+## Meilenstein D — Brief
+
+**Ziel:** Was der Coach ändern will, ist ein Vorschlag mit Grund. Übernommenes bleibt, lässt sich rückgängig machen und geht durch Schließen, Neustart oder ein altes Gerät nicht verloren. Was nicht geht, sagt der Coach mit Grund.
+
+**Abnahme:**
+1. Jede Coach-Änderung (laufendes Training, nächstes Training, Wochenplan) erscheint als Vorschlag mit einem Satz Grund und „Übernehmen“ / „Nein“. Der Vorschlag ist gespeichert: nach Schließen und Neustart steht er noch da, und zweimal Übernehmen ändert nichts doppelt.
+2. Übernommenes lässt sich mit „Rückgängig“ zurücknehmen. Rückgängig stellt nur den Stand davor wieder her und überschreibt keine spätere eigene Änderung; geht das nicht mehr, steht dort warum.
+3. Eine Änderung „fürs nächste Training“ überlebt das Neuplanen des Coaches, Schließen und Neustart und kommt beim nächsten Start im richtigen Training an.
+4. Ein Wochenplan, der inzwischen woanders geändert wurde, wird nicht still überschrieben.
+5. Kann der Coach etwas nicht umsetzen (Übung schon fertig, Regel verletzt, Plan abgelehnt), sagt er „geht nicht, weil …“ statt still etwas anderes zu tun.
+
+**Fällt weg:** Nicht gespeicherte „schon übernommen“-Merker in der Oberfläche; stilles Verwerfen ungültiger Änderungen; der neutrale Ersatzgrund, wenn ein Coach-Plan abgelehnt wurde.
+
+**Nicht dabei:** Coach ändert Routinen/Vorlagen (E/G), Konflikterkennung auf dem Server, Laufplan-Vorschläge.
+
+**Von Claude entschieden (06.11.2026, Person hat Produktfragen an Claude übergeben):** Ein gemeinsamer Datensatz „Änderung“ für alle Vorschläge; Rückgängig bis zum Ende des Trainings bzw. bis zum Start des nächsten Trainings bzw. für den Wochenplan bis zur nächsten Änderung.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
