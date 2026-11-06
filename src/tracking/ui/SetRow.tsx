@@ -41,12 +41,14 @@ export function SetHead({ timed }: { timed: boolean }) {
 
 const CHIP_CLASS: Record<TrackedSet['type'], string> = { warmup: ' tk-chip-warm', normal: '', failure: ' tk-chip-fail', dropset: ' tk-chip-drop' };
 
-export function SetRow({ index, set, timed, label, hint, confirmedNow, onEdit, onToggle, onRemove }: {
+export function SetRow({ index, set, timed, label, hint, plates, confirmedNow, onEdit, onToggle, onRemove }: {
   index: number; set: TrackedSet; timed: boolean;
   /** The short chip: A, F, D or the set's number. Defaults to the row number. */
   label?: string;
   /** A muted line under the values: target range and last time. */
   hint?: string | null;
+  /** Barbell only: the plates per side, on the next open set. */
+  plates?: string | null;
   /** Is this set confirmed in the newest state? The display can lag behind a pending save. */
   confirmedNow?: () => boolean;
   onEdit: (patch: Partial<Pick<TrackedSet, 'weightKg' | 'reps' | 'durationS' | 'type'>>) => void;
@@ -76,6 +78,7 @@ export function SetRow({ index, set, timed, label, hint, confirmedNow, onEdit, o
         ? <button type="button" className={`tk-check${done ? ' on' : ''}`} aria-label={`Satz ${n} erledigt`} aria-pressed={done} disabled={blocked && !done} onClick={onToggle}><span aria-hidden="true">✓</span></button>
         : <span />}
       {hint && <small className="tk-hint muted">{hint}</small>}
+      {plates && <small className="tk-plates muted">{plates}</small>}
       {asking && (
         <p className="tk-note tk-wide">
           Dieser erledigte Satz geht dabei weg. Wirklich entfernen?{' '}

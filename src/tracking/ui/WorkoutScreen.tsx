@@ -13,7 +13,7 @@ import {
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
-import { ExerciseInfo } from './ExerciseInfo';
+import { ExerciseInfo, StepLine } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
 import { ExerciseProposals } from './ExerciseProposals';
 import { MuscleIcon } from './MuscleIcon';
@@ -28,6 +28,9 @@ import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
 import { defaultStudio, knownStudios, studioName } from '../../shared/studio';
+import { repRangeOf } from '../../shared/muscle-targets';
+import { loadStepOverrides } from '../../shared/loads';
+import { hereKey, plateLine, stepChange, stepHere } from '../steps';
 
 const NEW_STUDIO = '\u0000new';
 
@@ -72,6 +75,12 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const remote = usePortRecords(port, 'workout').all;
   const catalog = useCatalog(port);
   const statsRecords = usePortRecords(port, 'stats').records;
+  const loadSteps = usePortRecords(port, 'loadstep').records;
+  const overrides = useMemo(() => loadStepOverrides(loadSteps ?? []), [loadSteps]);
+  const studioHere = hereKey(w, [...history]);
+  const chooseStep = (exerciseId: string, stepKg: number | null) => {
+    void port.list('loadstep').then((stored) => port.put(stepChange(stored, exerciseId, studioHere, stepKg, now()))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.'));
+  };
   const statsMuscles = useMemo(() => {
     const r = (statsRecords ?? []).find((x) => x.id === STATS_ID && !x.deleted);
     return (r && readStats(r.body)?.muscles) || null;
@@ -178,6 +187,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const description = describeExercise(e, catalog);
         const resolved = resolveExercise(e, catalog, statsMuscles);
         const own = resolved.exercise;
+        const equipment = own?.equipment ?? 'other';
+        const range = repRangeOf({ primaryMuscle: own?.primaryMuscle });
+        const plateRid = equipment === 'barbell' ? e.sets.find((x) => x.doneMs === null && x.weightKg !== null && x.weightKg > 0)?.rid : undefined;
         const icon = <MuscleIcon group={resolved.group} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
@@ -212,6 +224,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             {showInfo && (
               <ExerciseInfo title={e.title} description={description} icon={icon}
                 images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: own?.hevyTitle })}>
+                <StepLine title={e.title} step={stepHere(e.exerciseId, equipment, history, studioHere, overrides)} onChoose={(kg) => chooseStep(e.exerciseId, kg)} />
                 <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
               </ExerciseInfo>
             )}
@@ -225,7 +238,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             )}
             {e.sets.length > 0 && <SetHead timed={timed} />}
             {e.sets.map((s, si) => (
-              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed)}
+              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed, range)}
+                plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
                 confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                 onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
                 onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}

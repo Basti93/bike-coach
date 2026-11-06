@@ -588,12 +588,12 @@ test('the workout rows: headers, chips, one grid, a clear done box and last time
   const rows = [...container.querySelectorAll('.tk-set:not(.tk-head)')];
   expect(rows.map((r) => r.querySelector('.tk-chip')!.textContent)).toEqual(['A', '1', 'F']);
   // every row and the header have the same five cells, whatever the set type
-  for (const r of [head, ...rows]) expect([...r.children].filter((c) => !c.matches('.tk-hint, .tk-wide')).length).toBe(5);
+  for (const r of [head, ...rows]) expect([...r.children].filter((c) => !c.matches('.tk-hint, .tk-plates, .tk-wide')).length).toBe(5);
   // full names in the choice
   expect([...(screen.getByLabelText('Satztyp Satz 1') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Aufwärmen', 'Normaler Satz', 'Bis zum Versagen', 'Dropset']);
   // last time: the finished session had 80 × 5 and 85 × 5 as working sets
-  expect(screen.getByText('zuletzt 80 kg × 5')).toBeTruthy();
-  expect(screen.getByText('zuletzt 85 kg × 5')).toBeTruthy();
+  expect(screen.getByText(/zuletzt 80 kg × 5$/)).toBeTruthy();
+  expect(screen.getByText(/zuletzt 85 kg × 5$/)).toBeTruthy();
   const check = screen.getByRole('button', { name: 'Satz 2 erledigt' });
   expect(check.textContent).toBe('✓');
   expect(check.getAttribute('aria-pressed')).toBe('false');
