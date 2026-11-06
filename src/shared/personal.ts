@@ -143,3 +143,15 @@ export function priorityLine(goal: Pick<GoalBody, 'sports'>): string | null {
 /** One prompt line with the active wishes, or null when there are none. Wishes cannot be checked, so the line says so. */
 export const wishLine = (texts: readonly string[]): string | null =>
   texts.length ? `Wünsche der Person (nicht prüfbar): ${texts.map((t) => t.replace(/\s+/g, ' ').trim()).join('; ')}` : null;
+
+/**
+ * What makes the coaches plan again: active or paused exclude and wish rules (id, state, exercises, text) and the goal record.
+ * Proposals, declines and deleted rules are not in it, so they never trigger a replan. '' when there is nothing.
+ */
+export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[]): string {
+  const parts = rulesOf(ruleRecords)
+    .filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal')
+    .map((r) => `${r.id}:${r.state}:${(r.exerciseIds ?? []).join(',')}:${r.text}`);
+  for (const g of goalRecords) parts.push(`goal:${g.id}:${g.updatedMs}:${g.deleted ? 1 : 0}`);
+  return parts.sort().join('|');
+}

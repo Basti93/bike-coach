@@ -2,6 +2,7 @@ import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { RECENT_DAYS } from './limits';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
+import { isExcluded } from '../../shared/excluded';
 import type { GymContext } from './guardrails';
 
 const DAY_MS = 86_400_000;
@@ -27,7 +28,7 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
   const recentLegs = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
   const legsTired = recentLegs || ctx.avoidLegs === true;
-  const allowed = (t: ExerciseTemplate): boolean => isRepBased(t) && !ctx.excluded?.has(t.id) && !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
+  const allowed = (t: ExerciseTemplate): boolean => isRepBased(t) && !isExcluded(t, ctx.excluded, ctx.catalog ?? [], ctx.links) && !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
   const since = ctx.nowMs - RECENT_DAYS * DAY_MS;
   const count = new Map<string, number>();
   for (const w of ctx.workouts) {

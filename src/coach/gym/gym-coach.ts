@@ -8,6 +8,7 @@ import { LONG_BREAK_DAYS, MAX_SETS } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { mergeCatalog } from '../../shared/catalog';
+import { isExcluded } from '../../shared/excluded';
 import { EXERCISES, exerciseTitles, linkHevyTemplates, type Exercise } from '../../shared/exercises';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import { onePerSession } from '../../shared/history';
@@ -118,7 +119,10 @@ export class GymCoach {
     if (old.length === 0) return;
     if (!this.deps.store) return;
     try {
-      migrateRules(this.deps.store, id, 'gym', old, this.deps.nowMs());
+      // A legacy rule that is just a complaint's text stays a complaint, it does not become a wish too.
+      const norm = (t: string): string => t.trim().toLowerCase().replace(/\s+/g, ' ');
+      const complaints = new Set(this.deps.store.all(id, 'complaint').filter((r) => !r.deleted && typeof (r.body as { text?: unknown })?.text === 'string').map((r) => norm((r.body as { text: string }).text)));
+      migrateRules(this.deps.store, id, 'gym', old.filter((t) => !complaints.has(norm(t))), this.deps.nowMs());
       saveGymState(this.deps.dir, this.states.get(id)!, true);
     } catch { /* the file keeps the rules; the next start tries again */ }
   }
@@ -355,7 +359,7 @@ export class GymCoach {
       const studio = this.studio(id);
       const overrides = this.loadSteps(id);
       const excluded = this.excluded(id);
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
@@ -420,8 +424,8 @@ export class GymCoach {
   private withoutExcluded(id: string, o: GymOutlook): GymOutlook {
     const own = this.deps.store ? excludedOf(this.deps.store, id) : new Set<string>();
     if (own.size === 0) return o;
-    const titles = new Set(this.catalog(id).filter((e) => own.has(e.id)).flatMap((e) => exerciseTitles(e)).map((t) => t.trim().toLowerCase()));
-    return { ...o, sessions: o.sessions.map((x) => ({ ...x, exercises: x.exercises.filter((e) => !titles.has(e.title.trim().toLowerCase())) })).filter((x) => x.exercises.length > 0) };
+    const catalog = this.catalog(id);
+    return { ...o, sessions: o.sessions.map((x) => ({ ...x, exercises: x.exercises.filter((e) => !isExcluded({ title: e.title }, own, catalog)) })).filter((x) => x.exercises.length > 0) };
   }
 
   private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number, id: string): void {

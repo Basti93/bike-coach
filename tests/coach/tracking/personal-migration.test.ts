@@ -91,4 +91,15 @@ describe('migration of the old free-text rules', () => {
     c3.scanRides([{ id: 'pa', name: 'Max', ftpW: 200 } as never]);
     expect(store.all('pa', 'rule')).toHaveLength(2);
   });
+
+  it('gym: a legacy rule that equals a complaint text is not made a wish', () => {
+    const dir = path.join(tmp, 'gym2');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'p1.json'), JSON.stringify({ profileId: 'p1', goal: 'muscle', rules: rules() }));
+    const store = new RecordStore({ dir: path.join(tmp, 'tracking2') });
+    store.put('p1', { kind: 'complaint', id: 'c1', updatedMs: 1, deleted: false, body: { text: '  immer ZUERST  aufwärmen', status: 'open', atMs: 1 } } as never);
+    const deps = { dir, nowMs: () => NOW, store, ask: async () => ({}), workouts: () => [], templates: async () => [], ready: () => true, refreshTemplates: async () => [], bike: () => ({ summaries: [], complaints: [] }), complaint: () => {}, writer: () => null };
+    new GymCoach(deps as never).state('p1');
+    expect(wishes(store.all('p1', 'rule'), 'gym')).toEqual(['Kurze Einheiten bevorzugen']);
+  });
 });

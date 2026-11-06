@@ -6,7 +6,6 @@ import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
 import { useCatalog, useGoal, usePortRecords } from './hooks';
-import { nextUpdatedMs } from './run-view';
 
 const STRENGTH_LABEL: Record<Strength, string> = { muscle: 'Muskeln aufbauen', strength: 'Kraft steigern', fitness: 'Fit bleiben' };
 const PRIO_LABEL: Record<Prio, string> = { focus: 'Schwerpunkt', equal: 'gleichrangig', keep: 'erhalten' };
@@ -36,7 +35,7 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   };
   const saveGoal = (g: Omit<GoalBody, 'atMs'>) => attempt(async () => {
     const have = (await port.list('goal')).find((r) => r.id === 'goal');
-    await port.put(goalRecord(g, nextUpdatedMs(now(), have), have));
+    await port.put(goalRecord(g, now(), have));
   });
   const current = async (id: string): Promise<TrackedRecord | undefined> => (await port.list('rule')).find((r) => r.id === id);
   const move = (id: string, to: 'active' | 'paused') => attempt(async () => {

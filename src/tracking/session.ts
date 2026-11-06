@@ -1,4 +1,5 @@
 import { resolveExercise } from './exercise-identity';
+import { isExcluded } from '../shared/excluded';
 import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
@@ -104,10 +105,7 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
  */
 /** True when a plan exercise is ruled out: by its own id, its Hevy template id or title resolved to the own catalog id. */
 export function isExcludedExercise(e: { templateId: string; title: string }, catalog: Exercise[], excluded: ReadonlySet<string>): boolean {
-  if (excluded.size === 0) return false;
-  if (excluded.has(e.templateId)) return true;
-  const own = resolveExercise({ exerciseId: e.templateId, title: e.title }, catalog).exercise;
-  return own !== null && excluded.has(own.id);
+  return isExcluded(e, excluded, catalog);
 }
 
 export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides; /** Exercise ids the person's rules rule out: dropped from the plan, with a line in `onSkipped`. */ excluded?: ReadonlySet<string>; onSkipped?: (lines: string[]) => void } = { changes: [], workouts: [] }): TrackedWorkout {

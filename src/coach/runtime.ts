@@ -26,6 +26,7 @@ import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
 import { goalOfProfile, personalHint } from './tracking/personal';
+import { personalKeyOf } from '../shared/personal';
 import { handleRecords } from './tracking/records-api';
 import { errorKind } from './error-kind';
 import { MobilityCoach, muscleOf } from './mobility/mobility';
@@ -253,10 +254,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
-  const personalKey = (id: string): string => {
-    const recs = [...records.all(id, 'rule'), ...records.all(id, 'goal')];
-    return recs.length ? recs.map((r) => `${r.kind}:${r.id}:${r.updatedMs}:${r.deleted ? 1 : 0}`).sort().join('|') : '';
-  };
+  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'));
   // The week conversation and the evening suggestion, only when the rider switched them on.
   const sentPrompts = new SentPrompts(path.join(coachDir, 'chat', 'prompts-sent.json'));
   /** The week conversation is tried at most this often while it fails. */

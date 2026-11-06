@@ -9,7 +9,7 @@ import { personalHint } from '../../src/coach/tracking/personal';
 import { ChatCoach } from '../../src/coach/chat/chat-coach';
 import { chatThread } from '../../src/shared/chat';
 import { EXERCISES } from '../../src/shared/exercises';
-import { deleteRule, excludedIds, goalRecord, moveRule, ruleRecord } from '../../src/shared/personal';
+import { deleteRule, excludedIds, personalKeyOf, goalRecord, moveRule, ruleRecord } from '../../src/shared/personal';
 import type { RecordKind, TrackedRecord } from '../../src/shared/records';
 import { weeklySetRange } from '../../src/shared/muscle-targets';
 import { similarExercises } from '../../src/tracking/similar';
@@ -144,5 +144,24 @@ describe('wishes reach the prompts of their sport', () => {
     let prompt = '';
     await new ChatCoach({ store: s as never, nowMs: () => NOW, newId: () => 'c1', ask: (async (i: { prompt: string }) => { prompt = i.prompt; return { text: 'ok' }; }) as never }).tick('p');
     expect(prompt).toContain('Wünsche der Person (nicht prüfbar): gern kurze Pausen; keine Intervalle am Sonntag; lieber im Wald');
+  });
+});
+
+describe('replan key and exact-title exclusion', () => {
+  it('a proposed or declined rule leaves the key unchanged, activating changes it', () => {
+    const rec = (state: 'proposed' | 'declined' | 'active') => ruleRecord('r1', { kind: 'exclude', text: 'ohne', sport: 'gym', exerciseIds: ['cp'] }, state, 'chat', NOW);
+    const base = personalKeyOf([], []);
+    expect(personalKeyOf([rec('proposed')], [])).toBe(base);
+    expect(personalKeyOf([rec('declined')], [])).toBe(base);
+    expect(personalKeyOf([rec('active')], [])).not.toBe(base);
+  });
+
+  it('an unlinked Hevy template with the exact title of an excluded exercise is rejected and filtered', () => {
+    const own = EXERCISES[0]!;
+    const hevy: ExerciseTemplate = { id: 'hevy-unlinked', title: ` ${own.title.toUpperCase()} `, type: 'weight_reps', primaryMuscle: 'chest', equipment: 'machine' };
+    const ctx: GymContext = { workouts: [], templates: [hevy, ...TEMPLATES], nowMs: NOW, excluded: new Set([own.id]), catalog: EXERCISES };
+    const ex = { templateId: hevy.id, title: hevy.title, restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 20, reps: 10 }] };
+    expect(checkWorkout({ name: 'x', exercises: [ex] }, ctx).ok).toBe(false);
+    expect(ruleWorkout(ctx).workout.exercises.map((e) => e.templateId)).not.toContain(hevy.id);
   });
 });

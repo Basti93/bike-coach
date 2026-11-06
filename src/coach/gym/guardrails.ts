@@ -5,12 +5,16 @@ import { availableExercises, isAssisted, isRepBased, ladderFor, suggestNext } fr
 import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
 import type { Renames } from '../../shared/studio';
 import { repRangeOf } from '../../shared/muscle-targets';
+import { isExcluded } from '../../shared/excluded';
+import type { Exercise } from '../../shared/exercises';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
   /** The studio the plan is for (undefined: the main one) and the person's weight-step overrides. */
   studio?: string; overrides?: LoadStepOverrides; renames?: Renames;
   /** Template ids the person's active exclude rules rule out (own ids and the Hevy ids linked to them). */
-  excluded?: Set<string> };
+  excluded?: Set<string>;
+  /** The catalog and Hevy links the exclusion is resolved with (exact id or exact known title, never fuzzy). */
+  catalog?: readonly Exercise[]; links?: Readonly<Record<string, string>> };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;
@@ -115,7 +119,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const byId = new Map(ctx.templates.map((t) => [t.id, t]));
     const parsed = raw.exercises.map((e, i) => parseExercise(e, i, byId));
     const exercises = parsed.map((p) => p.ex);
-    if (exercises.some((e) => ctx.excluded?.has(e.templateId))) return no('Übung ausgeschlossen (Regel der Person)');
+    if (exercises.some((e) => isExcluded(e, ctx.excluded, ctx.catalog ?? [], ctx.links))) return no('Übung ausgeschlossen (Regel der Person)');
     const all = exercises.flatMap((e) => e.sets);
     if (all.length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
     if (all.filter((s) => s.type === 'failure').length > MAX_FAILURE_SETS) return no(`mehr als ${MAX_FAILURE_SETS} Sätze bis zum Versagen`);
