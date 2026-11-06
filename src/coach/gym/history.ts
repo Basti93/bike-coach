@@ -1,7 +1,7 @@
 import type { Effort } from '../../shared/records';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate } from './types';
-import { COMPARABLE_DAYS, LONG_BREAK_DAYS, MAX_STEP_PCT, MIN_COMPARABLE, MIN_STEP_KG, RECENT_DAYS, REP_MAX, REP_MIN, STEP_BACK } from './limits';
+import { COMPARABLE_DAYS, EFFORT_STEP_BACK, LONG_BREAK_DAYS, MAX_STEP_PCT, MIN_COMPARABLE, MIN_STEP_KG, RECENT_DAYS, REP_MAX, REP_MIN, STEP_BACK } from './limits';
 
 const DAY_MS = 86_400_000;
 export const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
@@ -51,8 +51,6 @@ function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: numb
   return out.sort((a, b) => a.ms - b.ms);
 }
 
-/** Sessions in a row with "0 left" before the weight steps back. */
-const EFFORT_STEP_BACK = 3;
 const toHalf = (kg: number, mode: 'round' | 'floor'): number => Math[mode](kg * 2) / 2;
 
 /**

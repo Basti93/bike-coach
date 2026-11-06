@@ -24,20 +24,15 @@ Researched on 2026-11-02. Several findings come from secondary summaries or prep
 
 ## Limits
 
-These limits are our own choice, not taken from research. They live in `src/coach/gym/limits.ts`.
+These limits are our own choice, not taken from research. Their single source is the policy register `src/shared/training-policy/rules.ts` (ids `gym.*`), which also records which follow-up task replaces each one; `src/coach/gym/limits.ts` only reads them.
 
-| Limit | Value | Meaning |
-| --- | --- | --- |
-| RECENT_DAYS | 120 | An exercise counts as available if done within this time |
-| LONG_BREAK_DAYS | 28 | Longer without an exercise: step back |
-| MIN_COMPARABLE | 2 | Sessions of an exercise within 56 days needed before changing anything |
-| STEP_BACK | 0.9 | Share of the last weight after a long break |
-| MAX_STEP_PCT | 5 | Largest weight rise in percent, or 2.5 kg if that is more, rounded to 0.5 kg |
-| REP_MIN / REP_MAX | 6 / 12 | Rep range of double progression |
-| MAX_EXERCISES | 10 | Per workout |
-| MAX_SETS | 30 | Per workout |
-| MAX_FAILURE_SETS | 4 | Per workout |
-| MAX_WIDOWMAKERS | 1 | Per workout |
+- RECENT_DAYS: an exercise counts as available if done within this time.
+- LONG_BREAK_DAYS: longer without an exercise means a step back to STEP_BACK of the last weight.
+- MIN_COMPARABLE / COMPARABLE_DAYS: occurrences of an exercise needed within that window before changing anything.
+- EFFORT_STEP_BACK: sessions in a row with "0 left" before the weight steps back.
+- MAX_STEP_PCT / MIN_STEP_KG: largest weight rise in percent, or the minimum step if that is more, rounded to 0.5 kg.
+- REP_MIN / REP_MAX: rep range of double progression.
+- MAX_EXERCISES, MAX_SETS, MAX_FAILURE_SETS, MAX_WIDOWMAKERS: per workout.
 
 ## Progression rule
 
