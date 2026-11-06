@@ -1,6 +1,6 @@
 import type { Exercise } from '../shared/exercises';
 import type { LoggedWorkout } from '../shared/records';
-import { lastValues, type TrackedSet, type TrackedWorkout } from './session';
+import { hereKey, lastValues, type TrackedSet, type TrackedWorkout } from './session';
 
 /** At most this many effort questions per workout. */
 export const MAX_EFFORT_QUESTIONS = 4;
@@ -30,7 +30,7 @@ export function asksEffort(w: TrackedWorkout, ex: string, history: LoggedWorkout
     if (reps <= last.repRange.start - 2 || reps >= last.repRange.end + 2) return false;
     exact = reps >= last.repRange.start && reps <= last.repRange.end;
   }
-  const before = lastValues(e.exerciseId, history, catalog).filter((s) => s.type !== 'warmup' && s.weightKg !== null).map((s) => s.weightKg as number);
+  const before = lastValues(e.exerciseId, history, catalog, hereKey(w, history)).filter((s) => s.type !== 'warmup' && s.weightKg !== null).map((s) => s.weightKg as number);
   const top = Math.max(0, ...sets.map((s) => s.weightKg ?? 0));
   const heavier = before.length > 0 && top > Math.max(...before);
   return exact || !!e.swappedIn || heavier;

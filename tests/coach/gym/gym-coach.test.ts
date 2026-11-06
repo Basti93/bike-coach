@@ -639,8 +639,8 @@ describe('final review', () => {
     });
     it('more than 2 decimals and weights above the cap are still refused', () => {
       expect(check('lr', 22.685).ok).toBe(false);
-      expect(check('lr', 25.19).ok).toBe(false);
-      expect(check('cp', 70).ok).toBe(false);
+      expect(check('lr', 33).ok).toBe(false);
+      expect(check('cp', 75).ok).toBe(false);
     });
   });
 
@@ -684,11 +684,11 @@ describe('final review', () => {
   });
 
   describe('I1 assisted exercises keep their weight', () => {
-    const ASSISTED = 'bodyweight_assisted_reps';
+    const ASSISTED = { type: 'bodyweight_assisted_reps', equipment: 'machine', primaryMuscle: 'lats' };
     const atTop = () => [wk(14, 'a', [{ t: 'as', kg: 20, reps: 12 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 12 }])];
     it('reaching the top of the range does not raise the assistance', () => {
       expect(suggestNext('as', atTop(), NOW, ASSISTED)).toEqual({ weightKg: 20, reps: 12, why: 'keep' });
-      expect(suggestNext('as', atTop(), NOW).weightKg).toBeGreaterThan(20);
+      expect(suggestNext('as', atTop(), NOW, { primaryMuscle: 'lats' }).weightKg).toBeGreaterThan(20);
     });
     it('a long break does not lower the assistance', () => {
       expect(suggestNext('as', [wk(40, 'a', [{ t: 'as', kg: 20, reps: 10 }])], NOW, ASSISTED).weightKg).toBe(20);
@@ -697,7 +697,7 @@ describe('final review', () => {
       const s = suggestNext('as', [wk(14, 'a', [{ t: 'as', kg: 20, reps: 8 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 8 }])], NOW, ASSISTED);
       expect(s).toEqual({ weightKg: 20, reps: 9, why: 'progress' });
     });
-    const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED, 'machine', 'lats')], nowMs: NOW });
+    const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED.type, 'machine', 'lats')], nowMs: NOW });
     it('the rule workout and the check hold the weight', () => {
       expect(ruleWorkout(ctx()).workout.exercises[0].sets[0].weightKg).toBe(20);
       const check = (kg: number) => checkWorkout({ name: 'A', exercises: [ex('as', [set(kg, 12)])] }, ctx()).ok;
@@ -911,7 +911,7 @@ describe('final review', () => {
       await h.coach.tick(ID);
       expect(h.calls).toHaveLength(2);
       expect(h.coach.state(ID).next?.source).toBe('rules');
-      expect(h.coach.state(ID).next?.workout.exercises[0].sets[0].weightKg).toBe(36);
+      expect(h.coach.state(ID).next?.workout.exercises[0].sets[0].weightKg).toBe(35);
     });
     it('the note survives the replan, also when old workouts are still unseen', async () => {
       const h = harness();

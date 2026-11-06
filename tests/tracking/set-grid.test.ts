@@ -24,6 +24,8 @@ test('the hint shows the target range and last time, muted text only', () => {
   expect(setHint({}, s('normal', null, null, 45), true)).toBe('zuletzt 45 Sek.');
   expect(setHint({ repRange: { start: 8, end: 12 } }, null, false)).toBe('Ziel 8–12');
   expect(setHint({}, null, false)).toBeNull();
+  expect(setHint({ repRange: { start: 8, end: 12 } }, s('normal', 42.5, 7), false, undefined, false)).toBe('zuletzt 42,5 kg × 7');
+  expect(setHint({}, null, false, { min: 6, max: 12 }, false)).toBeNull();
   expect(setHint({}, s('normal'), false)).toBeNull();
 });
 

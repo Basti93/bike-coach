@@ -27,7 +27,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **0 Grundlage** | Regelregister existiert, Übungsidentität nur über ID/exakten Titel, unbekannte Muskeln sind sichtbar. | Auftrag 0, Schritt 0–1 (teilweise) |
 | ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
 | ✅ | **B Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
-| **C** | **Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
+| ✅ | **C Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | **E** | **Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | **F** | **Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
@@ -92,6 +92,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (Ledger):** Liste mit vier Zuständen statt Körperbild; Zielbereiche der neuen Teilmuskeln aus RP-Richtwerten im Regelregister; Altwert „Schultern“ ohne Teil zählt als „Schulter vorn“.
 
+## Meilenstein C — Brief (umgesetzt 06.11.2026)
+
+**Ziel:** Jeder Gewichtsvorschlag lässt sich am Gerät im jeweiligen Studio wirklich einstellen, und jede Übung steigert sich in ihrem eigenen Bereich.
+
+**Abnahme:**
+1. Ein Training gehört zu einem Studio. Vor dem Training wird das Studio gewählt; Vorschlag ist das zuletzt genutzte. Dieselbe Übung hat pro Studio einen eigenen Gewichtsverlauf.
+2. Die App lernt die Gewichtsstufen jeder Übung pro Studio aus den eingetragenen Gewichten (z. B. nur Vielfache von 5 → 5-kg-Stufen). Bei der Übung steht die gelernte Stufe; sie lässt sich in einem Schritt korrigieren. Vorschläge und die Prüfung der Coach-Pläne liegen immer auf einer erreichbaren Stufe.
+3. Der Wiederholungsbereich kommt aus der Übung (Muskelgruppe im Regelregister) statt global 6–12. Der nächste Lastschritt ist die nächste erreichbare Stufe statt pauschal 2,5 kg / 5 %.
+4. „Keine Wiederholung mehr übrig“ senkt das Gewicht nicht, solange die Leistung steigt oder hält. Abgesenkt wird nur bei echtem Leistungsrückgang oder nach langer Pause.
+5. Bei Langhantel-Übungen zeigt die App die Auflage pro Seite (20-kg-Stange, übliche Scheiben) und sagt, wenn ein Gewicht nicht genau aufgelegt werden kann.
+
+**Fällt weg:** Regeln `gym.rep-range`, `gym.min-step-kg`, `gym.max-step-pct`, `gym.effort-step-back-count`; das Runden auf 0,5 kg in der Progression.
+
+**Nicht dabei:** eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze), persönliche Wiederholungsbereiche (E), Aufwärmsätze aus dem Gerätemodell (G).
+
+**Entscheidungen der Person (06.11.2026):** Stufen selbst lernen statt Einrichtung; mehrere Studios mit getrennten Verläufen; Scheibenrechner gehört in C.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
@@ -115,3 +132,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Muskelpaare zählen halbe Sätze einer Übung auch auf der Gegenseite (Kniebeuge → Gesäß), das mildert den Ungleichgewichtshinweis.
   - Unbekannte Hevy-Übungen mit „Schultern“ zählen als Schulter vorn.
   - Coach erkennt Übungen über ID/Hevy-Verknüpfung, die Statistik zusätzlich über deutsche Titel; in seltenen Fällen leicht abweichende halbe Sätze.
+- Aus Meilenstein C:
+  - Coach plant immer fürs zuletzt genutzte Studio; wer vor dem Start ein anderes Studio wählt, bekommt Gewichte des alten Studios aus dem Plan.
+  - Eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze).
+  - Gewichtsstufen und Studios werden nicht zwischen Profilen geteilt.

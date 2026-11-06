@@ -1,5 +1,5 @@
 /** The one list of record kinds. Every screen, store and route derives from it. */
-export const RECORD_KINDS = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together', 'run', 'stats', 'chat', 'weekplan', 'coachprefs'] as const;
+export const RECORD_KINDS = ['workout', 'routine', 'exercise', 'mobility', 'complaint', 'plan', 'mealplan', 'together', 'run', 'stats', 'chat', 'weekplan', 'coachprefs', 'loadstep'] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 /** Stored with sync cursors: a version that did not know a kind skipped its records, so a changed list fetches everything again. */
 export const RECORD_KINDS_SIGNATURE = [...RECORD_KINDS].sort().join(',');
@@ -9,7 +9,7 @@ export type LoggedSet = { type: 'warmup' | 'normal' | 'failure' | 'dropset'; wei
 /** How many more reps were left after an exercise: none (0), some (1–2), plenty (3+); skip means asked and not answered. */
 export type Effort = 'none' | 'some' | 'plenty';
 export type LoggedExercise = { exerciseId: string; title: string; supersetId: number | null; notes: string; sets: LoggedSet[]; effort?: Effort | 'skip' };
-export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[] };
+export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Where it was done (trimmed, at most 40 characters). Old records have none, see shared/studio. */ studio?: string; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[] };
 
 /** Newer wins; a tie goes to the greater JSON text so every device ends the same. The loser is returned, never dropped silently. */
 export function applyRecord(current: TrackedRecord | undefined, incoming: TrackedRecord): { keep: TrackedRecord; overwritten: TrackedRecord | null } {

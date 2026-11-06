@@ -32,10 +32,12 @@ const lastText = (p: LoggedSet, timed: boolean): string | null => {
   return null;
 };
 
-/** The small muted line under a set: the planned range and what you did last time. Null when there is nothing to say. */
-export function setHint(set: { repRange?: { start: number; end: number } }, previous: LoggedSet | null, timed: boolean): string | null {
+/** The small muted line under a set: the planned range (else the exercise's own, on the first working set only) and what you did last time. Null when there is nothing to say. */
+export function setHint(set: { type?: SetType; repRange?: { start: number; end: number } }, previous: LoggedSet | null, timed: boolean, range?: { min: number; max: number }, firstWork = true): string | null {
   const parts: string[] = [];
-  if (set.repRange && !timed) parts.push(`Ziel ${set.repRange.start}–${set.repRange.end}`);
+  // The plan's own range wins; else the exercise's rep range (working sets only).
+  const target = set.repRange ?? (range && set.type !== 'warmup' ? { start: range.min, end: range.max } : undefined);
+  if (target && !timed && firstWork) parts.push(`Ziel ${target.start}–${target.end}`);
   const last = previous ? lastText(previous, timed) : null;
   if (last) parts.push(`zuletzt ${last}`);
   return parts.length ? parts.join(' · ') : null;

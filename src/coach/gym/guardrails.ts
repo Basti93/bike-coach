@@ -1,9 +1,13 @@
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
-import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MAX_WIDOWMAKERS, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
-import { availableExercises, isAssisted, isRepBased, suggestNext } from './history';
+import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_WIDOWMAKERS } from './limits';
+import { availableExercises, isAssisted, isRepBased, ladderFor, suggestNext } from './history';
+import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
+import { repRangeOf } from '../../shared/muscle-targets';
 
-export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean };
+export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
+  /** The studio the plan is for (undefined: the main one) and the person's weight-step overrides. */
+  studio?: string; overrides?: LoadStepOverrides };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;
@@ -23,9 +27,9 @@ const isWidowmaker = (notes: string): boolean => /^\s*widowmaker\b/i.test(notes)
 /** Hevy's own weights are not always on a 0.5 kg grid, e.g. 61.25 or a converted 22.68. */
 const twoDecimals = (kg: number): boolean => Math.round(kg * 100) / 100 === kg;
 
-/** Highest weight accepted for an exercise: the suggestion plus one step, or the suggestion alone. */
-export function weightCap(suggested: number, withStep: boolean): number {
-  return withStep ? suggested + Math.max(suggested * MAX_STEP_PCT / 100, MIN_STEP_KG) : suggested;
+/** Highest weight accepted for an exercise: the next reachable weight above the suggestion, or the suggestion alone. */
+export function weightCap(suggested: number, withStep: boolean, ladder: Ladder): number {
+  return withStep ? nextUp(suggested, ladder) : suggested;
 }
 
 function parseSet(raw: unknown, where: string): GymSet {
@@ -65,7 +69,10 @@ function parseExercise(raw: unknown, i: number, byId: Map<string, ExerciseTempla
 function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, recentEquipment: Set<string>, known: Set<string>): void {
   const where = ex.title;
   if (!isRepBased(t)) no(`${where}: nur Übungen mit Wiederholungen`);
-  const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs, t.type);
+  const plan = { studio: ctx.studio, overrides: ctx.overrides };
+  const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs, t, plan);
+  const ladder = ladderFor(ex.templateId, t, ctx.workouts, ctx.nowMs, plan);
+  const range = repRangeOf(t);
   if (!known.has(ex.templateId) && !recentEquipment.has(t.equipment)) no(`${where}: Gerät in den letzten Monaten nicht benutzt`);
   const widow = isWidowmaker(ex.notes);
   const barbell = t.equipment === 'barbell';
@@ -79,8 +86,10 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
     if (s.type === 'failure' && barbell) no(`${where}: Muskelversagen nicht an der Langhantel`);
     if (s.weightKg !== null) {
       if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
-      if (isAssisted(t.type) && s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`);
-      if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s))) no(`${where}: Gewicht zu hoch`);
+      if (isAssisted(t.type)) { if (s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`); }
+      // Only reachable weights go on.
+      else s.weightKg = Math.min(s.weightKg, snapDown(s.weightKg, ladder));
+      if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s), ladder)) no(`${where}: Gewicht zu hoch`);
     }
     if (s.type === 'warmup') continue;
     if (isWidowSet(s)) continue;
@@ -88,7 +97,7 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
     const values = [...(s.reps !== null ? [s.reps] : []), ...(s.repRange ? [s.repRange.start, s.repRange.end] : [])];
     for (const r of values) {
       if (bodyweight) { if (r < 1 || r > MAX_BODYWEIGHT_REPS) no(`${where}: Wiederholungen außerhalb des Rahmens`); }
-      else if (r < REP_MIN || r > REP_MAX) no(`${where}: Wiederholungen außerhalb von ${REP_MIN} bis ${REP_MAX}`);
+      else if (r < range.min || r > range.max) no(`${where}: Wiederholungen außerhalb von ${range.min} bis ${range.max}`);
     }
   }
 }

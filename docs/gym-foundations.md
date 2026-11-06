@@ -29,13 +29,11 @@ These limits are our own choice, not taken from research. Their single source is
 - RECENT_DAYS: an exercise counts as available if done within this time.
 - LONG_BREAK_DAYS: longer without an exercise means a step back to STEP_BACK of the last weight.
 - MIN_COMPARABLE / COMPARABLE_DAYS: occurrences of an exercise needed within that window before changing anything.
-- EFFORT_STEP_BACK: sessions in a row with "0 left" before the weight steps back.
-- MAX_STEP_PCT / MIN_STEP_KG: largest weight rise in percent, or the minimum step if that is more, rounded to 0.5 kg.
-- REP_MIN / REP_MAX: rep range of double progression.
+- **Progression.** The rep range comes from the exercise's muscle group. The weight goes up to the next reachable step in the planned studio: steps are learned per exercise and studio from the work sets (normal and failure, not warmups or dropsets), and the person can override them. "0 left" is not punished on its own; the numbers decide. The weight steps back after two drops in reps at exactly the same weight, or after a long break. A weight rise resets the reps to the range's start and is no drop.
 - MAX_EXERCISES, MAX_SETS, MAX_FAILURE_SETS, MAX_WIDOWMAKERS: per workout.
 
 ## Progression rule
 
-"All reps reached" means every normal or failure set at the heaviest weight of the last session did at least as many reps as the lowest such set of the session before, at the same or a lower weight. Warmup and drop sets are ignored. Then reps rise by one; at REP_MAX the weight rises and reps go back to REP_MIN. Bodyweight exercises only add reps.
+"All reps reached" means every normal or failure set at the heaviest weight of the last session did at least as many reps as the lowest such set of the session before, at the same or a lower weight. Warmup and drop sets are ignored. Then reps rise by one; at the top of the exercise's rep range the weight rises to the next reachable step and reps go back to the start of the range. Bodyweight exercises only add reps.
 
-Weighted exercises keep their suggested reps within REP_MIN to REP_MAX; bodyweight reps may exceed REP_MAX (more reps is the only progression there) but never fall below 1.
+Weighted exercises keep their suggested reps within the exercise's rep range; bodyweight reps may exceed its top (more reps is the only progression there) but never fall below 1.

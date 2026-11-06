@@ -6,8 +6,10 @@ import { z } from 'zod';
 import type { StrengthWorkout } from '../hevy';
 import type { RideSummary } from '../metrics';
 import type { Complaint } from '../motivation';
-import { availableExercises, isRepBased, suggestNext } from './history';
-import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_STEP_PCT, MIN_STEP_KG, REP_MAX, REP_MIN } from './limits';
+import { availableExercises, isRepBased, ladderFor, stepWords, suggestNext } from './history';
+import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS } from './limits';
+import type { LoadStepOverrides } from '../../shared/loads';
+import { repRangeOf } from '../../shared/muscle-targets';
 import type { GymState } from './state';
 import type { ExerciseTemplate } from './types';
 import { TASKS_GUIDE, zTasks } from '../coach-tasks';
@@ -52,7 +54,7 @@ Grundlagen, alles Tendenzen und keine Gewissheiten: Mehr Wochensätze pro Muskel
 Techniken setzt du ein, wo sie passen, und nie zur Show; bei wenigen Einheiten pro Woche kommen die Grundlagen zuerst. Erkläre in wenigen Worten, warum eine Technik da ist. Drop-Sets sparen Zeit (wenige, kurze Studien). Supersätze sparen Zeit, ohne bewiesenen Mehrwuchs. Pyramidensätze haben keinen belegten Vorteil, biete sie nur für Abwechslung an. Aufwärmsätze sind Vorbereitung vor allem vor schweren Grundübungen. Ein Widowmaker ist ein Satz mit 20 Wiederholungen bei etwa dem 10er-Maximum, selten und bewusst, ein Old-School-Verfahren ohne eigene Belege, das darfst du offen sagen.
 Muskelversagen nur am letzten Satz sicherer Übungen wie Maschinen, Kabelzug und Isolationsübungen, nie bei schweren freien Übungen ohne Sicherung wie Langhantel-Kniebeuge oder Bankdrücken. Offene Beschwerden gehen der Härte vor; du stellst keine Diagnose und rätst bei ernsten Beschwerden zu ärztlichem Rat.
 So kommt das Training nach Hevy: Aufwärmsätze sind type "warmup", Muskelversagen "failure", Drop-Sets "dropset", Supersätze teilen eine supersetId (mindestens zwei Übungen), Pyramiden sind unterschiedliche Gewichte. Ein Widowmaker hat keinen eigenen Typ: Die Notiz der Übung beginnt mit „Widowmaker“ und genau ein Satz hat 20 Wiederholungen.
-Grenzen, die nicht verhandelbar sind: höchstens ${MAX_EXERCISES} Übungen, ${MAX_SETS} Sätze, ${MAX_FAILURE_SETS} Versagenssätze und ein Widowmaker pro Training. Wiederholungen ${REP_MIN} bis ${REP_MAX} (Körpergewichtsübungen dürfen mehr). Nutze nur templateId-Werte aus den Datenblöcken. Gewichte nur für Übungen mit Verlauf, nie über dem Vorschlag plus einem Schritt (${MAX_STEP_PCT} %, mindestens ${MIN_STEP_KG} kg); ohne Verlauf weight null. Bei unterstützten Übungen bleibt das Gewicht genau beim Vorschlag. Nutze Übungen, die in den letzten Monaten gemacht wurden, oder Übungen mit Geräten, die in diesem Verlauf vorkommen. Der Vorschlag je Übung (vorschlag) ist die Grundlage für Gewicht und Wiederholungen. Steht bei einer Übung im Training nochMoeglich, hat die Person nach dem letzten Satz gesagt, wie viele Wiederholungen noch gegangen wären; der Vorschlag berücksichtigt das schon. Sieh dir an, was wirklich gemacht wurde, nicht nur, was geplant war: ausgelassene oder geänderte Übungen sind einfach das, was passiert ist.
+Grenzen, die nicht verhandelbar sind: höchstens ${MAX_EXERCISES} Übungen, ${MAX_SETS} Sätze, ${MAX_FAILURE_SETS} Versagenssätze und ein Widowmaker pro Training. Wiederholungen im Bereich der Übung (wiederholungen bei der Übung; Körpergewichtsübungen dürfen mehr). Nutze nur templateId-Werte aus den Datenblöcken. Gewichte nur für Übungen mit Verlauf, nie über dem Vorschlag plus einem Schritt (schritt bei der Übung), und nur Gewichte, die mit den Stufen des Geräts erreichbar sind; ohne Verlauf weight null. Bei unterstützten Übungen bleibt das Gewicht genau beim Vorschlag. Nutze Übungen, die in den letzten Monaten gemacht wurden, oder Übungen mit Geräten, die in diesem Verlauf vorkommen. Der Vorschlag je Übung (vorschlag) ist die Grundlage für Gewicht und Wiederholungen. Steht bei einer Übung im Training nochMoeglich, hat die Person nach dem letzten Satz gesagt, wie viele Wiederholungen noch gegangen wären; der Vorschlag berücksichtigt das schon. Sieh dir an, was wirklich gemacht wurde, nicht nur, was geplant war: ausgelassene oder geänderte Übungen sind einfach das, was passiert ist.
 Wochenvolumen und Wiederholungsbereich je Muskelgruppe stehen im Block muskelvolumen: zustand nennt in Worten, wo die Gruppe steht; „vor allem mittrainiert“ heißt, dass sie mehr durch andere Übungen als direkt trainiert wurde. Liegt eine Gruppe unter ihrem Zielbereich, plane sie bevorzugt ein; liegt sie darüber, nimm dort eher etwas weg. Steht in muskelpaare eine Seite unter zuKurz, plane sie in den nächsten Trainings bevorzugt ein; das ist ein Hinweis, keine Pflicht. Der Wiederholungsbereich ist ein Startpunkt aus der Praxis: Große Grundübungen eher im unteren, kleine Muskeln wie seitliche und hintere Schulter, Waden und Unterarme eher im oberen Bereich. Wachstum gibt es von etwa 5 bis 30 Wiederholungen, wenn der Satz nahe ans Versagen geht; sage das so, wenn es zur Sprache kommt. Schreibe reason in ein bis zwei Sätzen. Nenne nur Gewichte, Wiederholungen und Satzzahlen, die in den Daten stehen oder im Training, das du planst. Nach schwerer Beinarbeit oder harter Radfahrt in den letzten zwei Tagen plane die Beine schonender, ebenso umgekehrt.
 outlook: der Ausblick, damit die Person sieht, wie ihr Training aufgebaut ist. sessions skizziert die zwei bis drei Krafttrainings nach diesem (date aus dem wochenplan, sonst null), je mit name, focus (Schwerpunkt in wenigen Worten) und exercises (Übungstitel und Satzzahl, ohne Gewichte), so dass jede Muskelgruppe über die Woche in ihren Zielbereich aus muskelvolumen kommt und kein Muskel auf Dauer zu kurz kommt (auch Beinbeuger und Gesäß, mit Beinbeugen und Hüftstrecken). direction ist ein bis zwei Sätze, wohin das Training in den nächsten Wochen geht (etwa welche Muskeln mehr Sätze bekommen, wann eine leichtere Woche kommt); ehrlich, ohne Versprechen. Die Skizze ist ein Ausblick, kein Versprechen: Das nächste Training planst du immer neu mit dem, was wirklich passiert ist.
 note: eine kurze Rückmeldung zum letzten Training, ein bis zwei Sätze, nur wenn es verlangt wird. questions: höchstens zwei freiwillige Rückfragen, nur wenn die Antwort die Planung ändern würde, sonst leer. newRule: nur eine dauerhafte Vorliebe oder Einschränkung der Person als kurzer Satz.
@@ -70,6 +72,8 @@ export type PromptInput = {
   mobility?: unknown;
   /** The profile's exercise catalog; resolves the secondary muscles of the logged exercises. */
   catalog?: Exercise[];
+  /** The studio the plan is for, and the person's weight-step overrides. */
+  studio?: string; overrides?: LoadStepOverrides;
 };
 
 export function buildGymPrompt(i: PromptInput): string {
@@ -91,10 +95,16 @@ export function buildGymPrompt(i: PromptInput): string {
       exercises: w.exercises.map((e) => ({ templateId: e.templateId, title: e.title, sets: e.workSets.map((s) => ({ type: s.type, weightKg: s.weightKg, reps: s.reps })), ...(e.effort ? { nochMoeglich: EFFORT_WORDS[e.effort] } : {}) })),
     }))),
     dataBlock('geplant', i.previous ? { name: i.previous.workout.name, exercises: i.previous.workout.exercises.map((e) => ({ templateId: e.templateId, title: e.title, sets: e.sets.length })) } : null),
-    dataBlock('uebungen', available.map((a) => ({
-      templateId: a.templateId, title: titleOf.get(a.templateId) ?? byId.get(a.templateId)?.title ?? '', tageHer: days(a.lastMs), kuerzlich: a.recent,
-      vorschlag: suggestNext(a.templateId, i.workouts, i.nowMs, byId.get(a.templateId)?.type),
-    }))),
+    dataBlock('uebungen', available.map((a) => {
+      const t = byId.get(a.templateId);
+      const plan = { studio: i.studio, overrides: i.overrides };
+      return {
+        templateId: a.templateId, title: titleOf.get(a.templateId) ?? t?.title ?? '', tageHer: days(a.lastMs), kuerzlich: a.recent,
+        vorschlag: suggestNext(a.templateId, i.workouts, i.nowMs, t, plan),
+        wiederholungen: repRangeOf({ primaryMuscle: t?.primaryMuscle }),
+        schritt: stepWords(ladderFor(a.templateId, t, i.workouts, i.nowMs, plan)),
+      };
+    })),
     dataBlock('vorlagen', i.templates.filter((t) => isRepBased(t) && !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
       .map((t) => ({ templateId: t.id, title: t.title, muskel: t.primaryMuscle, geraet: t.equipment }))),
     dataBlock('muskelvolumen', volume.map((g) => ({
@@ -119,7 +129,7 @@ export function buildGymPrompt(i: PromptInput): string {
     'Plane jetzt das nächste Training.',
     i.wantNote ? 'Es gab neue Trainings: Schreibe in note eine kurze Rückmeldung dazu und stelle höchstens zwei freiwillige Rückfragen.' : 'Lasse note und questions leer.',
   ].filter((x): x is string => x !== null).join(' ');
-  return `${blocks.join('\n\n')}\n\n${tail}`;
+  return `${blocks.join('\n\n')}\n\n${i.studio ? `Studio: ${i.studio}\n` : ''}${tail}`;
 }
 
 /** Figures with a unit must exist in the data or the planned workout, otherwise the text is dropped (null). */

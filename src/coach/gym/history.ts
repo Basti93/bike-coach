@@ -1,7 +1,11 @@
 import type { Effort } from '../../shared/records';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate } from './types';
-import { COMPARABLE_DAYS, EFFORT_STEP_BACK, LONG_BREAK_DAYS, MAX_STEP_PCT, MIN_COMPARABLE, MIN_STEP_KG, RECENT_DAYS, REP_MAX, REP_MIN, STEP_BACK } from './limits';
+import { ruleNumber } from '../../shared/training-policy';
+import { ladderFrom, nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
+import { repRangeOf } from '../../shared/muscle-targets';
+import { mainStudio, studioKey } from '../../shared/studio';
+import { COMPARABLE_DAYS, DROP_STEP_BACK, LONG_BREAK_DAYS, MIN_COMPARABLE, RECENT_DAYS, STEP_BACK } from './limits';
 
 const DAY_MS = 86_400_000;
 export const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
@@ -32,58 +36,104 @@ export function availableExercises(workouts: StrengthWorkout[], nowMs: number): 
   return [...found.values()].sort((a, b) => b.lastMs - a.lastMs);
 }
 
+/** What progression needs to know about an exercise: the catalog entry's fields. */
+export type ExerciseInfo = { type?: string; equipment?: string; primaryMuscle?: string | null };
+/** Where the plan is for: the studio (undefined: the main one) and the person's weight-step overrides. */
+export type Plan = { studio?: string; overrides?: LoadStepOverrides };
+
+type Sets = StrengthWorkout['exercises'][number]['workSets'];
 type Session = { ms: number; weightKg: number | null; minReps: number; sets: number[]; effort?: Effort };
 
-/** One value per session: the heaviest weight of the normal and failure sets and the reps done at it. */
-function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: number): Session[] {
-  const out: Session[] = [];
+/** The bucket the plan is for. No studio known means the main studio, or the one shared bucket. */
+const plannedKey = (workouts: StrengthWorkout[], plan: Plan | undefined): string => plan?.studio ?? mainStudio(workouts) ?? '';
+
+/** The exercise's sessions in the planned studio only, oldest first. Several occurrences in one workout are one session. */
+function occurrences(templateId: string, workouts: StrengthWorkout[], nowMs: number, plan: Plan | undefined): { ms: number; sets: Sets; effort?: Effort }[] {
+  const main = mainStudio(workouts);
+  const key = plannedKey(workouts, plan);
+  const out: { ms: number; sets: Sets; effort?: Effort }[] = [];
   for (const w of workouts) {
-    if (w.startMs > nowMs) continue;
-    for (const e of w.exercises) {
-      if (e.templateId !== templateId) continue;
-      const work = e.workSets.filter((s) => (s.type === 'normal' || s.type === 'failure') && s.reps !== null && s.reps > 0);
-      if (work.length === 0) continue;
-      const top = Math.max(...work.map((s) => s.weightKg ?? 0));
-      const atTop = work.filter((s) => (s.weightKg ?? 0) === top).map((s) => s.reps as number);
-      out.push({ ms: w.startMs, weightKg: top > 0 ? top : null, minReps: Math.min(...atTop), sets: atTop, effort: e.effort });
-    }
+    if (w.startMs > nowMs || studioKey(w, main) !== key) continue;
+    const mine = w.exercises.filter((e) => e.templateId === templateId);
+    if (mine.length === 0) continue;
+    const effort = [...mine].reverse().find((e) => e.effort)?.effort;
+    out.push({ ms: w.startMs, sets: mine.flatMap((e) => e.workSets), ...(effort ? { effort } : {}) });
   }
   return out.sort((a, b) => a.ms - b.ms);
 }
 
-const toHalf = (kg: number, mode: 'round' | 'floor'): number => Math[mode](kg * 2) / 2;
+/** One value per session: the heaviest weight of the normal and failure sets and the reps done at it. */
+function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: number, plan: Plan | undefined): Session[] {
+  const out: Session[] = [];
+  for (const o of occurrences(templateId, workouts, nowMs, plan)) {
+    const work = o.sets.filter((s) => (s.type === 'normal' || s.type === 'failure') && s.reps !== null && s.reps > 0);
+    if (work.length === 0) continue;
+    const top = Math.max(...work.map((s) => s.weightKg ?? 0));
+    const atTop = work.filter((s) => (s.weightKg ?? 0) === top).map((s) => s.reps as number);
+    out.push({ ms: o.ms, weightKg: top > 0 ? top : null, minReps: Math.min(...atTop), sets: atTop, ...(o.effort ? { effort: o.effort } : {}) });
+  }
+  return out;
+}
+
+const BAR_KG = ruleNumber('load.bar-kg');
+
+/**
+ * The weight steps of an exercise in the planned studio: learned from its newest 10 sessions there (the shared `ladderFrom`),
+ * then the person's override. The learned anchor is the lightest weight seen, exactly as it is (an off-grid 22.68 stays the
+ * anchor and the steps go on from there), which is no floor of the equipment: the lattice goes on below it (down to
+ * one step, or the bar for a barbell), so a step back or a break can go lighter than anything seen so far.
+ */
+export function ladderFor(templateId: string, ex: ExerciseInfo | undefined, workouts: StrengthWorkout[], nowMs: number, plan?: Plan): Ladder {
+  const sessions = workouts.filter((w) => w.startMs <= nowMs).map((w) => ({ studio: w.studio, startMs: w.startMs, sets: w.exercises.filter((e) => e.templateId === templateId).flatMap((e) => e.workSets), has: w.exercises.some((e) => e.templateId === templateId) }))
+    .filter((s) => s.has);
+  const { ladder: l } = ladderFrom(sessions, { exerciseId: templateId, studio: plannedKey(workouts, plan), main: mainStudio(workouts) }, ex?.equipment ?? 'other', plan?.overrides ?? new Map());
+  const floor = ex?.equipment === 'barbell' && l.anchorKg >= BAR_KG ? BAR_KG : 0;
+  const below = floor > 0 ? Math.floor((l.anchorKg - floor) / l.stepKg + 1e-6) : Math.max(0, Math.ceil(l.anchorKg / l.stepKg - 1e-6) - 1);
+  return { ...l, anchorKg: Math.round((l.anchorKg - below * l.stepKg) * 100) / 100 };
+}
+
+/** "in 5-kg-Stufen", for the prompt. */
+export const stepWords = (l: Ladder): string => `in ${String(l.stepKg).replace('.', ',')}-kg-Stufen`;
 
 /**
  * Double progression: reps first, then weight. "All reps reached" means every top-weight set of the last
  * session did at least as many reps as the lowest set of the session before it, at the same or a lower weight.
+ * The rep range is the exercise's own, the weight steps are the ones reachable in the planned studio. Only sessions
+ * of that studio count. "0 left" is no reason on its own to hold or lower the weight: the numbers decide.
  */
-export function suggestNext(templateId: string, workouts: StrengthWorkout[], nowMs: number, type?: string): Suggestion {
-  const sessions = templateId ? sessionsOf(templateId, workouts, nowMs) : [];
+export function suggestNext(templateId: string, workouts: StrengthWorkout[], nowMs: number, ex?: ExerciseInfo, plan?: Plan): Suggestion {
+  const sessions = templateId ? sessionsOf(templateId, workouts, nowMs, plan) : [];
+  const range = repRangeOf({ primaryMuscle: ex?.primaryMuscle });
   const last = sessions[sessions.length - 1];
-  if (!last) return { weightKg: null, reps: REP_MIN, why: 'none' };
+  if (!last) return { weightKg: null, reps: range.min, why: 'none' };
   // Weighted work stays in the rep range; bodyweight work has no upper limit, since reps are its only progression.
-  const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(REP_MAX, Math.max(REP_MIN, r));
+  const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(range.max, Math.max(range.min, r));
   const reps = fit(last.minReps);
-  const assisted = isAssisted(type);
+  const assisted = isAssisted(ex?.type);
+  const ladder = ladderFor(templateId, ex, workouts, nowMs, plan);
+  const stepBack = (kg: number): number => snapDown(kg * STEP_BACK, ladder);
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
-    return { weightKg: last.weightKg === null || assisted ? last.weightKg : toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
+    return { weightKg: last.weightKg === null || assisted ? last.weightKg : stepBack(last.weightKg), reps, why: 'step-back' };
   }
-  // The rider's answers win over the numbers: 0 left holds (three times in a row steps back), 3+ left goes up.
-  let none = 0;
-  for (let i = sessions.length - 1; i >= 0 && sessions[i].effort === 'none'; i--) none++;
-  if (none >= EFFORT_STEP_BACK && last.weightKg !== null && !assisted) return { weightKg: toHalf(last.weightKg * STEP_BACK, 'round'), reps, why: 'step-back' };
-  if (none > 0) return { weightKg: last.weightKg, reps, why: 'keep' };
+  const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
+  // Fewer reps against the session before at exactly the same weight, several times in a row: the weight is too much for now.
+  // A weight rise resets the reps to the range's start by design, so it is no drop.
+  let drops = 0;
+  for (let i = comparable.length - 1; i >= 1; i--) {
+    const [prev, cur] = [comparable[i - 1], comparable[i]];
+    if (cur.weightKg === null || cur.weightKg !== prev.weightKg || cur.minReps >= prev.minReps) break;
+    drops++;
+  }
+  if (drops >= DROP_STEP_BACK && last.weightKg !== null && !assisted) return { weightKg: stepBack(last.weightKg), reps, why: 'step-back' };
   if (last.effort !== 'plenty') {
-    const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
     if (comparable.length < MIN_COMPARABLE) return { weightKg: last.weightKg, reps, why: 'keep' };
     const before = comparable[comparable.length - 2];
     const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
     if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
   }
-  if (last.weightKg === null || last.minReps < REP_MAX) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
+  if (last.weightKg === null || last.minReps < range.max) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
   if (assisted) return { weightKg: last.weightKg, reps, why: 'keep' };
-  const step = Math.max(last.weightKg * MAX_STEP_PCT / 100, MIN_STEP_KG);
-  return { weightKg: toHalf(last.weightKg + step, 'floor'), reps: REP_MIN, why: 'progress' };
+  return { weightKg: nextUp(last.weightKg, ladder), reps: range.min, why: 'progress' };
 }
 
 /** True when quadriceps, hamstrings, glutes or calves were trained in the last 48 hours. */

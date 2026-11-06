@@ -38,12 +38,18 @@
 .tk-screen button.tk-check { border-radius: 50%; width: 48px; height: 48px; min-height: 48px; padding: 0; background: transparent; border: 2px solid var(--tk-muted); color: var(--tk-muted); font-size: 1.3rem; }
 .tk-screen button.tk-check.on { background: var(--tk-good); border-color: var(--tk-good); color: var(--tk-ink); }
 .tk-hint { grid-column: 3 / 5; text-align: center; font-size: .8rem; }
+.tk-plates { grid-column: 2 / 6; text-align: center; font-size: .8rem; }
+.tk-step select { width: auto; min-height: 36px; padding: .2rem .6rem; }
+.tk-step { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; font-size: .9rem; }
 .tk-done .tk-num { opacity: .75; }
 .tk-ex-head { display: flex; align-items: flex-start; gap: .5rem; }
 .tk-ex-head h2 { flex: 1; min-width: 0; overflow-wrap: anywhere; padding-top: .55rem; }
 .tk-ex-head .muted { padding-top: .6rem; }
 .tk-screen button.tk-more { flex: none; padding: 0; width: 44px; font-size: 1.3rem; line-height: 1; }
 .tk-menu { justify-content: flex-end; }
+.tk-studio { margin: 0; font-size: .9rem; display: flex; gap: .5rem; align-items: center; flex-wrap: nowrap; }
+.tk-studio select { width: auto; max-width: 65%; flex: 0 1 auto; padding: .2rem .4rem; }
+.tk-studio input { width: auto; flex: 1 1 8rem; min-width: 0; }
 .tk-sub { margin: -.3rem 0 0; font-size: .9rem; }
 .tk-screen .tk-notes { width: 100%; resize: none; overflow: hidden; line-height: 1.4; font: inherit; }
 .tk-screen button.tk-skip { background: rgba(255, 255, 255, .3); color: var(--tk-ink); border: 1px solid rgba(31, 20, 8, .45); }

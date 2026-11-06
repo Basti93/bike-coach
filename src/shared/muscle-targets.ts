@@ -55,6 +55,9 @@ export function muscleGroupOf(e: { primaryMuscle: string | null | undefined }): 
   return (e.primaryMuscle && Object.hasOwn(BY_MUSCLE, e.primaryMuscle) && BY_MUSCLE[e.primaryMuscle]) || 'other';
 }
 
+/** The rep range of an exercise: its group's range. An exercise that resolves to no group uses the "other" range. */
+export const repRangeOf = (e: { primaryMuscle: string | null | undefined }): { min: number; max: number } => MUSCLE_TARGETS[muscleGroupOf(e)].reps;
+
 /** The weekly set range for a group: the building range for a muscle goal, the minimum effective range otherwise. */
 export const weeklySetRange = (g: MuscleGroup, goal: string | null | undefined): { min: number; max: number } =>
   goal === 'muscle' ? MUSCLE_TARGETS[g].muscle : MUSCLE_TARGETS[g].other;

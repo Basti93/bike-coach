@@ -4,7 +4,7 @@ import type { RideSummary } from '../metrics';
 import { complaintFromNote, type Complaint } from '../motivation';
 import { checkWorkout, WIDOWMAKER_REPS, type GymContext } from './guardrails';
 import { HevyError, type HevyRoutines } from './hevy-routines';
-import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
+import { LONG_BREAK_DAYS, MAX_SETS } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { mergeCatalog } from '../../shared/catalog';
@@ -19,6 +19,10 @@ import { loadGymState, removeGymState, saveGymState, type GymState } from './sta
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { readTasks, type CoachId } from '../coach-tasks';
 import { readOutlook } from '../../shared/gym-outlook';
+import type { LoadStepOverrides } from '../../shared/loads';
+import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
+import { defaultStudio } from '../../shared/studio';
+import { loadStepsOf } from '../tracking/load-steps';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
@@ -55,6 +59,8 @@ type Deps = {
   store?: RecordStore;
   /** The profile's one exercise catalog. Defaults to the merged catalog of the store (built-ins without a store). */
   catalog?: (id: string) => Exercise[];
+  /** The person's own weight-step overrides per exercise and studio. Defaults to the `loadstep` records of the store. */
+  loadSteps?: (id: string) => LoadStepOverrides;
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
   hevy?: (id: string) => boolean;
   /** Whether the profile is linked to an account: strength tracking is on then, as with Hevy. */
@@ -106,6 +112,12 @@ export class GymCoach {
     if (this.deps.catalog) return this.deps.catalog(id);
     return this.deps.store ? mergeCatalog(EXERCISES, FEDB_EXERCISES, this.deps.store.all(id, 'exercise')) : EXERCISES;
   }
+  private loadSteps(id: string): LoadStepOverrides {
+    if (this.deps.loadSteps) return this.deps.loadSteps(id);
+    return this.deps.store ? loadStepsOf(this.deps.store, id) : new Map();
+  }
+  /** The studio the plan is for: the one of the newest own workout. Undefined when none is known. */
+  studio(id: string): string | undefined { return defaultStudio(this.logged(id)); }
   isHevy(id: string): boolean { return this.deps.hevy ? this.deps.hevy(id) : true; }
   private logged(id: string): LoggedWorkout[] {
     if (!this.deps.store) return [];
@@ -306,7 +318,9 @@ export class GymCoach {
       }
       // The templates may have brought new links, which merge exercises in the history.
       real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
+      const studio = this.studio(id);
+      const overrides = this.loadSteps(id);
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(studio ? { studio } : {}), overrides, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
@@ -325,7 +339,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
@@ -519,7 +533,7 @@ export class GymCoach {
 /** Every figure the coach may name: what was done and what is planned, plus the rep range. */
 function figures(real: StrengthWorkout[], planned: GymWorkout): { weights: number[]; reps: number[]; sets: number[] } {
   const weights: number[] = [];
-  const reps: number[] = [REP_MIN, REP_MAX, WIDOWMAKER_REPS];
+  const reps: number[] = [...Object.values(MUSCLE_TARGETS).flatMap((t) => [t.reps.min, t.reps.max]), WIDOWMAKER_REPS];
   const sets: number[] = [1];
   for (const w of real) {
     let total = 0;

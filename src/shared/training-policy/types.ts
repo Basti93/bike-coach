@@ -30,6 +30,10 @@ export type PolicyRule = {
   ranges?: Record<string, { min: number; max: number }>;
   /** Named lists of the same rule, e.g. which groups work as synergists of a muscle group. */
   lists?: Record<string, string[]>;
+  /** Named single numbers of the same rule, e.g. the default weight step per kind of equipment. */
+  values?: Record<string, number>;
+  /** A plain list of numbers, e.g. the offered weight steps or the plate sizes. */
+  numbers?: number[];
   /** A source id proves neither a threshold nor an individual optimum. */
   sourceIds: string[];
   /** Code paths that apply the rule today or will apply it. */
