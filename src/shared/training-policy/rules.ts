@@ -5,10 +5,10 @@ const active: RuleStatus = { state: 'active' };
 const replace = (task: number, replacement: string): RuleStatus => ({ state: 'to-replace', task, replacement, untilThen: UNTIL_THEN });
 const planned = (task: number): RuleStatus => ({ state: 'planned', task });
 
-type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; lists?: Record<string, string[]>; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
+type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; lists?: Record<string, string[]>; values?: Record<string, number>; numbers?: number[]; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
 const r = (id: string, domain: PolicyRule['domain'], cls: RuleClass, enforcement: Enforcement, statement: string, decision: string, status: RuleStatus, o: Opt = {}): PolicyRule => ({
   id, domain, statement, decision, class: cls, enforcement,
-  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.lists ? { lists: o.lists } : {}), ...(o.unit ? { unit: o.unit } : {}),
+  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.lists ? { lists: o.lists } : {}), ...(o.values ? { values: o.values } : {}), ...(o.numbers ? { numbers: o.numbers } : {}), ...(o.unit ? { unit: o.unit } : {}),
   sourceIds: o.sourceIds ?? [], where: o.where ?? [], status, scenarioIds: o.scenarioIds ?? [],
 });
 
@@ -35,6 +35,12 @@ export const RULES: PolicyRule[] = [
   r('gym.max-failure-sets', 'gym', 'product', 'checked', 'Höchstens 4 Versagenssätze pro Training.', 'Anstrengung', active, { value: 4, where: GYM }),
   r('gym.max-widowmakers', 'gym', 'product', 'checked', 'Höchstens ein Widowmaker pro Training.', 'Anstrengung', active, { value: 1, where: GYM }),
   r('muscle.weekly-set-targets', 'muscle', 'product', 'weighed', 'Feste wöchentliche Satzbereiche je Muskelgruppe, gleichzeitig für alle Gruppen.', 'Umfangsverteilung', replace(2, 'Gemeinsam verfügbaren Umfang verteilen statt gleichzeitiger Mindestquoten; indirekte Arbeit kenntlich machen.'), { sourceIds: ['S03'], where: ['src/shared/muscle-targets.ts', 'src/coach/gym/muscle-volume.ts'], scenarioIds: ['F04'] }),
+
+  // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
+  r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
+  r('load.step-choices', 'gym', 'product', 'checked', 'Den Lastschritt einer Übung kann man auf 0,5, 1, 1,25, 2, 2,5, 4, 5, 7 oder 10 kg setzen.', 'Lastschritt', active, { numbers: [0.5, 1, 1.25, 2, 2.5, 4, 5, 7, 10], unit: 'kg', where: ['src/shared/loads.ts'] }),
+  r('load.bar-kg', 'gym', 'product', 'checked', 'Eine Langhantelstange wiegt 20 kg.', 'Scheiben', active, { value: 20, unit: 'kg', where: ['src/shared/loads.ts'] }),
+  r('load.plates', 'gym', 'product', 'checked', 'Verfügbare Scheiben pro Seite: 25, 20, 15, 10, 5, 2,5 und 1,25 kg, beliebig viele Paare.', 'Scheiben', active, { numbers: [25, 20, 15, 10, 5, 2.5, 1.25], unit: 'kg', where: ['src/shared/loads.ts'] }),
 
   // Other existing heuristics, foundation §10.
   r('bike.hard-gap-48h', 'bike', 'product', 'checked', 'Nach hoher Gesamtintensität 48 Stunden nur locker fahren.', 'Härte der nächsten Einheit', replace(7, 'Protokollverträglichkeit, tatsächliche Vorbelastung und Datenqualität prüfen.'), { value: 48, unit: 'h', where: ['src/coach/guardrails.ts'], scenarioIds: ['F10'] }),
