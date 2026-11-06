@@ -85,3 +85,17 @@ describe('EXERCISES', () => {
     expect(e.equipment).toBe('machine');
   });
 });
+
+describe('applyRecord for changes', () => {
+  const chg = (state: string, updatedMs: number, deleted = false): TrackedRecord => ({ kind: 'change', id: 'chg-1', updatedMs, deleted, body: { target: 'next', ops: [{ op: 'drop', exerciseId: 'x' }], reason: '', state, atMs: 1 } });
+  it('a tombstone ranks highest, whatever the stamps and the order they meet in', () => {
+    for (const [live, gone] of [[chg('used', 50), chg('taken', 10, true)], [chg('proposed', 50), chg('proposed', 10, true)]] as const) {
+      expect(applyRecord(live, gone).keep).toEqual(gone);
+      expect(applyRecord(gone, live).keep).toEqual(gone);
+    }
+  });
+  it('without a tombstone the furthest state still wins in both orders', () => {
+    expect(applyRecord(chg('used', 1), chg('taken', 9)).keep.body).toMatchObject({ state: 'used' });
+    expect(applyRecord(chg('taken', 9), chg('used', 1)).keep.body).toMatchObject({ state: 'used' });
+  });
+});

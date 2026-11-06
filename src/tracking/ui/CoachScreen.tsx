@@ -39,7 +39,7 @@ const takenFrom = (plans: TrackedRecord[], weekStart: string): unknown => {
   return r && typeof r.body === 'object' && r.body !== null ? (r.body as { takenFrom?: unknown }).takenFrom : undefined;
 };
 
-function Proposal({ m, answer, canUndo, past, onTake, onUndo, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | 'undone' | null; canUndo: boolean; past: boolean; onTake: () => void; onUndo: () => void; onDecline: () => void }) {
+function Proposal({ m, answer, canUndo, past, loading, onTake, onUndo, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | 'undone' | null; canUndo: boolean; past: boolean; loading: boolean; onTake: () => void; onUndo: () => void; onDecline: () => void }) {
   const p = m.proposal;
   // A proposal that was answered is one line; the plan itself stands at the top of the page.
   if (answer !== null) {
@@ -54,7 +54,7 @@ function Proposal({ m, answer, canUndo, past, onTake, onUndo, onDecline }: { m: 
       {m.warnings && m.warnings.length > 0 && <p className="tk-note">Mehr als unsere Regeln für Erholung empfehlen: {m.warnings.join(' ')}</p>}
       {answer === null && past ? <p className="muted">Diese Woche ist vorbei.</p> : answer === null ? (
         <div className="tk-row">
-          <button type="button" onClick={onTake}>Übernehmen</button>
+          <button type="button" disabled={loading} onClick={onTake}>Übernehmen</button>
           <button type="button" className="ghost" onClick={onDecline}>Nein danke</button>
         </div>
       ) : <p className="muted">{answer === 'taken' ? 'Übernommen.' : 'Abgelehnt.'}</p>}
@@ -99,8 +99,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  // The stored plan's version when a proposal was first shown: a take must not overwrite a newer plan.
-  const shown = useRef(new Map<string, number>());
   const [undone, setUndone] = useState<Set<string>>(new Set());
   const thread = chatThread(chat ?? []);
   const complaints = (complaintRecords ?? []).flatMap((r) => {
@@ -108,7 +106,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
     return !r.deleted && b && typeof b.text === 'string' && b.status !== 'over' ? [b.text] : [];
   });
   const waiting = waitingMessage(thread);
-  if (plans) for (const m of thread) if (m.proposal && !shown.current.has(m.id)) shown.current.set(m.id, plans.find((r) => r.kind === 'weekplan' && r.id === m.proposal!.weekStart)?.updatedMs ?? 0);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [thread.length]);
 
   const today = localKey(now());
@@ -131,7 +128,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const take = async (m: ChatEntry & { proposal: WeekProposal }) => {
     setError(null);
     try {
-      const res = await takeWeekPlan(port, { proposal: m.proposal, changeId: m.id, shownMs: shown.current.get(m.id) ?? 0, now: now() });
+      const res = await takeWeekPlan(port, { proposal: m.proposal, changeId: m.id, shownMs: m.atMs, now: now() });
       if (!res.ok) { setError(res.reason); return; }
       await write({ role: 'rider', text: 'Übernommen.', atMs: now(), takes: m.id });
     } catch { setError('Der Plan konnte nicht gespeichert werden. Versuch es gleich nochmal.'); }
@@ -139,7 +136,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const undo = async (m: ChatEntry & { proposal: WeekProposal }) => {
     setError(null);
     try {
-      const res = await undoWeekPlan(port, { weekStart: m.proposal.weekStart, changeId: m.id, now: now() });
+      const res = await undoWeekPlan(port, { proposal: m.proposal, changeId: m.id, now: now() });
       if (res.ok) setUndone((u) => new Set(u).add(m.id)); else setError(res.reason);
     } catch { setError('Der Plan konnte nicht gespeichert werden. Versuch es gleich nochmal.'); }
   };
@@ -171,7 +168,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
             <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
             <p>{m.text}</p>
             {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
-            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={undone.has(m.id) ? 'undone' : proposalAnswer(thread, m.id)} canUndo={takenFrom(plans ?? [], m.proposal!.weekStart) === m.id} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
+            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={undone.has(m.id) ? 'undone' : proposalAnswer(thread, m.id)} canUndo={takenFrom(plans ?? [], m.proposal!.weekStart) === m.id} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} loading={plans === null} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
         )))}
         {waiting && <p role="status" className="muted">{now() - waiting.atMs > STALE_MS ? 'Darauf kam keine Antwort mehr. Schreib gern nochmal.' : now() - waiting.atMs > SLOW_MS ? 'Der Coach antwortet, sobald er wieder erreichbar ist.' : 'Der Coach denkt nach …'}</p>}

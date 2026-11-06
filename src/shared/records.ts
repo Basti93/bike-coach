@@ -17,14 +17,15 @@ export type WorkoutChangeEntry = { id: string; atMs: number; prior: LoggedExerci
 export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Where it was done (trimmed, at most 40 characters). Old records have none, see shared/studio. */ studio?: string; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[]; /** Coach changes taken in this workout, see WorkoutChangeEntry. */ changes?: WorkoutChangeEntry[] };
 
 const CHANGE_RANK: Record<string, number> = { proposed: 0, taken: 1, declined: 1, undone: 2, used: 3 };
-const changeRank = (r: TrackedRecord): number => { const s = (r.body as { state?: unknown } | null)?.state; return typeof s === 'string' ? CHANGE_RANK[s] ?? 0 : 0; };
+const changeRank = (r: TrackedRecord): number => { if (r.deleted) return 4; const s = (r.body as { state?: unknown } | null)?.state; return typeof s === 'string' ? CHANGE_RANK[s] ?? 0 : 0; };
 
 /** Newer wins; a tie goes to the greater JSON text so every device ends the same. The loser is returned, never dropped silently. */
 export function applyRecord(current: TrackedRecord | undefined, incoming: TrackedRecord): { keep: TrackedRecord; overwritten: TrackedRecord | null } {
   if (!current) return { keep: incoming, overwritten: null };
   if (current.kind !== incoming.kind || current.id !== incoming.id) throw new Error('applyRecord: records differ in kind or id');
   // A change only moves forward: the furthest state wins whatever the stamps say, so an older device cannot revive a used one.
-  if (current.kind === 'change' && !current.deleted && !incoming.deleted) {
+  // A tombstone is the end of the line, so the outcome does not depend on the order the two meet in.
+  if (current.kind === 'change') {
     const ra = changeRank(current), rb = changeRank(incoming);
     if (ra !== rb) return rb > ra ? { keep: incoming, overwritten: current } : { keep: current, overwritten: incoming };
   }

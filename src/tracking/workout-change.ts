@@ -17,7 +17,8 @@ export function checkOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exer
   const ops: WorkoutOp[] = [];
   const reasons: string[] = [];
   for (const o of change.ops) {
-    if (open(w, o.ex).length === 0) reasons.push('Satz schon erledigt');
+    if (!w.exercises.some((e) => e.rid === o.ex)) reasons.push('Übung nicht mehr da');
+    else if (open(w, o.ex).length === 0) reasons.push('Satz schon erledigt');
     else if (o.op === 'swap' && !catalog.some((e) => e.id === o.to)) reasons.push('Übung nicht im Katalog');
     else ops.push(o);
   }
@@ -52,7 +53,9 @@ export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, his
   return x;
 }
 
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** What the rider edits by hand: per row the type, weight and reps of each set (and so the set count). Planned values and the like do not count. */
+const edited = (rows: readonly { rid?: string; sets: { type: string; weightKg: number | null; reps: number | null }[] }[]): string =>
+  JSON.stringify(rows.map((e) => [e.rid, e.sets.map((s) => [s.type, s.weightKg, s.reps])]));
 export const changeTaken = (w: TrackedWorkout, id: string): boolean => !!w.changes?.some((c) => c.id === id);
 
 /**
@@ -85,8 +88,8 @@ export function undoRefusal(w: TrackedWorkout, id: string): string | null {
   if (!c) return 'Das gibt es nicht mehr.';
   const mine = rids(c.after as { rid?: string }[]);
   const rows = w.exercises.filter((e) => mine.has(e.rid));
-  if (rows.some((e) => e.sets.some((s) => s.doneMs !== null && s.doneMs > c.atMs))) return 'Geht nicht mehr, weil du in dieser Übung schon weitertrainiert hast.';
-  if (!same(rows, c.after)) return 'Geht nicht mehr, weil du sie inzwischen selbst geändert hast.';
+  if (rows.some((e) => e.sets.some((s) => s.doneMs !== null && s.doneMs >= c.atMs))) return 'Geht nicht mehr, weil du in dieser Übung schon weitertrainiert hast.';
+  if (edited(rows) !== edited(c.after as TrackedWorkout['exercises'])) return 'Geht nicht mehr, weil du sie inzwischen selbst geändert hast.';
   return null;
 }
 

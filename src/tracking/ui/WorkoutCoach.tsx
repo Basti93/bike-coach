@@ -56,11 +56,15 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   const take = async (m: ChatEntry & { workoutChange: WorkoutChange }) => {
     if (changeTaken(workout, key(m))) return;
     setOpen(true);
-    setLine(gehtNicht(checkOps(m.workoutChange, workout, catalog).reasons));
+    const { ops, reasons } = checkOps(m.workoutChange, workout, catalog);
+    const why = gehtNicht(reasons);
+    setLine(ops.length === 0 ? ['Nicht übernommen.', why].filter(Boolean).join(' ') : why);
+    if (ops.length === 0) { await write({ role: 'rider', text: 'Nicht übernommen.', atMs: now(), declines: m.id, inWorkout: workout.id }); return; }
     onTake(key(m), m.workoutChange);
     await write({ role: 'rider', text: 'Übernommen.', atMs: now(), takes: m.id, inWorkout: workout.id });
   };
   const undo = (m: ChatEntry) => {
+    setLine(null);
     const why = undoRefusal(workout, key(m));
     setLine(why);
     if (!why) onUndo(key(m));

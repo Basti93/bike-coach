@@ -2,6 +2,7 @@ import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
+import { ladderFrom, snapDown, type LoadStepOverrides } from '../shared/loads';
 import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
@@ -99,15 +100,24 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
  * already lists (`workouts`, any, open or finished): a second start never applies one twice. The new workout lists each applied
  * change with empty rows, so there is no undo after the start, and a skipped op leaves a short line in the first exercise's notes.
  */
-export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[] } = { changes: [], workouts: [] }): TrackedWorkout {
+export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides } = { changes: [], workouts: [] }): TrackedWorkout {
   const listed = listedIds(next.workouts);
   const todo = next.changes.filter((c) => c.state === 'taken' && !listed.has(c.id));
-  const { plan, notes } = applyNextChanges(w, todo, catalog);
+  // A lowered weight lands on a weight the machine here can really show: the exercise's ladder in this workout's studio.
+  const key = hereKey({ studio }, history, studios);
+  const main = mainStudio(history, studios.renames);
+  const sessions = onePerSession(dedupeSessions([...history]));
+  const lower = (exerciseId: string, kg: number): number => {
+    const equipment = catalog.find((e) => e.id === exerciseId)?.equipment ?? '';
+    const own = sessions.map((h) => ({ studio: h.studio, startMs: h.startMs, sets: h.exercises.filter((x) => x.exerciseId === exerciseId).flatMap((x) => x.sets.filter(isDone)) }));
+    return snapDown(kg, ladderFrom(own, { exerciseId, studio: key, main, renames: studios.renames }, equipment, next.overrides ?? new Map()).ladder);
+  };
+  const { plan, notes } = applyNextChanges(w, todo, catalog, lower);
   const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios));
   // Lighter also works on weights the last session gave (the plan had none); planned weights were lightened above.
   for (const c of todo) for (const o of c.ops) {
     const g = o.op === 'lighter' ? plan.exercises.findIndex((x) => x.templateId === o.exerciseId) : -1;
-    if (g >= 0) exercises[g] = { ...exercises[g]!, sets: exercises[g]!.sets.map((x, k) => (plan.exercises[g]!.sets[k]?.weightKg === null && x.weightKg !== null ? { ...x, weightKg: Math.round(x.weightKg * (1 - LIGHTER_PCT / 100) * 2) / 2 } : x)) };
+    if (g >= 0) exercises[g] = { ...exercises[g]!, sets: exercises[g]!.sets.map((x, k) => (plan.exercises[g]!.sets[k]?.weightKg === null && x.weightKg !== null ? { ...x, weightKg: lower(o.exerciseId, x.weightKg * (1 - LIGHTER_PCT / 100)) } : x)) };
   }
   if (notes.length && exercises[0]) exercises[0] = { ...exercises[0], notes: [exercises[0].notes, ...notes].filter(Boolean).join('\n') };
   const changes = todo.map((c) => ({ id: c.id, atMs: nowMs, prior: [], pos: [], after: [] }));
@@ -205,7 +215,9 @@ export function finish(w: TrackedWorkout, nowMs: number, choice?: FinishChoice):
   const exercises = choice === 'complete'
     ? w.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => (isDone(s) ? s : { ...s, doneMs: endMs })) }))
     : w.exercises;
-  return { status: 'finished', workout: { ...w, exercises, endMs, rest: null } };
+  // The undo data of a coach change is of no use once the workout is over; the ids stay (a second start must not apply them again).
+  const changes = w.changes?.map((c) => ({ id: c.id, atMs: c.atMs, prior: [], pos: [], after: [] }));
+  return { status: 'finished', workout: { ...w, exercises, endMs, rest: null, ...(changes ? { changes } : {}) } };
 }
 
 /** A running time: "1:39", past an hour "1:02:05". */

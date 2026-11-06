@@ -19,12 +19,12 @@ test('take then undo restores the previous plan; without a previous plan the pla
   const { port, map } = fakePort([old]);
   expect(await takeWeekPlan(port, { proposal, changeId: 'c1', shownMs: 5, now: NOW })).toEqual({ ok: true });
   expect(sportOf(map)).toBe('gym');
-  expect(await undoWeekPlan(port, { weekStart: '2026-11-02', changeId: 'c1', now: NOW })).toEqual({ ok: true });
+  expect(await undoWeekPlan(port, { proposal, changeId: 'c1', now: NOW })).toEqual({ ok: true });
   expect(sportOf(map)).toBe('bike');
   expect(map.get('weekplan:2026-11-02')!.body).not.toHaveProperty('takenFrom');
   const fresh = fakePort();
   await takeWeekPlan(fresh.port, { proposal, changeId: 'c1', shownMs: 0, now: NOW });
-  await undoWeekPlan(fresh.port, { weekStart: '2026-11-02', changeId: 'c1', now: NOW });
+  await undoWeekPlan(fresh.port, { proposal, changeId: 'c1', now: NOW });
   expect(sportOf(fresh.map)).toBeNull();
 });
 
@@ -38,8 +38,24 @@ test('an undo after a later change is refused', async () => {
   const { port, map } = fakePort();
   await takeWeekPlan(port, { proposal, changeId: 'c1', shownMs: 0, now: NOW });
   await takeWeekPlan(port, { proposal: mk('run') as never, changeId: 'c2', shownMs: map.get('weekplan:2026-11-02')!.updatedMs, now: NOW });
-  expect(await undoWeekPlan(port, { weekStart: '2026-11-02', changeId: 'c1', now: NOW })).toEqual({ ok: false, reason: UNDO_REFUSED });
+  expect(await undoWeekPlan(port, { proposal, changeId: 'c1', now: NOW })).toEqual({ ok: false, reason: UNDO_REFUSED });
   expect(sportOf(map)).toBe('run');
+});
+
+test('an undo is refused when the stored days are no longer the proposal\'s, even with the same take id', async () => {
+  const { port, map } = fakePort();
+  await takeWeekPlan(port, { proposal, changeId: 'c1', shownMs: 0, now: NOW });
+  const stored = map.get('weekplan:2026-11-02')!;
+  map.set('weekplan:2026-11-02', { ...stored, updatedMs: stored.updatedMs + 5, body: { ...(stored.body as object), days: (mk('run') as { days: unknown[] }).days } });
+  expect(await undoWeekPlan(port, { proposal, changeId: 'c1', now: NOW })).toEqual({ ok: false, reason: UNDO_REFUSED });
+  expect(sportOf(map)).toBe('run');
+});
+
+test('a take compares the stored plan with the time of the proposal message', async () => {
+  const { port } = fakePort([{ ...old, updatedMs: NOW - 1000 }]);
+  expect(await takeWeekPlan(port, { proposal, changeId: 'c1', shownMs: NOW - 500, now: NOW })).toEqual({ ok: true });
+  const newer = fakePort([{ ...old, updatedMs: NOW - 100 }]);
+  expect(await takeWeekPlan(newer.port, { proposal, changeId: 'c1', shownMs: NOW - 500, now: NOW })).toEqual({ ok: false, reason: TAKE_REFUSED });
 });
 
 test('records without the new fields still read; screen: Rückgängig on the taken message, refusal line when changed', async () => {
@@ -55,7 +71,7 @@ test('screen: a take on a plan changed after the proposal was shown shows the re
   const { port, map, notify } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await screen.findByRole('button', { name: 'Übernehmen' });
-  map.set('weekplan:2026-11-02', { ...old, updatedMs: 99 }); notify();
+  map.set('weekplan:2026-11-02', { ...old, updatedMs: NOW }); notify();
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
   expect((await screen.findByRole('alert')).textContent).toBe(TAKE_REFUSED);
   expect(sportOf(map)).toBe('bike');

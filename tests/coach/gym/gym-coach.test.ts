@@ -8,6 +8,7 @@ import { checkWorkout } from '../../../src/coach/gym/guardrails';
 import { suggestNext } from '../../../src/coach/gym/history';
 import { ruleWorkout } from '../../../src/coach/gym/rules';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
+import { NEUTRAL_REASON } from '../../../src/coach/gym/prompt';
 import { HevyError, type HevyRoutines } from '../../../src/coach/gym/hevy-routines';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
 import type { StrengthWorkout } from '../../../src/coach/hevy';
@@ -132,6 +133,21 @@ describe('planning', () => {
     expect(why).not.toBe('Das passt zu deinem aktuellen Stand.');
     expect(why).not.toMatch(/Übung \d|Satz \d/);
     expect(h2.coach.state(ID).dirty).toBe(false);
+  });
+
+  it('a rejected Claude plan never gets the neutral reason, also when the plan before it was a Claude plan', async () => {
+    const h = harness();
+    h.replies = [answer()];
+    await h.coach.tick(ID);
+    expect(h.coach.state(ID).next?.source).toBe('claude');
+    h.coach.taskAdded(ID);
+    const bad = () => answer({ workout: { name: 'Zu schwer', exercises: [ex('cp', [set(100, 9)])] } });
+    h.replies = [bad(), bad()];
+    await h.coach.tick(ID);
+    const next = h.coach.state(ID).next!;
+    expect(next.source).toBe('rules');
+    expect(next.reason).not.toBe(NEUTRAL_REASON);
+    expect(next.reason).toMatch(/^Mein Plan passte nicht zu deinen Grenzen/);
   });
 
   it('a new real workout replans once and writes a short note with at most two questions', async () => {

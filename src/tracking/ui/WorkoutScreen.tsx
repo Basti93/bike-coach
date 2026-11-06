@@ -375,9 +375,9 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // The changes taken for the next workout go in when it starts; each is marked used only after the workout is saved.
   // A workout that already lists a change stops it from applying again (a start that died before the mark), and the mark is made up.
   const startPlan = async (g: GymWorkout) => {
-    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [];
-    try { changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
-    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all });
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]);
+    try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
+    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides });
     if (!(await begin(w))) return;
     try { for (const r of usedMarks(changeRecs, [...all, w], now())) await port.put(r); } catch { /* the next start marks them */ }
   };

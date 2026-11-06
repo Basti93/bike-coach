@@ -92,9 +92,22 @@ test('undo is refused when the rows were edited since', () => {
 
 test('a take with an op that became invalid says why and changes nothing', async () => {
   const done = { ...two, exercises: [{ ...two.exercises[0]!, sets: two.exercises[0]!.sets.map((s) => ({ ...s, doneMs: 5 })) }] };
-  const { port } = fakePort(seed());
+  const { port, map } = fakePort(seed());
   render(<Harness port={port} initial={done} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
-  expect(await screen.findByText('Geht nicht: Satz schon erledigt.')).toBeTruthy();
+  expect(await screen.findByText('Nicht übernommen. Geht nicht: Satz schon erledigt.')).toBeTruthy();
   expect(current).toBe(done);
+  await waitFor(() => expect(all(map).some((b) => b.declines === 'c1')).toBe(true));
+  expect(all(map).some((b) => b.text === 'Übernommen.')).toBe(false);
+});
+
+test('a line from a take is gone after the next undo', async () => {
+  const mixed = [seed()[0]!, chat('c1', { role: 'coach', text: 'Leichter und weg.', replyTo: 'r1', inWorkout: 'w1', workoutChange: { workoutId: 'w1', ops: [{ op: 'lighter', ex: 'e1', pct: 10 }, { op: 'drop', ex: 'gone' }] } })];
+  const { port } = fakePort(mixed);
+  render(<Harness port={port} initial={two} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  expect(await screen.findByText('Geht nicht: Übung nicht mehr da.')).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
+  expect(await screen.findByText('Rückgängig gemacht.')).toBeTruthy();
+  expect(screen.queryByText('Geht nicht: Übung nicht mehr da.')).toBeNull();
 });

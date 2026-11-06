@@ -18,7 +18,7 @@ const plain = (body: Record<string, unknown>): Record<string, unknown> => {
 
 /**
  * Takes a week proposal: the stored plan is kept as `prior` so the take can be undone. Refused when the stored plan changed
- * after the proposal was shown (`shownMs` = updatedMs of the stored record then, 0 for none).
+ * after the proposal was made (`shownMs` = when the proposal was made, i.e. the time of its chat message).
  */
 export async function takeWeekPlan(port: TrackingPort, p: { proposal: WeekProposal; changeId: string; shownMs: number; now: number }): Promise<WeekResult> {
   const have = await storedOf(port, p.proposal.weekStart);
@@ -29,12 +29,13 @@ export async function takeWeekPlan(port: TrackingPort, p: { proposal: WeekPropos
   return r.kept ? { ok: true } : { ok: false, reason: TAKE_REFUSED };
 }
 
-/** Undoes a take: restores `prior`, or removes the plan if there was none. Only while the stored plan is still the one this take wrote. */
-export async function undoWeekPlan(port: TrackingPort, p: { weekStart: string; changeId: string; now: number }): Promise<WeekResult> {
-  const have = await storedOf(port, p.weekStart);
-  if (!have || have.deleted || !isObj(have.body) || have.body.takenFrom !== p.changeId) return { ok: false, reason: UNDO_REFUSED };
+/** Undoes a take: restores `prior`, or removes the plan if there was none. Only while the stored plan is still the one this take wrote (same take and same days as the proposal). */
+export async function undoWeekPlan(port: TrackingPort, p: { proposal: WeekProposal; changeId: string; now: number }): Promise<WeekResult> {
+  const weekStart = p.proposal.weekStart;
+  const have = await storedOf(port, weekStart);
+  if (!have || have.deleted || !isObj(have.body) || have.body.takenFrom !== p.changeId || JSON.stringify(have.body.days) !== JSON.stringify(p.proposal.days)) return { ok: false, reason: UNDO_REFUSED };
   const prior = isObj(have.body.prior) ? plain(have.body.prior) : null;
-  const next: TrackedRecord = { kind: 'weekplan', id: p.weekStart, updatedMs: Math.max(p.now, have.updatedMs + 1), deleted: prior === null, body: prior ?? have.body };
+  const next: TrackedRecord = { kind: 'weekplan', id: weekStart, updatedMs: Math.max(p.now, have.updatedMs + 1), deleted: prior === null, body: prior ?? have.body };
   const r = await port.put(next);
   return r.kept ? { ok: true } : { ok: false, reason: UNDO_REFUSED };
 }

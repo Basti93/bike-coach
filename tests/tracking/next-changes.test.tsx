@@ -76,6 +76,25 @@ test('taken changes apply oldest first; ops for exercises not in the plan are sk
   expect(w.exercises[0]!.notes).toContain('passte nicht mehr');
 });
 
+test('lighter lands on the exercise\'s weight ladder of the workout\'s studio, not on 0.5 kg', () => {
+  const day = 86_400_000;
+  const session = (startMs: number, studio: string | undefined, kgs: number[]): LoggedWorkout => ({ id: `h${startMs}`, title: 'H', startMs, endMs: startMs + 1, source: 'pandafit', ...(studio ? { studio } : {}), exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: kgs.map((kg) => ({ type: 'normal' as const, weightKg: kg, reps: 8, durationS: null, doneMs: startMs + 1 })) }] });
+  const history = [20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60].map((kg, i) => session(day * (i + 1), 'Gym A', [kg]));
+  const t = moveChange(changeRecord('l', [{ op: 'lighter', exerciseId: 'pf-bench-press' }], 'Leichter.', 500), 'taken', 600)!;
+  const w = startFromPlan(plan, history, 0, 'w1', EXERCISES, 'Gym A', undefined, { changes: takenChanges([t]), workouts: [] });
+  const kgs = w.exercises[0]!.sets.map((s) => s.weightKg!);
+  // 60 kg less 10 % is 54; this machine here moves in steps of 4 kg, so it lands on 52, not on 54.
+  expect(kgs).toEqual([52, 52, 52]);
+});
+
+test('sets on an exercise without working sets is skipped with a note', () => {
+  const onlyWarm: GymWorkout = { ...plan, exercises: [{ ...plan.exercises[0]!, sets: [{ type: 'warmup', weightKg: 20, reps: 10 }] }] };
+  const c = moveChange(changeRecord('s', [{ op: 'sets', exerciseId: 'pf-bench-press', sets: 3 }], 'x', 1), 'taken', 2)!;
+  const out = applyNextChanges(onlyWarm, takenChanges([c]), EXERCISES);
+  expect(out.plan.exercises[0]!.sets).toEqual(onlyWarm.exercises[0]!.sets);
+  expect(out.notes).toHaveLength(1);
+});
+
 test('starting twice does not apply a change twice, and a start that died before the mark is made up', () => {
   const t = taken();
   const first = startFromPlan(plan, [], 10, 'w1', EXERCISES, undefined, undefined, { changes: takenChanges([t]), workouts: [] });

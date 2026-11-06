@@ -120,7 +120,7 @@ describe('in a workout', () => {
     expect(prompt).toContain('Bank ist belegt');
     const [m] = replies(s);
     expect(m).toMatchObject({ inWorkout: 'w1', replyTo: 'r1', workoutChange: { workoutId: 'w1', ops: [{ op: 'swap', ex: 'e1', to: 'pf-chest-press-machine' }] } });
-    expect(m!.text).toContain('Geht nicht: Satz schon erledigt.');
+    expect(m!.text).toContain('Geht nicht: Übung nicht mehr da.');
   });
   it('says in words when no op fits, instead of dropping it silently', async () => {
     const s = store([workout(), rider('r1', 'Bank ist belegt', NOW - 1000, { inWorkout: 'w1' })]);

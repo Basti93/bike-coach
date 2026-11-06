@@ -72,9 +72,9 @@ const half = (kg: number) => Math.round(kg * 2) / 2;
 
 /**
  * The plan with the taken changes applied, oldest first. An op whose exercise is not in the plan (any more) is skipped with a
- * short line. `applied`: the changes that did anything or were meant to; every taken change counts as used once it is listed.
+ * short line. `lower`: where a lowered weight lands (default: the nearest 0.5 kg; the app passes the exercise's weight ladder). `applied`: the changes that did anything or were meant to; every taken change counts as used once it is listed.
  */
-export function applyNextChanges(plan: GymWorkout, changes: readonly NextChange[], catalog: readonly Exercise[]): { plan: GymWorkout; notes: string[] } {
+export function applyNextChanges(plan: GymWorkout, changes: readonly NextChange[], catalog: readonly Exercise[], lower: (exerciseId: string, kg: number) => number = (_id, kg) => half(kg)): { plan: GymWorkout; notes: string[] } {
   let exercises: GymExercise[] = plan.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) }));
   const notes: string[] = [];
   for (const c of changes) for (const o of c.ops) {
@@ -89,9 +89,10 @@ export function applyNextChanges(plan: GymWorkout, changes: readonly NextChange[
     } else if (o.op === 'sets') {
       const warm = e.sets.filter((s) => s.type === 'warmup');
       const work = e.sets.filter((s) => s.type !== 'warmup');
+      if (work.length === 0) { notes.push('Eine Änderung fürs Training passte nicht mehr zum Plan.'); continue; }
       const fitted = o.sets <= work.length ? work.slice(0, o.sets) : [...work, ...Array.from({ length: o.sets - work.length }, () => ({ ...work[work.length - 1]! }))].filter(Boolean);
       exercises[i] = { ...e, sets: [...warm, ...fitted] };
-    } else exercises[i] = { ...e, sets: e.sets.map((s) => (s.weightKg !== null ? { ...s, weightKg: half(s.weightKg * (1 - LIGHTER_PCT / 100)) } : s)) };
+    } else exercises[i] = { ...e, sets: e.sets.map((s) => (s.weightKg !== null ? { ...s, weightKg: lower(e.templateId, s.weightKg * (1 - LIGHTER_PCT / 100)) } : s)) };
   }
   return { plan: { ...plan, exercises }, notes: [...new Set(notes)] };
 }
