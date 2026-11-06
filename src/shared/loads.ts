@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { TrackedRecord } from './records';
 import { titleHash } from './exercise-links';
 import { ruleNumber, ruleNumbers, ruleValues } from './training-policy';
+import { studioKey } from './studio';
 
 /** Weight steps learned per exercise and studio, reachable weights and barbell plates. Pure, shared by app and coach. Product values: see the `load.*` rules. */
 export type Ladder = { stepKg: number; anchorKg: number; learned: boolean };
@@ -77,6 +78,29 @@ export function loadStepOverrides(records: readonly TrackedRecord[]): LoadStepOv
 export function withOverride(l: Ladder, overrides: LoadStepOverrides, key: { exerciseId: string; studio: string }): Ladder {
   const s = overrides.get(keyOf(key.exerciseId, key.studio));
   return s === undefined ? l : { ...l, stepKg: s };
+}
+
+/** One session of an exercise, in the neutral shape app and coach both map their history to. */
+export type LadderSession = { studio?: string; startMs: number; sets: readonly { type: string; weightKg: number | null }[] };
+
+const LADDER_SESSIONS = 10;
+
+/**
+ * The ONE place the weight steps are learned, for the app and the coach. From the exercise's newest 10 sessions in the
+ * studio bucket `key` (a session's bucket is `studioKey(session, main)`): only normal and failure sets with a weight count,
+ * then the person's override. `learned` is the ladder before the override.
+ * The learner works on a 0.25 kg grid, but the anchor is the exact lightest weight seen, so an off-grid weight (22.68 from
+ * a lb conversion) stays the anchor with its exact value and the steps go on from there.
+ */
+export function ladderFrom(sessions: readonly LadderSession[], key: { exerciseId: string; studio: string; main: string | undefined }, equipment: string, overrides: LoadStepOverrides): { ladder: Ladder; learned: Ladder } {
+  const weights = sessions
+    .filter((s) => studioKey(s, key.main) === key.studio)
+    .sort((a, b) => b.startMs - a.startMs).slice(0, LADDER_SESSIONS)
+    .flatMap((s) => s.sets.filter((x) => x.type === 'normal' || x.type === 'failure').map((x) => x.weightKg ?? 0))
+    .filter((x) => x > 0);
+  const base = learnLadder(weights, equipment);
+  const learned = weights.length > 0 ? { ...base, anchorKg: Math.min(...weights) } : base;
+  return { learned, ladder: withOverride(learned, overrides, { exerciseId: key.exerciseId, studio: key.studio }) };
 }
 
 // --- plates (barbell) ---

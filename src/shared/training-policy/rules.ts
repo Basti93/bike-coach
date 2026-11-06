@@ -22,7 +22,7 @@ const GYM = ['src/coach/gym/limits.ts', 'src/coach/gym/history.ts', 'src/coach/g
 export const RULES: PolicyRule[] = [
   // Today's gym limits: own product choices, see docs/gym-foundations.md.
   r('gym.step-back-share', 'gym', 'product', 'checked', 'Nach langer Pause oder Rückschritt geht es auf 90 % der letzten Last.', 'Lastauswahl', active, { value: 0.9, where: GYM }),
-  r('gym.drop-step-back-count', 'gym', 'product', 'checked', 'Zwei Trainings in Folge mit weniger Wiederholungen bei gleicher oder höherer Last führen auf 90 % zurück.', 'Lastauswahl', active, { value: 2, unit: 'Trainings', where: ['src/coach/gym/history.ts'], scenarioIds: ['F02'] }),
+  r('gym.drop-step-back-count', 'gym', 'product', 'checked', 'Zwei Trainings in Folge mit weniger Wiederholungen bei gleicher Last führen auf 90 % zurück.', 'Lastauswahl', active, { value: 2, unit: 'Trainings', where: ['src/coach/gym/history.ts'], scenarioIds: ['F02'] }),
   r('gym.long-break-days', 'gym', 'product', 'checked', 'Nach mehr als 28 Tagen ohne Übung geht es etwas zurück.', 'Lastauswahl', active, { value: 28, unit: 'Tage', where: GYM, scenarioIds: ['F12'] }),
   r('gym.recent-days', 'gym', 'product', 'checked', 'Eine Übung gilt als verfügbar, wenn sie in den letzten 120 Tagen gemacht wurde.', 'Übungsauswahl', active, { value: 120, unit: 'Tage', where: GYM }),
   r('gym.min-comparable', 'gym', 'product', 'checked', 'Zwei Vorkommen einer Übung innerhalb von 56 Tagen sind nötig, bevor sich etwas ändert.', 'Vergleichbare Vorleistung', replace(4, 'Echte unterschiedliche Trainingsgelegenheiten statt Übungsinstanzen.'), { value: 2, where: GYM }),

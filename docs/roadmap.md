@@ -132,3 +132,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Muskelpaare zählen halbe Sätze einer Übung auch auf der Gegenseite (Kniebeuge → Gesäß), das mildert den Ungleichgewichtshinweis.
   - Unbekannte Hevy-Übungen mit „Schultern“ zählen als Schulter vorn.
   - Coach erkennt Übungen über ID/Hevy-Verknüpfung, die Statistik zusätzlich über deutsche Titel; in seltenen Fällen leicht abweichende halbe Sätze.
+- Aus Meilenstein C:
+  - Coach plant immer fürs zuletzt genutzte Studio; wer vor dem Start ein anderes Studio wählt, bekommt Gewichte des alten Studios aus dem Plan.
+  - Eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze).
+  - Gewichtsstufen und Studios werden nicht zwischen Profilen geteilt.

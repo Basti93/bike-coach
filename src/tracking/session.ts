@@ -1,5 +1,5 @@
 import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
-import { studioName } from '../shared/studio';
+import { defaultStudio, mainStudio, studioName, studioKey } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
@@ -42,14 +42,28 @@ export function parseDecimal(text: string): number | null | undefined {
 }
 export const formatDecimal = (n: number | null): string => (n === null ? '' : String(n).replace('.', ','));
 
-/** Confirmed sets of the newest performed session containing the exercise. A session known twice (own and Hevy) counts once. */
-/** The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. */
-export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog?: Exercise[]): LoggedSet[] {
+/** The studio bucket a workout counts for: its own, else the default studio, else the main one, else the shared bucket (''). */
+export function hereKey(w: { studio?: string }, history: readonly LoggedWorkout[]): string {
+  return w.studio ?? defaultStudio(history) ?? mainStudio(history) ?? '';
+}
+
+/**
+ * The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. A session known twice
+ * (own and Hevy, record and kept copy) counts once. Sessions of the studio `studio` (a bucket key; default: the default
+ * studio) come first, so weights never come from another studio's machines; only without any history there, all studios count.
+ */
+export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog?: Exercise[], studio?: string): LoggedSet[] {
   const own = (catalog ?? EXERCISES).find((e) => e.id === exerciseId);
   const titles = own ? exerciseTitles(own) : [];
-  for (const w of onePerSession(dedupeSessions(history))) {
-    const sets = w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
-    if (sets.length) return sets;
+  const key = studio ?? hereKey({}, history);
+  const main = mainStudio(history);
+  const sessions = onePerSession(dedupeSessions(history));
+  const setsOf = (w: LoggedWorkout): LoggedSet[] => w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
+  for (const pool of [sessions.filter((w) => studioKey(w, main) === key), sessions]) {
+    for (const w of pool) {
+      const sets = setsOf(w);
+      if (sets.length) return sets;
+    }
   }
   return [];
 }
@@ -57,8 +71,8 @@ export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog
 const blank = (): TrackedSet => ({ rid: newRid(), type: 'normal', weightKg: null, reps: null, durationS: null, doneMs: null });
 const typeOf = (id: string, catalog: Exercise[]): string => catalog.find((e) => e.id === id)?.type ?? 'weight_reps';
 
-function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exercise[]): TrackedExercise {
-  const last = lastValues(g.templateId, history, catalog);
+function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exercise[], studio?: string): TrackedExercise {
+  const last = lastValues(g.templateId, history, catalog, studio);
   const timed = isTimed(typeOf(g.templateId, catalog));
   const seen = { warm: 0, work: 0 };
   const sets = g.sets.map((p): TrackedSet => {
@@ -79,8 +93,8 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
   return { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
 }
 
-export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES): TrackedWorkout {
-  return { id, title: w.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises: w.exercises.map((g) => plannedExercise(g, history, catalog)), rest: null };
+export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string): TrackedWorkout {
+  return { id, title: w.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises: w.exercises.map((g) => plannedExercise(g, history, catalog, studio)), rest: null };
 }
 /** Sets (or, with an empty name, clears) the studio. */
 export function setStudio(w: TrackedWorkout, raw: string): TrackedWorkout {
@@ -92,8 +106,8 @@ export const startFromRoutine = startFromPlan;
 export const startEmpty = (nowMs: number, id: string, title = 'Training'): TrackedWorkout =>
   ({ id, title, startMs: nowMs, endMs: null, source: 'pandafit', exercises: [], rest: null });
 
-function fromCatalog(e: Exercise, history: LoggedWorkout[], keep?: Pick<TrackedExercise, 'supersetId' | 'restS'>): TrackedExercise {
-  const last = lastValues(e.id, history, [e]);
+function fromCatalog(e: Exercise, history: LoggedWorkout[], studio: string, keep?: Pick<TrackedExercise, 'supersetId' | 'restS'>): TrackedExercise {
+  const last = lastValues(e.id, history, [e], studio);
   const sets: TrackedSet[] = last.length
     ? last.map((l) => ({ rid: newRid(), type: l.type, weightKg: l.weightKg, reps: l.reps, durationS: l.durationS, doneMs: null }))
     : [blank()];
@@ -136,7 +150,7 @@ export const addSet = (w: TrackedWorkout, ex: string): TrackedWorkout =>
 export const removeSet = (w: TrackedWorkout, ex: string, set: string): TrackedWorkout =>
   mapSet(w, ex, set, (s) => s) === w ? w : mapEx(w, ex, (x) => ({ ...x, sets: x.sets.filter((s) => s.rid !== set) }));
 export const addExercise = (w: TrackedWorkout, e: Exercise, history: LoggedWorkout[]): TrackedWorkout =>
-  ({ ...w, exercises: [...w.exercises, fromCatalog(e, history)] });
+  ({ ...w, exercises: [...w.exercises, fromCatalog(e, history, hereKey(w, history))] });
 export const removeExercise = (w: TrackedWorkout, ex: string): TrackedWorkout =>
   w.exercises.some((e) => e.rid === ex) ? { ...w, exercises: w.exercises.filter((e) => e.rid !== ex) } : w;
 
@@ -146,7 +160,7 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   if (i < 0) return w;
   const old = w.exercises[i];
   const doneSets = old.sets.filter(isDone);
-  const fresh: TrackedExercise = { ...fromCatalog(e, history, old), swappedIn: true };
+  const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history), old), swappedIn: true };
   const exercises = [...w.exercises];
   exercises.splice(i, 1, ...(doneSets.length ? [{ ...old, sets: doneSets }, fresh] : [fresh]));
   return { ...w, exercises };

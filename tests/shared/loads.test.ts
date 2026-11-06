@@ -1,4 +1,6 @@
-import { learnLadder, loadStepId, loadStepOverrides, loadStepRecord, nextUp, platesPerSide, readLoadStep, snapDown, withOverride } from '../../src/shared/loads';
+import { ladderFor } from '../../src/coach/gym/history';
+import { stepHere } from '../../src/tracking/steps';
+import { ladderFrom, learnLadder, loadStepId, loadStepOverrides, loadStepRecord, nextUp, platesPerSide, readLoadStep, snapDown, withOverride } from '../../src/shared/loads';
 import { RECORD_KINDS, RECORD_KINDS_SIGNATURE, type TrackedRecord } from '../../src/shared/records';
 import { validBody } from '../../src/web/validate';
 import { loadStepsOf } from '../../src/coach/tracking/load-steps';
@@ -126,5 +128,32 @@ describe('review fixes', () => {
   test('a loadstep body is checked', () => {
     expect(validBody('loadstep', { exerciseId: 'e', studio: 'A', stepKg: 5 })).toBe(true);
     expect(validBody('loadstep', { exerciseId: 'e', studio: 'A', stepKg: 3.3 })).toBe(false);
+  });
+});
+
+describe('one ladder for app and coach', () => {
+  const none = new Map<string, number>();
+  const kgs: [number, number[], string?][] = [[1, [40, 45]], [2, [50, 60]], [3, [55, 65], 'Anderswo'], [4, [70, 75]]];
+
+  test('the same history gives the same step on both sides', () => {
+    const own = kgs.map(([d, w, studio]) => ({
+      id: `w${d}`, title: 'T', startMs: d * 1000, endMs: d * 1000 + 500, source: 'pandafit' as const, ...(studio ? { studio } : {}),
+      exercises: [{ exerciseId: 'sq', title: 'Squat', supersetId: null, notes: '', sets: w.map((k) => ({ type: 'normal' as const, weightKg: k, reps: 8, durationS: null, doneMs: 1 })) }],
+    }));
+    const strength = own.map((w) => ({ id: w.id, title: 'T', startMs: w.startMs, durationS: 1, ...(w.studio ? { studio: w.studio } : {}),
+      exercises: [{ title: 'Squat', templateId: 'sq', sets: 2, reps: 0, volumeKg: 0, workSets: w.exercises[0].sets.map((s) => ({ type: 'normal' as const, weightKg: s.weightKg, reps: 8 })) }] }));
+    for (const studio of ['', 'Anderswo']) {
+      const app = stepHere('sq', 'machine', own, studio, none).stepKg;
+      const coach = ladderFor('sq', { equipment: 'machine' }, strength, 10_000, { studio: studio || undefined }).stepKg;
+      expect(coach).toBe(app);
+    }
+    expect(stepHere('sq', 'machine', own, '', none).stepKg).toBe(5);
+  });
+
+  test('an off-grid anchor (22.68 from lb) keeps its exact value and steps from there', () => {
+    const sessions = [{ startMs: 1, sets: [{ type: 'normal', weightKg: 22.68 }, { type: 'normal', weightKg: 27.68 }] }];
+    const { ladder } = ladderFrom(sessions, { exerciseId: 'x', studio: '', main: undefined }, 'machine', none);
+    expect(ladder.anchorKg).toBe(22.68);
+    expect(nextUp(22.68, ladder)).toBeCloseTo(22.68 + ladder.stepKg, 2);
   });
 });

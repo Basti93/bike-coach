@@ -244,3 +244,22 @@ test('a title that is now an overlay alias of a built-in finds its past values',
   const w = startFromPlan(plan, hist, 10, 'w1', catalog);
   expect(w.exercises[0].sets.map((s) => [s.weightKg, s.reps])).toEqual([[50, 8], [40, 8]]);
 });
+
+describe('last values come from the current studio', () => {
+  const hist = [
+    past('a', 9000, 'pf-bench-press', [done(30, 10)], { studio: 'Alt' }),
+    past('b', 8000, 'pf-bench-press', [done(50, 10)], { studio: 'Neu' }),
+    past('c', 1000, 'pf-bench-press', [done(40, 10)], { studio: 'Alt' }),
+  ];
+  const step = { name: 'R', exercises: [{ templateId: 'pf-bench-press', title: 'B', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: null, reps: null }] }] };
+  test('prefill and hint values are from the studio, not the newest session overall', () => {
+    expect(lastValues('pf-bench-press', hist, undefined, 'Neu').map((s) => s.weightKg)).toEqual([50]);
+    expect(lastValues('pf-bench-press', hist, undefined, 'Alt').map((s) => s.weightKg)).toEqual([30]);
+    expect(lastValues('pf-bench-press', hist).map((s) => s.weightKg)).toEqual([30]); // default: the studio of the newest own workout
+    expect(startFromPlan(step, hist, 10, 'w', undefined, 'Neu').exercises[0].sets[0].weightKg).toBe(50);
+    expect(addExercise({ ...startEmpty(1, 'e'), studio: 'Neu' }, EXERCISES.find((e) => e.id === 'pf-bench-press')!, hist).exercises[0].sets[0].weightKg).toBe(50);
+  });
+  test('no history in this studio falls back to all studios', () => {
+    expect(lastValues('pf-bench-press', hist, undefined, 'Dritte').map((s) => s.weightKg)).toEqual([30]);
+  });
+});

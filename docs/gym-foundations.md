@@ -34,6 +34,6 @@ These limits are our own choice, not taken from research. Their single source is
 
 ## Progression rule
 
-"All reps reached" means every normal or failure set at the heaviest weight of the last session did at least as many reps as the lowest such set of the session before, at the same or a lower weight. Warmup and drop sets are ignored. Then reps rise by one; at REP_MAX the weight rises and reps go back to REP_MIN. Bodyweight exercises only add reps.
+"All reps reached" means every normal or failure set at the heaviest weight of the last session did at least as many reps as the lowest such set of the session before, at the same or a lower weight. Warmup and drop sets are ignored. Then reps rise by one; at the top of the exercise's rep range the weight rises to the next reachable step and reps go back to the start of the range. Bodyweight exercises only add reps.
 
-Weighted exercises keep their suggested reps within REP_MIN to REP_MAX; bodyweight reps may exceed REP_MAX (more reps is the only progression there) but never fall below 1.
+Weighted exercises keep their suggested reps within the exercise's rep range; bodyweight reps may exceed its top (more reps is the only progression there) but never fall below 1.

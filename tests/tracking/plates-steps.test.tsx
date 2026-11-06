@@ -24,7 +24,7 @@ async function running(open: LoggedWorkout, past: LoggedWorkout[] = []) {
 describe('plate line texts', () => {
   test('exact, between and below the bar', () => {
     expect(plateLine(65)).toBe('Pro Seite: 20 + 2,5');
-    expect(plateLine(62)).toBe('Nicht genau auflegbar – 60 oder 62,5');
+    expect(plateLine(62)).toBe('Nicht genau auflegbar – 60 oder 62,5 kg');
     expect(plateLine(15)).toBe('Leichter als die Stange (20 kg)');
   });
 });

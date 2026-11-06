@@ -11,7 +11,7 @@ export const LONG_BREAK_DAYS = ruleNumber('gym.long-break-days');
 export const MIN_COMPARABLE = ruleNumber('gym.min-comparable');
 export const COMPARABLE_DAYS = ruleNumber('gym.comparable-days');
 export const STEP_BACK = ruleNumber('gym.step-back-share');
-/** Comparable sessions in a row with fewer reps at the same or a higher weight before the weight steps back. */
+/** Comparable sessions in a row with fewer reps at the same weight before the weight steps back. */
 export const DROP_STEP_BACK = ruleNumber('gym.drop-step-back-count');
 export const MAX_EXERCISES = ruleNumber('gym.max-exercises');
 export const MAX_SETS = ruleNumber('gym.max-sets');

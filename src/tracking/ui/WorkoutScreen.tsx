@@ -182,7 +182,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
         const labels = setLabels(e.sets);
         const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
-        const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog));
+        const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
         const resolved = resolveExercise(e, catalog, statsMuscles);
@@ -355,7 +355,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       setStore({ s, autoEnd: false });
     } finally { starting.current = false; }
   }
-  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog));
+  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog, studio));
 
   useEffect(() => {
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
