@@ -82,10 +82,12 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
   }
 };
 
-export const saveState = (dir: string, state: CoachState): void => {
+/** Writes the state. Legacy `rules` already in the file stay there until `dropLegacy` says they were migrated into records. */
+export const saveState = (dir: string, state: CoachState, dropLegacy = false): void => {
   fs.mkdirSync(dir, { recursive: true });
   const f = file(dir, state.profileId);
-  fs.writeFileSync(`${f}.tmp`, JSON.stringify(state));
+  const keep = dropLegacy ? undefined : legacyField(f);
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify(keep === undefined ? state : { ...state, rules: keep }));
   fs.renameSync(`${f}.tmp`, f);
 };
 
@@ -95,4 +97,8 @@ export const legacyBikeRules = (dir: string, profileId: string): string[] => {
     const parsed = JSON.parse(fs.readFileSync(file(dir, profileId), 'utf8')) as { rules?: unknown };
     return Array.isArray(parsed.rules) ? parsed.rules.flatMap((r: unknown) => (typeof (r as { text?: unknown })?.text === 'string' ? [(r as { text: string }).text] : [])) : [];
   } catch { return []; }
+};
+
+const legacyField = (f: string): unknown => {
+  try { const r = (JSON.parse(fs.readFileSync(f, 'utf8')) as { rules?: unknown }).rules; return Array.isArray(r) && r.length ? r : undefined; } catch { return undefined; }
 };

@@ -98,7 +98,38 @@ test('a goal proposal writes the goal record on take, merged into the current go
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
   const g = goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p');
   expect(g).toEqual({ strength: 'strength', focus: ['chest'], sports: { run: 'keep' } });
-  expect(screen.queryByRole('button', { name: 'Rückgängig' })).toBeNull();
+  // Rückgängig restores the prior goal while it is unchanged since
+  fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
+  await waitFor(() => expect(map.get('rule:rule-m1')!.deleted).toBe(true));
+  expect(goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p')).toEqual({ strength: 'muscle', focus: [], sports: { run: 'keep' } });
+});
+
+test('a goal Rückgängig is refused once the goal changed since', async () => {
+  const { recs, coach } = setup({ kind: 'goal', text: 'Mehr Kraft', sport: 'all', goal: { strength: 'strength' } });
+  await coach.tick('p');
+  const { port, map } = fakePort([...recs.values()]);
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
+  await port.put(goalRecord({ strength: 'fitness', focus: [], sports: {} }, NOW + 99_000, map.get('goal:goal')));
+  fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
+  expect(await screen.findByText('Geht nicht mehr, weil das Ziel danach geändert wurde.')).toBeTruthy();
+  expect(map.get('rule:rule-m1')!.deleted).toBe(false);
+});
+
+test('an empty goal draft is dropped', async () => {
+  const { recs, coach } = setup({ kind: 'goal', text: 'Irgendwas', sport: 'all', goal: {} });
+  await coach.tick('p');
+  expect([...recs.keys()].some((k) => k.startsWith('rule:'))).toBe(false);
+});
+
+test('a rule deleted elsewhere reads Gelöscht', async () => {
+  const { recs, coach } = setup({ kind: 'wish', text: 'Lieber kurze Pausen', sport: 'gym' });
+  await coach.tick('p');
+  const r = recs.get('rule:rule-m1')!;
+  const { port } = fakePort([...recs.values()].map((x) => (x === r ? { ...r, deleted: true, updatedMs: r.updatedMs + 5 } : x)));
+  render(<CoachScreen port={port} {...env} />);
+  expect(await screen.findByText('Gelöscht.')).toBeTruthy();
 });
 
 test('an unreadable goal draft is dropped', async () => {

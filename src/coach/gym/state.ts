@@ -57,10 +57,12 @@ export const loadGymState = (dir: string, profileId: string): GymState => {
   }
 };
 
-export const saveGymState = (dir: string, state: GymState): void => {
+/** Writes the state. Legacy `rules` already in the file stay there until `dropLegacy` says they were migrated into records. */
+export const saveGymState = (dir: string, state: GymState, dropLegacy = false): void => {
   fs.mkdirSync(dir, { recursive: true });
   const f = file(dir, state.profileId);
-  fs.writeFileSync(`${f}.tmp`, JSON.stringify(state));
+  const keep = dropLegacy ? undefined : legacyField(f);
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify(keep === undefined ? state : { ...state, rules: keep }));
   fs.renameSync(`${f}.tmp`, f);
 };
 
@@ -74,4 +76,8 @@ export const legacyGymRules = (dir: string, profileId: string): string[] => {
     const parsed = JSON.parse(fs.readFileSync(file(dir, profileId), 'utf8')) as { rules?: unknown };
     return Array.isArray(parsed.rules) ? parsed.rules.flatMap((r: unknown) => (typeof (r as { text?: unknown })?.text === 'string' ? [(r as { text: string }).text] : [])) : [];
   } catch { return []; }
+};
+
+const legacyField = (f: string): unknown => {
+  try { const r = (JSON.parse(fs.readFileSync(f, 'utf8')) as { rules?: unknown }).rules; return Array.isArray(r) && r.length ? r : undefined; } catch { return undefined; }
 };

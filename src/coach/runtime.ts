@@ -251,6 +251,12 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
+  // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
+  const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
+  const personalKey = (id: string): string => {
+    const recs = [...records.all(id, 'rule'), ...records.all(id, 'goal')];
+    return recs.length ? recs.map((r) => `${r.kind}:${r.id}:${r.updatedMs}:${r.deleted ? 1 : 0}`).sort().join('|') : '';
+  };
   // The week conversation and the evening suggestion, only when the rider switched them on.
   const sentPrompts = new SentPrompts(path.join(coachDir, 'chat', 'prompts-sent.json'));
   /** The week conversation is tried at most this often while it fails. */
@@ -322,7 +328,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     giveTask: (id, t) => giveTask(id, 'run', t),
     planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'run', nowMs()),
     // A new activity of any source makes the week be planned again, from today on (from tomorrow after a run today).
-    planKey: (id, week) => `${weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week))}|a${activitySeen.version(id)}|t${tasks.version(id, 'run')}`,
+    planKey: (id, week) => `${weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week))}|a${activitySeen.version(id)}|t${tasks.version(id, 'run')}|p${personalKey(id)}`,
     profile: (id) => profiles().find((p) => p.id === id) ?? null,
     garminDb: (id) => {
       if (!/^[A-Za-z0-9-]+$/.test(id)) return null;
@@ -596,6 +602,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
+      for (const p of list) { try { if (personalSeen.changed(p.id, personalKey(p.id))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       // Never with a ride open (a ride becomes an activity only once it is closed), and only while coaches may plan.
       if (runs) for (const p of list) {
         try {

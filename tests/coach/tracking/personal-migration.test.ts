@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Coach } from '../../../src/coach/coach';
+import { saveGymState } from '../../../src/coach/gym/state';
 import { GymCoach } from '../../../src/coach/gym/gym-coach';
 import { RecordStore } from '../../../src/coach/tracking/store';
 import { migrateRules } from '../../../src/coach/tracking/personal';
@@ -35,6 +36,28 @@ describe('migration of the old free-text rules', () => {
     const second = new GymCoach(deps as never);
     second.state('p1');
     expect(store.all('p1', 'rule')).toHaveLength(2);
+  });
+
+  it('gym: without a store, or while the migration fails, the file keeps the rules through every save', () => {
+    const dir = path.join(tmp, 'gym');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'p1.json');
+    fs.writeFileSync(file, JSON.stringify({ profileId: 'p1', rules: rules() }));
+    const failing = { all: () => [], put: () => { throw new Error('disk'); } };
+    const base = { dir, nowMs: () => NOW, ask: async () => ({}), workouts: () => [], templates: async () => [], ready: () => true, refreshTemplates: async () => [], bike: () => ({ summaries: [], complaints: [] }), complaint: () => {}, writer: () => null };
+    for (const store of [undefined, failing]) {
+      const c = new GymCoach({ ...base, store } as never);
+      saveGymState(dir, c.state('p1'));
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).rules).toHaveLength(2);
+    }
+  });
+
+  it('migrated records are stamped 1, so a person edit on another Mac wins', () => {
+    const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
+    migrateRules(store, 'p1', 'gym', ['Text eins'], NOW);
+    const [a] = store.all('p1', 'rule');
+    expect(a!.updatedMs).toBe(1);
+    expect(moveRule(a!, 'paused', NOW)!.updatedMs).toBe(NOW);
   });
 
   it('a migrated wish the person paused or deleted does not come back', () => {

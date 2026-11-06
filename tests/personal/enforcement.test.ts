@@ -73,6 +73,15 @@ describe('an excluded exercise never comes back', () => {
     expect(lines).toEqual(['Ohne Kniebeuge – deine Regel.']);
   });
 
+  it('is also dropped when the plan carries a Hevy template id or only a title of the excluded exercise', () => {
+    const set = { type: 'normal' as const, weightKg: null, reps: 8 };
+    const ex = (templateId: string, title: string) => ({ templateId, title, restS: 90, supersetId: null, notes: '', sets: [set] });
+    const own = EXERCISES.find((e) => e.id === 'pf-squat')!;
+    const plan = { name: 'P', exercises: [ex('hevy-123', own.title), ex('hevy-999', 'Etwas ganz anderes')] };
+    const w = startFromPlan(plan, [], NOW, 'w1', EXERCISES, undefined, undefined, { changes: [], workouts: [], excluded: new Set(['pf-squat']) });
+    expect(w.exercises.map((e) => e.exerciseId)).toEqual(['hevy-999']);
+  });
+
   it('refuses a swap into it in the workout chat with "Geht nicht, weil"', () => {
     const swap = { workoutId: 'w1', ops: [{ op: 'swap' as const, ex: 'r1', to: 'pf-goblet-squat' }] };
     const w = { id: 'w1', title: 'T', startMs: NOW, endMs: null, source: 'pandafit', rest: null, exercises: [{ rid: 'r1', exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [{ rid: 's', type: 'normal', weightKg: null, reps: 8, durationS: null, doneMs: null }] }] };

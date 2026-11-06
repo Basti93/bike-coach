@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteRule, goalOf, goalRecord, moveRule, rulesOf, type RuleState } from '../../shared/personal';
+import { deleteRule, goalOf, goalRecord, moveRule, rulesOf, type GoalBody, type RuleState } from '../../shared/personal';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
@@ -10,27 +10,53 @@ import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
  * After taking: "Gilt ab jetzt" with Rückgängig (deletes the rule). A goal change writes the goal record when taken.
  * The state lives in the `rule` record, so a reload or a second device shows the same.
  */
+type Goal = Omit<GoalBody, 'atMs'>;
+const same = (a: Goal, b: Goal): boolean => {
+  const norm = (g: Goal) => JSON.stringify([g.strength, [...g.focus].sort(), Object.entries(g.sports).sort(([x], [y]) => (x < y ? -1 : 1))]);
+  return norm(a) === norm(b);
+};
+const readGoalField = (body: unknown, key: 'prior' | 'applied'): Goal | null => {
+  const g = (body as Record<string, unknown> | null)?.[key];
+  if (typeof g !== 'object' || g === null) return null;
+  const o = g as { strength?: unknown; focus?: unknown; sports?: unknown };
+  return typeof o.strength === 'string' && Array.isArray(o.focus) && typeof o.sports === 'object' && o.sports !== null ? (g as Goal) : null;
+};
+
 export function RuleCard({ port, ruleId, records, catalog, now }: { port: TrackingPort; ruleId: string; records: TrackedRecord[] | null; catalog: readonly Exercise[]; now: () => number }) {
   const [failed, setFailed] = useState(false);
+  const [undone, setUndone] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const rec = (records ?? []).find((r) => r.id === ruleId);
   const rule = rulesOf(records ?? []).find((r) => r.id === ruleId);
-  if (!rule) return rec?.deleted ? <div className="tk-nextchange"><p className="muted">Rückgängig gemacht.</p></div> : null;
+  if (!rule) return rec?.deleted ? <div className="tk-nextchange"><p className="muted">{undone ? 'Rückgängig gemacht.' : 'Gelöscht.'}</p></div> : null;
   const go = async (to: RuleState) => {
     try {
       const cur = (await port.list('rule')).find((r) => r.id === ruleId);
       const next = cur ? moveRule(cur, to, now()) : null;
+      let stored = next;
       if (next && to === 'active' && rule.kind === 'goal' && rule.goal) {
         const goals = await port.list('goal');
-        await port.put(goalRecord({ ...goalOf(goals), ...rule.goal }, now(), goals.find((g) => g.id === 'goal')));
+        const prior = goalOf(goals);
+        const applied = { ...prior, ...rule.goal };
+        await port.put(goalRecord(applied, now(), goals.find((g) => g.id === 'goal')));
+        // The goal before and after are kept on the rule, so Rückgängig can restore it as long as nobody changed it since.
+        stored = { ...next, body: { ...(next.body as object), prior, applied } };
       }
-      if (next) await port.put(next);
+      if (stored) await port.put(stored);
       setFailed(false);
     } catch { setFailed(true); }
   };
   const undo = async () => {
     try {
       const cur = (await port.list('rule')).find((r) => r.id === ruleId);
+      if (cur && rule.kind === 'goal') {
+        const prior = readGoalField(cur.body, 'prior'), applied = readGoalField(cur.body, 'applied');
+        const goals = await port.list('goal');
+        if (!prior || !applied || !same(goalOf(goals), applied)) { setBlocked(true); return; }
+        await port.put(goalRecord(prior, now(), goals.find((g) => g.id === 'goal')));
+      }
       if (cur) await port.put(deleteRule(cur, now()));
+      setUndone(true);
       setFailed(false);
     } catch { setFailed(true); }
   };
@@ -48,9 +74,10 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       {(rule.state === 'active' || rule.state === 'paused') && (
         <div className="tk-row">
           <span className="muted">{rule.kind === 'goal' ? 'Ziel geändert.' : rule.state === 'paused' ? 'Pausiert.' : 'Gilt ab jetzt.'}</span>
-          {rule.kind !== 'goal' && <button type="button" className="ghost" onClick={() => void undo()}>{UNDO}</button>}
+          {(rule.kind !== 'goal' || (rule.state === 'active' && !blocked && readGoalField(rec?.body, 'prior'))) && <button type="button" className="ghost" onClick={() => void undo()}>{UNDO}</button>}
         </div>
       )}
+      {blocked && <p className="muted">Geht nicht mehr, weil das Ziel danach geändert wurde.</p>}
       {rule.state === 'declined' && <p className="muted">{DECLINED}.</p>}
       {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>}
     </div>

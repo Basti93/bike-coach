@@ -8,7 +8,7 @@ import { LONG_BREAK_DAYS, MAX_SETS } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { mergeCatalog } from '../../shared/catalog';
-import { EXERCISES, linkHevyTemplates, type Exercise } from '../../shared/exercises';
+import { EXERCISES, exerciseTitles, linkHevyTemplates, type Exercise } from '../../shared/exercises';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import { onePerSession } from '../../shared/history';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
@@ -18,7 +18,7 @@ import type { RecordStore } from '../tracking/store';
 import { legacyGymRules, loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { readTasks, type CoachId } from '../coach-tasks';
-import { readOutlook } from '../../shared/gym-outlook';
+import { readOutlook, type GymOutlook } from '../../shared/gym-outlook';
 import type { LoadStepOverrides } from '../../shared/loads';
 import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
 import { defaultStudio, NO_STUDIOS, type StudioState } from '../../shared/studio';
@@ -119,7 +119,7 @@ export class GymCoach {
     if (!this.deps.store) return;
     try {
       migrateRules(this.deps.store, id, 'gym', old, this.deps.nowMs());
-      saveGymState(this.deps.dir, this.states.get(id)!);
+      saveGymState(this.deps.dir, this.states.get(id)!, true);
     } catch { /* the file keeps the rules; the next start tries again */ }
   }
   isThinking(id: string): boolean { return this.running.has(id); }
@@ -416,13 +416,22 @@ export class GymCoach {
     return checked.ok ? null : checked.reason;
   }
 
+  /** The sketch without exercises the person's rules rule out (matched by title, the sketch has no ids). */
+  private withoutExcluded(id: string, o: GymOutlook): GymOutlook {
+    const own = this.deps.store ? excludedOf(this.deps.store, id) : new Set<string>();
+    if (own.size === 0) return o;
+    const titles = new Set(this.catalog(id).filter((e) => own.has(e.id)).flatMap((e) => exerciseTitles(e)).map((t) => t.trim().toLowerCase()));
+    return { ...o, sessions: o.sessions.map((x) => ({ ...x, exercises: x.exercises.filter((e) => !titles.has(e.title.trim().toLowerCase())) })).filter((x) => x.exercises.length > 0) };
+  }
+
   private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number, id: string): void {
     const honest = (text: string) => honestFigures(text, figures(real, workout));
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
     s.next = { workout, reason: this.withTaken(id, (reason && honest(reason)) || fallback), source: 'claude' };
     // A sketch without weights; an answer without one keeps the last sketch rather than none.
-    s.outlook = readOutlook(a.outlook) ?? s.outlook;
+    const outlook = readOutlook(a.outlook);
+    s.outlook = outlook ? this.withoutExcluded(id, outlook) : s.outlook;
     s.emptyReason = null;
     s.lastError = null;
     if (!wantNote) return;

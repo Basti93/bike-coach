@@ -200,7 +200,7 @@ export class Coach {
     if (old.length === 0 || !this.deps.store) return;
     try {
       migrateRules(this.deps.store, profileId, 'bike', old, this.deps.nowMs());
-      saveState(this.deps.coachDir, this.states.get(profileId)!);
+      saveState(this.deps.coachDir, this.states.get(profileId)!, true);
     } catch { /* the file keeps the rules; the next start tries again */ }
   }
 

@@ -74,10 +74,15 @@ test('at most three focus muscles', async () => {
   const { port, map } = fakePort();
   render(<CoachScreen port={port} {...env} />);
   const c = await card();
+  expect(c.getByText('Schwerpunkt: keiner')).toBeTruthy();
+  expect(c.queryByRole('button', { name: 'Brust' })).toBeNull();
+  fireEvent.click(c.getByRole('button', { name: 'ändern' }));
   for (const g of ['Brust', 'Rücken', 'Bizeps']) fireEvent.click(await c.findByRole('button', { name: g }));
   await waitFor(() => expect((body(map, 'goal:goal').focus as string[]).length).toBe(3));
-  const fourth = c.getByRole('button', { name: 'Trizeps' }) as HTMLButtonElement;
-  expect(fourth.disabled).toBe(true);
+  expect(c.getByText(/Schwerpunkt: Brust, Rücken, Bizeps/)).toBeTruthy();
+  expect(c.queryByRole('button', { name: 'Trizeps' })).toBeNull(); // collapsed again after the third
+  fireEvent.click(c.getByRole('button', { name: 'ändern' }));
+  expect((c.getByRole('button', { name: 'Trizeps' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(c.getByRole('button', { name: 'Brust' }));
   await waitFor(() => expect((body(map, 'goal:goal').focus as string[]).length).toBe(2));
 });

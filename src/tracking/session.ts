@@ -1,3 +1,4 @@
+import { resolveExercise } from './exercise-identity';
 import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
@@ -101,9 +102,18 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
  * which at least one op applied (empty rows, so no undo after the start); the others stay taken. `onSkipped` gets the short lines for ops
  * that no longer fit; they are for the rider's screen only, not workout data.
  */
+/** True when a plan exercise is ruled out: by its own id, its Hevy template id or title resolved to the own catalog id. */
+export function isExcludedExercise(e: { templateId: string; title: string }, catalog: Exercise[], excluded: ReadonlySet<string>): boolean {
+  if (excluded.size === 0) return false;
+  if (excluded.has(e.templateId)) return true;
+  const own = resolveExercise({ exerciseId: e.templateId, title: e.title }, catalog).exercise;
+  return own !== null && excluded.has(own.id);
+}
+
 export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides; /** Exercise ids the person's rules rule out: dropped from the plan, with a line in `onSkipped`. */ excluded?: ReadonlySet<string>; onSkipped?: (lines: string[]) => void } = { changes: [], workouts: [] }): TrackedWorkout {
-  const dropped = next.excluded ? w.exercises.filter((e) => next.excluded!.has(e.templateId)) : [];
-  if (dropped.length) w = { ...w, exercises: w.exercises.filter((e) => !next.excluded!.has(e.templateId)) };
+  const out = (e: GymExercise): boolean => !!next.excluded && isExcludedExercise(e, catalog, next.excluded);
+  const dropped = w.exercises.filter(out);
+  if (dropped.length) w = { ...w, exercises: w.exercises.filter((e) => !out(e)) };
   const listed = listedIds(next.workouts);
   const todo = next.changes.filter((c) => c.state === 'taken' && !listed.has(c.id));
   // A lowered weight lands on a weight the machine here can really show: the exercise's ladder in this workout's studio.

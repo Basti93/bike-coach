@@ -9,7 +9,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan,
+  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -355,6 +355,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const routinesQ = usePortRecords(port, 'routine');
   const workouts = workoutsQ.records;
   const catalog = useCatalog(port);
+  const excluded = useExcluded(port);
   const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean; notice?: string | null } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const starting = useRef(false);
@@ -385,11 +386,11 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // finished one whose mark got lost is made up here.
   // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
-    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]), excluded: ReadonlySet<string> = new Set();
-    try { excluded = excludedIds(await port.list('rule')); } catch { /* start without them */ }
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]), excludedNow: ReadonlySet<string> = new Set();
+    try { excludedNow = excludedIds(await port.list('rule')); } catch { /* start without them */ }
     try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
     let skipped: string[] = [];
-    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded, onSkipped: (l) => { skipped = l; } });
+    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded: excludedNow, onSkipped: (l) => { skipped = l; } });
     if (!(await begin(w, skipped.length ? skipped.join(' ') : null))) return;
     await markUsed(port, all.filter((x) => x.endMs !== null), now());
   };
@@ -439,7 +440,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       {plan && (
         <section className="card tk-plan-preview" aria-label="Heutiger Plan">
           <h2>{plan.name}</h2>
-          <ul>{plan.exercises.map((e, i) => <li key={i}>{planLine(e)}</li>)}</ul>
+          <ul>{plan.exercises.filter((e) => !isExcludedExercise(e, catalog, excluded)).map((e, i) => <li key={i}>{planLine(e)}</li>)}</ul>
           <button type="button" aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
         </section>
       )}

@@ -97,8 +97,9 @@ export function readRule(id: string, body: unknown): Rule | null {
 
 export type RuleDraft = { kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; goal?: Rule['goal'] };
 
+/** Migrated records are stamped 1, so any later person edit (pause, delete) wins over a migration run on another Mac. */
 export const ruleRecord = (id: string, d: RuleDraft, state: RuleState, source: RuleSource, nowMs: number): TrackedRecord =>
-  ({ kind: 'rule', id, updatedMs: nowMs, deleted: false, body: { kind: d.kind, text: d.text, sport: d.sport, ...(d.exerciseIds ? { exerciseIds: d.exerciseIds } : {}), ...(d.goal ? { goal: d.goal } : {}), state, source, atMs: nowMs } });
+  ({ kind: 'rule', id, updatedMs: source === 'migrated' ? 1 : nowMs, deleted: false, body: { kind: d.kind, text: d.text, sport: d.sport, ...(d.exerciseIds ? { exerciseIds: d.exerciseIds } : {}), ...(d.goal ? { goal: d.goal } : {}), state, source, atMs: nowMs } });
 
 const ALLOWED: Record<RuleState, RuleState[]> = { proposed: ['active', 'declined'], active: ['paused'], paused: ['active'], declined: [] };
 

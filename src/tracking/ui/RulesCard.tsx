@@ -5,7 +5,7 @@ import { SPORT_LABEL } from '../../shared/week-plan';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
-import { useGoal, usePortRecords } from './hooks';
+import { useCatalog, useGoal, usePortRecords } from './hooks';
 import { nextUpdatedMs } from './run-view';
 
 const STRENGTH_LABEL: Record<Strength, string> = { muscle: 'Muskeln aufbauen', strength: 'Kraft steigern', fitness: 'Fit bleiben' };
@@ -13,10 +13,20 @@ const PRIO_LABEL: Record<Prio, string> = { focus: 'Schwerpunkt', equal: 'gleichr
 // All three sports are always shown: the card does not guess which ones the person uses.
 const SPORTS: SportKey[] = ['gym', 'bike', 'run'];
 
+/** The exercise titles of an exclude rule that its text does not already name; '' when there is nothing to add. */
+const excludedTitles = (r: { text: string; exerciseIds?: string[] }, catalog: readonly { id: string; title: string }[]): string => {
+  const titles = (r.exerciseIds ?? []).flatMap((id) => { const t = catalog.find((e) => e.id === id)?.title; return t ? [t] : []; });
+  const text = r.text.toLowerCase();
+  return titles.filter((t) => !text.includes(t.toLowerCase())).join(', ');
+};
+
 /** "Meine Regeln und Ziele": the goal, the rules the person keeps, and a way to add one. Every write is stamped above what is stored. */
 export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const goal = useGoal(port);
-  const rules = rulesOf(usePortRecords(port, 'rule').all ?? []).filter((r) => (r.state === 'active' || r.state === 'paused') && !(r.kind === 'goal'));
+  const catalog = useCatalog(port);
+  // Only rules the person keeps: proposed ones (orphans of a failed chat write), declined ones and goal proposals stay out.
+  const rules = rulesOf(usePortRecords(port, 'rule').all ?? []).filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal');
+  const [changingFocus, setChangingFocus] = useState(false);
   const [text, setText] = useState('');
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +60,9 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const toggleFocus = (g: (typeof FOCUS_GROUPS)[number]) => {
     const on = goal.focus.includes(g);
     if (!on && goal.focus.length >= MAX_FOCUS) return;
-    void saveGoal({ ...goal, focus: on ? goal.focus.filter((x) => x !== g) : [...goal.focus, g] });
+    const focus = on ? goal.focus.filter((x) => x !== g) : [...goal.focus, g];
+    void saveGoal({ ...goal, focus });
+    if (focus.length >= MAX_FOCUS) setChangingFocus(false);
   };
   const setPrio = (s: SportKey, v: string) => {
     const sports = { ...goal.sports };
@@ -66,13 +78,18 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
           {(Object.keys(STRENGTH_LABEL) as Strength[]).map((s) => <option key={s} value={s}>{STRENGTH_LABEL[s]}</option>)}
         </select></label>
       </div>
-      <p className="muted">Schwerpunkt, bis zu {MAX_FOCUS} Muskeln</p>
-      <div className="tk-row tk-focus">
-        {FOCUS_GROUPS.map((g) => {
-          const on = goal.focus.includes(g);
-          return <button key={g} type="button" className={on ? 'secondary' : 'ghost'} aria-pressed={on} disabled={!on && goal.focus.length >= MAX_FOCUS} onClick={() => toggleFocus(g)}>{MUSCLE_TARGETS[g].label}</button>;
-        })}
+      <div className="tk-row">
+        <span>Schwerpunkt: {goal.focus.length ? goal.focus.map((g) => MUSCLE_TARGETS[g as (typeof FOCUS_GROUPS)[number]]?.label ?? g).join(', ') : 'keiner'}</span>
+        <button type="button" className="ghost tk-small" aria-expanded={changingFocus} onClick={() => setChangingFocus(!changingFocus)}>{changingFocus ? 'fertig' : 'ändern'}</button>
       </div>
+      {changingFocus && (
+        <div className="tk-row tk-focus" aria-label={`Schwerpunkt, bis zu ${MAX_FOCUS} Muskeln`}>
+          {FOCUS_GROUPS.map((g) => {
+            const on = goal.focus.includes(g);
+            return <button key={g} type="button" className={on ? 'secondary' : 'ghost'} aria-pressed={on} disabled={!on && goal.focus.length >= MAX_FOCUS} onClick={() => toggleFocus(g)}>{MUSCLE_TARGETS[g].label}</button>;
+          })}
+        </div>
+      )}
       <div className="tk-row">
         {SPORTS.map((s) => (
           <label key={s}>{SPORT_LABEL[s]} <select value={goal.sports[s] ?? ''} onChange={(e) => setPrio(s, e.target.value)}>
@@ -84,11 +101,11 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
       {rules.length === 0 ? <p className="muted">Noch keine Regeln. Schreib dem Coach „künftig …“ oder füge eine hinzu.</p> : (
         <ul className="tk-rule-list">
           {rules.map((r) => (
-            <li key={r.id} className="tk-row">
-              <span className={r.state === 'paused' ? 'muted' : undefined}>{r.text}{r.kind === 'wish' && <span className="muted"> · Wunsch</span>}{r.state === 'paused' && <span className="muted"> · pausiert</span>}</span>
-              <span className="spacer" />
-              <button type="button" className="ghost" aria-label={`${r.state === 'paused' ? 'Fortsetzen' : 'Pausieren'} ${r.text}`} onClick={() => void move(r.id, r.state === 'paused' ? 'active' : 'paused')}>{r.state === 'paused' ? 'Fortsetzen' : 'Pausieren'}</button>
-              <button type="button" className="ghost" aria-label={`Löschen ${r.text}`} onClick={() => void remove(r.id)}>Löschen</button>
+            <li key={r.id} className="tk-rule">
+              <span className={`tk-rule-text${r.state === 'paused' ? ' muted' : ''}`}>{r.text}{r.kind === 'wish' && <span className="muted"> · Wunsch</span>}{r.state === 'paused' && <span className="muted"> · pausiert</span>}
+                {r.kind === 'exclude' && excludedTitles(r, catalog) && <small className="muted"> ({excludedTitles(r, catalog)})</small>}</span>
+              <button type="button" className="ghost tk-small" aria-label={`${r.state === 'paused' ? 'Fortsetzen' : 'Pausieren'} ${r.text}`} onClick={() => void move(r.id, r.state === 'paused' ? 'active' : 'paused')}>{r.state === 'paused' ? 'Weiter' : 'Pause'}</button>
+              <button type="button" className="ghost tk-small" aria-label={`Löschen ${r.text}`} onClick={() => void remove(r.id)}>Löschen</button>
             </li>
           ))}
         </ul>

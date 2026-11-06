@@ -49,7 +49,7 @@ Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart
 Die einzelnen Einheiten (Übungen, Sätze, Watt, Laufminuten) planen der Rad-Coach (bike), der Kraft-Coach (gym) und der Lauf-Coach (run); was sie als Nächstes geplant haben, steht in einheiten. Fragen dazu beantwortest du selbst, fachlich und sportwissenschaftlich begründet. Verweise die Person nie an einen anderen Coach oder ins Training.
 Will die Person an einer Einheit etwas ändern (etwa "nur eine Trizepsübung", "mehr Beine", "Samstag kürzer"), gib dem zuständigen Coach in tasks einen Auftrag: coach, text als klare Anweisung in ihren Worten, lasting true, wenn es ein Wunsch für länger ist, sonst false. Der Coach plant dann sofort neu. Sag in text kurz, was du weitergegeben hast. Ohne Änderungswunsch ist tasks leer.
 Will die Person etwas fürs nächste Training ändern (etwa "nächstes Mal ohne Kniebeugen"), setze nextChange: ops mit exerciseId aus einheiten, und reason als ein Satz, warum. Ohne so einen Wunsch ist nextChange null. Es gilt erst, wenn die Person es übernimmt.
-Sagt die Person "künftig", "immer" oder "nie" ("künftig keine Kniebeugen", "ich will lieber kurze Pausen"), ist das keine einmalige Änderung, sondern eine Regel: setze ruleDraft mit kind exclude (bestimmte Übungen fallen dauerhaft weg; exerciseIds aus katalog, alle Varianten dieser Übung), wish (ein allgemeiner Wunsch) oder goal (das Trainingsziel ändert sich: goal mit strength muscle, strength oder fitness, focus bis zu drei Muskelgruppen, sports mit gym, bike, run als focus, equal oder keep, nur was sich ändert), text als kurzer Satz in der Sicht der Person, sport gym, bike, run oder all. Sonst ist ruleDraft null. Es gilt erst, wenn die Person es übernimmt.
+Sagt die Person "künftig", "immer" oder "nie" ("künftig keine Kniebeugen", "ich will lieber kurze Pausen"), ist das keine einmalige Änderung, sondern eine Regel: setze ruleDraft mit kind exclude (bestimmte Übungen fallen dauerhaft weg; exerciseIds aus katalog, alle Varianten dieser Übung), wish (ein allgemeiner Wunsch) oder goal (das Trainingsziel ändert sich: goal mit strength muscle, strength oder fitness, focus bis zu drei Muskelgruppen, sports mit gym, bike, run als focus, equal oder keep, nur was sich ändert), text als kurzer Satz in der Sicht der Person, sport gym, bike, run oder all. Sonst ist ruleDraft null. Bei einer Regel bleiben nextChange null und tasks ohne lasting-Auftrag dafür. Es gilt erst, wenn die Person es übernimmt.
 Die Person kann Mengen nennen ("2× Kraft, 3× Rad"), feste Tage ("Freitag Studio") oder dich vorschlagen lassen; oft eine Mischung. Feste Wünsche der Person markierst du mit fixed true.
 Stelle höchstens eine Frage auf einmal und nur, wenn die Antwort den Plan ändert. Wenn du genug weißt, mach einen Vorschlag.
 Ein Vorschlag (proposal) ist immer eine ganze Woche von Montag bis Sonntag (sieben Tage, date im Format JJJJ-MM-TT, aus wocheJetzt oder wocheNaechste) mit sport bike, gym, run, mobility oder rest und hardness easy, moderate oder hard. Bei Krafttagen sagt legs, ob Beine trainiert werden; long markiert die lange Rad- oder Laufeinheit. note ist optional und kurz. Ohne Vorschlag ist proposal null. Du änderst nie etwas still: Ein Vorschlag gilt erst, wenn die Person ihn übernimmt.
@@ -183,7 +183,7 @@ export class ChatCoach {
     let a = await ask(prompt);
     // The coach does not see the catalog by default. Only a rule that names exercises it could not name gets one more try, with the catalog.
     if (fromRider && this.needsCatalog(id, a.ruleRaw)) {
-      try { a = await ask(`${prompt}\n${dataBlock('katalog', this.catalogOf(id).map((e) => ({ id: e.id, titel: e.title })))}\nNenne in ruleDraft.exerciseIds die ids aus katalog.`); } catch { /* the first answer decides */ }
+      try { a = await ask(`${prompt}\n${dataBlock('katalog', this.catalogOf(id).filter((e) => !excludedOf(this.deps.store, id).has(e.id)).map((e) => ({ id: e.id, titel: e.title })))}\nNenne in ruleDraft.exerciseIds die ids aus katalog.`); } catch { /* the first answer decides */ }
     }
     // Only the rider's own words start or end a complaint, never a message the coach opened by itself.
     if (fromRider) this.applyComplaints(id, a.complaint, a.over);
@@ -226,7 +226,7 @@ export class ChatCoach {
     const sets = (s: TrackedWorkout['exercises'][number]['sets'], done: boolean) => s.filter((x) => (x.doneMs !== null) === done).map((x) => ({ kg: x.weightKg, wdh: x.reps, typ: x.type }));
     const prompt = [
       dataBlock('training', { name: w.title, minutenSeitStart: Math.round((at - w.startMs) / 60_000), uebungen: w.exercises.map((e) => ({ ex: e.rid, uebungId: e.exerciseId, uebung: e.title, erledigt: sets(e.sets, true), offen: sets(e.sets, false) })) }),
-      dataBlock('katalog', EXERCISES.map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, geraet: e.equipment }))),
+      dataBlock('katalog', this.catalogOf(id).filter((e) => !excludedOf(this.deps.store, id).has(e.id)).map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, geraet: e.equipment }))),
       dataBlock('beschwerden', this.complaintList(id)),
       ...this.wishLines(id, ['gym']),
       dataBlock('verlauf', thread.filter((m) => m.inWorkout === w.id).slice(-10).map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text }))),
@@ -279,7 +279,8 @@ export class ChatCoach {
     }
     const draft: RuleDraft = { kind, text, sport, ...(exerciseIds ? { exerciseIds } : {}), ...(kind === 'goal' && isObj(x.goal) ? { goal: x.goal as RuleDraft['goal'] } : {}) };
     // The same reader the app uses decides whether the draft is well formed (a goal needs a readable partial).
-    if (!readRule('x', ruleRecord('x', draft, 'proposed', 'chat', 0).body)) return null;
+    const read = readRule('x', ruleRecord('x', draft, 'proposed', 'chat', 0).body);
+    if (!read || (kind === 'goal' && Object.keys(read.goal ?? {}).length === 0)) return null;
     return { draft, ...(note ? { note } : {}) };
   }
 
@@ -321,7 +322,8 @@ export class ChatCoach {
   private nextExercises(id: string): { exerciseId: string; titel: string }[] | null {
     const body = this.deps.store.all(id, 'plan').find((r) => r.id === 'current' && !r.deleted)?.body;
     const ex = isObj(body) && isObj(body.workout) && Array.isArray(body.workout.exercises) ? body.workout.exercises : null;
-    return ex ? ex.flatMap((e) => (isObj(e) && typeof e.templateId === 'string' ? [{ exerciseId: e.templateId, titel: String(e.title ?? '') }] : [])) : null;
+    const out = excludedOf(this.deps.store, id);
+    return ex ? ex.flatMap((e) => (isObj(e) && typeof e.templateId === 'string' && !out.has(e.templateId) ? [{ exerciseId: e.templateId, titel: String(e.title ?? '') }] : [])) : null;
   }
 
   private sessionsOf(id: string): object | null {
