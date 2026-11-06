@@ -136,3 +136,4 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Coach plant immer fürs zuletzt genutzte Studio; wer vor dem Start ein anderes Studio wählt, bekommt Gewichte des alten Studios aus dem Plan.
   - Eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze).
   - Gewichtsstufen und Studios werden nicht zwischen Profilen geteilt.
+  - Eine eigene Gewichtsstufe geht beim Umbenennen eines Studios verloren; ein Studio lässt sich noch nicht entfernen.
