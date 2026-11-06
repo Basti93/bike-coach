@@ -15,6 +15,7 @@ import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
 import { ExerciseInfo } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
+import { ExerciseProposals } from './ExerciseProposals';
 import { MuscleIcon } from './MuscleIcon';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
@@ -362,6 +363,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
         return <button type="button" key={r.id} className="secondary" onClick={() => void startPlan(body)}>{body.name} starten</button>;
       })}
       <button type="button" className="ghost" onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
+      <ExerciseProposals port={port} now={now} newId={newId} />
     </div>
   );
 }

@@ -136,7 +136,9 @@ export class ExerciseMapper {
     }
     const existing = new Map(this.deps.store.all(profileId, 'exercise').map((r) => [r.id, r]));
     const records: TrackedRecord[] = [];
+    // The app writes an undone title into the overlay (`undoneTitles`), so it travels with the records to every profile.
     const undone = new Set(state.undone);
+    for (const r of existing.values()) if (isObj(r.body) && Array.isArray(r.body.undoneTitles)) for (const t of r.body.undoneTitles) if (typeof t === 'string') undone.add(t);
     const done = new Set<string>();
     const linked = new Set<string>(); // one auto link per target and run, so each stays undoable
     for (const it of valid) {

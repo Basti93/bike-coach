@@ -130,6 +130,16 @@ describe('ExerciseMapper', () => {
     expect(recs.map((r) => r.id)).toEqual([proposalId(TITLE)]);
   });
 
+  it('a title named in an overlay\'s undoneTitles is only proposed', async () => {
+    const h = harness([() => same('high')]);
+    h.store.putMany(ID, [{ kind: 'exercise', id: 'pf-squat', updatedMs: NOW - 1000, deleted: false, body: { id: 'pf-squat', aliases: [], undoneTitles: [TITLE] } }]);
+    await h.mapper.run(ID);
+    const recs = exRecords(h.store);
+    expect(recs.map((r) => r.id).sort()).toEqual(['pf-squat', proposalId(TITLE)].sort());
+    expect((recs.find((r) => r.id === 'pf-squat')!.body as { aliases: string[] }).aliases).toEqual([]);
+    expect(mergeCatalog(EXERCISES, [], recs).find((e) => e.id === 'pf-squat')?.aliases ?? []).not.toContain(TITLE);
+  });
+
   it('links one title per target, the other becomes a proposal', async () => {
     const A = 'Zorbo Squat A';
     const B = 'Zorbo Squat B';

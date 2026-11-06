@@ -192,3 +192,9 @@
 .tk-outlook-list { list-style: none; padding: 0; margin: .25rem 0; }
 .tk-outlook summary { cursor: pointer; padding: .35rem 0; }
 .tk-outlook details ul { margin: .25rem 0 .5rem 1.1rem; padding: 0; }
+
+.tk-proposals { margin-top: 1rem; }
+.tk-proposal-list { list-style: none; padding: 0; margin: .25rem 0; }
+.tk-proposal-list li { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; padding: .35rem 0; }
+.tk-proposal-actions { display: flex; gap: .4rem; }
+.tk-proposal-actions button { padding: .3rem .7rem; font-size: .9rem; }

@@ -159,6 +159,22 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Satz 2 erledigt' }).first().click();
     await win.waitForTimeout(300);
   } },
+  { name: 'tracking-proposals', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1100, steps: async (win) => {
+    // One proposal to confirm, one to change into a new exercise, and one recent auto link to take back.
+    await win.evaluate((t) => {
+      const w = window as unknown as { __db?: Map<string, unknown> };
+      const rows: [string, object][] = [
+        ['prop-aaaa0001', { proposal: { forTitle: 'Cable Row Custom', kind: 'same', targetId: 'pf-squat', reason: 'Gleiche Übung.', atMs: t } }],
+        ['prop-aaaa0002', { title: 'Zorbo-Zug', type: 'weight_reps', primaryMuscle: 'lats', equipment: 'machine', source: 'ai', proposal: { forTitle: 'Zorbo Pull', kind: 'new', reason: 'Neu.', atMs: t } }],
+        ['pf-front-squat', { aliases: ['Zorbo Curl'], lastAutoLink: { title: 'Zorbo Curl', atMs: t } }],
+      ];
+      w.__db = new Map(rows.map((r) => [`exercise:${r[0]}`, { kind: 'exercise', id: r[0], updatedMs: t, deleted: false, body: { id: r[0], ...r[1] } }]));
+    }, Date.now() - 3600000);
+    await win.getByRole('button', { name: 'Training starten' }).click();
+    await win.getByRole('button', { name: 'Zurück zu Kraft' }).click(); // the screen reads the records again when it is opened anew
+    await win.getByRole('button', { name: 'Training starten' }).click();
+    await win.waitForTimeout(300);
+  } },
   { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
   { name: 'meals-chat', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280 },
   { name: 'meals-chat-history', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, steps: async (win) => { await win.getByText(/Bisheriges Gespräch/).click(); await win.waitForTimeout(150); } },
