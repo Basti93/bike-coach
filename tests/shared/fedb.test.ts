@@ -3,6 +3,7 @@ import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES, exerciseTitles } from '../../src/shared/exercises';
 import { descriptionCredit, descriptionOf, exerciseDescription } from '../../src/shared/exercise-descriptions';
 import { FEDB_EXERCISES } from '../../src/shared/fedb';
+import { similarExercises } from '../../src/tracking/similar';
 import { EQUIPMENT, MUSCLES } from '../../src/tracking/ui/labels';
 
 describe('base catalog (free-exercise-db)', () => {
@@ -83,5 +84,18 @@ describe('swap ranking with the base catalog', () => {
   });
   it('types a base entry without equipment as bodyweight', () => {
     expect(FEDB_EXERCISES.find((e) => e.id === 'fedb-decline-push-up')).toMatchObject({ equipment: 'none', type: 'reps_only' });
+  });
+  it('credits an overlay description on a base entry as own text', () => {
+    const e = FEDB_EXERCISES.find((x) => x.description)!;
+    const rec = { kind: 'exercise', id: e.id, updatedMs: 1, deleted: false, body: { id: e.id, description: 'Mein eigener Text' } } as never;
+    const merged = mergeCatalog(EXERCISES, FEDB_EXERCISES, [rec]).find((x) => x.id === e.id)!;
+    expect(descriptionOf(merged)).toEqual({ text: 'Mein eigener Text', source: { kind: 'own' } });
+  });
+  it('ranks swaps by secondary-muscle overlap, not equipment', () => {
+    const mk = (id: string, equipment: string, secondaryMuscles?: string[]) => ({ id, title: id, primaryMuscle: 'chest', equipment, type: 'weight_reps', secondaryMuscles }) as never;
+    const cur = mk('cur', 'machine', ['triceps', 'shoulders']);
+    const cat = [cur, mk('a-machine', 'machine'), mk('b-barbell', 'barbell', ['triceps']), mk('c-dumbbell', 'dumbbell', ['triceps', 'shoulders'])];
+    const got = similarExercises({ title: 'cur', exerciseId: 'cur' }, cat).map((e) => e.id);
+    expect(got).toEqual(['c-dumbbell', 'b-barbell', 'a-machine']);
   });
 });

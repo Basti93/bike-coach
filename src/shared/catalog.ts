@@ -23,7 +23,10 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
       const e = out[at];
       const aliases = [...new Set([...(e.aliases ?? []), ...strings(b.aliases)])];
       if (aliases.length > 0) e.aliases = aliases;
-      if (str(b.description)) e.description = b.description;
+      if (str(b.description)) {
+        e.description = b.description;
+        e.descriptionSource = 'own';
+      }
     } else if (str(b.id) && str(b.title) && str(b.primaryMuscle) && str(b.equipment) && str(b.type)) {
       index.set(b.id, out.length); // a later record with this id is only an overlay (aliases, description), never a replacement
       const e: Exercise = { id: b.id, title: b.title, primaryMuscle: b.primaryMuscle, equipment: b.equipment, type: b.type };
