@@ -7,7 +7,7 @@ export { RULES } from './rules';
 export { SCENARIOS } from './scenarios';
 
 /** Bumped whenever a rule, value or status changes. Plans can name the version they were made with. */
-export const POLICY_VERSION = '2026-11-06.2';
+export const POLICY_VERSION = '2026-11-06.3';
 
 const BY_ID = new Map(RULES.map((r) => [r.id, r]));
 

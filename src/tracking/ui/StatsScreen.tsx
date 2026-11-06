@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { STATE_LABELS, type GroupBalance } from '../../shared/muscle-balance';
 import { MUSCLE_TARGETS, type MuscleGroup } from '../../shared/muscle-targets';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
@@ -28,13 +29,45 @@ const statsOf = (records: TrackedRecord[] | null): StatsBody | null => {
 export const statsVisible = (stats: TrackedRecord[] | null, workouts: TrackedRecord[] | null): boolean =>
   statsOf(stats) !== null || countable((workouts ?? []).filter((r) => !r.deleted)).length > 0;
 
+const satz = (n: number) => `${n} ${n === 1 ? 'Satz' : 'Sätze'}`;
+
+/** The numbers behind a state, in words: this week's direct and indirect sets and the target. */
+function detailText(b: GroupBalance): string {
+  const parts = [satz(b.direct7) + ' direkt'];
+  if (b.indirect7 > 0) parts.push(`${b.indirect7} mittrainiert (zählen halb)`);
+  const week = `Diese Woche: ${parts.join(', ')}.`;
+  return b.target.max > 0 ? `${week} Ziel: ${b.target.min}–${b.target.max} pro Woche.` : week;
+}
+
+function MuscleRow({ b }: { b: GroupBalance }) {
+  const [open, setOpen] = useState(false);
+  const state = b.state ?? 'none';
+  const panel = `tk-muscle-${b.group}`;
+  return (
+    <li>
+      <button type="button" className="tk-muscle-row" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(!open)}>
+        <MuscleIcon group={b.group} />
+        <span className="tk-muscle-name">
+          {b.label}
+          {b.indirect7 > b.direct7 && <small className="muted">vor allem mittrainiert</small>}
+        </span>
+        {b.state !== null && (
+          <span className={`tk-state tk-state-${state}`}><span className="tk-state-dot" aria-hidden="true" />{STATE_LABELS[state]}</span>
+        )}
+      </button>
+      {open && <p id={panel} className="muted tk-small tk-muscle-detail">{detailText(b)}</p>}
+    </li>
+  );
+}
+
 function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; muscles: boolean }) {
   const w = v.thisWeek;
   const [all, setAll] = useState(false);
-  const allGroups = GROUPS.filter((g) => v.targets[g].max > 0 || (w.sets[g] ?? 0) > 0);
-  // Only what was trained this week; the rest one tap away, so the page stays short.
-  const trained = allGroups.filter((g) => (w.sets[g] ?? 0) > 0);
-  const groups = all ? allGroups : trained;
+  const allRows = v.balance.filter((b) => b.state !== null || b.direct7 + b.indirect7 > 0);
+  // A new person is not told everything is missing: groups below target show once something was trained in the last 4 weeks.
+  const active = v.balance.some((b) => b.effective28 > 0);
+  const shown = allRows.filter((b) => b.direct7 + b.indirect7 > 0 || (active && (b.state === 'none' || b.state === 'low')));
+  const rows = all ? allRows : shown;
   return (
     <section className="card tk-stats" aria-label="Diese Woche">
       <h2>Diese Woche</h2>
@@ -44,29 +77,10 @@ function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; m
         </dl>
       )}
       {hasStats && <p>{daysText(w, ' · ')}</p>}
-      {muscles && (
-        <ul className="tk-band-list">
-          {groups.map((g) => {
-            const n = w.sets[g] ?? 0;
-            const { min, max } = v.targets[g];
-            const scale = Math.max(max * 1.25, n, 1);
-            return (
-              <li key={g}>
-                <MuscleIcon group={g} />
-                <span className="tk-band-label">{MUSCLE_TARGETS[g].label}</span>
-                <span className="tk-band" aria-hidden="true">
-                  {max > 0 && <span className="tk-band-range" style={{ left: `${(min / scale) * 100}%`, width: `${((max - min) / scale) * 100}%` }} />}
-                  <span className="tk-band-value" style={{ width: `${(n / scale) * 100}%` }} />
-                </span>
-                <span className="tk-band-text">{max > 0 ? `${n} von ${min}–${max} Sätzen` : `${n} Sätze`}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {muscles && trained.length === 0 && !all && <p className="muted">Diese Woche noch keine Sätze.</p>}
-      {muscles && allGroups.length > trained.length && (
-        <button type="button" className="ghost" onClick={() => setAll(!all)}>{all ? 'Nur trainierte Muskeln' : 'Alle Muskelgruppen anzeigen'}</button>
+      {muscles && <ul className="tk-muscle-list">{rows.map((b) => <MuscleRow key={b.group} b={b} />)}</ul>}
+      {muscles && rows.length === 0 && !all && <p className="muted">Diese Woche noch keine Sätze.</p>}
+      {muscles && allRows.length > shown.length && (
+        <button type="button" className="ghost" onClick={() => setAll(!all)}>{all ? 'Weniger Muskelgruppen' : 'Alle Muskelgruppen anzeigen'}</button>
       )}
       {v.verdicts.length > 0 && <ul className="tk-verdicts">{v.verdicts.map((t) => <li key={t}>{t}</li>)}</ul>}
     </section>
