@@ -15,6 +15,7 @@ import type { RideSummary } from '../../../src/coach/metrics';
 import type { Complaint } from '../../../src/coach/motivation';
 import { RecordStore } from '../../../src/coach/tracking/store';
 import { mergeCatalog } from '../../../src/shared/catalog';
+import { studioRecord } from '../../../src/shared/studio';
 import { linkRecord } from '../../../src/shared/exercise-links';
 import { EXERCISES, linkHevyTemplates } from '../../../src/shared/exercises';
 
@@ -1008,6 +1009,15 @@ describe('shared exercise catalog', () => {
     if (again) { again(store); await coach.templateList('p1'); }
     return coach;
   };
+  it('the coach plans for the renamed studio', async () => {
+    const coach = await setup(false);
+    const store = (coach as unknown as { deps: { store: RecordStore } }).deps.store;
+    const body = { id: 'o1', title: 'T', startMs: NOW - 1000, endMs: NOW, source: 'pandafit', exercises: [], studio: 'Alpha' };
+    store.putMany('p1', [{ kind: 'workout', id: 'o1', updatedMs: NOW, deleted: false, body }]);
+    expect(coach.studio('p1')).toBe('Alpha');
+    store.putMany('p1', [studioRecord('Alpha', NOW + 1, NOW + 1, 'Neu'), studioRecord('Neu', NOW + 1, NOW + 1)]);
+    expect(coach.studio('p1')).toBe('Neu');
+  });
   it('a link record links a Hevy template to the own id and merges its history', async () => {
     const coach = await setup(true);
     expect(coach.state('p1').links).toEqual({ 'hevy-row-1': ROW });

@@ -1,4 +1,4 @@
-import { defaultStudio, knownStudios, mainStudio, studioKey, studioName } from '../../src/shared/studio';
+import { defaultStudio, knownStudios, mainStudio, resolveStudio, studioKey, studioName, studioRecord, studioStateOf } from '../../src/shared/studio';
 import { hevyRecord } from '../../src/coach/tracking/hevy-import';
 import { createWorkoutStore } from '../../src/tracking/store';
 import { setStudio, startEmpty } from '../../src/tracking/session';
@@ -69,5 +69,44 @@ describe('main studio tie', () => {
   test('equal starts are broken by id, in any order', () => {
     expect(mainStudio([w('b', 10, 'Beta'), w('a', 10, 'Alpha')])).toBe('Alpha');
     expect(mainStudio([w('a', 10, 'Alpha'), w('b', 10, 'Beta')])).toBe('Alpha');
+  });
+});
+
+describe('studio records and renames', () => {
+  const recs = (...r: ReturnType<typeof studioRecord>[]) => studioStateOf(r);
+  test('a remembered studio is known without any workout, newest first, once ignoring case', () => {
+    const st = recs(studioRecord('Alpha', 10, 10), studioRecord('Beta', 30, 30), studioRecord('ALPHA', 20, 20));
+    expect(knownStudios([], st.renames, st.picks)).toEqual(['Beta', 'ALPHA']);
+  });
+  test('a forgotten studio (tombstone) is not remembered, workouts still name it', () => {
+    const st = studioStateOf([{ ...studioRecord('Alpha', 10, 10), deleted: true }]);
+    expect(knownStudios([], st.renames, st.picks)).toEqual([]);
+    expect(knownStudios([w('a', 5, 'Alpha')], st.renames, st.picks)).toEqual(['Alpha']);
+  });
+  test('the default is the newest of the newest own workout and the newest pick', () => {
+    const all = [w('a', 100, 'Alpha')];
+    expect(defaultStudio(all, new Map(), [{ name: 'Beta', atMs: 200 }])).toBe('Beta');
+    expect(defaultStudio(all, new Map(), [{ name: 'Beta', atMs: 50 }])).toBe('Alpha');
+    expect(defaultStudio([], new Map(), [{ name: 'Beta', atMs: 50 }])).toBe('Beta');
+  });
+  test('a rename keeps history: old workouts count for the new name', () => {
+    const st = recs(studioRecord('Alpha', 300, 300, 'Gamma'), studioRecord('Gamma', 300, 300));
+    const all = [w('a', 10, 'Alpha'), w('b', 20, 'Gamma'), w('c', 30)];
+    const main = mainStudio(all, st.renames);
+    expect(main).toBe('Gamma');
+    expect(all.map((x) => studioKey(x, main, st.renames))).toEqual(['Gamma', 'Gamma', 'Gamma']);
+    expect(knownStudios(all, st.renames, st.picks)).toEqual(['Gamma']);
+    expect(defaultStudio([w('a', 10, 'Alpha')], st.renames, st.picks)).toBe('Gamma');
+  });
+  test('renaming onto an existing name merges, ignoring case', () => {
+    const st = recs(studioRecord('Alpha', 300, 300, 'beta'));
+    expect(resolveStudio('ALPHA', st.renames)).toBe('beta');
+    expect(knownStudios([w('a', 10, 'Alpha'), w('b', 20, 'Beta')], st.renames, st.picks)).toEqual(['Beta']);
+  });
+  test('chains are followed and a cycle ends at one name on every side', () => {
+    expect(resolveStudio('A', new Map([['a', 'B'], ['b', 'C']]))).toBe('C');
+    const cyc = new Map([['a', 'B'], ['b', 'A']]);
+    expect(resolveStudio('A', cyc)).toBe(resolveStudio('B', cyc));
+    expect(resolveStudio('A', new Map([['a', 'a']]))).toBe('A');
   });
 });

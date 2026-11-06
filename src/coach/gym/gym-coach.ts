@@ -21,7 +21,8 @@ import { readTasks, type CoachId } from '../coach-tasks';
 import { readOutlook } from '../../shared/gym-outlook';
 import type { LoadStepOverrides } from '../../shared/loads';
 import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
-import { defaultStudio } from '../../shared/studio';
+import { defaultStudio, NO_STUDIOS, type StudioState } from '../../shared/studio';
+import { studiosOf } from '../tracking/studios';
 import { loadStepsOf } from '../tracking/load-steps';
 
 const DAY_MS = 86_400_000;
@@ -117,7 +118,9 @@ export class GymCoach {
     return this.deps.store ? loadStepsOf(this.deps.store, id) : new Map();
   }
   /** The studio the plan is for: the one of the newest own workout. Undefined when none is known. */
-  studio(id: string): string | undefined { return defaultStudio(this.logged(id)); }
+  studio(id: string): string | undefined { const s = this.studios(id); return defaultStudio(this.logged(id), s.renames, s.picks); }
+  /** The profile's `studio` records: renames and remembered picks. */
+  private studios(id: string): StudioState { return this.deps.store ? studiosOf(this.deps.store, id) : NO_STUDIOS; }
   isHevy(id: string): boolean { return this.deps.hevy ? this.deps.hevy(id) : true; }
   private logged(id: string): LoggedWorkout[] {
     if (!this.deps.store) return [];
@@ -320,7 +323,7 @@ export class GymCoach {
       real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
       const studio = this.studio(id);
       const overrides = this.loadSteps(id);
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(studio ? { studio } : {}), overrides, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
@@ -339,7 +342,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();

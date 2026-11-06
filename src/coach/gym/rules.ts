@@ -12,7 +12,7 @@ const REST_S = 90;
 const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'front_delts', 'side_delts', 'hamstrings', 'triceps', 'biceps'];
 
 function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
-  const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t, { studio: ctx.studio, overrides: ctx.overrides });
+  const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t, { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames });
   const range = repRangeOf(t);
   const reps = s.why === 'none' ? Math.min(range.max, Math.max(range.min, START_REPS)) : s.reps;
   return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };

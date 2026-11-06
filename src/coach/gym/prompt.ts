@@ -12,6 +12,7 @@ import type { LoadStepOverrides } from '../../shared/loads';
 import { repRangeOf } from '../../shared/muscle-targets';
 import type { GymState } from './state';
 import type { ExerciseTemplate } from './types';
+import type { Renames } from '../../shared/studio';
 import { TASKS_GUIDE, zTasks } from '../coach-tasks';
 
 const EFFORT_WORDS = { none: '0', some: '1–2', plenty: '3 oder mehr' } as const;
@@ -73,7 +74,7 @@ export type PromptInput = {
   /** The profile's exercise catalog; resolves the secondary muscles of the logged exercises. */
   catalog?: Exercise[];
   /** The studio the plan is for, and the person's weight-step overrides. */
-  studio?: string; overrides?: LoadStepOverrides;
+  studio?: string; overrides?: LoadStepOverrides; renames?: Renames;
 };
 
 export function buildGymPrompt(i: PromptInput): string {
@@ -97,7 +98,7 @@ export function buildGymPrompt(i: PromptInput): string {
     dataBlock('geplant', i.previous ? { name: i.previous.workout.name, exercises: i.previous.workout.exercises.map((e) => ({ templateId: e.templateId, title: e.title, sets: e.sets.length })) } : null),
     dataBlock('uebungen', available.map((a) => {
       const t = byId.get(a.templateId);
-      const plan = { studio: i.studio, overrides: i.overrides };
+      const plan = { studio: i.studio, overrides: i.overrides, renames: i.renames };
       return {
         templateId: a.templateId, title: titleOf.get(a.templateId) ?? t?.title ?? '', tageHer: days(a.lastMs), kuerzlich: a.recent,
         vorschlag: suggestNext(a.templateId, i.workouts, i.nowMs, t, plan),

@@ -1,6 +1,7 @@
 import type { WorkoutChange, WorkoutOp } from '../shared/chat';
 import type { Exercise } from '../shared/exercises';
 import type { LoggedWorkout } from '../shared/records';
+import { NO_STUDIOS, type StudioState } from '../shared/studio';
 import { removeExercise, swapExercise, type TrackedWorkout } from './session';
 
 const open = (w: TrackedWorkout, ex: string) => w.exercises.find((e) => e.rid === ex)?.sets.filter((s) => s.doneMs === null) ?? [];
@@ -13,7 +14,7 @@ export function validOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exer
 }
 
 /** Applies the valid ops in order. Done sets are never touched. */
-export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[]): TrackedWorkout {
+export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState = NO_STUDIOS): TrackedWorkout {
   let x = w;
   for (const o of validOps(change, w, catalog)) {
     const e = x.exercises.find((y) => y.rid === o.ex);
@@ -24,7 +25,7 @@ export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, his
         : removeExercise(x, o.ex);
     } else if (o.op === 'swap') {
       const to = catalog.find((c) => c.id === o.to);
-      if (to) x = swapExercise(x, o.ex, to, history);
+      if (to) x = swapExercise(x, o.ex, to, history, studios);
     } else if (o.op === 'sets') {
       let seen = 0;
       x = { ...x, exercises: x.exercises.map((y) => (y.rid === o.ex ? { ...y, sets: y.sets.filter((s) => s.doneMs !== null || seen++ < o.open) } : y)) };
