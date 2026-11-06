@@ -3,7 +3,7 @@ import type { Scenario } from './types';
 const c = (id: string, situation: string, expectation: string, task: number): Scenario => ({ id, situation, expectation, task });
 
 /**
- * Acceptance scenarios: foundation §11 (F01–F14) and concept §18 "Übungswissen" (U01–U04), each owned by the follow-up
+ * Acceptance scenarios: foundation §11 (F01–F14) and general exercise-identity rules behind concept §18 "Übungswissen" (U01–U04; the concrete exercises named there are test cases, not scenarios), each owned by the follow-up
  * task of the concept §19 that will test it. Tests check these agreements, not the biological effect of the app.
  */
 export const SCENARIOS: Scenario[] = [
@@ -21,8 +21,8 @@ export const SCENARIOS: Scenario[] = [
   c('F12', 'Eine ungewöhnliche Einheit oder alte Readiness', 'Keine dauerhafte Zieländerung und keine unbegrenzte Blockierung.', 12),
   c('F13', 'Laufdistanzsprung', 'Einzelne Einheit und Wochenänderung werden unterschieden; keine Garantie „unter 10 % sicher“.', 12),
   c('F14', 'Literatur- oder Policywechsel', 'Versionierter, nachvollziehbarer Übergang; laufende Einheit bleibt stabil.', 12),
-  c('U01', 'Maschinen-Reverse-Fly aus Hevy', 'Bekommt eine passende Maschinenanleitung, keine Kurzhantelanleitung.', 1),
-  c('U02', 'Behind-the-Back-Curl', 'Hat eine Beschreibung.', 1),
-  c('U03', 'Bekannte Ruderübungen', 'Zeigen den Rücken.', 1),
-  c('U04', 'Unbekannte Importübung', 'Der Muskel ist als unbekannt gekennzeichnet und erscheint nicht als unbelastet.', 1),
+  c('U01', 'Übung mit anderem Gerät oder anderer Ausführung als eine bekannte Übung', 'Bekommt keine Anleitung, Bilder oder Muskeln der anderen Variante.', 1),
+  c('U02', 'Jede Übung im Katalog', 'Hat eine zum Gerät passende Beschreibung.', 1),
+  c('U03', 'Importierte Übung, deren Muskel eine andere Quelle kennt', 'Zeigt diesen Muskel.', 1),
+  c('U04', 'Übung ohne bekannte Zuordnung', 'Der Muskel ist als unbekannt gekennzeichnet und erscheint nicht als unbelastet.', 1),
 ];
