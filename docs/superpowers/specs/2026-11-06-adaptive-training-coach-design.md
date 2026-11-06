@@ -245,6 +245,8 @@ Die Forschungsaudits liefern konkrete Gegenbeispiele und geeignete Integrationss
 
 Die Umsetzung soll aus sequentiellen, prüfbaren Aufträgen bestehen. Jedes Paket liefert einen nutzbaren Schritt und ein klares Abnahmeszenario. Konkrete Dateilisten, Schnittstellen und kleine Commits folgen im Implementierungsplan.
 
+Der [Architektur- und Migrationsabgleich](../../research/2026-11-06-migration-assessment.md) unterscheidet inzwischen vorhandene, zu erweiternde und gezielt zu ersetzende Module. Das fachliche Zielmodell bestimmt das Verhalten; Speicherung, Laufzeit und gemeinsame Tracking-Oberfläche werden als Grundlage weiterverwendet. Ausführbare Teilpläne verbinden Fachpakete zu nutzbaren Abläufen statt zunächst alle neuen Datentypen ohne Wirkung einzuführen.
+
 Vorgeschaltet ist **Auftrag 0: Evidenz- und Policy-Grundlage**. Er überführt die fachliche Recherche in ein versioniertes Quellen-/Regelregister, getrennte Zielbegriffe, den Umgang mit unbekannten Daten und eine Zuordnung bestehender Widersprüche zu Folgeaufträgen. Konkrete Abnahmekriterien stehen im Grundlagenpapier. Er implementiert noch nicht alle neuen Planer.
 
 Danach bilden die Aufträge drei Etappen: **Grundlage korrigieren** (1–4), **Planung personalisieren** (5–8) und **Ausführung sowie Entwicklung verbessern** (9–12). Die Etappen sind eine Einführungsreihenfolge; es muss nicht erst das gesamte Konzept fertig sein, bevor Verbesserungen nutzbar werden.
