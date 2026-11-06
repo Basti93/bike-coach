@@ -188,8 +188,12 @@ export class GymCoach {
     let hevy: ExerciseTemplate[] = [];
     if (this.isHevy(id)) {
       hevy = await (fresh ? this.deps.refreshTemplates(id) : this.deps.templates(id));
-      // Merged, never shrunk: a failed or emptied fetch or a removed Hevy template must not split the history.
-      const links = { ...this.state(id).links, ...Object.fromEntries(linkHevyTemplates(hevy, catalog)) };
+      // Derived from the current catalog on every run, so an undone or changed link follows. A stored link survives only where its template
+      // is not listed now (a failed or emptied fetch, a removed template must not split the history) or the catalog still says the same.
+      const derived = linkHevyTemplates(hevy, catalog);
+      const listed = new Set(hevy.map((t) => t.id));
+      const kept = Object.entries(this.state(id).links).filter(([tid, own]) => !listed.has(tid) || derived.get(tid) === own);
+      const links = { ...Object.fromEntries(kept), ...Object.fromEntries(derived) };
       if (JSON.stringify(links) !== JSON.stringify(this.state(id).links)) this.update(id, (s) => { s.links = links; });
     }
     const linked = new Set(Object.keys(this.state(id).links));
