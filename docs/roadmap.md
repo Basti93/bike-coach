@@ -26,7 +26,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 |---|---|---|---|
 | ✅ | **0 Grundlage** | Regelregister existiert, Übungsidentität nur über ID/exakten Titel, unbekannte Muskeln sind sichtbar. | Auftrag 0, Schritt 0–1 (teilweise) |
 | ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
-| **B** | **Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
+| **B** ▶ | **Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
 | **C** | **Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | **E** | **Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
@@ -75,6 +75,22 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Deutsche Namen für die Basis einmalig erzeugen und mitliefern (für die Suche); deutsche Kurzanleitung erst beim ersten Verwenden per KI erzeugen und speichern, statt 876 Anleitungen vorab zu übersetzen.
 - Bilder nicht alle bündeln (Größe der PWA); zunächst nur für tatsächlich genutzte Übungen.
 - Der KI-Vorschlag läuft auf der Coach-Seite (`coachHere`); Ergebnis ist eine gespeicherte Zuordnung, die UI, Statistik und Coach-Historie gleichermaßen verwenden.
+
+## Meilenstein B — Brief (06.11.2026)
+
+**Ziel:** Die Muskelübersicht sagt pro Muskel in einem Wort, wo ihr steht – und rechnet die Arbeit mit, die andere Übungen nebenbei leisten.
+
+**Abnahme:**
+1. Rudern zählt auch für den Bizeps, Bankdrücken auch für Trizeps und vordere Schulter – als halbe Sätze (Regel `muscle.indirect-weight`). Das gilt für jede Übung im Katalog, auch für Basis- und KI-Übungen.
+2. Gesäß und Oberschenkel hinten sowie Schulter vorn, seitlich und hinten sind getrennte Muskeln. Welche Übung welchen Teil trifft, steht in den Übungsdaten, nicht in Namenslisten.
+3. Jeder Muskel steht in einem von vier Zuständen: **Noch nichts**, **Wenig**, **Im Ziel**, **Viel** (letzte 7 Tage gegen das Wochenziel der Person). Zahlen gibt es erst auf Antippen.
+4. App, Statistik und Coach rechnen die Bilanz mit derselben Funktion; der Coach sieht dieselben Zustände.
+
+**Fällt weg:** Titel-Regex und ID-Liste für Schulterteile; die Hauptanzeige „n von min–max Sätzen“; die zweite Volumenrechnung auf der Coach-Seite.
+
+**Nicht dabei:** Körperbild/Muskelkarte (Parkplatz), persönliche Schwerpunkte (E/H), Gewichte und Geräte (C).
+
+**Von Claude entschieden (Ledger):** Liste mit vier Zuständen statt Körperbild; Zielbereiche der neuen Teilmuskeln aus RP-Richtwerten im Regelregister; Altwert „Schultern“ ohne Teil zählt als „Schulter vorn“.
 
 ## Parkplatz
 
