@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { frameOf, frameRecord, readFrame } from '../../src/shared/frame';
+import { RECORD_KINDS, type TrackedRecord } from '../../src/shared/records';
+import { validBody } from '../../src/web/validate';
+import { gymBudgetOf } from '../../src/coach/tracking/frame';
+import { buildGymPrompt } from '../../src/coach/gym/prompt';
+import { initialGymState } from '../../src/coach/gym/state';
+import { gymMinutes } from '../../src/shared/duration';
+
+describe('frame', () => {
+  it('without a record: week mode, no time', () => {
+    expect(frameOf([], '2026-11-09')).toEqual({ mode: 'week', minutes: null, effectiveMinutes: null });
+    expect(frameOf([{ kind: 'frame', id: 'frame', updatedMs: 1, deleted: false, body: { nonsense: 1 } }], '2026-11-09').mode).toBe('week');
+  });
+  it('is a known, validated kind with the allowed minutes only', () => {
+    expect(RECORD_KINDS).toContain('frame');
+    const ok = { mode: 'spontaneous', minutes: 45, atMs: 1 };
+    expect(validBody('frame', ok)).toBe(true);
+    expect(validBody('frame', { ...ok, minutes: null })).toBe(true);
+    expect(validBody('frame', { ...ok, minutes: 50 })).toBe(false);
+    expect(validBody('frame', { ...ok, mode: 'x' })).toBe(false);
+    expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 30 } })?.today).toEqual({ date: '2026-11-09', minutes: 30 });
+    expect(readFrame({ ...ok, today: { date: 'heute', minutes: 30 } })).toBeNull();
+    expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 33 } })).toBeNull();
+  });
+  it('today only counts on its date', () => {
+    const rec = frameRecord({ mode: 'week', minutes: 60, today: { date: '2026-11-09', minutes: 30 } }, 5);
+    expect(frameOf([rec], '2026-11-09')).toMatchObject({ minutes: 60, effectiveMinutes: 30 });
+    expect(frameOf([rec], '2026-11-10').effectiveMinutes).toBe(60);
+    expect(frameOf([{ ...rec, deleted: true }], '2026-11-09').effectiveMinutes).toBeNull();
+  });
+});
+
+describe('gymMinutes', () => {
+  const ex = (n: number, restS: number | null = 90) => ({ restS, sets: Array.from({ length: n }, () => ({})) });
+  it('adds warm-up, sets with rest and exercise changes, rounded to 5', () => {
+    // 8 min + 9 sets x (40 + 90) s + 2 changes x 60 s = 29.5 min -> 30
+    expect(gymMinutes({ exercises: [ex(3), ex(3), ex(3)] })).toBe(30);
+    expect(gymMinutes({ exercises: [ex(4, 60)] })).toBe(15);
+    expect(gymMinutes({ exercises: [] })).toBe(0);
+  });
+});
+
+describe('gym time budget', () => {
+  const store = (records: TrackedRecord[]) => ({ all: (_id: string, kind?: string) => records.filter((r) => !kind || r.kind === kind) });
+  const plan = { kind: 'weekplan' as const, id: '2026-11-09', updatedMs: 1, deleted: false, body: { weekStart: '2026-11-09', days: ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'].map((date, i) => ({ date, sport: i === 2 ? 'gym' : 'rest', hardness: 'easy', fixed: false })), fromMessage: 'm', acceptedMs: 1 } };
+  it('is the usual time, or the one for today when the workout is planned for today', () => {
+    const f = (today?: { date: string; minutes: number }) => frameRecord({ mode: 'week', minutes: 60, ...(today ? { today } : {}) }, 5);
+    expect(gymBudgetOf(store([]), 'p', '2026-11-09')).toBeNull();
+    expect(gymBudgetOf(store([f()]), 'p', '2026-11-09')).toBe(60);
+    // no plan: planned for today
+    expect(gymBudgetOf(store([f({ date: '2026-11-09', minutes: 30 })]), 'p', '2026-11-09')).toBe(30);
+    // the gym day is Wednesday: the override for Monday does not count
+    expect(gymBudgetOf(store([plan, f({ date: '2026-11-09', minutes: 30 })]), 'p', '2026-11-09')).toBe(60);
+    expect(gymBudgetOf(store([plan, f({ date: '2026-11-11', minutes: 20 })]), 'p', '2026-11-09')).toBe(20);
+  });
+  it('is one line in the prompt', () => {
+    const p = buildGymPrompt({ state: initialGymState('p'), workouts: [], templates: [], nowMs: 1, summaries: [], complaints: [], previous: null, wantNote: false, budgetMinutes: 30 });
+    expect(p).toContain('Zeit: höchstens 30 Min einschließlich Aufwärmen und Pausen.');
+  });
+});

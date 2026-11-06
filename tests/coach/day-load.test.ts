@@ -47,9 +47,16 @@ test('a gym day with squats is hard with legs; an upper-body day is moderate wit
   expect(trainsLegs([{ templateId: 'a', title: 'Bench Press' }, { templateId: 'b', title: 'Unknown' }], muscleOf)).toBe(false);
 });
 
-test('the planned gym workout lands on the next usual gym day', () => {
-  const r = dayRatings(input({ gymNext: { name: 'Beine', exercises: [{ templateId: 'a', title: 'Back Squat', restS: null, supersetId: null, notes: '', sets: [] }] }, gymDays: [3] }), DATES);
-  expect(r['2027-06-17']).toMatchObject({ hardness: 'hard', legs: true, minutes: 45 });
+test('the planned gym workout lands on the next usual gym day and counts its estimated minutes', () => {
+  const sets = Array.from({ length: 3 }, () => ({ type: 'normal' as const, weightKg: 60, reps: 8 }));
+  const exercises = ['Back Squat', 'Bench Press', 'Row'].map((title, i) => ({ templateId: `t${i}`, title, restS: 90, supersetId: null, notes: '', sets }));
+  const r = dayRatings(input({ gymNext: { name: 'Beine', exercises }, gymDays: [3] }), DATES);
+  expect(r['2027-06-17']).toMatchObject({ hardness: 'hard', legs: true, minutes: 30 });
+});
+
+test('a planned gym workout without exercises counts the fallback minutes', () => {
+  const r = dayRatings(input({ gymNext: { name: 'x', exercises: [] }, gymDays: [3] }), DATES);
+  expect(r['2027-06-17'].minutes).toBe(45);
 });
 
 test('a planned session skips a day that already has a finished one of the same source', () => {

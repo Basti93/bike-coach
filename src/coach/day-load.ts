@@ -6,6 +6,7 @@ import type { TrainingWeek } from './all-training';
 import { LEG_MUSCLES } from './gym/history';
 import { RAMP_ID } from './guardrails';
 import { stepFtpFraction } from '../shared/session';
+import { gymMinutes } from '../shared/duration';
 
 export type DayHardness = 'easy' | 'moderate' | 'hard';
 export type DayRating = { date: string; hardness: DayHardness | null; legs: boolean; minutes: number };
@@ -14,8 +15,8 @@ type MuscleOf = (templateId: string, title: string) => string | null;
 // Our own choices: where a day turns moderate or hard.
 const HARD_FRACTION = 0.8;
 const MODERATE_FRACTION = 0.7;
-/** A planned gym workout has no duration in the plan. */
-const GYM_PLANNED_MINUTES = 45;
+/** Only the fallback for a day without a planned workout; a planned one is estimated (see shared/duration). */
+const GYM_MINUTES_WITHOUT_PLAN = 45;
 const MAX_CUT = 0.2;
 const BEFORE_WEEKS = 4;
 const ORDER: DayHardness[] = ['easy', 'moderate', 'hard'];
@@ -80,7 +81,7 @@ export const dayRatings = (input: DayInput, dates: string[]): Record<string, Day
   const gymDate = input.gymNext ? nextFree(input.gymDays, new Set(input.gym.map((w) => dateKey(w.startMs)))) : undefined;
   if (input.gymNext && gymDate) {
     const legs = trainsLegs(input.gymNext.exercises, input.muscleOf);
-    add(gymDate, legs ? 'hard' : 'moderate', legs, GYM_PLANNED_MINUTES);
+    add(gymDate, legs ? 'hard' : 'moderate', legs, input.gymNext.exercises.length > 0 ? gymMinutes(input.gymNext) : GYM_MINUTES_WITHOUT_PLAN);
   }
   return out;
 };

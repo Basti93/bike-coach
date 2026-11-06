@@ -74,3 +74,7 @@ export function planOfWeek(records: TrackedRecord[], monday: string): WeekPlanBo
 /** The planned day of a date, or null without a plan for its week. */
 export const planFor = (records: TrackedRecord[], date: string): PlanDay | null =>
   planOfWeek(records, mondayOf(date))?.days.find((d) => d.date === date) ?? null;
+
+/** The first date from `from` on (within seven days) whose plan day has this sport, or null. */
+export const nextPlanDate = (records: TrackedRecord[], from: string, sport: Sport): string | null =>
+  [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(from, i)).find((d) => planFor(records, d)?.sport === sport) ?? null;

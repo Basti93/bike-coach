@@ -3,7 +3,8 @@ import { RECENT_DAYS } from './limits';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
 import { isExcluded } from '../../shared/excluded';
-import type { GymContext } from './guardrails';
+import { checkWorkout, type GymContext } from './guardrails';
+import { durationNote, gymLimit, gymMinutes } from '../../shared/duration';
 
 const DAY_MS = 86_400_000;
 const CORE_SIZE = 6;
@@ -19,12 +20,15 @@ function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
 }
 
+type Plan = { workout: GymWorkout; reason: string };
+const KEEP_SETS = 2;
+const HISTORY_NAME = 'Ganzkörper';
+
 /**
- * The workout used when the AI answer fails the check twice, or when there is no AI. Plain and safe by construction,
- * so it is not put through `checkWorkout` (the empty-history fallback would not pass it anyway).
+ * The plain workout: from the history or, without usable history, simple machine exercises (the minimal plan). Not checked yet.
  * Caller contract: an empty exercise list must never be offered to the rider or written to Hevy.
  */
-export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: string } {
+function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
   const recentLegs = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
   const legsTired = recentLegs || ctx.avoidLegs === true;
@@ -41,9 +45,9 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
     .filter((t): t is ExerciseTemplate => !!t && allowed(t))
     .sort((a, b) => (count.get(b.id)! - count.get(a.id)!) || ((lastMs.get(b.id) ?? 0) - (lastMs.get(a.id) ?? 0)) || a.id.localeCompare(b.id))
     .slice(0, CORE_SIZE);
-  if (core.length > 0) {
+  if (!machinesOnly && core.length > 0) {
     return {
-      workout: { name: 'Ganzkörper', exercises: core.map((t) => exerciseOf(t, ctx)) },
+      workout: { name: HISTORY_NAME, exercises: core.map((t) => exerciseOf(t, ctx)) },
       reason: legsTired && !recentLegs
         ? 'Deine häufigsten Übungen der letzten Monate, ohne Beinarbeit, damit die Beine geschont bleiben.'
         : legsTired
@@ -67,4 +71,43 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
         ? 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten. Wo du eine Übung schon kennst, steht ein Gewicht aus deinem Verlauf dabei, sonst taste dich in Ruhe heran.'
         : 'Aus deinem Verlauf passt gerade keine Übung gut, deshalb ein einfaches Ganzkörpertraining an Geräten, ohne Gewichte. Taste dich in Ruhe heran.',
   };
+}
+
+/** Cuts a workout to the time: first sets beyond 2 per exercise from the last exercises, then the last exercises. */
+function trimToLimit(w: GymWorkout, limit: number): GymWorkout {
+  const exercises = w.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
+  const out = { ...w, exercises };
+  while (gymMinutes(out) > limit) {
+    const long = [...exercises].reverse().find((e) => e.sets.length > KEEP_SETS);
+    if (long) long.sets.pop();
+    else if (exercises.length > 1) exercises.pop();
+    else break;
+  }
+  return out;
+}
+
+/**
+ * The workout used when the AI answer fails the check twice, or when there is no AI. It goes through the same check as an
+ * AI plan: with a time budget it is trimmed to fit first. A history plan that still fails a guardrail is replaced by the
+ * minimal plan (simple machine exercises), which is safe by construction and so offered as it is when it too fails the check
+ * only because there is no history (the check refuses unknown equipment). `guard` names why the first plan was dropped.
+ * Caller contract: an empty exercise list must never be offered to the rider or written to Hevy.
+ */
+export function ruleWorkout(ctx: GymContext): Plan & { guard?: string } {
+  const limit = ctx.budgetMinutes !== undefined ? gymLimit(ctx.budgetMinutes) : Infinity;
+  const finish = (p: Plan, w: GymWorkout): Plan => ({ workout: w, reason: `${p.reason} Dauer ${durationNote(w)}.` });
+  const first = plainWorkout(ctx, false);
+  if (first.workout.exercises.length === 0) return first;
+  const fromHistory = first.workout.name === HISTORY_NAME;
+  let guard: string | undefined;
+  if (fromHistory) {
+    const checked = checkWorkout(trimToLimit(first.workout, limit), ctx);
+    if (checked.ok) return finish(first, checked.workout);
+    guard = checked.reason;
+  }
+  const minimal = fromHistory ? plainWorkout(ctx, true) : first;
+  if (minimal.workout.exercises.length === 0) return { ...minimal, ...(guard ? { guard } : {}) };
+  const fit = trimToLimit(minimal.workout, limit);
+  const again = checkWorkout(fit, ctx);
+  return { ...finish(minimal, again.ok ? again.workout : fit), ...(guard ? { guard } : {}) };
 }

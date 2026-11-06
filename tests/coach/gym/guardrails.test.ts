@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { StrengthWorkout, SetType } from '../../../src/coach/hevy';
 import type { ExerciseTemplate } from '../../../src/coach/gym/types';
-import { checkWorkout, type GymContext } from '../../../src/coach/gym/guardrails';
+import { checkWorkout, reasonPhrase, type GymContext } from '../../../src/coach/gym/guardrails';
+import { gymMinutes } from '../../../src/shared/duration';
 import { ruleWorkout } from '../../../src/coach/gym/rules';
 
 const DAY = 86_400_000;
@@ -210,5 +211,39 @@ describe('ruleWorkout', () => {
     expect(ids).not.toContain('lp');
     expect(ids).not.toContain('hc');
     expect(ids.length).toBeGreaterThan(0);
+  });
+});
+
+describe('time budget', () => {
+  const sets = (n: number) => Array.from({ length: n }, () => set(40, 8));
+  const long = wo([ex('cp', sets(4)), ex('lp', [set(null, 8), set(null, 8), set(null, 8), set(null, 8)]), ex('lr', [set(null, 8), set(null, 8), set(null, 8), set(null, 8)])]);
+  const budgeted = (m: number): GymContext => ({ ...CTX, budgetMinutes: m });
+  it('refuses an AI plan over budget plus 10 % with the phrase', () => {
+    // 8 min + 12 sets x 130 s + 2 changes = 36 min, about 35
+    const reason = refused(long, budgeted(30));
+    expect(reason).toMatch(/zu lang für deine Zeit/);
+    expect(reasonPhrase(reason)).toBe('zu lang für deine Zeit');
+    passes(long, budgeted(35));
+    passes(long, budgeted(32)); // 32 x 1.1 = 35.2
+    refused(long, budgeted(31)); // 34.1
+  });
+  it('does not check the time without a budget', () => {
+    passes(long);
+  });
+  it('trims the rule fallback to fit and the result passes the check', () => {
+    const ctx = budgeted(20);
+    const r = ruleWorkout(ctx);
+    expect(r.workout.exercises.length).toBeGreaterThan(0);
+    expect(gymMinutes(r.workout)).toBeLessThanOrEqual(22);
+    expect(checkWorkout(r.workout, ctx).ok).toBe(true);
+    expect(r.reason).toMatch(/Dauer ca\. \d+ Min\./);
+    expect(r.workout.exercises.every((e) => e.sets.length >= 2)).toBe(true);
+  });
+  it('leaves the rule fallback whole without a budget', () => {
+    const r = ruleWorkout(CTX);
+    const sets3 = r.workout.exercises.every((e) => e.sets.length === 3);
+    expect(sets3).toBe(true);
+    expect(r.guard).toBeUndefined();
+    expect(r.reason).toMatch(/Dauer ca\. \d+ Min\./);
   });
 });
