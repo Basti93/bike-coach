@@ -3,7 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES } from '../../src/shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
-import { changeProposal, confirmProposal, relink, undoAutoLink } from '../../src/tracking/exercise-proposals';
+import { aiExerciseId, linkId, linkRecord } from '../../src/shared/exercise-links';
+import { resolveExercise } from '../../src/tracking/exercise-identity';
+import { changeProposal, confirmProposal, rejectProposal, relink, undoLink } from '../../src/tracking/exercise-proposals';
 import { ExerciseProposals } from '../../src/tracking/ui/ExerciseProposals';
 import { WorkoutScreen } from '../../src/tracking/ui/WorkoutScreen';
 import { fakePort } from './fake-port';
@@ -16,60 +18,59 @@ const TITLE = 'Cable Row Custom';
 const cat = (records: TrackedRecord[] = []) => mergeCatalog(EXERCISES, [], records);
 const sameProposal: TrackedRecord = { kind: 'exercise', id: 'prop-1', updatedMs: NOW - 1000, deleted: false, body: { id: 'prop-1', proposal: { forTitle: TITLE, kind: 'same', targetId: 'pf-squat', reason: 'Gleiche Übung.', atMs: NOW - 1000 } } };
 const newProposal: TrackedRecord = { kind: 'exercise', id: 'prop-2', updatedMs: NOW - 1000, deleted: false, body: { id: 'prop-2', title: 'Zorbo-Zug', type: 'weight_reps', primaryMuscle: 'lats', equipment: 'machine', source: 'ai', description: 'Ruhig ziehen.', proposal: { forTitle: 'Zorbo Pull', kind: 'new', reason: 'Neu.', atMs: NOW - 1000 } } };
-const linked = (atMs = NOW - DAY, extra: object = {}): TrackedRecord => ({ kind: 'exercise', id: 'pf-squat', updatedMs: atMs, deleted: false, body: { id: 'pf-squat', aliases: ['Cable Curl'], lastAutoLink: { title: 'Cable Curl', atMs }, ...extra } });
+const linkRec = (atMs = NOW - DAY, title = 'Cable Curl', targetId = 'pf-squat'): TrackedRecord => linkRecord(title, targetId, 'auto', atMs);
 
 describe('pure actions', () => {
-  test('confirm same: alias on the target, proposal deleted, existing overlay fields kept', () => {
-    const have: TrackedRecord = { kind: 'exercise', id: 'pf-squat', updatedMs: NOW + 5, deleted: false, body: { id: 'pf-squat', aliases: ['Old'], description: 'Mein Text.' } };
-    const [overlay, gone] = confirmProposal(sameProposal, cat(), NOW, [have, sameProposal]);
-    expect(overlay).toMatchObject({ id: 'pf-squat', deleted: false, updatedMs: NOW + 6, body: { aliases: ['Old', TITLE], description: 'Mein Text.' } });
+  test('confirm same: a link by the person, proposal withdrawn', () => {
+    const [link, gone] = confirmProposal(sameProposal, cat(), NOW, [sameProposal]);
+    expect(link).toMatchObject({ id: linkId(TITLE), deleted: false, body: { kind: 'link', title: TITLE, targetId: 'pf-squat', by: 'person', atMs: NOW } });
     expect(gone).toMatchObject({ id: 'prop-1', deleted: true });
     expect(gone!.updatedMs).toBeGreaterThan(sameProposal.updatedMs);
-    expect(cat([overlay!]).find((e) => e.id === 'pf-squat')?.aliases).toContain(TITLE);
+    expect(cat([link!]).find((e) => e.id === 'pf-squat')?.aliases).toContain(TITLE);
   });
 
   test('confirm same without a target in the catalog writes nothing', () => {
     expect(confirmProposal({ ...sameProposal, body: { proposal: { forTitle: TITLE, kind: 'same', targetId: 'nope', reason: '', atMs: 1 } } }, cat(), NOW, [])).toEqual([]);
   });
 
-  test('confirm new: the proposal record becomes the exercise, by ai, and knows the logged title', () => {
-    const [ex, ...rest] = confirmProposal(newProposal, cat(), NOW, [newProposal]);
-    expect(rest).toEqual([]);
-    expect(ex!.id).toBe('prop-2');
-    expect(ex!.deleted).toBe(false);
+  test('confirm new: the exercise under a fresh id (by ai), a link from the logged title, the proposal withdrawn', () => {
+    const [ex, link, gone] = confirmProposal(newProposal, cat(), NOW, [newProposal]);
+    const id = aiExerciseId('Zorbo Pull', NOW);
+    expect(id).not.toBe('prop-2');
+    expect(ex).toMatchObject({ id, deleted: false, body: { id, source: 'ai', title: 'Zorbo-Zug', primaryMuscle: 'lats' } });
     expect((ex!.body as Record<string, unknown>).proposal).toBeUndefined();
-    expect(ex!.body).toMatchObject({ source: 'ai', title: 'Zorbo-Zug', aliases: ['Zorbo Pull'] });
-    expect(cat([ex!]).find((e) => e.id === 'prop-2')).toMatchObject({ title: 'Zorbo-Zug', source: 'ai' });
+    expect(link).toMatchObject({ body: { kind: 'link', title: 'Zorbo Pull', targetId: id, by: 'person' } });
+    expect(gone).toMatchObject({ id: 'prop-2', deleted: true });
+    const merged = cat([ex!, link!, gone!]);
+    expect(merged.find((e) => e.id === id)).toMatchObject({ title: 'Zorbo-Zug', source: 'ai', aliases: ['Zorbo Pull'] });
+    expect(resolveExercise({ exerciseId: 'h', title: 'Zorbo Pull' }, merged).exercise?.id).toBe(id);
   });
 
-  test('change: links to the chosen target', () => {
-    const [overlay, gone] = changeProposal(sameProposal, 'pf-front-squat', cat(), NOW, [sameProposal]);
-    expect(overlay).toMatchObject({ id: 'pf-front-squat', body: { aliases: [TITLE] } });
+  test('change: links to the chosen target; a missing target writes nothing', () => {
+    const [link, gone] = changeProposal(sameProposal, 'pf-front-squat', cat(), NOW, [sameProposal]);
+    expect(link).toMatchObject({ body: { targetId: 'pf-front-squat', title: TITLE } });
     expect(gone).toMatchObject({ id: 'prop-1', deleted: true });
     expect(changeProposal(sameProposal, 'nope', cat(), NOW, [sameProposal])).toEqual([]);
   });
 
-  test('confirm and change note the link, so it can be changed or undone for 14 days', () => {
-    const [a] = confirmProposal(sameProposal, cat(), NOW, [sameProposal]);
-    expect(a!.body).toMatchObject({ lastAutoLink: { title: TITLE, atMs: NOW } });
-    const [n] = confirmProposal(newProposal, cat(), NOW, [newProposal]);
-    expect(n!.body).toMatchObject({ lastAutoLink: { title: 'Zorbo Pull', atMs: NOW } });
-    const [stale] = changeProposal(sameProposal, 'pf-squat', cat(), NOW, [linked(NOW - 2 * DAY)]);
-    expect(stale!.body).toMatchObject({ aliases: ['Cable Curl', TITLE], lastAutoLink: { title: TITLE, atMs: NOW } });
+  test('reject: only the proposal is withdrawn', () => {
+    const out = rejectProposal(sameProposal, NOW);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: 'prop-1', deleted: true });
   });
 
-  test('relink moves the title in one write: off the old target, onto the new, not undone', () => {
-    const target: TrackedRecord = { kind: 'exercise', id: 'pf-front-squat', updatedMs: 5, deleted: false, body: { id: 'pf-front-squat', aliases: ['Z'], undoneTitles: ['Cable Curl', 'Other'] } };
-    const [old, next] = relink(linked(), 'pf-front-squat', cat([linked(), target]), NOW, [linked(), target]);
-    expect(old!.body).toEqual({ id: 'pf-squat', aliases: [] });
-    expect(next).toMatchObject({ id: 'pf-front-squat', body: { aliases: ['Z', 'Cable Curl'], undoneTitles: ['Other'], lastAutoLink: { title: 'Cable Curl', atMs: NOW } } });
-    expect(relink(linked(), 'pf-squat', cat(), NOW, [linked()])).toEqual([]);
+  test('relink rewrites the one link record to the new target, by the person', () => {
+    const [next] = relink(linkRec(), 'pf-front-squat', cat([linkRec()]), NOW);
+    expect(next).toMatchObject({ id: linkId('Cable Curl'), deleted: false, body: { targetId: 'pf-front-squat', by: 'person', atMs: NOW } });
+    expect(next!.updatedMs).toBeGreaterThan(linkRec().updatedMs);
+    expect(relink(linkRec(), 'pf-squat', cat(), NOW)).toEqual([]);
+    expect(relink(linkRec(NOW - 15 * DAY), 'pf-front-squat', cat(), NOW)).toEqual([]);
   });
 
-  test('undo: alias and lastAutoLink go, the title is noted as undone, other fields stay', () => {
-    const [u] = undoAutoLink(linked(NOW - DAY, { description: 'Text.', aliases: ['Other', 'Cable Curl'] }), NOW);
-    expect(u!.body).toEqual({ id: 'pf-squat', aliases: ['Other'], description: 'Text.', undoneTitles: ['Cable Curl'] });
-    expect(u!.updatedMs).toBe(NOW);
+  test('undo: the link record is deleted, nothing else is touched', () => {
+    const [u, ...rest] = undoLink(linkRec(), NOW);
+    expect(rest).toEqual([]);
+    expect(u).toMatchObject({ id: linkId('Cable Curl'), deleted: true });
     expect(cat([u!]).find((e) => e.id === 'pf-squat')?.aliases ?? []).not.toContain('Cable Curl');
   });
 });
@@ -78,15 +79,15 @@ describe('ExerciseProposals card', () => {
   const show = (seed: TrackedRecord[]) => { const f = fakePort(seed); render(<ExerciseProposals port={f.port} now={() => NOW} newId={() => 'x'} />); return f; };
 
   test('renders nothing without proposals or recent auto links', async () => {
-    show([linked(NOW - 15 * DAY), { ...sameProposal, deleted: true }]);
+    show([linkRec(NOW - 15 * DAY), { ...sameProposal, deleted: true }]);
     await new Promise((r) => setTimeout(r, 20));
     expect(document.body.textContent).toBe('');
   });
 
   test('rows read plainly, without numbers', async () => {
-    show([sameProposal, newProposal, linked()]);
+    show([sameProposal, newProposal, linkRec()]);
     expect(await screen.findByText(/‚Cable Row Custom‘ ist vermutlich Kniebeuge/)).toBeTruthy();
-    expect(screen.getByText('Neue Übung: Zorbo-Zug, Latissimus')).toBeTruthy();
+    expect(screen.getByText('Neue Übung: Zorbo-Zug, Latissimus, Maschine oder Kabel')).toBeTruthy();
     expect(screen.getByText(/‚Cable Curl‘ als Kniebeuge eingeordnet/)).toBeTruthy();
   });
 
@@ -94,7 +95,7 @@ describe('ExerciseProposals card', () => {
     const f = show([sameProposal]);
     fireEvent.click(await screen.findByRole('button', { name: 'Bestätigen' }));
     await waitFor(() => expect(f.state.puts).toHaveLength(2));
-    expect(f.state.puts.map((r) => `${r.id}:${r.deleted}`)).toEqual(['pf-squat:false', 'prop-1:true']);
+    expect(f.state.puts.map((r) => `${r.id}:${r.deleted}`)).toEqual([`${linkId(TITLE)}:false`, 'prop-1:true']);
     await waitFor(() => expect(screen.queryByText(/ist vermutlich/)).toBeNull());
   });
 
@@ -104,18 +105,24 @@ describe('ExerciseProposals card', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Übung wählen' });
     fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
     await waitFor(() => expect(f.state.puts).toHaveLength(2));
-    expect(f.state.puts[0]).toMatchObject({ id: 'pf-front-squat', body: { aliases: [TITLE] } });
+    expect(f.state.puts[0]).toMatchObject({ id: linkId(TITLE), body: { targetId: 'pf-front-squat' } });
   });
 
-  test('Ändern on a recent link opens the picker and moves the title', async () => {
-    const f = show([linked()]);
+  test('Ändern on a recent link opens the picker and rewrites the link', async () => {
+    const f = show([linkRec()]);
     fireEvent.click(await screen.findByRole('button', { name: 'Ändern' }));
     const dialog = await screen.findByRole('dialog', { name: 'Übung wählen' });
     fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
-    await waitFor(() => expect(f.state.puts).toHaveLength(2));
-    expect(f.state.puts.map((r) => r.id)).toEqual(['pf-squat', 'pf-front-squat']);
-    expect(f.state.puts[0]!.body).toMatchObject({ aliases: [] });
-    expect(f.state.puts[1]!.body).toMatchObject({ aliases: ['Cable Curl'] });
+    await waitFor(() => expect(f.state.puts).toHaveLength(1));
+    expect(f.state.puts[0]).toMatchObject({ id: linkId('Cable Curl'), body: { targetId: 'pf-front-squat', by: 'person' } });
+  });
+
+  test('Verwerfen withdraws the proposal and the row goes', async () => {
+    const f = show([sameProposal]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Verwerfen' }));
+    await waitFor(() => expect(f.state.puts).toHaveLength(1));
+    expect(f.state.puts[0]).toMatchObject({ id: 'prop-1', deleted: true });
+    await waitFor(() => expect(screen.queryByText(/ist vermutlich/)).toBeNull());
   });
 
   test('a proposal withdrawn in the meantime is not written again', async () => {
@@ -136,9 +143,9 @@ describe('ExerciseProposals card', () => {
     expect(screen.getByText(/ist vermutlich/)).toBeTruthy();
   });
 
-  test('Rückgängig takes the alias away: the exercise shows "Muskel unbekannt" again in the workout screen', async () => {
+  test('Rückgängig takes the link away: the exercise shows "Muskel unbekannt" again in the workout screen', async () => {
     const w: LoggedWorkout = { id: 'o1', title: 'Zuhause', startMs: 1000, endMs: null, source: 'hevy', exercises: [{ exerciseId: 'hevy-x', title: TITLE, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: 20, reps: 8, durationS: null, doneMs: null }] }] };
-    const f = fakePort([linked(NOW - DAY, { aliases: [TITLE], lastAutoLink: { title: TITLE, atMs: NOW - DAY } }), { kind: 'workout', id: 'o1', updatedMs: 1, deleted: false, body: w }]);
+    const f = fakePort([linkRec(NOW - DAY, TITLE), { kind: 'workout', id: 'o1', updatedMs: 1, deleted: false, body: w }]);
     const open = async () => {
       render(<WorkoutScreen port={f.port} now={() => NOW} newId={() => 'x'} />);
       fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
@@ -151,6 +158,6 @@ describe('ExerciseProposals card', () => {
     await waitFor(() => expect(f.state.puts).toHaveLength(1));
     cleanup();
     expect(await open()).toBe('Muskel unbekannt');
-    expect(f.state.puts[0]!.body).toMatchObject({ undoneTitles: [TITLE] });
+    expect(f.state.puts[0]).toMatchObject({ id: linkId(TITLE), deleted: true });
   });
 });

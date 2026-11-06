@@ -152,5 +152,5 @@ export const descriptionCredit = (d: ExerciseDescription): string | null => {
 };
 
 /** The description to show for a catalog exercise: its own text when it has one, else the bundled one for its id. */
-export const descriptionOf = (e: { id: string; description?: string; source?: string; descriptionSource?: 'own' }): ExerciseDescription | null =>
-  e.description ? { text: e.description, source: { kind: e.source === 'fedb' && e.descriptionSource !== 'own' ? 'fedb' : 'own' } } : exerciseDescription(e.id);
+export const descriptionOf = (e: { id: string; description?: string; source?: string; descriptionByUser?: true }): ExerciseDescription | null =>
+  e.description ? { text: e.description, source: { kind: e.source === 'fedb' && !e.descriptionByUser ? 'fedb' : 'own' } } : exerciseDescription(e.id);

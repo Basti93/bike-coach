@@ -160,13 +160,13 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.waitForTimeout(300);
   } },
   { name: 'tracking-proposals', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1100, steps: async (win) => {
-    // One proposal to confirm, one to change into a new exercise, and one recent auto link to take back.
+    // One proposal to confirm, one to change into a new exercise, and one recent link to change or take back.
     await win.evaluate((t) => {
       const w = window as unknown as { __db?: Map<string, unknown> };
       const rows: [string, object][] = [
         ['prop-aaaa0001', { proposal: { forTitle: 'Cable Row Custom', kind: 'same', targetId: 'pf-squat', reason: 'Gleiche Übung.', atMs: t } }],
         ['prop-aaaa0002', { title: 'Zorbo-Zug', type: 'weight_reps', primaryMuscle: 'lats', equipment: 'machine', source: 'ai', proposal: { forTitle: 'Zorbo Pull', kind: 'new', reason: 'Neu.', atMs: t } }],
-        ['pf-front-squat', { aliases: ['Zorbo Curl'], lastAutoLink: { title: 'Zorbo Curl', atMs: t } }],
+        ['link-aaaa0003', { kind: 'link', title: 'Zorbo Curl', targetId: 'pf-front-squat', by: 'auto', atMs: t }],
       ];
       w.__db = new Map(rows.map((r) => [`exercise:${r[0]}`, { kind: 'exercise', id: r[0], updatedMs: t, deleted: false, body: { id: r[0], ...r[1] } }]));
     }, Date.now() - 3600000);

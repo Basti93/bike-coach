@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { exerciseTitles, type Exercise, type ExerciseProposal } from '../../shared/exercises';
+import { isLinkRecord, isObj, linkId, linkOf, linkRecord, proposalId } from '../../shared/exercise-links';
 import { readStats, STATS_ID } from '../../shared/stats';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { resolveExercise } from '../../tracking/exercise-identity';
@@ -18,20 +19,22 @@ const UNPLACED_RETRY_MS = 7 * DAY_MS;
 const COOLDOWN_MS = 3_600_000;
 /** Without a change in the records, a profile is scanned again after this long (asked titles may be due again). */
 const RESCAN_MS = DAY_MS;
+/** A proposal the person rejected is not made again for this long. */
+const REJECTED_MS = 30 * DAY_MS;
 
 class NoAsk extends Error {}
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = { store: Pick<RecordStore, 'all' | 'putMany'>; ask: Ask; nowMs: () => number; catalog: (profileId: string) => Exercise[]; dir: string; /** False while a ride is open or coaches may not run: no AI call is started then. */ mayAsk: () => boolean };
-export type MapperState = { asked: Record<string, number>; undone: string[] };
+export type MapperState = { asked: Record<string, number> };
 
 const stateFile = (dir: string): string => path.join(dir, 'exercise-mapper.json');
 function loadState(dir: string): MapperState {
   try {
     const s = JSON.parse(fs.readFileSync(stateFile(dir), 'utf8')) as Partial<MapperState>;
     const asked = s.asked && typeof s.asked === 'object' && !Array.isArray(s.asked) ? Object.fromEntries(Object.entries(s.asked).filter(([, v]) => typeof v === 'number')) : {};
-    return { asked, undone: Array.isArray(s.undone) ? s.undone.filter((t): t is string => typeof t === 'string') : [] };
-  } catch { return { asked: {}, undone: [] }; }
+    return { asked };
+  } catch { return { asked: {} }; }
 }
 function saveState(dir: string, s: MapperState): void {
   fs.mkdirSync(dir, { recursive: true });
@@ -39,14 +42,6 @@ function saveState(dir: string, s: MapperState): void {
   fs.writeFileSync(`${f}.tmp`, JSON.stringify(s));
   fs.renameSync(`${f}.tmp`, f);
 }
-
-/** Small deterministic FNV-1a hash, hex. Only names a proposal record after its title. */
-export function titleHash(title: string): string {
-  let h = 0x811c9dc5;
-  for (const ch of title) { h ^= ch.codePointAt(0)!; h = Math.imul(h, 0x01000193) >>> 0; }
-  return h.toString(16).padStart(8, '0');
-}
-export const proposalId = (title: string): string => `prop-${titleHash(title)}`;
 
 const words = (s: string): Set<string> => new Set(s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3));
 
@@ -66,9 +61,7 @@ export function candidatesFor(title: string, catalog: Exercise[]): Exercise[] {
     .map((x) => x.e);
 }
 
-const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
-
-/** Classifies logged exercise titles the catalog does not know, once, by AI. Stores overlays (sure) and proposals (to confirm); never touches a workout. */
+/** Classifies logged exercise titles the catalog does not know, once, by AI. Stores link records (sure) and proposals (to confirm); never touches a workout. */
 export class ExerciseMapper {
   constructor(private deps: Deps) {}
 
@@ -91,16 +84,33 @@ export class ExerciseMapper {
     return `${part('workout')}|${part('exercise')}`;
   }
 
+  /**
+   * Titles the mapper leaves alone. `known`: a proposal is waiting, or the person rejected one less than 30 days ago (a withdrawn proposal
+   * only counts as a rejection when no link of the person's came later: confirming and then undoing is not a rejection).
+   * `undone`: the title once had a link that was taken back; it is only ever proposed again, never linked by itself.
+   */
+  private history(profileId: string, now: number): { known: Set<string>; undone: Set<string> } {
+    const known = new Set<string>();
+    const undone = new Set<string>();
+    const linkAt = new Map<string, number>();
+    const exercises = this.deps.store.all(profileId, 'exercise');
+    for (const r of exercises) {
+      if (!isLinkRecord(r) || !isObj(r.body) || typeof r.body.title !== 'string') continue;
+      linkAt.set(r.body.title, r.updatedMs);
+      if (r.deleted) undone.add(r.body.title);
+    }
+    for (const r of exercises) {
+      const p = isObj(r.body) && isObj(r.body.proposal) ? r.body.proposal : null;
+      if (!p || typeof p.forTitle !== 'string') continue;
+      if (!r.deleted || (r.updatedMs > (linkAt.get(p.forTitle) ?? -Infinity) && now - r.updatedMs < REJECTED_MS)) known.add(p.forTitle);
+    }
+    return { known, undone };
+  }
+
   private unresolved(profileId: string, catalog: Exercise[], state: MapperState, now: number): string[] {
     const records = this.deps.store.all(profileId, 'workout');
     const stats = readStats(this.deps.store.all(profileId, 'stats').find((r) => r.id === STATS_ID && !r.deleted)?.body);
-    const known = new Set<string>();
-    const live = new Set<string>(); // a confirmed new exercise keeps its proposal id: never overwrite it with a fresh proposal
-    for (const r of this.deps.store.all(profileId, 'exercise')) {
-      if (!r.deleted) live.add(r.id);
-      const p = isObj(r.body) && isObj(r.body.proposal) ? r.body.proposal : null;
-      if (p && typeof p.forTitle === 'string') known.add(p.forTitle);
-    }
+    const { known, undone } = this.history(profileId, now);
     const out: string[] = [];
     const seen = new Set<string>();
     for (const r of records) {
@@ -112,7 +122,7 @@ export class ExerciseMapper {
         if (!title || seen.has(title)) continue;
         seen.add(title);
         if (resolveExercise({ exerciseId: typeof e.exerciseId === 'string' ? e.exerciseId : '', title }, catalog, stats?.muscles).exercise) continue;
-        if (known.has(title) || live.has(proposalId(title))) continue;
+        if (known.has(title)) continue;
         const at = state.asked[title];
         if (at !== undefined && now - at < DAY_MS) continue;
         out.push(title);
@@ -164,25 +174,18 @@ export class ExerciseMapper {
       const p = mapperItemSchema.safeParse(raw);
       if (p.success && wanted.has(p.data.title) && this.accepts(p.data, asked.find((a) => a.title === p.data.title)?.candidates ?? [])) valid.push(p.data);
     }
-    const existing = new Map(this.deps.store.all(profileId, 'exercise').map((r) => [r.id, r]));
+    const existing = this.deps.store.all(profileId, 'exercise');
+    const { undone } = this.history(profileId, now);
     const records: TrackedRecord[] = [];
-    // The app writes an undone title into the overlay (`undoneTitles`), so it travels with the records to every profile.
-    const undone = new Set(state.undone);
-    for (const r of existing.values()) if (isObj(r.body) && Array.isArray(r.body.undoneTitles)) for (const t of r.body.undoneTitles) if (typeof t === 'string') undone.add(t);
     const done = new Set<string>();
-    const linked = new Set<string>(); // one auto link per target and run, so each stays undoable
     for (const it of valid) {
       if (done.has(it.title)) continue;
       done.add(it.title);
       if (it.decision === 'unsure') continue;
       if (it.decision === 'same') {
         const target = catalog.find((c) => c.id === it.exerciseId)!;
-        if (it.confidence === 'high' && !undone.has(it.title) && !linked.has(target.id)) {
-          linked.add(target.id);
-          const have = existing.get(target.id);
-          const body = !have?.deleted && isObj(have?.body) && have.body.proposal === undefined ? have.body : {};
-          const aliases = [...new Set([...(Array.isArray(body.aliases) ? body.aliases.filter((a): a is string => typeof a === 'string') : []), it.title])];
-          records.push({ kind: 'exercise', id: target.id, updatedMs: Math.max(now, (have?.updatedMs ?? 0) + 1), deleted: false, body: { ...body, id: target.id, aliases, lastAutoLink: { title: it.title, atMs: now } } });
+        if (it.confidence === 'high' && !undone.has(it.title)) {
+          records.push(linkRecord(it.title, target.id, 'auto', now, existing.find((r) => r.id === linkId(it.title))));
         } else {
           records.push(this.proposal(it.title, { forTitle: it.title, kind: 'same', targetId: target.id, reason: it.reason, atMs: now }, {}, now));
         }
@@ -195,7 +198,7 @@ export class ExerciseMapper {
       }
     }
     // A future timestamp delays the next ask beyond the usual day: unplaced titles wait 7 days.
-    const placed = new Set(records.map((r) => (r.body as { proposal?: { forTitle?: string } }).proposal?.forTitle ?? (r.body as { lastAutoLink?: { title?: string } }).lastAutoLink?.title));
+    const placed = new Set(records.map((r) => (r.body as { proposal?: { forTitle?: string } }).proposal?.forTitle ?? linkOf(r)?.title));
     const mentioned = new Set(answer.items.flatMap((x) => (isObj(x) && typeof x.title === 'string' ? [x.title] : [])));
     const marks: Record<string, number> = {};
     for (const t of titles) marks[t] = mentioned.has(t) && !placed.has(t) ? now + UNPLACED_RETRY_MS - DAY_MS : now;
@@ -218,7 +221,7 @@ export class ExerciseMapper {
   }
 
   private proposal(title: string, proposal: ExerciseProposal, fields: Record<string, unknown>, now: number): TrackedRecord {
-    const id = proposalId(title);
+    const id = proposalId(title, now);
     return { kind: 'exercise', id, updatedMs: now, deleted: false, body: { id, ...fields, proposal } };
   }
 }

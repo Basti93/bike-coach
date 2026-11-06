@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ExerciseMapper, proposalId } from '../../../src/coach/gym/exercise-mapper';
+import { ExerciseMapper } from '../../../src/coach/gym/exercise-mapper';
 import { RecordStore } from '../../../src/coach/tracking/store';
+import { linkId, linkOf, proposalId, tombstone } from '../../../src/shared/exercise-links';
 import { mergeCatalog } from '../../../src/shared/catalog';
 import { EXERCISES } from '../../../src/shared/exercises';
 import type { TrackedRecord } from '../../../src/shared/records';
@@ -39,23 +40,22 @@ const same = (confidence: 'high' | 'medium', exerciseId = 'pf-squat', title = TI
 const fresh = (title = TITLE, over: object = {}) => ({ items: [{ title, decision: 'new', name: 'Zorbo-Zug', primaryMuscle: 'lats', secondaryMuscles: ['biceps'], equipment: 'machine', type: 'weight_reps', description: 'Ruhig ziehen. Kontrolliert zurück.', reason: 'Neu.', ...over }] });
 
 describe('ExerciseMapper', () => {
-  it('high same: alias overlay written, title resolves, auto link noted', async () => {
+  it('high same: a link record by auto, the title resolves', async () => {
     const h = harness([() => same('high')]);
     await h.mapper.run(ID);
-    const rec = exRecords(h.store).find((r) => r.id === 'pf-squat')!;
-    expect((rec.body as { aliases: string[]; lastAutoLink: unknown }).aliases).toEqual([TITLE]);
-    expect((rec.body as { lastAutoLink: unknown }).lastAutoLink).toEqual({ title: TITLE, atMs: NOW });
-    const cat = mergeCatalog(EXERCISES, [], exRecords(h.store));
+    const recs = exRecords(h.store);
+    expect(recs).toHaveLength(1);
+    expect(recs[0]).toMatchObject({ id: linkId(TITLE), deleted: false, body: { kind: 'link', title: TITLE, targetId: 'pf-squat', by: 'auto', atMs: NOW } });
+    const cat = mergeCatalog(EXERCISES, [], recs);
     expect(resolveExercise({ exerciseId: 'x', title: TITLE }, cat).exercise?.id).toBe('pf-squat');
   });
 
-  it('keeps aliases of an existing overlay', async () => {
+  it('writes no alias into an existing overlay', async () => {
     const h = harness([() => same('high')]);
-    h.store.putMany(ID, [{ kind: 'exercise', id: 'pf-squat', updatedMs: NOW - 1000, deleted: false, body: { id: 'pf-squat', aliases: ['Old Alias'], description: 'Mein Text.' } }]);
+    const overlay: TrackedRecord = { kind: 'exercise', id: 'pf-squat', updatedMs: NOW - 1000, deleted: false, body: { id: 'pf-squat', aliases: ['Old Alias'], description: 'Mein Text.' } };
+    h.store.putMany(ID, [overlay]);
     await h.mapper.run(ID);
-    const b = exRecords(h.store).find((r) => r.id === 'pf-squat')!.body as { aliases: string[]; description: string };
-    expect(b.aliases).toEqual(['Old Alias', TITLE]);
-    expect(b.description).toBe('Mein Text.');
+    expect(exRecords(h.store).find((r) => r.id === 'pf-squat')).toEqual(overlay);
   });
 
   it('medium same: proposal record, no alias', async () => {
@@ -63,7 +63,7 @@ describe('ExerciseMapper', () => {
     await h.mapper.run(ID);
     const recs = exRecords(h.store);
     expect(recs).toHaveLength(1);
-    expect(recs[0]!.id).toBe(proposalId(TITLE));
+    expect(recs[0]!.id).toBe(proposalId(TITLE, NOW));
     expect((recs[0]!.body as { proposal: unknown }).proposal).toMatchObject({ forTitle: TITLE, kind: 'same', targetId: 'pf-squat', reason: 'Gleiche Übung.', atMs: NOW });
     expect(mergeCatalog(EXERCISES, [], recs).find((e) => exerciseTitlesHas(e, TITLE))).toBeUndefined();
   });
@@ -121,45 +121,61 @@ describe('ExerciseMapper', () => {
     expect(h2.prompts).toHaveLength(0);
   });
 
-  it('a title the person undid is only proposed', async () => {
-    fs.mkdirSync(path.join(tmp, 'coach'), { recursive: true });
-    fs.writeFileSync(path.join(tmp, 'coach', 'exercise-mapper.json'), JSON.stringify({ asked: {}, undone: [TITLE] }));
+  it('link, then undo: the mapper proposes the title, never links it again', async () => {
     const h = harness([() => same('high')]);
     await h.mapper.run(ID);
-    const recs = exRecords(h.store);
-    expect(recs.map((r) => r.id)).toEqual([proposalId(TITLE)]);
-  });
-
-  it('a title named in an overlay\'s undoneTitles is only proposed', async () => {
-    const h = harness([() => same('high')]);
-    h.store.putMany(ID, [{ kind: 'exercise', id: 'pf-squat', updatedMs: NOW - 1000, deleted: false, body: { id: 'pf-squat', aliases: [], undoneTitles: [TITLE] } }]);
+    const [link] = exRecords(h.store);
+    h.store.putMany(ID, [tombstone(link!, NOW + 1000)]);
+    h.clock.now += 2 * DAY;
     await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(2);
     const recs = exRecords(h.store);
-    expect(recs.map((r) => r.id).sort()).toEqual(['pf-squat', proposalId(TITLE)].sort());
-    expect((recs.find((r) => r.id === 'pf-squat')!.body as { aliases: string[] }).aliases).toEqual([]);
+    expect(recs.find((r) => r.id === linkId(TITLE))!.deleted).toBe(true);
+    const prop = recs.filter((r) => r.id.startsWith('prop-'));
+    expect(prop).toHaveLength(1);
+    expect(prop[0]!.body).toMatchObject({ proposal: { forTitle: TITLE, kind: 'same', targetId: 'pf-squat' } });
     expect(mergeCatalog(EXERCISES, [], recs).find((e) => e.id === 'pf-squat')?.aliases ?? []).not.toContain(TITLE);
   });
 
-  it('does not ask for a title whose confirmed new exercise already exists', async () => {
-    const h = harness([() => fresh()]);
-    h.store.putMany(ID, [{ kind: 'exercise', id: proposalId(TITLE), updatedMs: NOW - 1000, deleted: false, body: { id: proposalId(TITLE), title: 'Zorbo-Zug', primaryMuscle: 'lats', equipment: 'machine', type: 'weight_reps', source: 'ai' } }]);
+  it('a live proposal is not asked or written again, even a day later', async () => {
+    const h = harness([() => same('medium')]);
     await h.mapper.run(ID);
-    expect(h.prompts).toHaveLength(0);
+    h.clock.now += 2 * DAY;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
     expect(exRecords(h.store)).toHaveLength(1);
   });
 
-  it('links one title per target, the other becomes a proposal', async () => {
+  it('a rejected proposal is not made again for 30 days', async () => {
+    const h = harness([() => same('medium')]);
+    await h.mapper.run(ID);
+    const [prop] = exRecords(h.store);
+    h.store.putMany(ID, [tombstone(prop!, NOW + 1000)]);
+    h.clock.now += 20 * DAY;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+    h.clock.now += 11 * DAY;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(2);
+  });
+
+  it('a confirmed new exercise (own id, link) is known and not asked again', async () => {
+    const h = harness([() => fresh()]);
+    h.store.putMany(ID, [
+      { kind: 'exercise', id: 'ai-1', updatedMs: NOW - 1000, deleted: false, body: { id: 'ai-1', title: 'Zorbo-Zug', primaryMuscle: 'lats', equipment: 'machine', type: 'weight_reps', source: 'ai' } },
+      { kind: 'exercise', id: linkId(TITLE), updatedMs: NOW - 1000, deleted: false, body: { id: linkId(TITLE), kind: 'link', title: TITLE, targetId: 'ai-1', by: 'person', atMs: NOW - 1000 } },
+    ]);
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(0);
+  });
+
+  it('links every sure title, each as its own record', async () => {
     const A = 'Zorbo Squat A';
     const B = 'Zorbo Squat B';
     const h = harness([() => ({ items: [...same('high', 'pf-squat', A).items, ...same('high', 'pf-squat', B).items] })], [A, B]);
     await h.mapper.run(ID);
-    const recs = exRecords(h.store);
-    const overlay = recs.find((r) => r.id === 'pf-squat')!.body as { aliases: string[]; lastAutoLink: { title: string } };
-    expect(overlay.aliases).toHaveLength(1);
-    expect(overlay.lastAutoLink.title).toBe(overlay.aliases[0]);
-    const props = recs.filter((r) => r.id !== 'pf-squat');
-    expect(props).toHaveLength(1);
-    expect((props[0]!.body as { proposal: { kind: string; forTitle: string } }).proposal).toMatchObject({ kind: 'same', forTitle: overlay.aliases[0] === A ? B : A });
+    const links = exRecords(h.store).flatMap((r) => { const l = linkOf(r); return l ? [l.title] : []; }).sort();
+    expect(links).toEqual([A, B]);
   });
 
   it('a run while one is in flight returns false at once and does not queue', async () => {

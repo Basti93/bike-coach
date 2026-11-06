@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeCatalog } from '../../src/shared/catalog';
+import { linkRecord } from '../../src/shared/exercise-links';
 import { EXERCISES, type Exercise } from '../../src/shared/exercises';
 import type { TrackedRecord } from '../../src/shared/records';
 import { resolveExercise } from '../../src/tracking/exercise-identity';
@@ -56,5 +57,20 @@ describe('mergeCatalog', () => {
   it('keeps the secondary muscles the mapper and the base list use', () => {
     const m = mergeCatalog([], [], [rec('u-2', { ...own, id: 'u-2', secondaryMuscles: ['lats', 'quadriceps', 'glutes', 'abdominals', 'shoulders', 'back'] })]);
     expect(m[0]!.secondaryMuscles).toEqual(['lats', 'quadriceps', 'glutes', 'abdominals', 'shoulders']);
+  });
+
+  it('a live link record adds its title as an alias of its target and is no entry itself', () => {
+    const link = linkRecord('My Cable Curl', 'pf-cable-curl', 'auto', 5);
+    const m = mergeCatalog(EXERCISES, [], [link]);
+    expect(m.length).toBe(EXERCISES.length);
+    expect(resolveExercise({ exerciseId: 'h', title: 'My Cable Curl' }, m).exercise?.id).toBe('pf-cable-curl');
+    expect(mergeCatalog(EXERCISES, [], [{ ...link, deleted: true }]).find((e) => e.id === 'pf-cable-curl')?.aliases ?? []).not.toContain('My Cable Curl');
+  });
+
+  it('a link to a missing target does nothing; a link to an own exercise works whatever the record order', () => {
+    expect(mergeCatalog(EXERCISES, [], [linkRecord('Zorbo', 'nope', 'auto', 5)]).length).toBe(EXERCISES.length);
+    const m = mergeCatalog([], [], [linkRecord('Zorbo', 'u-1', 'person', 5), rec('u-1', own)]);
+    expect(m).toHaveLength(1);
+    expect(m[0]!.aliases).toEqual(['Zorbo']);
   });
 });

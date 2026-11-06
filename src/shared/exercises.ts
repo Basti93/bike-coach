@@ -10,8 +10,8 @@ export type Exercise = {
   secondaryMuscles?: string[];
   /** German, own text. */
   description?: string;
-  /** Set to 'own' when the description comes from a user overlay record, so a base entry does not carry the base-catalog credit. */
-  descriptionSource?: 'own';
+  /** Set when the description comes from a user overlay record, so a base entry does not carry the base-catalog credit. */
+  descriptionByUser?: true;
   source?: 'pandafit' | 'fedb' | 'ai' | 'user';
   fedbId?: string;
   /** The base catalog's English instructions, kept as source for the German guides (fedb-descriptions-de.json); never shown. */
