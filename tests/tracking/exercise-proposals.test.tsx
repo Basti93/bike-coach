@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES } from '../../src/shared/exercises';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
-import { changeProposal, confirmProposal, undoAutoLink } from '../../src/tracking/exercise-proposals';
+import { changeProposal, confirmProposal, relink, undoAutoLink } from '../../src/tracking/exercise-proposals';
 import { ExerciseProposals } from '../../src/tracking/ui/ExerciseProposals';
 import { WorkoutScreen } from '../../src/tracking/ui/WorkoutScreen';
 import { fakePort } from './fake-port';
@@ -29,11 +29,11 @@ describe('pure actions', () => {
   });
 
   test('confirm same without a target in the catalog writes nothing', () => {
-    expect(confirmProposal({ ...sameProposal, body: { proposal: { forTitle: TITLE, kind: 'same', targetId: 'nope', reason: '', atMs: 1 } } }, cat(), NOW)).toEqual([]);
+    expect(confirmProposal({ ...sameProposal, body: { proposal: { forTitle: TITLE, kind: 'same', targetId: 'nope', reason: '', atMs: 1 } } }, cat(), NOW, [])).toEqual([]);
   });
 
   test('confirm new: the proposal record becomes the exercise, by ai, and knows the logged title', () => {
-    const [ex, ...rest] = confirmProposal(newProposal, cat(), NOW);
+    const [ex, ...rest] = confirmProposal(newProposal, cat(), NOW, [newProposal]);
     expect(rest).toEqual([]);
     expect(ex!.id).toBe('prop-2');
     expect(ex!.deleted).toBe(false);
@@ -43,10 +43,27 @@ describe('pure actions', () => {
   });
 
   test('change: links to the chosen target', () => {
-    const [overlay, gone] = changeProposal(sameProposal, 'pf-front-squat', cat(), NOW);
+    const [overlay, gone] = changeProposal(sameProposal, 'pf-front-squat', cat(), NOW, [sameProposal]);
     expect(overlay).toMatchObject({ id: 'pf-front-squat', body: { aliases: [TITLE] } });
     expect(gone).toMatchObject({ id: 'prop-1', deleted: true });
-    expect(changeProposal(sameProposal, 'nope', cat(), NOW)).toEqual([]);
+    expect(changeProposal(sameProposal, 'nope', cat(), NOW, [sameProposal])).toEqual([]);
+  });
+
+  test('confirm and change note the link, so it can be changed or undone for 14 days', () => {
+    const [a] = confirmProposal(sameProposal, cat(), NOW, [sameProposal]);
+    expect(a!.body).toMatchObject({ lastAutoLink: { title: TITLE, atMs: NOW } });
+    const [n] = confirmProposal(newProposal, cat(), NOW, [newProposal]);
+    expect(n!.body).toMatchObject({ lastAutoLink: { title: 'Zorbo Pull', atMs: NOW } });
+    const [stale] = changeProposal(sameProposal, 'pf-squat', cat(), NOW, [linked(NOW - 2 * DAY)]);
+    expect(stale!.body).toMatchObject({ aliases: ['Cable Curl', TITLE], lastAutoLink: { title: TITLE, atMs: NOW } });
+  });
+
+  test('relink moves the title in one write: off the old target, onto the new, not undone', () => {
+    const target: TrackedRecord = { kind: 'exercise', id: 'pf-front-squat', updatedMs: 5, deleted: false, body: { id: 'pf-front-squat', aliases: ['Z'], undoneTitles: ['Cable Curl', 'Other'] } };
+    const [old, next] = relink(linked(), 'pf-front-squat', cat([linked(), target]), NOW, [linked(), target]);
+    expect(old!.body).toEqual({ id: 'pf-squat', aliases: [] });
+    expect(next).toMatchObject({ id: 'pf-front-squat', body: { aliases: ['Z', 'Cable Curl'], undoneTitles: ['Other'], lastAutoLink: { title: 'Cable Curl', atMs: NOW } } });
+    expect(relink(linked(), 'pf-squat', cat(), NOW, [linked()])).toEqual([]);
   });
 
   test('undo: alias and lastAutoLink go, the title is noted as undone, other fields stay', () => {
@@ -88,6 +105,27 @@ describe('ExerciseProposals card', () => {
     fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
     await waitFor(() => expect(f.state.puts).toHaveLength(2));
     expect(f.state.puts[0]).toMatchObject({ id: 'pf-front-squat', body: { aliases: [TITLE] } });
+  });
+
+  test('Ändern on a recent link opens the picker and moves the title', async () => {
+    const f = show([linked()]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ändern' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Übung wählen' });
+    fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
+    await waitFor(() => expect(f.state.puts).toHaveLength(2));
+    expect(f.state.puts.map((r) => r.id)).toEqual(['pf-squat', 'pf-front-squat']);
+    expect(f.state.puts[0]!.body).toMatchObject({ aliases: [] });
+    expect(f.state.puts[1]!.body).toMatchObject({ aliases: ['Cable Curl'] });
+  });
+
+  test('a proposal withdrawn in the meantime is not written again', async () => {
+    const f = show([sameProposal]);
+    await screen.findByRole('button', { name: 'Bestätigen' });
+    await f.port.put({ ...sameProposal, updatedMs: NOW, deleted: true });
+    f.state.puts.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Bestätigen' }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(f.state.puts).toHaveLength(0);
   });
 
   test('a failed write says so and keeps the row', async () => {

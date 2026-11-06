@@ -79,7 +79,9 @@ export class ExerciseMapper {
     const records = this.deps.store.all(profileId, 'workout');
     const stats = readStats(this.deps.store.all(profileId, 'stats').find((r) => r.id === STATS_ID && !r.deleted)?.body);
     const known = new Set<string>();
+    const live = new Set<string>(); // a confirmed new exercise keeps its proposal id: never overwrite it with a fresh proposal
     for (const r of this.deps.store.all(profileId, 'exercise')) {
+      if (!r.deleted) live.add(r.id);
       const p = isObj(r.body) && isObj(r.body.proposal) ? r.body.proposal : null;
       if (p && typeof p.forTitle === 'string') known.add(p.forTitle);
     }
@@ -94,7 +96,7 @@ export class ExerciseMapper {
         if (!title || seen.has(title)) continue;
         seen.add(title);
         if (resolveExercise({ exerciseId: typeof e.exerciseId === 'string' ? e.exerciseId : '', title }, catalog, stats?.muscles).exercise) continue;
-        if (known.has(title)) continue;
+        if (known.has(title) || live.has(proposalId(title))) continue;
         const at = state.asked[title];
         if (at !== undefined && now - at < DAY_MS) continue;
         out.push(title);

@@ -140,6 +140,14 @@ describe('ExerciseMapper', () => {
     expect(mergeCatalog(EXERCISES, [], recs).find((e) => e.id === 'pf-squat')?.aliases ?? []).not.toContain(TITLE);
   });
 
+  it('does not ask for a title whose confirmed new exercise already exists', async () => {
+    const h = harness([() => fresh()]);
+    h.store.putMany(ID, [{ kind: 'exercise', id: proposalId(TITLE), updatedMs: NOW - 1000, deleted: false, body: { id: proposalId(TITLE), title: 'Zorbo-Zug', primaryMuscle: 'lats', equipment: 'machine', type: 'weight_reps', source: 'ai' } }]);
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(0);
+    expect(exRecords(h.store)).toHaveLength(1);
+  });
+
   it('links one title per target, the other becomes a proposal', async () => {
     const A = 'Zorbo Squat A';
     const B = 'Zorbo Squat B';

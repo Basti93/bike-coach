@@ -36,7 +36,7 @@ function baseBody(id: string, records: TrackedRecord[]): { have: TrackedRecord |
 function linkTo(targetId: string, title: string, records: TrackedRecord[], nowMs: number): TrackedRecord {
   const { have, body } = baseBody(targetId, records);
   const undoneTitles = strings(body.undoneTitles).filter((t) => t !== title);
-  const next: Record<string, unknown> = { ...body, id: targetId, aliases: union(strings(body.aliases), title) };
+  const next: Record<string, unknown> = { ...body, id: targetId, aliases: union(strings(body.aliases), title), lastAutoLink: { title, atMs: nowMs } };
   if (undoneTitles.length > 0) next.undoneTitles = undoneTitles; else delete next.undoneTitles;
   return { kind: 'exercise', id: targetId, updatedMs: above(nowMs, have), deleted: false, body: next };
 }
@@ -48,21 +48,30 @@ const withdrawn = (p: TrackedRecord, nowMs: number): TrackedRecord => ({ ...p, u
  * proposal record itself becomes the exercise (without `proposal`, by `ai`) and also knows the logged title. `records` are the exercise
  * records as stored, `catalog` the merged catalog. Nothing to write when the proposal does not hold (no target any more).
  */
-export function confirmProposal(p: TrackedRecord, catalog: Exercise[], nowMs: number, records: TrackedRecord[] = []): TrackedRecord[] {
+export function confirmProposal(p: TrackedRecord, catalog: Exercise[], nowMs: number, records: TrackedRecord[]): TrackedRecord[] {
   const prop = proposalOf(p);
   if (!prop || !isObj(p.body)) return [];
   if (prop.kind === 'new') {
     const { proposal: _gone, ...rest } = p.body;
-    return [{ ...p, updatedMs: above(nowMs, p), deleted: false, body: { ...rest, source: 'ai', aliases: union(strings(rest.aliases), prop.forTitle) } }];
+    return [{ ...p, updatedMs: above(nowMs, p), deleted: false, body: { ...rest, source: 'ai', aliases: union(strings(rest.aliases), prop.forTitle), lastAutoLink: { title: prop.forTitle, atMs: nowMs } } }];
   }
   return prop.targetId ? changeProposal(p, prop.targetId, catalog, nowMs, records) : [];
 }
 
 /** Like confirming a `same` proposal, but to the exercise the person chose. */
-export function changeProposal(p: TrackedRecord, targetId: string, catalog: Exercise[], nowMs: number, records: TrackedRecord[] = []): TrackedRecord[] {
+export function changeProposal(p: TrackedRecord, targetId: string, catalog: Exercise[], nowMs: number, records: TrackedRecord[]): TrackedRecord[] {
   const prop = proposalOf(p);
   if (!prop || !catalog.some((e) => e.id === targetId)) return [];
   return [linkTo(targetId, prop.forTitle, records, nowMs), withdrawn(p, nowMs)];
+}
+
+/** Moves a recent link to another exercise in one step: the title leaves the old target (it is not undone, only wrong) and becomes an alias of the new one. */
+export function relink(overlay: TrackedRecord, targetId: string, catalog: Exercise[], nowMs: number, records: TrackedRecord[]): TrackedRecord[] {
+  const link = autoLinkOf(overlay, nowMs);
+  if (!link || !isObj(overlay.body) || overlay.id === targetId || !catalog.some((e) => e.id === targetId)) return [];
+  const { lastAutoLink: _gone, ...rest } = overlay.body;
+  const old: TrackedRecord = { ...overlay, updatedMs: above(nowMs, overlay), body: { ...rest, aliases: strings(rest.aliases).filter((a) => a !== link.title) } };
+  return [old, linkTo(targetId, link.title, records, nowMs)];
 }
 
 /** Takes back an auto link: the title is no name of the exercise any more, and the coach is told it is never to link it by itself again. */
