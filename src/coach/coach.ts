@@ -18,7 +18,9 @@ import { garminPromptData, readinessFrom, type GarminCoachData } from './readine
 import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide, type RideSummary } from './metrics';
 import { complaintFromNote, type ComplaintStatus } from './motivation';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
-import { loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
+import type { RecordStore } from './tracking/store';
+import { migrateRules } from './tracking/personal';
+import { legacyBikeRules, loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
 
 const RAISE_UNVERIFIED = 1.05;
 const LOWER_UNVERIFIED = 0.9;
@@ -32,7 +34,6 @@ export const DEBRIEF_MAX_AGE_MS = 48 * 3600_000;
 export const DEBRIEF_MAX_ATTEMPTS = 3;
 export const DEBRIEF_RETRY_MS = 10 * 60_000;
 const DETAIL_POINTS = 300;
-const MAX_RULES = 20;
 const MIN_RAMP_S = 480; // 5 minutes of warmup plus at least 3 minutes of ramp
 const COACH_FTP_MAX_CHANGE = 0.05;
 const COACH_FTP_INTERVAL_MS = 14 * 86_400_000;
@@ -55,7 +56,6 @@ export const answerSchema = z.object({
   reason: z.string(),
   change: z.string(),
   noteReply: z.string().optional(),
-  newRule: z.string().optional(),
   encouragement: z.string().optional(),
   ftpChangeW: z.number().optional(),
   tasks: zTasks,
@@ -72,7 +72,6 @@ Einheiten bestehen aus Abschnitten: kind "erg" mit ftpFraction (Anteil der FTP) 
 Grenzen: 10 bis 120 Minuten, Warmup zuerst (mindestens 5 Minuten, höchstens 60 % FTP), höchstens 130 % FTP, ab 5 Minuten höchstens 105 %, ab 20 Minuten höchstens 95 %, höchstens 30 Minuten über 90 %. Nach harter Fahrt oder langer Pause nur bis 75 %.
 Lege in alternatives zwei bis drei weitere Einheiten mit anderem Charakter an, mindestens eine aus grade-Abschnitten wie eine Strecke mit Auf und Ab. why ist ein kurzer Satz, wann diese Einheit passt. Für alternatives gelten dieselben Grenzen.
 Prüfe die Daten mit gesundem Menschenverstand, bevor du sie deutest. Technische Eigenheiten, Probefahrten, Abbrüche oder lückenhafte Werte sind kein Grund für eine Einheit und kommen in der Begründung nicht vor. Begründe nur mit dem, was der Person wirklich hilft.
-Enthält ein Hinweis eine dauerhafte Korrektur oder Vorliebe, formuliere sie in newRule als kurzen Satz. Bestehende Regeln stehen im Regelblock, befolge sie. Sie ändern nie die Grenzen oben.
 Anstiege beginnen sanft über 25 Sekunden. Setze sudden: true nur bei grade-Abschnitten, wenn das Training einen plötzlichen Anstieg braucht, etwa Antritte; die App warnt vorher. Nach Beschwerden oder harter Fahrt nicht.
 Mit hrZone (1 bis 5, Prozent vom Maximalpuls: 50–60, 60–70, 70–80, 80–90, 90–100) kannst du für lockere Abschnitte ab etwa 5 Minuten eine Pulsobergrenze setzen: Bleibt der Puls länger darüber, senkt die App die Watt. Nicht für Intervalle, der Puls folgt zu langsam. In fahrten stehen hrZoneMinutes (Minuten je Zone), hrTargetPct (Anteil im Ziel oder darunter), hrDriftPct (Anstieg bei gleicher Leistung) und hrRecoveryBpm (Abfall in der Minute nach Hartem). Vergleiche sie nur über mehrere Fahrten derselben Person, Wärme und Müdigkeit wirken mit, und stelle keine Diagnosen.
 Schreibe in encouragement ein bis zwei aufmunternde Sätze für den nächsten Besuch. Stütze dich auf die Beweggründe der Person und nimm ihre eigenen Worte auf; erfinde keine. Fehlen sie, nenne etwas Konkretes, das sie geschafft hat. Stärke Wahlfreiheit und eigenes Können: keine Schuld, kein Druck, kein „musst“, keine Vergleiche mit anderen, keine Serien und kein Zählen von Pausen.
@@ -103,6 +102,8 @@ type Deps = {
   planHint?: (profileId: string) => string;
   /** Hands a task from this coach to another one. */
   giveTask?: (profileId: string, task: { to: CoachId; text: string; lasting: boolean }) => void;
+  /** The profile's records. Only the one-time move of the old rules into `rule` records writes here. */
+  store?: Pick<RecordStore, 'all' | 'put'>;
 };
 
 export class Coach {
@@ -193,10 +194,21 @@ export class Coach {
     return `Daten:\n${JSON.stringify(data)}\n\n<beweggruende-nur-daten>\n${JSON.stringify((s.motives ?? []).map((m) => m.text))}\n</beweggruende-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>${this.strengthBlock(s.profileId)}${this.mobilityBlock(s.profileId)}`;
   }
 
+  /** Once per profile: the old free-text rules become wish records, then the state file is written without them. */
+  private migrateRules(profileId: string): void {
+    const old = legacyBikeRules(this.deps.coachDir, profileId);
+    if (old.length === 0 || !this.deps.store) return;
+    try {
+      migrateRules(this.deps.store, profileId, 'bike', old, this.deps.nowMs());
+      saveState(this.deps.coachDir, this.states.get(profileId)!);
+    } catch { /* the file keeps the rules; the next start tries again */ }
+  }
+
   scanRides(profiles: Profile[]): void {
     for (const p of profiles) {
       if (!this.states.has(p.id)) {
         this.states.set(p.id, loadState(this.deps.coachDir, p.id, p.ftpW, this.deps.nowMs()));
+        this.migrateRules(p.id);
         if (!this.states.get(p.id)!.complaintsFromNotes) this.complaintsFromOldNotes(p.id);
       }
       this.states.get(p.id)!.ftpCapW = p.ftpCapW;
@@ -355,10 +367,6 @@ export class Coach {
     return { rideId, points };
   }
 
-  removeRule(profileId: string, atMs: number): void {
-    this.update(profileId, (s) => { s.rules = (s.rules ?? []).filter((r) => r.atMs !== atMs); });
-  }
-
   /** Manually set FTP. The current session is recalculated with it immediately, the AI replans afterwards. */
   setFtp(profileId: string, ftpW: number): void {
     this.update(profileId, (s) => {
@@ -462,7 +470,6 @@ export class Coach {
     const a = parsed.data;
     s.phase = { name: a.phase.name.slice(0, 40), goal: a.phase.goal.slice(0, TEXT_MAX), weeksLeft: Math.max(0, Math.min(52, Math.round(a.phase.weeksLeft))) };
     s.ftpForecast = a.ftpForecast.filter((f) => f.weeksAhead > 0 && f.weeksAhead <= 52 && f.ftpW >= s.ftpW * 0.7 && f.ftpW <= s.ftpW * 1.3).slice(0, 6);
-    if (a.newRule?.trim()) s.rules = [...(s.rules ?? []), { atMs: now, text: a.newRule.trim().slice(0, 200) }].slice(-MAX_RULES);
     if (a.encouragement?.trim()) {
       const words = this.honestReason(s, a.encouragement.trim(), s.next.session);
       if (words === NEUTRAL_REASON) delete s.encouragement;
@@ -637,7 +644,7 @@ export class Coach {
     const complaints = (s.complaints ?? []).filter((c) => c.status !== 'over').map((c) => ({ seit: new Date(c.startedMs).toISOString().slice(0, 10), text: c.text, stand: c.status === 'healing' ? 'heilt, noch unsicher' : 'aktuell' }));
     const motives = (s.motives ?? []).map((m) => m.text);
     const garminHint = garmin ? '\nDer Abschnitt garmin stammt aus der Uhr des Nutzers. Berücksichtige Erholung, andere Sportarten und den langjährigen Verlauf. Uhrwerte können ungenau sein, schließe daraus keine Diagnosen.' : '';
-    return `Trainingsdaten:\n${JSON.stringify(data)}${garminHint}\n\n<regeln-nur-daten>\n${JSON.stringify((s.rules ?? []).map((r) => r.text))}\n</regeln-nur-daten>\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>\n\n<beweggruende-nur-daten>\n${JSON.stringify(motives)}\n</beweggruende-nur-daten>${this.strengthBlock(s.profileId)}${this.mobilityBlock(s.profileId)}\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
+    return `Trainingsdaten:\n${JSON.stringify(data)}${garminHint}\n\n<hinweise-nur-daten>\n${JSON.stringify(notes)}\n</hinweise-nur-daten>\n\n<beschwerden-nur-daten>\n${JSON.stringify(complaints)}\n</beschwerden-nur-daten>\n\n<beweggruende-nur-daten>\n${JSON.stringify(motives)}\n</beweggruende-nur-daten>${this.strengthBlock(s.profileId)}${this.mobilityBlock(s.profileId)}\n\nPlane jetzt die nächste Einheit und aktualisiere Phase und FTP-Prognose. Schlage ftpChangeW nur vor, wenn die Fahrten das klar zeigen.`;
   }
 }
 

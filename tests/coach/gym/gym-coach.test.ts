@@ -297,25 +297,19 @@ describe('prompt', () => {
 });
 
 describe('notes and rules', () => {
-  it('a note with a body complaint reaches the bike coach and is kept as a rule', () => {
+  it('a note with a body complaint reaches the bike coach and writes no rule', () => {
     const h = harness();
     h.coach.note(ID, 'Das Knie zwickt bei tiefen Kniebeugen');
     expect(h.filed).toEqual(['Das Knie zwickt bei tiefen Kniebeugen']);
-    expect(h.coach.state(ID).rules.map((r) => r.text)).toEqual(['Das Knie zwickt bei tiefen Kniebeugen']);
     expect(h.coach.state(ID).dirty).toBe(true);
     h.coach.note(ID, 'Heute lief es richtig gut');
     expect(h.filed).toHaveLength(1);
-    expect(h.coach.state(ID).rules).toHaveLength(1);
-    const at = h.coach.state(ID).rules[0].atMs;
-    h.coach.removeRule(ID, at);
-    expect(h.coach.state(ID).rules).toHaveLength(0);
   });
 
   it('a fine answer to a question about the knee is no complaint', () => {
     const h = harness();
     h.coach.answer(ID, 'Wie geht es dem Knie?', 'Alles gut, dem Knie geht es wieder gut');
     expect(h.filed).toHaveLength(0);
-    expect(h.coach.state(ID).rules).toHaveLength(0);
     expect(h.coach.state(ID).answers).toHaveLength(1);
     h.coach.answer(ID, 'Wie geht es dem Knie?', 'Es tut weh beim Treppensteigen, das Knie');
     expect(h.filed).toHaveLength(1);

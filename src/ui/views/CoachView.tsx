@@ -144,16 +144,6 @@ export const CoachView = ({ coachHome, together, profile, state, thinking, coach
               <p className="note"><b>{state.phase.name}</b>{state.phase.weeksLeft > 0 ? `, noch etwa ${state.phase.weeksLeft} Wochen` : ''}. {state.phase.goal}</p>
               <p className="muted">FTP {state.ftpW} W{state.ftpHistory.some((h) => h.source === 'ramp') ? '' : ', geschätzt'}</p>
             </section>
-            {(state.rules?.length ?? 0) > 0 && (
-              <section className="card">
-                <h3>Das merkt sich der Coach</h3>
-                <ul className="rules">
-                  {state.rules!.map((r) => (
-                    <li key={r.atMs}><span>{r.text}</span><button className="ghost" onClick={() => sendCoach({ type: 'remove-rule', profileId: profile.id, atMs: r.atMs })}>Entfernen</button></li>
-                  ))}
-                </ul>
-              </section>
-            )}
             {coachConnected && passCard}
           </div>
         )}

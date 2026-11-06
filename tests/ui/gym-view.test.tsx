@@ -166,13 +166,6 @@ test('sends a note to the gym coach', () => {
   expect(send).toHaveBeenCalledWith({ type: 'gym-note', profileId: 'p', text: 'Knie mag keine tiefen Kniebeugen' });
 });
 
-test('shows and removes what the coach remembers', () => {
-  const { send } = show({ gym: gymOf({ rules: [{ atMs: 5, text: 'Keine tiefen Kniebeugen' }] }) });
-  expect(screen.getByText('Keine tiefen Kniebeugen')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
-  expect(send).toHaveBeenCalledWith({ type: 'gym-remove-rule', profileId: 'p', atMs: 5 });
-});
-
 test('the Hevy card says routines are only created after confirmation', () => {
   render(<HevyCard profileId="p" status={{ state: 'idle' }} send={() => {}} />);
   expect(screen.queryByText(/liest bei Hevy nur/)).toBeNull();
@@ -244,12 +237,6 @@ test('open complaints show on the strength page as a line; closing them goes thr
 test('without open complaints there is no complaint section', () => {
   show();
   expect(screen.queryByRole('button', { name: 'Wieder gut' })).toBeNull();
-});
-
-test('"Entfernen" on a rule stays a rule action', () => {
-  const { send } = show({ gym: gymOf({ rules: [{ atMs: 5, text: 'Keine tiefen Kniebeugen' }] }) });
-  fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
-  expect(send).toHaveBeenCalledWith({ type: 'gym-remove-rule', profileId: 'p', atMs: 5 });
 });
 
 test('without Hevy there is no "Nach Hevy"', () => {

@@ -22,7 +22,6 @@ export type CoachState = {
   ftpForecast: { weeksAhead: number; ftpW: number }[];
   next: { session: Session; reason: string; source: 'claude' | 'rules' };
   alternatives?: { session: Session; why: string }[];
-  rules?: { atMs: number; text: string }[];
   wordProgress?: WordProgress;
   pass?: PassState;
   changes: { atMs: number; text: string }[];
@@ -61,7 +60,9 @@ export const loadState = (dir: string, profileId: string, initialFtpW: number, n
   const f = file(dir, profileId);
   if (!fs.existsSync(f)) return initial(profileId, initialFtpW, nowMs);
   try {
-    const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState;
+    const s = JSON.parse(fs.readFileSync(f, 'utf8')) as CoachState & { rules?: unknown };
+    // Free-text rules moved to `rule` records, see tracking/personal.
+    delete s.rules;
     // An upload cut off by a restart: unknown whether it arrived, a repeat is harmless because Garmin recognizes it.
     for (const r of Object.values(s.garminUpload?.rides ?? {})) if (r.status === 'uploading') { r.status = 'failed'; r.reason = 'failed'; }
     // The ramp test is no longer mandatory: older states without a ride start with a normal session.
@@ -86,4 +87,12 @@ export const saveState = (dir: string, state: CoachState): void => {
   const f = file(dir, state.profileId);
   fs.writeFileSync(`${f}.tmp`, JSON.stringify(state));
   fs.renameSync(`${f}.tmp`, f);
+};
+
+/** The free-text rules older versions kept in the state file (moved to `rule` records, see tracking/personal). */
+export const legacyBikeRules = (dir: string, profileId: string): string[] => {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file(dir, profileId), 'utf8')) as { rules?: unknown };
+    return Array.isArray(parsed.rules) ? parsed.rules.flatMap((r: unknown) => (typeof (r as { text?: unknown })?.text === 'string' ? [(r as { text: string }).text] : [])) : [];
+  } catch { return []; }
 };

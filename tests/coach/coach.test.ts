@@ -345,15 +345,11 @@ test('a rejected proposal gets one retry with the reason', async () => {
   expect(ask.mock.calls[1][0].prompt).toContain('abgelehnt');
   expect(c.state('pa').next.source).toBe('claude');
 });
-test('invented watts in the reason are replaced, rules persist and reach the prompt', async () => {
-  const ask = vi.fn<(i: { prompt: string }) => Promise<unknown>>().mockResolvedValue(answer({ reason: 'Du hast zuletzt 480 W getreten.', newRule: 'Nie vor 7 Uhr planen' }));
+test('invented watts in the reason are replaced', async () => {
+  const ask = vi.fn<(i: { prompt: string }) => Promise<unknown>>().mockResolvedValue(answer({ reason: 'Du hast zuletzt 480 W getreten.' }));
   const c = make(ask); c.scanRides([A]); c.note('pa', 'Hallo');
   await c.refresh('pa');
   expect(c.state('pa').next.reason).not.toContain('480');
-  expect(c.state('pa').rules?.[0].text).toBe('Nie vor 7 Uhr planen');
-  c.note('pa', 'Noch was');
-  await c.refresh('pa');
-  expect(ask.mock.calls[1][0].prompt).toContain('Nie vor 7 Uhr planen');
 });
 test('ride detail reads real samples, only for the own rides', () => {
   const c = make(); c.scanRides([A, B]);

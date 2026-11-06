@@ -171,8 +171,9 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     try { gym.importHevy(profileId); } catch { /* try again on the next change */ }
   } });
 
+  const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
   const coach = new Coach({
-    ridesDir: dir, coachDir, nowMs, garmin: garminData,
+    ridesDir: dir, coachDir, nowMs, garmin: garminData, store: records,
     strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
     mobility: (profileId) => mobility.promptData(profileId),
     giveTask: (profileId, t) => giveTask(profileId, 'bike', t),
@@ -186,7 +187,6 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     const key = hevy.apiKey(profileId);
     return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs }) : null;
   };
-  const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
   // One exercise catalog per profile: built-ins, the base list and the profile's records (aliases the mapper or the person added).
   const catalogOf = (id: string) => mergeCatalog(EXERCISES, FEDB_EXERCISES, records.all(id, 'exercise'));
   const gym = new GymCoach({
@@ -465,7 +465,6 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     if (m.type === 'gym-note') gym.note(m.profileId, m.text);
     if (m.type === 'gym-answer') gym.answer(m.profileId, m.question, m.text);
     if (m.type === 'gym-skip-question') gym.skipQuestion(m.profileId, m.question);
-    if (m.type === 'gym-remove-rule') gym.removeRule(m.profileId, m.atMs);
     publish();
   };
 
@@ -552,7 +551,6 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
         const detail = coach.rideDetail(m.profileId, m.rideId);
         if (detail) send({ type: 'ride-detail', detail });
       }
-      if (m.type === 'remove-rule') coach.removeRule(m.profileId, m.atMs);
       if (m.type === 'word-result') coach.wordResult(m.profileId, m.nl, m.knew);
       if (m.type === 'pass-select') coach.passSelect(m.profileId, m.passId);
       if (m.type === 'pass-progress') coach.passProgress(m.profileId, m.passId, m.distanceM);

@@ -15,7 +15,7 @@ import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { hevyRecord } from '../tracking/hevy-import';
 import { historyFromLogged, mergeHistory } from '../tracking/merge';
 import type { RecordStore } from '../tracking/store';
-import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
+import { legacyGymRules, loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { readTasks, type CoachId } from '../coach-tasks';
 import { readOutlook } from '../../shared/gym-outlook';
@@ -25,12 +25,12 @@ import { defaultStudio, NO_STUDIOS, type StudioState } from '../../shared/studio
 import { studiosOf } from '../tracking/studios';
 import { loadStepsOf } from '../tracking/load-steps';
 import { takenChangesOf } from '../tracking/changes';
+import { migrateRules } from '../tracking/personal';
 import { considered } from '../../shared/changes';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 3;
-const MAX_RULES = 20;
 const MAX_NOTES = 20;
 const MAX_ANSWERS = 20;
 const MAX_QUESTIONS = 2;
@@ -105,8 +105,22 @@ export class GymCoach {
 
   state(id: string): GymState {
     let s = this.states.get(id);
-    if (!s) { s = loadGymState(this.deps.dir, id); this.states.set(id, s); }
+    if (!s) {
+      s = loadGymState(this.deps.dir, id);
+      this.states.set(id, s);
+      this.migrateRules(id);
+    }
     return s;
+  }
+  /** Once per profile: the old free-text rules become wish records, then the state file is written without them. */
+  private migrateRules(id: string): void {
+    const old = legacyGymRules(this.deps.dir, id);
+    if (old.length === 0) return;
+    if (!this.deps.store) return;
+    try {
+      migrateRules(this.deps.store, id, 'gym', old, this.deps.nowMs());
+      saveGymState(this.deps.dir, this.states.get(id)!);
+    } catch { /* the file keeps the rules; the next start tries again */ }
   }
   isThinking(id: string): boolean { return this.running.has(id); }
 
@@ -401,8 +415,6 @@ export class GymCoach {
     s.outlook = readOutlook(a.outlook) ?? s.outlook;
     s.emptyReason = null;
     s.lastError = null;
-    const rule = clean(a.newRule, 200);
-    if (rule && honest(rule) && !s.rules.some((r) => r.text === rule)) s.rules = [...s.rules, { atMs: now, text: rule }].slice(-MAX_RULES);
     if (!wantNote) return;
     const text = clean(a.note, TEXT_MAX);
     const newest = real.reduce((m, w) => (w.startMs > m.startMs ? w : m), real[0]);
@@ -455,7 +467,7 @@ export class GymCoach {
     this.update(id, (s) => {
       const now = this.deps.nowMs();
       s.notes = [...s.notes, { atMs: now, text: text.slice(0, 300) }].slice(-MAX_NOTES);
-      this.keepComplaint(id, s, text, now);
+      this.keepComplaint(id, text);
       s.dirty = true; s.attempts = 0;
     });
   }
@@ -466,24 +478,19 @@ export class GymCoach {
       s.answers = [...s.answers, { atMs: now, question: question.slice(0, QUESTION_MAX), text: text.slice(0, 300) }].slice(-MAX_ANSWERS);
       if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question);
       // Only the rider's own words are checked, so a "fine" answer to a question about a knee is no complaint.
-      this.keepComplaint(id, s, text, now);
+      this.keepComplaint(id, text);
       s.dirty = true; s.attempts = 0;
     });
   }
 
-  /** A body complaint goes to the bike coach and stays as a preference of its own. */
-  private keepComplaint(id: string, s: GymState, text: string, now: number): void {
+  /** A body complaint goes to the bike coach. */
+  private keepComplaint(id: string, text: string): void {
     if (!complaintFromNote(text)) return;
     this.deps.complaint(id, text);
-    s.rules = [...s.rules, { atMs: now, text: text.slice(0, 200) }].slice(-MAX_RULES);
   }
 
   skipQuestion(id: string, question: string): void {
     this.update(id, (s) => { if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question); });
-  }
-
-  removeRule(id: string, atMs: number): void {
-    this.update(id, (s) => { s.rules = s.rules.filter((r) => r.atMs !== atMs); });
   }
 
   forget(id: string): void {

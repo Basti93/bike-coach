@@ -49,7 +49,6 @@ export type CoachClientMessage =
   | { type: 'debrief-skip-question'; profileId: string; rideId: string; question: string }
   | { type: 'remove-motive'; profileId: string; atMs: number }
   | { type: 'ride-detail'; profileId: string; rideId: string }
-  | { type: 'remove-rule'; profileId: string; atMs: number }
   | { type: 'word-result'; profileId: string; nl: string; knew: boolean }
   | { type: 'adjust'; profileId: string; how: 'easier' | 'harder' | 'shorter' }
   | { type: 'pass-select'; profileId: string; passId: string }
@@ -59,7 +58,6 @@ export type CoachClientMessage =
   | { type: 'gym-note'; profileId: string; text: string }
   | { type: 'gym-answer'; profileId: string; question: string; text: string }
   | { type: 'gym-skip-question'; profileId: string; question: string }
-  | { type: 'gym-remove-rule'; profileId: string; atMs: number }
   | { type: 'gym-start'; profileId: string }
   | { type: 'gym-forget'; profileId: string }
   | { type: 'gym-preview'; profileId: string }
@@ -85,8 +83,8 @@ export type CoachClientMessage =
 /** What a client may queue while offline: writes a person made, never a login, a key, an upload or a request that wants an answer. */
 export const QUEUEABLE: ReadonlySet<CoachClientMessage['type']> = new Set<CoachClientMessage['type']>([
   'feedback', 'skip-feedback', 'note', 'complaint-update', 'answer-question', 'skip-question', 'debrief-seen', 'debrief-answer',
-  'debrief-skip-question', 'remove-motive', 'set-ftp', 'adjust', 'skip-ramp', 'remove-rule', 'word-result', 'pass-select', 'pass-progress',
-  'pass-summit', 'gym-adjust', 'gym-note', 'gym-answer', 'gym-skip-question', 'gym-remove-rule', 'mobility-done', 'mobility-feel',
+  'debrief-skip-question', 'remove-motive', 'set-ftp', 'adjust', 'skip-ramp', 'word-result', 'pass-select', 'pass-progress',
+  'pass-summit', 'gym-adjust', 'gym-note', 'gym-answer', 'gym-skip-question', 'mobility-done', 'mobility-feel',
   'meals-settings', 'meals-eater', 'meals-item', 'garmin-upload-settings', 'profile-update',
 ]);
 

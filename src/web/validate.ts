@@ -5,6 +5,7 @@ import { readStats } from '../shared/stats';
 import { readTogether } from '../shared/together';
 import { readLoadStep } from '../shared/loads';
 import { readChange } from '../shared/changes';
+import { readGoal, readRule } from '../shared/personal';
 import { readStudio } from '../shared/studio';
 import { readChat } from '../shared/chat';
 import { parseProposal } from '../shared/week-plan';
@@ -39,6 +40,8 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     case 'loadstep': return readLoadStep(body) !== null;
     case 'studio': return readStudio(body) !== null;
     case 'change': return readChange('', body) !== null;
+    case 'goal': return readGoal(body) !== null;
+    case 'rule': return readRule('', body) !== null;
   }
 }
 
