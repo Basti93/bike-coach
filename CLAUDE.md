@@ -1,6 +1,7 @@
 # Pandafit
 
 Spec: `docs/superpowers/specs/2026-10-31-bike-coach-design.md`. Top rule: A ride is never lost.
+Roadmap of the rebuild (the one work order, milestones, parking lot): `docs/roadmap.md`.
 
 ## Live improvement during a ride
 
