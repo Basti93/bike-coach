@@ -86,7 +86,7 @@ export type Plates = { status: 'exact' | 'between' | 'below-bar'; perSide: numbe
 /** Plates per side for a total, greedy with the register's plates in unlimited pairs. 'between': the two nearest exact totals. */
 export function platesPerSide(totalKg: number): Plates {
   const bar = ruleNumber('load.bar-kg');
-  if (totalKg < bar - EPS) return { status: 'below-bar', perSide: [] };
+  if (!Number.isFinite(totalKg) || totalKg < bar - EPS) return { status: 'below-bar', perSide: [] };
   const plates = [...ruleNumbers('load.plates')].sort((a, b) => b - a);
   let rest = Math.round(((totalKg - bar) / 2) * 100); // hundredths of a kg per side
   const perSide: number[] = [];

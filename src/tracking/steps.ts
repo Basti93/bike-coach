@@ -17,7 +17,7 @@ export function stepHere(exerciseId: string, equipment: string, history: readonl
   const weights = history
     .filter((w) => studioKey(w, main) === key && w.exercises.some((e) => e.exerciseId === exerciseId))
     .sort((a, b) => b.startMs - a.startMs).slice(0, SESSIONS)
-    .flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((s) => s.type !== 'warmup').map((s) => s.weightKg ?? 0)))
+    .flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((s) => s.type === 'normal' || s.type === 'failure').map((s) => s.weightKg ?? 0)))
     .filter((x) => x > 0);
   const learned = learnLadder(weights, equipment);
   const l = withOverride(learned, overrides, { exerciseId, studio: key });

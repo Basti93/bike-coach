@@ -88,7 +88,7 @@ function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, re
       if (sug.weightKg === null) no(`${where}: Gewicht ohne Verlauf`);
       if (isAssisted(t.type)) { if (s.weightKg !== sug.weightKg) no(`${where}: Unterstützung bleibt gleich`); }
       // Only reachable weights go on.
-      else s.weightKg = snapDown(s.weightKg, ladder);
+      else s.weightKg = Math.min(s.weightKg, snapDown(s.weightKg, ladder));
       if (s.weightKg > weightCap(sug.weightKg as number, !isWidowSet(s), ladder)) no(`${where}: Gewicht zu hoch`);
     }
     if (s.type === 'warmup') continue;

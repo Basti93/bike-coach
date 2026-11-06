@@ -38,17 +38,16 @@ const NEW_STUDIO = '\u0000new';
 function StudioLine({ value, known, onChange }: { value: string | undefined; known: string[]; onChange: (name: string | undefined) => void }) {
   const [typing, setTyping] = useState(false);
   const names = value && !known.includes(value) ? [value, ...known] : known;
-  const commit = (raw: string) => { setTyping(false); const n = studioName(raw); if (n) onChange(n); };
+  const commit = (raw: string) => { setTyping(false); const typed = studioName(raw); const n = typed && (known.find((k) => k.toLowerCase() === typed.toLowerCase()) ?? typed); if (n) onChange(n); };
   return (
     <p className="muted tk-studio">
-      <label>Studio:{' '}
-        <select aria-label="Studio" value={typing ? NEW_STUDIO : (value ?? '')}
+      <label htmlFor="tk-studio-select">Studio:</label>
+      <select id="tk-studio-select" aria-label="Studio" value={typing ? NEW_STUDIO : (value ?? '')}
           onChange={(e) => (e.target.value === NEW_STUDIO ? setTyping(true) : onChange(e.target.value || undefined))}>
           {!value && <option value="">–</option>}
           {names.map((n) => <option key={n} value={n}>{n}</option>)}
           <option value={NEW_STUDIO}>Neues Studio …</option>
         </select>
-      </label>
       {typing && (
         <input type="text" aria-label="Name des neuen Studios" maxLength={40} autoFocus
           onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); }} />
@@ -182,6 +181,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const nextEx = w.exercises[ei + 1];
         const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
         const labels = setLabels(e.sets);
+        const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
         const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
@@ -238,7 +238,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             )}
             {e.sets.length > 0 && <SetHead timed={timed} />}
             {e.sets.map((s, si) => (
-              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed, range)}
+              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed, range, si === firstWork)}
                 plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
                 confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                 onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}

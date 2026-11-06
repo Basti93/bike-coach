@@ -91,3 +91,24 @@ describe('set hint', () => {
     expect(screen.getByText(/^Ziel \d+–\d+/)).toBeTruthy();
   });
 });
+
+describe('set hint on the first working set only', () => {
+  test('the later sets keep only the last-time part', async () => {
+    await running(wo('o', 1000, null, [ex('pf-squat', 'Kniebeuge', [s(60), s(60), s(60)])]));
+    expect(screen.getAllByText(/^Ziel \d+–\d+/)).toHaveLength(1);
+  });
+});
+
+describe('studio line', () => {
+  test('a typed new studio is saved on the started workout, reusing a known name by case', async () => {
+    const f = fakePort([]);
+    render(<WorkoutScreen port={f.port} {...ids} />);
+    await screen.findByRole('heading', { name: 'Training starten' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Studio' }), { target: { value: '\u0000new' } });
+    const input = await screen.findByLabelText('Name des neuen Studios');
+    fireEvent.change(input, { target: { value: 'Testhalle' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Leeres Training starten' }));
+    await waitFor(() => expect(f.state.puts.some((r) => r.kind === 'workout' && (r.body as LoggedWorkout).studio === 'Testhalle')).toBe(true));
+  });
+});

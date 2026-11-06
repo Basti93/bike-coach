@@ -85,8 +85,8 @@ const BAR_KG = ruleNumber('load.bar-kg');
  */
 export function ladderFor(templateId: string, ex: ExerciseInfo | undefined, workouts: StrengthWorkout[], nowMs: number, plan?: Plan): Ladder {
   const weights = occurrences(templateId, workouts, nowMs, plan).slice(-LADDER_SESSIONS)
-    .flatMap((o) => o.sets.map((s) => s.weightKg ?? 0).filter((w) => w > 0));
-  const seen = weights.filter((w) => w > 0);
+    .flatMap((o) => o.sets.filter((s) => s.type === 'normal' || s.type === 'failure').map((s) => s.weightKg ?? 0).filter((w) => w > 0));
+  const seen = weights;
   const base = learnLadder(weights, ex?.equipment ?? 'other');
   // The learner works on a 0.25 kg grid; the anchor is the exact lightest weight, so that real weights like 22.68 stay reachable.
   const learned = seen.length > 0 ? { ...base, anchorKg: Math.min(...seen) } : base;
@@ -120,11 +120,12 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
     return { weightKg: last.weightKg === null || assisted ? last.weightKg : stepBack(last.weightKg), reps, why: 'step-back' };
   }
   const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
-  // Fewer reps against the session before at the same or a higher weight, several times in a row: the weight is too much for now.
+  // Fewer reps against the session before at exactly the same weight, several times in a row: the weight is too much for now.
+  // A weight rise resets the reps to the range's start by design, so it is no drop.
   let drops = 0;
   for (let i = comparable.length - 1; i >= 1; i--) {
     const [prev, cur] = [comparable[i - 1], comparable[i]];
-    if (cur.weightKg === null || prev.weightKg === null || cur.weightKg < prev.weightKg || cur.minReps >= prev.minReps) break;
+    if (cur.weightKg === null || cur.weightKg !== prev.weightKg || cur.minReps >= prev.minReps) break;
     drops++;
   }
   if (drops >= DROP_STEP_BACK && last.weightKg !== null && !assisted) return { weightKg: stepBack(last.weightKg), reps, why: 'step-back' };

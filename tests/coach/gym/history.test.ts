@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StrengthWorkout, SetType } from '../../../src/coach/hevy';
-import { availableExercises, isAssisted, isRepBased, recentLegWork, suggestNext } from '../../../src/coach/gym/history';
+import { availableExercises, isAssisted, ladderFor, isRepBased, recentLegWork, suggestNext } from '../../../src/coach/gym/history';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 2, 12);
@@ -112,11 +112,12 @@ describe('progression per exercise', () => {
     expect(suggest('sq', [at(14, 8, 24), at(7, 8, 25)], NOW, RAISE)).toEqual({ weightKg: 10, reps: 12, why: 'progress' });
     expect(suggest('sq', [at(7, 8, 30)], NOW, RAISE)).toEqual({ weightKg: 8, reps: 25, why: 'keep' });
   });
-  it('two drops in a row at the same or a higher weight step back onto a reachable weight', () => {
-    const ws = [at(21, 40, 10), at(14, 45, 9), at(7, 50, 7)];
+  it('two drops in a row at the same weight step back onto a reachable weight', () => {
+    const ws = [at(21, 50, 10), at(14, 50, 9), at(7, 50, 7)];
     const r = suggest('sq', ws, NOW, MACHINE);
-    expect(r).toEqual({ weightKg: 45, reps: 7, why: 'step-back' });
-    expect((r.weightKg! - 40) % 5).toBe(0);
+    expect(r.why).toBe('step-back');
+    expect(r.weightKg! % 5).toBe(0);
+    expect(r.weightKg!).toBeLessThan(50);
   });
   it('one drop alone only keeps', () => {
     expect(suggest('sq', [at(21, 40, 8), at(14, 40, 10), at(7, 40, 8)], NOW, MACHINE).why).toBe('keep');
@@ -198,5 +199,20 @@ describe('the exercise types Hevy really sends', () => {
     expect(isAssisted('bodyweight_assisted')).toBe(true);
     expect(isAssisted('bodyweight_assisted_reps')).toBe(true);
     expect(isAssisted('bodyweight_weighted')).toBe(false);
+  });
+});
+
+describe('drops and ladder from work sets', () => {
+  it('a weight rise with fewer reps is no drop', () => {
+    const ws = [wk(21, [[80, 12]]), wk(14, [[82.5, 8]]), wk(7, [[82.5, 7]])];
+    expect(suggest('sq', ws, NOW).why).not.toBe('step-back');
+  });
+  it('fewer reps twice at the same weight steps back', () => {
+    const ws = [wk(21, [[80, 10]]), wk(14, [[80, 9]]), wk(7, [[80, 8]])];
+    expect(suggest('sq', ws, NOW).why).toBe('step-back');
+  });
+  it('warmup and dropset weights do not shrink the step', () => {
+    const ws = [wk(14, [[22.5, 5, 'warmup'], [40, 8], [30, 8, 'dropset'], [50, 8]]), wk(7, [[27.5, 5, 'warmup'], [55, 8]])];
+    expect(ladderFor('sq', MACHINE, ws, NOW).stepKg).toBe(5);
   });
 });

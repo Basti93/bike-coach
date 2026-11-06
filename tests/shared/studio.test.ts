@@ -64,3 +64,10 @@ describe('studio on a workout', () => {
     expect(setStudio(setStudio(startEmpty(1, 'a'), 'Alpha'), ' ').studio).toBeUndefined();
   });
 });
+
+describe('main studio tie', () => {
+  test('equal starts are broken by id, in any order', () => {
+    expect(mainStudio([w('b', 10, 'Beta'), w('a', 10, 'Alpha')])).toBe('Alpha');
+    expect(mainStudio([w('a', 10, 'Alpha'), w('b', 10, 'Beta')])).toBe('Alpha');
+  });
+});

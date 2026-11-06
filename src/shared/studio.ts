@@ -1,7 +1,7 @@
 import type { LoggedWorkout } from './records';
 
 /** The studio is where a workout was done; weights depend on its equipment. Pure, shared by app and coach. */
-type WithStudio = Pick<LoggedWorkout, 'startMs'> & { studio?: string };
+type WithStudio = Pick<LoggedWorkout, 'startMs'> & { studio?: string; id?: string };
 
 export const STUDIO_MAX = 40;
 
@@ -13,8 +13,11 @@ export function studioName(raw: string): string | undefined {
 
 /** The studio of the earliest workout that has one. Undefined while no workout has a studio. */
 export function mainStudio(workouts: readonly WithStudio[]): string | undefined {
-  let main: WithStudio | undefined;
-  for (const w of workouts) if (w.studio && (!main || w.startMs < main.startMs)) main = w;
+  let main: (WithStudio & { id?: string }) | undefined;
+  // A tie on the start is broken by id, so every device agrees.
+  for (const w of workouts as readonly (WithStudio & { id?: string })[]) {
+    if (w.studio && (!main || w.startMs < main.startMs || (w.startMs === main.startMs && (w.id ?? '') < (main.id ?? '')))) main = w;
+  }
   return main?.studio;
 }
 

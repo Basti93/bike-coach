@@ -112,3 +112,19 @@ describe('load rules', () => {
     expect(policyRule('load.plates').numbers).toEqual([25, 20, 15, 10, 5, 2.5, 1.25]);
   });
 });
+
+describe('review fixes', () => {
+  const grid = { stepKg: 1.25, anchorKg: 1.25, learned: true };
+  test('nextUp and snapDown on a 1.25 grid with 61.25', () => {
+    expect(snapDown(61.25, grid)).toBe(61.25);
+    expect(nextUp(61.25, grid)).toBe(62.5);
+    expect(snapDown(61.9, grid)).toBe(61.25);
+  });
+  test('non-finite totals are below the bar, not an endless loop', () => {
+    for (const x of [Infinity, -Infinity, NaN]) expect(platesPerSide(x)).toEqual({ status: 'below-bar', perSide: [] });
+  });
+  test('a loadstep body is checked', () => {
+    expect(validBody('loadstep', { exerciseId: 'e', studio: 'A', stepKg: 5 })).toBe(true);
+    expect(validBody('loadstep', { exerciseId: 'e', studio: 'A', stepKg: 3.3 })).toBe(false);
+  });
+});

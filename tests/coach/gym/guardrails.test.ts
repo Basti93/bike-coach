@@ -175,6 +175,13 @@ describe('ruleWorkout', () => {
     const noKg: GymContext = { ...ctx, workouts: ctx.workouts.map((w) => ({ ...w, exercises: w.exercises.map((e) => ({ ...e, workSets: e.workSets.map((s) => ({ ...s, weightKg: null })) })) })) };
     expect(ruleWorkout(noKg).workout.exercises.flatMap((e) => e.sets).every((s) => s.weightKg === null)).toBe(true);
   });
+  it('starts at the range minimum when it is above 10', () => {
+    const sd = T('sd', 'machine', 'side_delts');
+    const ctx: GymContext = { workouts: [], templates: [sd], nowMs: NOW };
+    const sets = ruleWorkout(ctx).workout.exercises.flatMap((e) => e.sets);
+    expect(sets.length).toBeGreaterThan(0);
+    expect(sets.every((x) => x.reps === 12)).toBe(true);
+  });
   it('ignores exercises that are not recent or not in the template list', () => {
     const ctx: GymContext = { workouts: [wk(300, 'cp', [[40, 8]]), wk(10, 'ghost', [[40, 8]]), wk(10, 'lr', [[30, 8]])], templates: TEMPLATES, nowMs: NOW };
     expect(ruleWorkout(ctx).workout.exercises.map((e) => e.templateId)).toEqual(['lr']);
