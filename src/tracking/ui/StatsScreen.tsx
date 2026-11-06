@@ -29,6 +29,7 @@ const statsOf = (records: TrackedRecord[] | null): StatsBody | null => {
 export const statsVisible = (stats: TrackedRecord[] | null, workouts: TrackedRecord[] | null): boolean =>
   statsOf(stats) !== null || countable((workouts ?? []).filter((r) => !r.deleted)).length > 0;
 
+const half = (n: number) => String(Math.round(n * 2) / 2).replace('.', ',');
 const satz = (n: number) => `${n} ${n === 1 ? 'Satz' : 'Sätze'}`;
 
 /** The numbers behind a state, in words: this week's direct and indirect sets and the target. */
@@ -66,7 +67,9 @@ function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; m
   const allRows = v.balance.filter((b) => b.state !== null || b.direct7 + b.indirect7 > 0);
   // A new person is not told everything is missing: groups below target show once something was trained in the last 4 weeks.
   const active = v.balance.some((b) => b.effective28 > 0);
-  const shown = allRows.filter((b) => b.direct7 + b.indirect7 > 0 || (active && (b.state === 'none' || b.state === 'low')));
+  const shown = allRows.filter((b) => b.direct7 + b.indirect7 > 0);
+  // Untrained groups are one line, not rows, so the list stays short.
+  const untrained = active && !all ? allRows.filter((b) => b.state === 'none') : [];
   const rows = all ? allRows : shown;
   return (
     <section className="card tk-stats" aria-label="Diese Woche">
@@ -78,7 +81,8 @@ function ThisWeek({ v, hasStats, muscles }: { v: StatsView; hasStats: boolean; m
       )}
       {hasStats && <p>{daysText(w, ' · ')}</p>}
       {muscles && <ul className="tk-muscle-list">{rows.map((b) => <MuscleRow key={b.group} b={b} />)}</ul>}
-      {muscles && rows.length === 0 && !all && <p className="muted">Diese Woche noch keine Sätze.</p>}
+      {muscles && untrained.length > 0 && <p className="muted tk-small">{`${STATE_LABELS.none}: ${untrained.map((b) => b.label).join(', ')}`}</p>}
+      {muscles && shown.length === 0 && untrained.length === 0 && !all && <p className="muted">Diese Woche noch keine Sätze.</p>}
       {muscles && allRows.length > shown.length && (
         <button type="button" className="ghost" onClick={() => setAll(!all)}>{all ? 'Weniger Muskelgruppen' : 'Alle Muskelgruppen anzeigen'}</button>
       )}
@@ -122,7 +126,7 @@ function MinutesChart({ v, weeks, hasStats }: { v: StatsView; weeks: WeekStats[]
 function SetsTable({ weeks: all }: { weeks: WeekStats[] }) {
   // Four weeks fit a phone without scrolling sideways.
   const weeks = all.slice(-4);
-  const groups = GROUPS.filter((g) => weeks.some((w) => (w.sets[g] ?? 0) > 0));
+  const groups = GROUPS.filter((g) => weeks.some((w) => (w.effective[g] ?? 0) > 0));
   if (groups.length === 0) return <p className="muted">In diesen Wochen noch keine Sätze.</p>;
   return (
     <div className="tk-table-wrap">
@@ -131,7 +135,7 @@ function SetsTable({ weeks: all }: { weeks: WeekStats[] }) {
         <thead><tr><th scope="col">Muskel</th>{weeks.map((w) => <th key={w.weekStart} scope="col">{shortDate(w.weekStart)}</th>)}</tr></thead>
         <tbody>
           {groups.map((g) => (
-            <tr key={g}><th scope="row">{MUSCLE_TARGETS[g].label}</th>{weeks.map((w) => <td key={w.weekStart}>{w.sets[g] ?? 0}</td>)}</tr>
+            <tr key={g}><th scope="row">{MUSCLE_TARGETS[g].label}</th>{weeks.map((w) => <td key={w.weekStart}>{half(w.effective[g] ?? 0)}</td>)}</tr>
           ))}
         </tbody>
       </table>

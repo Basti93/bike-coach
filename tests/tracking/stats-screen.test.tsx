@@ -137,13 +137,28 @@ test('Fortschritt shows one line per area with data and nothing for the rest', a
   expect(card.querySelectorAll('dt')).toHaveLength(1);
 });
 
-test('rows show four words; groups below target appear once something was trained', async () => {
+test('rows exist for trained groups; untrained groups are one muted line', async () => {
   await show([statsRec(statsBody(days)), ...workouts]);
   const week = screen.getByRole('region', { name: 'Diese Woche' });
   expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
-  // Trained in the last 4 weeks, nothing on the back this week: "Noch nichts".
+  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  const line = within(week).getByText(/^Noch nichts: /);
+  expect(line.textContent).toMatch(/Rücken.*Bizeps/);
+  expect(line.textContent).not.toMatch(/Brust/);
+  expect(within(week).queryByText('Noch nichts', { selector: '.tk-state *, .tk-state' })).toBeNull();
+  fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
   expect(within(within(week).getByRole('button', { name: /Rücken/ })).getByText('Noch nichts')).toBeTruthy();
-  expect(within(week).queryByRole('button', { name: 'Alle Muskelgruppen anzeigen' })).toBeNull();
+  expect(within(week).queryByText(/^Noch nichts: /)).toBeNull();
+});
+
+test('the sets table counts effective sets like the states', async () => {
+  await show([workout('w8', new Date(2026, 9, 27, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 4)]);
+  const table = within(screen.getByRole('region', { name: 'Letzte 8 Wochen' })).getByRole('table');
+  const chest = within(table).getByRole('rowheader', { name: 'Brust' }).closest('tr') as HTMLElement;
+  expect(chest.textContent).toContain('4');
+  // Triceps get half of the bench sets.
+  const tri = within(table).getByRole('rowheader', { name: 'Trizeps' }).closest('tr') as HTMLElement;
+  expect(tri.textContent).toContain('2');
 });
 
 test('a new person with no sets in the last 4 weeks is not flooded with "Noch nichts"', async () => {
