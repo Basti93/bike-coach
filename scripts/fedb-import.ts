@@ -3,6 +3,7 @@
  * Usage: npx tsx scripts/fedb-import.ts <path to dist/exercises.json>
  * Needs scripts/fedb-names-de.json (id -> German title) for every kept entry; fails loudly otherwise.
  * The English instructions stay in the source dataset (the app ships the German guides, fedb-descriptions-de.json).
+ * scripts/fedb-shoulder-parts.json maps every id with `shoulders` to its part(s) (front_delts, side_delts, rear_delts); an id without a mapping fails loudly.
  * Entries that a built-in names in `fedbId` are left out (the built-in wins).
  */
 import fs from 'node:fs';
@@ -18,11 +19,20 @@ const EQUIPMENT: Record<string, string> = {
 // equipment null (nothing listed) is a bodyweight move: 'none', reps_only. bands, balls, foam roll and the rest: 'other'.
 const fedbId = (id: string) => `fedb-${id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const muscle = (m: string) => MUSCLE[m] ?? m;
+/** Source muscles to ours; `shoulders` becomes its mapped parts. */
+const muscles = (id: string, list: string[], problems: string[]): string[] =>
+  list.flatMap((m) => {
+    if (m !== 'shoulders') return [muscle(m)];
+    const p = parts[id];
+    if (!p || p.length === 0) { problems.push(`no shoulder part: ${id}`); return []; }
+    return p;
+  });
 
 const src = process.argv[2];
 if (!src) throw new Error('usage: fedb-import.ts <path to exercises.json>');
 const raw = JSON.parse(fs.readFileSync(src, 'utf8')) as Raw[];
 const names = JSON.parse(fs.readFileSync(new URL('./fedb-names-de.json', import.meta.url), 'utf8')) as Record<string, string>;
+const parts = JSON.parse(fs.readFileSync(new URL('./fedb-shoulder-parts.json', import.meta.url), 'utf8')) as Record<string, string[]>;
 const linked = new Set(EXERCISES.flatMap((e) => (e.fedbId ? [e.fedbId] : [])));
 const builtIn = new Set(EXERCISES.flatMap(exerciseTitles).map((s) => s.toLowerCase()));
 
@@ -39,8 +49,9 @@ for (const r of raw) {
   seen.set(title.toLowerCase(), id);
   if (builtIn.has(title.toLowerCase()) ) problems.push(`collides with a built-in: ${id} (${title} / ${r.name})`);
   const equipment = r.equipment === null ? 'none' : (EQUIPMENT[r.equipment] ?? 'other');
-  const primary = muscle(r.primaryMuscles[0] ?? 'other');
-  const secondary = [...new Set(r.secondaryMuscles.map(muscle))].filter((m) => m !== primary);
+  const all = [...muscles(id, r.primaryMuscles.slice(0, 1), problems)];
+  const primary = all[0] ?? 'other';
+  const secondary = [...new Set([...all.slice(1), ...muscles(id, r.secondaryMuscles, problems)])].filter((m) => m !== primary);
   const e: Exercise = { id, title, type: equipment === 'none' ? 'reps_only' : 'weight_reps', primaryMuscle: primary, equipment, source: 'fedb' };
   // The English name is an alias for search, unless a built-in already logs under exactly that title (then the built-in owns it).
   if (!builtIn.has(r.name.toLowerCase())) e.aliases = [r.name];
@@ -49,6 +60,7 @@ for (const r of raw) {
 }
 const known = new Set(raw.map((r) => fedbId(r.id)));
 for (const id of Object.keys(names)) if (!known.has(id)) problems.push(`name for unknown id: ${id}`);
+for (const id of Object.keys(parts)) if (!known.has(id)) problems.push(`shoulder parts for unknown id: ${id}`);
 for (const id of linked) if (!known.has(id)) problems.push(`built-in fedbId not in dataset: ${id}`);
 if (problems.length > 0) { console.error(problems.join('\n')); process.exit(1); }
 fs.writeFileSync(new URL('../src/shared/fedb-exercises.json', import.meta.url), `${JSON.stringify(out, null, 1)}\n`);

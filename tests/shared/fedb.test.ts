@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import shoulderParts from '../../scripts/fedb-shoulder-parts.json';
 import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES, exerciseTitles } from '../../src/shared/exercises';
 import { descriptionCredit, descriptionOf, exerciseDescription } from '../../src/shared/exercise-descriptions';
@@ -96,5 +97,21 @@ describe('swap ranking with the base catalog', () => {
     const cat = [cur, mk('a-machine', 'machine'), mk('b-barbell', 'barbell', ['triceps']), mk('c-dumbbell', 'dumbbell', ['triceps', 'shoulders'])];
     const got = similarExercises({ title: 'cur', exerciseId: 'cur' }, cat).map((e) => e.id);
     expect(got).toEqual(['c-dumbbell', 'b-barbell', 'a-machine']);
+  });
+});
+
+describe('base catalog shoulder parts', () => {
+  it('has no entry with shoulders as primary or secondary muscle', () => {
+    for (const e of FEDB_EXERCISES) {
+      expect(e.primaryMuscle, e.id).not.toBe('shoulders');
+      expect(e.secondaryMuscles ?? [], e.id).not.toContain('shoulders');
+    }
+  });
+  it('maps every shoulder entry to valid parts', () => {
+    const parts = shoulderParts as Record<string, string[]>;
+    for (const [id, p] of Object.entries(parts)) {
+      expect(p.length, id).toBeGreaterThan(0);
+      for (const m of p) expect(['front_delts', 'side_delts', 'rear_delts'], id).toContain(m);
+    }
   });
 });
