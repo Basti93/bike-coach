@@ -25,7 +25,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | | Meilenstein | Spürbar daran, dass … | Ersetzt (alt) |
 |---|---|---|---|
 | ✅ | **0 Grundlage** | Regelregister existiert, Übungsidentität nur über ID/exakten Titel, unbekannte Muskeln sind sichtbar. | Auftrag 0, Schritt 0–1 (teilweise) |
-| **A** | **Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
+| ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
 | **B** | **Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
 | **C** | **Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
@@ -51,7 +51,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 | Heracles | Herkunft einer Muskelzuordnung (nur Modell, nicht die Zahlendarstellung) | B |
 | Repstack | Befristete Blöcke, strukturierte Rückmeldung | H |
 
-## Meilenstein A — Brief (Entwurf, zur Freigabe)
+## Meilenstein A — Brief (umgesetzt 06.11.2026)
 
 **Ziel:** Jede Übung, die ihr macht oder aus Hevy importiert, ist eine richtige PandaFit-Übung mit Muskel, Gerät und passender Anleitung.
 
@@ -83,3 +83,13 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Eigene Übung mit gleichem Titel wie eine eingebaute verliert gegen die eingebaute (löst sich mit A).
 - Harmlose doppelte Titelformen wie „Seitheben am Kabel (Kabel)“.
 - Zweitnamen „Dip“/„Single Arm Dumbbell Row“ prüfen, ob gewichtet/ungewichtet zusammenpasst.
+- Aus Meilenstein A:
+  - Bilder der Übungsbasis fehlen noch (nur für genutzte Übungen nachladen).
+  - Eigene Seite „Übungskatalog“ zum Stöbern? (Heute nur über die Übungsauswahl.)
+  - Chat-Coach und Mobilität kennen nur die eingebauten Übungen.
+  - Englische Namen der Basis können Hevy-Titel ohne Vorschlag verknüpfen (heute keine Kollision).
+  - Karte „Übungen einordnen“ zeigt doppelte Vorschläge, wenn zwei Coaches gleichzeitig fragen; Vorschläge mit gelöschtem Ziel bleiben unsichtbar und werden nie neu gefragt.
+  - Rückgängig nach „Neue Übung bestätigen“ lässt die ungenutzte Übung im Katalog.
+  - Einige übersetzte Anleitungen sind lang (>90 Wörter); wenige Originaltexte passen nicht zum Titel.
+  - `src/shared/catalog.ts` importiert Muskelnamen aus `src/tracking/ui/labels` (Schichtung).
+  - Eigene Übungs-Records: Muskel/Gerät/Typ werden nicht gegen die erlaubten Werte geprüft.
