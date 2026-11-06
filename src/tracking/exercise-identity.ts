@@ -16,7 +16,7 @@ export function resolveExercise(logged: { exerciseId: string; title: string }, c
   if (exercise) return { exercise, group: muscleGroupOf(exercise), muscleSource: 'catalog' };
   const m = externalMuscles && Object.hasOwn(externalMuscles, logged.exerciseId) ? externalMuscles[logged.exerciseId] : undefined;
   if (typeof m === 'string' && m) {
-    const group = Object.hasOwn(MUSCLE_TARGETS, m) ? (m as MuscleGroup) : muscleGroupOf({ id: logged.exerciseId, title, primaryMuscle: m });
+    const group = Object.hasOwn(MUSCLE_TARGETS, m) ? (m as MuscleGroup) : muscleGroupOf({ primaryMuscle: m });
     return { exercise: null, group, muscleSource: 'external' };
   }
   return { exercise: null, group: null, muscleSource: 'unknown' };

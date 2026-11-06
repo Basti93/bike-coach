@@ -9,23 +9,24 @@ const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 3, 12);
 
 describe('muscleGroupOf', () => {
-  it('splits the shoulders by the kind of exercise', () => {
-    expect(muscleGroupOf({ title: 'Lateral Raise (Dumbbell)', primaryMuscle: 'shoulders' })).toBe('side_rear_delts');
-    expect(muscleGroupOf({ title: 'Seitheben Maschine Stehend', primaryMuscle: 'shoulders' })).toBe('side_rear_delts');
-    expect(muscleGroupOf({ title: 'Rear Delt Reverse Fly (Machine)', primaryMuscle: 'shoulders' })).toBe('side_rear_delts');
-    expect(muscleGroupOf({ title: 'Overhead Press (Barbell)', primaryMuscle: 'shoulders' })).toBe('front_delts');
+  it('counts the legacy shoulders as the front shoulder and the three parts as themselves', () => {
+    expect(muscleGroupOf({ primaryMuscle: 'shoulders' })).toBe('front_delts');
+    expect(muscleGroupOf({ primaryMuscle: 'front_delts' })).toBe('front_delts');
+    expect(muscleGroupOf({ primaryMuscle: 'side_delts' })).toBe('side_delts');
+    expect(muscleGroupOf({ primaryMuscle: 'rear_delts' })).toBe('rear_delts');
   });
-  it('joins lats and upper back, hamstrings and glutes, and knows nothing else', () => {
-    expect(muscleGroupOf({ title: 'x', primaryMuscle: 'lats' })).toBe('back');
-    expect(muscleGroupOf({ title: 'x', primaryMuscle: 'upper_back' })).toBe('back');
-    expect(muscleGroupOf({ title: 'x', primaryMuscle: 'glutes' })).toBe('hams_glutes');
-    expect(muscleGroupOf({ title: 'x', primaryMuscle: null })).toBe('other');
+  it('joins lats and upper back, keeps hamstrings and glutes apart, and knows nothing else', () => {
+    expect(muscleGroupOf({ primaryMuscle: 'lats' })).toBe('back');
+    expect(muscleGroupOf({ primaryMuscle: 'upper_back' })).toBe('back');
+    expect(muscleGroupOf({ primaryMuscle: 'glutes' })).toBe('glutes');
+    expect(muscleGroupOf({ primaryMuscle: 'hamstrings' })).toBe('hamstrings');
+    expect(muscleGroupOf({ primaryMuscle: null })).toBe('other');
   });
 });
 
 describe('targets', () => {
   it('small muscles get higher reps than big compound groups', () => {
-    expect(MUSCLE_TARGETS.side_rear_delts.reps.min).toBeGreaterThan(MUSCLE_TARGETS.chest.reps.max - 1);
+    expect(MUSCLE_TARGETS.side_delts.reps.min).toBeGreaterThan(MUSCLE_TARGETS.chest.reps.max - 1);
     expect(MUSCLE_TARGETS.calves.reps.min).toBeGreaterThan(MUSCLE_TARGETS.quads.reps.min);
   });
   it('a muscle goal asks for more sets than other goals', () => {
@@ -47,7 +48,7 @@ const workout = (daysAgo: number, exercises: { templateId: string; title: string
 });
 const templates = [
   { id: 'BP', title: 'Bench Press (Barbell)', type: 'weight_reps', primaryMuscle: 'chest', equipment: 'barbell' },
-  { id: 'LR', title: 'Lateral Raise (Dumbbell)', type: 'weight_reps', primaryMuscle: 'shoulders', equipment: 'dumbbell' },
+  { id: 'LR', title: 'Lateral Raise (Dumbbell)', type: 'weight_reps', primaryMuscle: 'side_delts', equipment: 'dumbbell' },
 ];
 
 describe('muscleVolume', () => {
@@ -72,7 +73,7 @@ describe('the gym prompt', () => {
     const input = { state: initialGymState('p'), workouts: [workout(2, [{ templateId: 'LR', title: 'Lateral Raise (Dumbbell)', sets: 3 }])], templates, nowMs: NOW, summaries: [], complaints: [], previous: null, wantNote: false };
     const p = buildGymPrompt(input);
     expect(p).toContain('<muskelvolumen-nur-daten>');
-    expect(p).toMatch(/"gruppe":"Schultern seitlich und hinten","saetze7Tage":3/);
+    expect(p).toMatch(/"gruppe":"Schulter seitlich","saetze7Tage":3/);
     expect(GYM_SYSTEM_PROMPT).toMatch(/Block muskelvolumen/);
     expect(GYM_SYSTEM_PROMPT).toMatch(/5 bis 30 Wiederholungen/);
   });
@@ -84,7 +85,7 @@ describe('pairVerdicts', () => {
     expect(pairVerdicts({ chest: 14, back: 8 })[0]).toMatchObject({ label: 'Brust : Rücken', a: 14, b: 8, short: 'back' });
     expect(pairVerdicts({ chest: 5, back: 2 })[0].short).toBeNull();
     expect(pairVerdicts({ chest: 12, back: 9 })[0].short).toBeNull();
-    expect(pairVerdicts({ quads: 6, hams_glutes: 0 })[1].short).toBe('hams_glutes');
+    expect(pairVerdicts({ quads: 6, hamstrings: 0 })[1].short).toBe('hamstrings');
     expect(pairVerdicts({})).toHaveLength(3);
   });
 });

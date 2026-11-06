@@ -1,3 +1,5 @@
+import { policyRule } from './training-policy';
+
 /**
  * Weekly working sets and rep ranges per muscle group.
  *
@@ -12,38 +14,44 @@
  * and forearms. A rep range is a starting point, never a rule.
  */
 export type MuscleGroup =
-  | 'chest' | 'back' | 'front_delts' | 'side_rear_delts' | 'biceps' | 'triceps'
-  | 'quads' | 'hams_glutes' | 'calves' | 'abs' | 'traps' | 'forearms' | 'other';
+  | 'chest' | 'back' | 'front_delts' | 'side_delts' | 'rear_delts' | 'biceps' | 'triceps'
+  | 'quads' | 'hamstrings' | 'glutes' | 'calves' | 'abs' | 'traps' | 'forearms' | 'other';
 
 export type MuscleTarget = { label: string; muscle: { min: number; max: number }; other: { min: number; max: number }; reps: { min: number; max: number } };
 
+const LABELS: Record<MuscleGroup, string> = {
+  chest: 'Brust', back: 'Rücken', front_delts: 'Schulter vorn', side_delts: 'Schulter seitlich', rear_delts: 'Schulter hinten',
+  biceps: 'Bizeps', triceps: 'Trizeps', quads: 'Oberschenkel vorn', hamstrings: 'Oberschenkel hinten', glutes: 'Gesäß',
+  calves: 'Waden', abs: 'Bauch', traps: 'Nacken und Trapez', forearms: 'Unterarme', other: 'Sonstiges',
+};
+
+/** The targets are product rules in the register (`muscle.target.<group>`); only "other" has none. */
+const targetFromRegister = (g: Exclude<MuscleGroup, 'other'>): MuscleTarget => {
+  const rule = policyRule(`muscle.target.${g}`);
+  const { other, reps } = rule.ranges ?? {};
+  if (!rule.value || typeof rule.value === 'number' || !other || !reps) throw new Error(`policy rule ${rule.id} lacks its ranges`);
+  return { label: LABELS[g], muscle: rule.value, other, reps };
+};
+
 export const MUSCLE_TARGETS: Record<MuscleGroup, MuscleTarget> = {
-  chest: { label: 'Brust', muscle: { min: 12, max: 18 }, other: { min: 6, max: 8 }, reps: { min: 6, max: 12 } },
-  back: { label: 'Rücken', muscle: { min: 14, max: 20 }, other: { min: 8, max: 10 }, reps: { min: 6, max: 12 } },
-  front_delts: { label: 'Schultern vorn', muscle: { min: 6, max: 10 }, other: { min: 2, max: 4 }, reps: { min: 6, max: 12 } },
-  side_rear_delts: { label: 'Schultern seitlich und hinten', muscle: { min: 12, max: 20 }, other: { min: 6, max: 8 }, reps: { min: 12, max: 25 } },
-  biceps: { label: 'Bizeps', muscle: { min: 10, max: 14 }, other: { min: 4, max: 6 }, reps: { min: 8, max: 15 } },
-  triceps: { label: 'Trizeps', muscle: { min: 10, max: 12 }, other: { min: 4, max: 6 }, reps: { min: 8, max: 15 } },
-  quads: { label: 'Oberschenkel vorn', muscle: { min: 12, max: 18 }, other: { min: 6, max: 8 }, reps: { min: 6, max: 12 } },
-  hams_glutes: { label: 'Oberschenkel hinten und Gesäß', muscle: { min: 10, max: 16 }, other: { min: 4, max: 6 }, reps: { min: 6, max: 12 } },
-  calves: { label: 'Waden', muscle: { min: 12, max: 16 }, other: { min: 6, max: 8 }, reps: { min: 10, max: 20 } },
-  abs: { label: 'Bauch', muscle: { min: 10, max: 16 }, other: { min: 4, max: 8 }, reps: { min: 10, max: 20 } },
-  traps: { label: 'Nacken und Trapez', muscle: { min: 6, max: 12 }, other: { min: 0, max: 4 }, reps: { min: 10, max: 20 } },
-  forearms: { label: 'Unterarme', muscle: { min: 4, max: 10 }, other: { min: 0, max: 4 }, reps: { min: 12, max: 25 } },
-  other: { label: 'Sonstiges', muscle: { min: 0, max: 0 }, other: { min: 0, max: 0 }, reps: { min: 8, max: 15 } },
+  chest: targetFromRegister('chest'), back: targetFromRegister('back'),
+  front_delts: targetFromRegister('front_delts'), side_delts: targetFromRegister('side_delts'), rear_delts: targetFromRegister('rear_delts'),
+  biceps: targetFromRegister('biceps'), triceps: targetFromRegister('triceps'),
+  quads: targetFromRegister('quads'), hamstrings: targetFromRegister('hamstrings'), glutes: targetFromRegister('glutes'),
+  calves: targetFromRegister('calves'), abs: targetFromRegister('abs'), traps: targetFromRegister('traps'), forearms: targetFromRegister('forearms'),
+  other: { label: LABELS.other, muscle: { min: 0, max: 0 }, other: { min: 0, max: 0 }, reps: { min: 8, max: 15 } },
 };
 
+/** Muscle to group. Legacy `shoulders` counts as the front shoulder; abductors work like glutes, adductors like quads. */
 const BY_MUSCLE: Record<string, MuscleGroup> = {
-  chest: 'chest', lats: 'back', upper_back: 'back', lower_back: 'back', biceps: 'biceps', triceps: 'triceps',
-  quadriceps: 'quads', hamstrings: 'hams_glutes', glutes: 'hams_glutes', calves: 'calves', abdominals: 'abs',
-  traps: 'traps', forearms: 'forearms',
+  chest: 'chest', lats: 'back', upper_back: 'back', lower_back: 'back',
+  shoulders: 'front_delts', front_delts: 'front_delts', side_delts: 'side_delts', rear_delts: 'rear_delts',
+  biceps: 'biceps', triceps: 'triceps', quadriceps: 'quads', adductors: 'quads', hamstrings: 'hamstrings', glutes: 'glutes', abductors: 'glutes',
+  calves: 'calves', abdominals: 'abs', traps: 'traps', forearms: 'forearms',
 };
-const REAR_OR_SIDE = /lateral raise|seitheben|rear delt|reverse fly|face pull|upright row|y raise|reverse flys/i;
-const REAR_OR_SIDE_IDS = new Set(['pf-lateral-raise', 'pf-lateral-raise-cable', 'pf-rear-delt-fly', 'pf-face-pull', 'pf-rear-delt-fly-machine', 'pf-bent-over-lateral-raise-cable']);
 
-/** The group an exercise counts for: its primary muscle, with shoulders split by the kind of exercise. */
-export function muscleGroupOf(e: { id?: string; title: string; primaryMuscle: string | null | undefined }): MuscleGroup {
-  if (e.primaryMuscle === 'shoulders') return (e.id && REAR_OR_SIDE_IDS.has(e.id)) || REAR_OR_SIDE.test(e.title) ? 'side_rear_delts' : 'front_delts';
+/** The group an exercise counts for: by its primary muscle only. */
+export function muscleGroupOf(e: { primaryMuscle: string | null | undefined }): MuscleGroup {
   return (e.primaryMuscle && Object.hasOwn(BY_MUSCLE, e.primaryMuscle) && BY_MUSCLE[e.primaryMuscle]) || 'other';
 }
 
@@ -53,8 +61,8 @@ export const weeklySetRange = (g: MuscleGroup, goal: string | null | undefined):
 
 export const PAIRS: { a: MuscleGroup; b: MuscleGroup; label: string }[] = [
   { a: 'chest', b: 'back', label: 'Brust : Rücken' },
-  { a: 'quads', b: 'hams_glutes', label: 'Oberschenkel vorn : Oberschenkel hinten und Gesäß' },
-  { a: 'front_delts', b: 'side_rear_delts', label: 'Schultern vorn : Schultern seitlich und hinten' },
+  { a: 'quads', b: 'hamstrings', label: 'Oberschenkel vorn : Oberschenkel hinten' },
+  { a: 'front_delts', b: 'side_delts', label: 'Schulter vorn : Schulter seitlich' },
 ];
 
 /** Set counts of both sides of each pair. `short` is the smaller side when it is below two thirds of the larger and the larger has at least 6. */

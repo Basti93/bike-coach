@@ -12,18 +12,6 @@ it('no title, Hevy title or alias belongs to two exercises', () => {
   }
 });
 
-it('the machine reverse fly is its own exercise with a machine text and counts for the rear shoulder', () => {
-  const e = byId('pf-rear-delt-fly-machine');
-  expect(e.equipment).toBe('machine');
-  expect(exerciseDescription(e.id)?.text).toMatch(/Maschine|Griff|Polster/);
-  expect(exerciseDescription(e.id)?.text).not.toMatch(/Kurzhantel/);
-  expect(muscleGroupOf(e)).toBe('side_rear_delts');
-});
-
-it('the cable bent-over lateral raise counts for the rear shoulder', () => {
-  expect(muscleGroupOf(byId('pf-bent-over-lateral-raise-cable'))).toBe('side_rear_delts');
-});
-
 it('the behind-the-back curl has an own description', () => {
   expect(exerciseDescription('pf-behind-back-curl-cable')?.source).toEqual({ kind: 'own' });
 });

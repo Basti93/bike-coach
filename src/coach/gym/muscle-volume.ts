@@ -19,7 +19,7 @@ export function muscleVolume(workouts: StrengthWorkout[], templates: ExerciseTem
     if (age < 0 || age > 28 * DAY_MS) continue;
     for (const e of w.exercises) {
       const t = byId.get(e.templateId);
-      const g = muscleGroupOf({ id: e.templateId, title: e.title, primaryMuscle: t?.primaryMuscle });
+      const g = muscleGroupOf({ primaryMuscle: t?.primaryMuscle });
       const n = e.workSets.filter((s) => s.type !== 'warmup').length;
       month.set(g, (month.get(g) ?? 0) + n);
       if (age <= 7 * DAY_MS) week.set(g, (week.get(g) ?? 0) + n);
