@@ -16,7 +16,7 @@ The pictures in `src/web/public/exercises/` come from the exercise database of [
 
 ## Exercise base: public domain
 
-`src/shared/fedb-exercises.json` is derived from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is released under the Unlicense (public domain). Names, muscles and equipment were mapped by `scripts/fedb-import.ts`; the German titles in `scripts/fedb-names-de.json` are our own. The English instructions are kept as source text only. No images were taken from it.
+`src/shared/fedb-exercises.json` is derived from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is released under the Unlicense (public domain). Names, muscles and equipment were mapped by `scripts/fedb-import.ts`; the German titles in `scripts/fedb-names-de.json` are our own. The English instructions are kept as source text; `src/shared/fedb-descriptions-de.json` holds their short German versions (translated and condensed once by us, so the app works offline), and the app shows "Quelle: free-exercise-db (gemeinfrei), übersetzt" under them. No images were taken from it.
 
 ## Garmin FIT SDK
 

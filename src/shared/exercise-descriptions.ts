@@ -6,7 +6,7 @@
  * one is recorded here and shown in the app. Entries marked own were written for Pandafit.
  * The accepted wger matches are in scripts/wger-matches.json; scripts/wger-descriptions.ts checks the sources.
  */
-export type DescriptionSource = { kind: 'wger'; wgerId: number; author: string; licence: string } | { kind: 'own' };
+export type DescriptionSource = { kind: 'wger'; wgerId: number; author: string; licence: string } | { kind: 'fedb' } | { kind: 'own' };
 export type ExerciseDescription = { text: string; source: DescriptionSource };
 
 const SA3 = 'CC-BY-SA 3.0';
@@ -143,13 +143,14 @@ export const EXERCISE_DESCRIPTIONS: Record<string, ExerciseDescription> = {
 /** The description of an own exercise, or null for user-created and Hevy-only exercises. */
 export const exerciseDescription = (exerciseId: string): ExerciseDescription | null => EXERCISE_DESCRIPTIONS[exerciseId] ?? null;
 
-/** The attribution line shown under a wger description. Where wger.de itself is the author it is named once. */
+/** The attribution line shown under a wger or base-catalog description. Where wger.de itself is the author it is named once. */
 export const descriptionCredit = (d: ExerciseDescription): string | null => {
+  if (d.source.kind === 'fedb') return 'Quelle: free-exercise-db (gemeinfrei), übersetzt';
   if (d.source.kind !== 'wger') return null;
   const author = d.source.author === 'wger.de' ? '' : `${d.source.author}, `;
   return `Quelle: wger.de, ${author}${d.source.licence}`;
 };
 
 /** The description to show for a catalog exercise: its own text when it has one, else the bundled one for its id. */
-export const descriptionOf = (e: { id: string; description?: string }): ExerciseDescription | null =>
-  e.description ? { text: e.description, source: { kind: 'own' } } : exerciseDescription(e.id);
+export const descriptionOf = (e: { id: string; description?: string; source?: string }): ExerciseDescription | null =>
+  e.description ? { text: e.description, source: { kind: e.source === 'fedb' ? 'fedb' : 'own' } } : exerciseDescription(e.id);

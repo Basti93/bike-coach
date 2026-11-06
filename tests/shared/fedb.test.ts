@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES, exerciseTitles } from '../../src/shared/exercises';
+import { descriptionCredit, descriptionOf, exerciseDescription } from '../../src/shared/exercise-descriptions';
 import { FEDB_EXERCISES } from '../../src/shared/fedb';
 import { EQUIPMENT, MUSCLES } from '../../src/tracking/ui/labels';
 
@@ -15,7 +16,6 @@ describe('base catalog (free-exercise-db)', () => {
       expect(e.source).toBe('fedb');
       for (const m of e.secondaryMuscles ?? []) expect(Object.keys(MUSCLES)).toContain(m);
       expect(e.secondaryMuscles ?? []).not.toContain(e.primaryMuscle);
-      expect(e.description).toBeUndefined();
     }
   });
   it('has unique ids and titles, none equal to a built-in title or alias', () => {
@@ -38,6 +38,27 @@ describe('base catalog (free-exercise-db)', () => {
   it('keeps the English instructions as source only', () => {
     const withText = FEDB_EXERCISES.filter((e) => (e.instructionsEn ?? []).length > 0);
     expect(withText.length).toBeGreaterThan(400);
+  });
+});
+
+describe('German guides for the base entries', () => {
+  it('gives every base entry with English instructions a German description', () => {
+    const withText = FEDB_EXERCISES.filter((e) => (e.instructionsEn ?? []).length > 0);
+    expect(withText.length).toBeGreaterThan(600);
+    for (const e of withText) expect((e.description ?? '').trim().length, e.id).toBeGreaterThan(20);
+  });
+  it('reports the fedb source for a base entry and credits it quietly', () => {
+    const e = FEDB_EXERCISES.find((x) => x.description)!;
+    const d = descriptionOf(e)!;
+    expect(d.source.kind).toBe('fedb');
+    expect(d.text).toBe(e.description);
+    expect(descriptionCredit(d)).toBe('Quelle: free-exercise-db (gemeinfrei), übersetzt');
+  });
+  it('lets a built-in keep its own text', () => {
+    const linked = EXERCISES.find((e) => e.fedbId)!;
+    const d = descriptionOf(linked);
+    expect(d?.source.kind).not.toBe('fedb');
+    expect(d?.text).toBe(exerciseDescription(linked.id)?.text ?? linked.description);
   });
 });
 
