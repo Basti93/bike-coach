@@ -92,6 +92,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (Ledger):** Liste mit vier Zuständen statt Körperbild; Zielbereiche der neuen Teilmuskeln aus RP-Richtwerten im Regelregister; Altwert „Schultern“ ohne Teil zählt als „Schulter vorn“.
 
+## Meilenstein C — Brief
+
+**Ziel:** Jeder Gewichtsvorschlag lässt sich am Gerät im jeweiligen Studio wirklich einstellen, und jede Übung steigert sich in ihrem eigenen Bereich.
+
+**Abnahme:**
+1. Ein Training gehört zu einem Studio. Vor dem Training wird das Studio gewählt; Vorschlag ist das zuletzt genutzte. Dieselbe Übung hat pro Studio einen eigenen Gewichtsverlauf.
+2. Die App lernt die Gewichtsstufen jeder Übung pro Studio aus den eingetragenen Gewichten (z. B. nur Vielfache von 5 → 5-kg-Stufen). Bei der Übung steht die gelernte Stufe; sie lässt sich in einem Schritt korrigieren. Vorschläge und die Prüfung der Coach-Pläne liegen immer auf einer erreichbaren Stufe.
+3. Der Wiederholungsbereich kommt aus der Übung (Muskelgruppe im Regelregister) statt global 6–12. Der nächste Lastschritt ist die nächste erreichbare Stufe statt pauschal 2,5 kg / 5 %.
+4. „Keine Wiederholung mehr übrig“ senkt das Gewicht nicht, solange die Leistung steigt oder hält. Abgesenkt wird nur bei echtem Leistungsrückgang oder nach langer Pause.
+5. Bei Langhantel-Übungen zeigt die App die Auflage pro Seite (20-kg-Stange, übliche Scheiben) und sagt, wenn ein Gewicht nicht genau aufgelegt werden kann.
+
+**Fällt weg:** Regeln `gym.rep-range`, `gym.min-step-kg`, `gym.max-step-pct`, `gym.effort-step-back-count`; das Runden auf 0,5 kg in der Progression.
+
+**Nicht dabei:** eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze), persönliche Wiederholungsbereiche (E), Aufwärmsätze aus dem Gerätemodell (G).
+
+**Entscheidungen der Person (06.11.2026):** Stufen selbst lernen statt Einrichtung; mehrere Studios mit getrennten Verläufen; Scheibenrechner gehört in C.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
