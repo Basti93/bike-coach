@@ -4,7 +4,7 @@ import type { ExerciseTemplate } from './types';
 import { ruleNumber } from '../../shared/training-policy';
 import { ladderFrom, nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
 import { repRangeOf } from '../../shared/muscle-targets';
-import { mainStudio, studioKey } from '../../shared/studio';
+import { mainStudio, studioKey, resolveStudio, type Renames } from '../../shared/studio';
 import { COMPARABLE_DAYS, DROP_STEP_BACK, LONG_BREAK_DAYS, MIN_COMPARABLE, RECENT_DAYS, STEP_BACK } from './limits';
 
 const DAY_MS = 86_400_000;
@@ -39,21 +39,21 @@ export function availableExercises(workouts: StrengthWorkout[], nowMs: number): 
 /** What progression needs to know about an exercise: the catalog entry's fields. */
 export type ExerciseInfo = { type?: string; equipment?: string; primaryMuscle?: string | null };
 /** Where the plan is for: the studio (undefined: the main one) and the person's weight-step overrides. */
-export type Plan = { studio?: string; overrides?: LoadStepOverrides };
+export type Plan = { studio?: string; overrides?: LoadStepOverrides; renames?: Renames };
 
 type Sets = StrengthWorkout['exercises'][number]['workSets'];
 type Session = { ms: number; weightKg: number | null; minReps: number; sets: number[]; effort?: Effort };
 
 /** The bucket the plan is for. No studio known means the main studio, or the one shared bucket. */
-const plannedKey = (workouts: StrengthWorkout[], plan: Plan | undefined): string => plan?.studio ?? mainStudio(workouts) ?? '';
+const plannedKey = (workouts: StrengthWorkout[], plan: Plan | undefined): string => (plan?.studio ? resolveStudio(plan.studio, plan.renames) : undefined) ?? mainStudio(workouts, plan?.renames) ?? '';
 
 /** The exercise's sessions in the planned studio only, oldest first. Several occurrences in one workout are one session. */
 function occurrences(templateId: string, workouts: StrengthWorkout[], nowMs: number, plan: Plan | undefined): { ms: number; sets: Sets; effort?: Effort }[] {
-  const main = mainStudio(workouts);
+  const main = mainStudio(workouts, plan?.renames);
   const key = plannedKey(workouts, plan);
   const out: { ms: number; sets: Sets; effort?: Effort }[] = [];
   for (const w of workouts) {
-    if (w.startMs > nowMs || studioKey(w, main) !== key) continue;
+    if (w.startMs > nowMs || studioKey(w, main, plan?.renames) !== key) continue;
     const mine = w.exercises.filter((e) => e.templateId === templateId);
     if (mine.length === 0) continue;
     const effort = [...mine].reverse().find((e) => e.effort)?.effort;
@@ -86,7 +86,7 @@ const BAR_KG = ruleNumber('load.bar-kg');
 export function ladderFor(templateId: string, ex: ExerciseInfo | undefined, workouts: StrengthWorkout[], nowMs: number, plan?: Plan): Ladder {
   const sessions = workouts.filter((w) => w.startMs <= nowMs).map((w) => ({ studio: w.studio, startMs: w.startMs, sets: w.exercises.filter((e) => e.templateId === templateId).flatMap((e) => e.workSets), has: w.exercises.some((e) => e.templateId === templateId) }))
     .filter((s) => s.has);
-  const { ladder: l } = ladderFrom(sessions, { exerciseId: templateId, studio: plannedKey(workouts, plan), main: mainStudio(workouts) }, ex?.equipment ?? 'other', plan?.overrides ?? new Map());
+  const { ladder: l } = ladderFrom(sessions, { exerciseId: templateId, studio: plannedKey(workouts, plan), main: mainStudio(workouts, plan?.renames), renames: plan?.renames }, ex?.equipment ?? 'other', plan?.overrides ?? new Map());
   const floor = ex?.equipment === 'barbell' && l.anchorKg >= BAR_KG ? BAR_KG : 0;
   const below = floor > 0 ? Math.floor((l.anchorKg - floor) / l.stepKg + 1e-6) : Math.max(0, Math.ceil(l.anchorKg / l.stepKg - 1e-6) - 1);
   return { ...l, anchorKg: Math.round((l.anchorKg - below * l.stepKg) * 100) / 100 };

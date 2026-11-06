@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { TrackedRecord } from './records';
 import { titleHash } from './exercise-links';
 import { ruleNumber, ruleNumbers, ruleValues } from './training-policy';
-import { studioKey } from './studio';
+import { studioKey, type Renames } from './studio';
 
 /** Weight steps learned per exercise and studio, reachable weights and barbell plates. Pure, shared by app and coach. Product values: see the `load.*` rules. */
 export type Ladder = { stepKg: number; anchorKg: number; learned: boolean };
@@ -92,9 +92,9 @@ const LADDER_SESSIONS = 10;
  * The learner works on a 0.25 kg grid, but the anchor is the exact lightest weight seen, so an off-grid weight (22.68 from
  * a lb conversion) stays the anchor with its exact value and the steps go on from there.
  */
-export function ladderFrom(sessions: readonly LadderSession[], key: { exerciseId: string; studio: string; main: string | undefined }, equipment: string, overrides: LoadStepOverrides): { ladder: Ladder; learned: Ladder } {
+export function ladderFrom(sessions: readonly LadderSession[], key: { exerciseId: string; studio: string; main: string | undefined; renames?: Renames }, equipment: string, overrides: LoadStepOverrides): { ladder: Ladder; learned: Ladder } {
   const weights = sessions
-    .filter((s) => studioKey(s, key.main) === key.studio)
+    .filter((s) => studioKey(s, key.main, key.renames) === key.studio)
     .sort((a, b) => b.startMs - a.startMs).slice(0, LADDER_SESSIONS)
     .flatMap((s) => s.sets.filter((x) => x.type === 'normal' || x.type === 'failure').map((x) => x.weightKg ?? 0))
     .filter((x) => x > 0);

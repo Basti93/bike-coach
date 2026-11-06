@@ -1,8 +1,10 @@
 import {
-  addExercise, addSet, confirmSet, editSet, finish, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
+  addExercise, addSet, confirmSet, editSet, finish, hereKey, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
   durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
+import { studioRecord, studioStateOf } from '../../src/shared/studio';
+import { stepHere } from '../../src/tracking/steps';
 import { mergeCatalog } from '../../src/shared/catalog';
 import { EXERCISES } from '../../src/shared/exercises';
 import type { GymWorkout } from '../../src/coach/gym/types';
@@ -261,5 +263,20 @@ describe('last values come from the current studio', () => {
   });
   test('no history in this studio falls back to all studios', () => {
     expect(lastValues('pf-bench-press', hist, undefined, 'Dritte').map((s) => s.weightKg)).toEqual([30]);
+  });
+});
+
+describe('renamed studios in the app', () => {
+  const set = { type: 'normal' as const, weightKg: 50, reps: 8, durationS: null, doneMs: 5 };
+  const past = (id: string, startMs: number, studio: string, kg: number): LoggedWorkout => ({ id, title: 'T', startMs, endMs: startMs + 1, source: 'pandafit', studio, exercises: [{ exerciseId: 'pf-squat', title: 'K', supersetId: null, notes: '', sets: [{ ...set, weightKg: kg }] }] });
+  test('lastValues and hereKey follow a rename', () => {
+    const history = [past('a', 10, 'Alpha', 60), past('b', 20, 'Beta', 40)];
+    const studios = studioStateOf([studioRecord('Alpha', 99, 99, 'Neu'), studioRecord('Neu', 99, 99)]);
+    expect(hereKey({ studio: 'Alpha' }, history, studios)).toBe('Neu');
+    expect(lastValues('pf-squat', history, undefined, 'Neu', studios)[0].weightKg).toBe(60);
+    expect(lastValues('pf-squat', history, undefined, 'Neu')[0].weightKg).toBe(40);
+    const ladder = (renames: typeof studios.renames) => stepHere('pf-squat', 'machine', [past('a', 10, 'Alpha', 60), past('c', 15, 'Alpha', 62.5), past('b', 20, 'Beta', 40)], 'Neu', new Map(), renames);
+    expect(ladder(studios.renames).stepKg).toBe(2.5);
+    expect(ladder(new Map()).stepKg).not.toBe(2.5);
   });
 });

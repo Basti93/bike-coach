@@ -3,11 +3,12 @@ import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types'
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_WIDOWMAKERS } from './limits';
 import { availableExercises, isAssisted, isRepBased, ladderFor, suggestNext } from './history';
 import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
+import type { Renames } from '../../shared/studio';
 import { repRangeOf } from '../../shared/muscle-targets';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
   /** The studio the plan is for (undefined: the main one) and the person's weight-step overrides. */
-  studio?: string; overrides?: LoadStepOverrides };
+  studio?: string; overrides?: LoadStepOverrides; renames?: Renames };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;
@@ -69,7 +70,7 @@ function parseExercise(raw: unknown, i: number, byId: Map<string, ExerciseTempla
 function checkExercise(ex: GymExercise, t: ExerciseTemplate, ctx: GymContext, recentEquipment: Set<string>, known: Set<string>): void {
   const where = ex.title;
   if (!isRepBased(t)) no(`${where}: nur Übungen mit Wiederholungen`);
-  const plan = { studio: ctx.studio, overrides: ctx.overrides };
+  const plan = { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames };
   const sug = suggestNext(ex.templateId, ctx.workouts, ctx.nowMs, t, plan);
   const ladder = ladderFor(ex.templateId, t, ctx.workouts, ctx.nowMs, plan);
   const range = repRangeOf(t);

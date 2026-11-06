@@ -49,6 +49,7 @@
 .tk-menu { justify-content: flex-end; }
 .tk-studio { margin: 0; font-size: .9rem; display: flex; gap: .5rem; align-items: center; flex-wrap: nowrap; }
 .tk-studio select { width: auto; max-width: 65%; flex: 0 1 auto; padding: .2rem .4rem; }
+.tk-studio button { padding: .1rem .5rem; font-size: .85rem; }
 .tk-studio input { width: auto; flex: 1 1 8rem; min-width: 0; }
 .tk-sub { margin: -.3rem 0 0; font-size: .9rem; }
 .tk-screen .tk-notes { width: 100%; resize: none; overflow: hidden; line-height: 1.4; font: inherit; }

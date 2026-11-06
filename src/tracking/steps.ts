@@ -1,6 +1,6 @@
 import type { LoggedWorkout, TrackedRecord } from '../shared/records';
 import { ladderFrom, loadStepId, loadStepRecord, platesPerSide, type LoadStepOverrides } from '../shared/loads';
-import { mainStudio } from '../shared/studio';
+import { mainStudio, NO_STUDIOS, type Renames } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import { ruleNumber } from '../shared/training-policy';
 import { formatDecimal, hereKey } from './session';
@@ -11,11 +11,11 @@ export { hereKey };
  * The weight step of an exercise here: learned from its newest 10 sessions in this studio (the shared `ladderFrom`), then the
  * person's own choice. Only done sets count, and a session known as a record and as kept copies counts once.
  */
-export function stepHere(exerciseId: string, equipment: string, history: readonly LoggedWorkout[], key: string, overrides: LoadStepOverrides): { stepKg: number; own: boolean } {
+export function stepHere(exerciseId: string, equipment: string, history: readonly LoggedWorkout[], key: string, overrides: LoadStepOverrides, renames: Renames = NO_STUDIOS.renames): { stepKg: number; own: boolean } {
   const sessions = onePerSession(dedupeSessions([...history]))
     .map((w) => ({ studio: w.studio, startMs: w.startMs, sets: w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((s) => s.doneMs !== null)), has: w.exercises.some((e) => e.exerciseId === exerciseId) }))
     .filter((s) => s.has);
-  const { ladder, learned } = ladderFrom(sessions, { exerciseId, studio: key, main: mainStudio(history) }, equipment, overrides);
+  const { ladder, learned } = ladderFrom(sessions, { exerciseId, studio: key, main: mainStudio(history, renames), renames }, equipment, overrides);
   return { stepKg: ladder.stepKg, own: ladder.stepKg !== learned.stepKg || overrides.has(`${exerciseId}|${key}`) };
 }
 

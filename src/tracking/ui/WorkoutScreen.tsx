@@ -27,7 +27,8 @@ import { applyWorkoutChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
-import { defaultStudio, knownStudios, studioName } from '../../shared/studio';
+import { defaultStudio, knownStudios, studioName, studioStateOf } from '../../shared/studio';
+import { rememberStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
 import { hereKey, plateLine, stepChange, stepHere } from '../steps';
@@ -35,10 +36,13 @@ import { hereKey, plateLine, stepChange, stepHere } from '../steps';
 const NEW_STUDIO = '\u0000new';
 
 /** One light line: "Studio: <Name>" with a select of the known names and "Neues Studio …", which opens a text input. */
-function StudioLine({ value, known, onChange }: { value: string | undefined; known: string[]; onChange: (name: string | undefined) => void }) {
+function StudioLine({ value, known, onChange, onRename }: { value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void }) {
   const [typing, setTyping] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const names = value && !known.includes(value) ? [value, ...known] : known;
-  const commit = (raw: string) => { setTyping(false); const typed = studioName(raw); const n = typed && (known.find((k) => k.toLowerCase() === typed.toLowerCase()) ?? typed); if (n) onChange(n); };
+  const match = (typed: string) => known.find((k) => k.toLowerCase() === typed.toLowerCase());
+  const commit = (raw: string) => { setTyping(false); const typed = studioName(raw); const n = typed && (match(typed) ?? typed); if (n) onChange(n, !match(typed)); };
+  const commitRename = (raw: string) => { setRenaming(false); const typed = studioName(raw); if (typed && value && typed !== value) { const to = match(typed) ?? typed; onRename(value, to); } };
   return (
     <p className="muted tk-studio">
       <label htmlFor="tk-studio-select">Studio:</label>
@@ -48,6 +52,11 @@ function StudioLine({ value, known, onChange }: { value: string | undefined; kno
           {names.map((n) => <option key={n} value={n}>{n}</option>)}
           <option value={NEW_STUDIO}>Neues Studio …</option>
         </select>
+      {value && !typing && !renaming && <button type="button" className="secondary" onClick={() => setRenaming(true)}>Umbenennen</button>}
+      {renaming && (
+        <input type="text" aria-label="Neuer Name des Studios" maxLength={40} autoFocus defaultValue={value}
+          onBlur={(e) => commitRename(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); if (e.key === 'Escape') setRenaming(false); }} />
+      )}
       {typing && (
         <input type="text" aria-label="Name des neuen Studios" maxLength={40} autoFocus
           onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); }} />
@@ -76,7 +85,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const statsRecords = usePortRecords(port, 'stats').records;
   const loadSteps = usePortRecords(port, 'loadstep').records;
   const overrides = useMemo(() => loadStepOverrides(loadSteps ?? []), [loadSteps]);
-  const studioHere = hereKey(w, [...history]);
+  const studioRecords = usePortRecords(port, 'studio').records;
+  const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
+  const studioHere = hereKey(w, [...history], studios);
   const chooseStep = (exerciseId: string, stepKg: number | null) => {
     void port.list('loadstep').then((stored) => port.put(stepChange(stored, exerciseId, studioHere, stepKg, now()))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.'));
   };
@@ -161,7 +172,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     <div className="tk-screen" ref={screenRef}>
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
-      <StudioLine value={w.studio} known={knownStudios([...history, w])} onChange={(n) => act((x) => setStudio(x, n ?? ''))} />
+      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '')); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
+        onRename={(from, to) => { void renameStudio(port, from, to, now()).then(() => act((x) => setStudio(x, to))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }} />
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
           Gerade nicht gespeichert. Dein Training bleibt hier offen und wird mit dem nächsten Schritt erneut gespeichert.
@@ -170,7 +182,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
       )}
       {notice && <p role="note" className="tk-note">{notice}</p>}
       <WorkoutCoach port={port} workout={w} catalog={catalog} now={now} newId={newId}
-        onApply={(c) => act((x) => applyWorkoutChange(x, c, history, catalog))} />
+        onApply={(c) => act((x) => applyWorkoutChange(x, c, history, catalog, studios))} />
       {w.rest && remaining > 0 && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
@@ -182,7 +194,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
         const labels = setLabels(e.sets);
         const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
-        const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere));
+        const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere, studios));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
         const resolved = resolveExercise(e, catalog, statsMuscles);
@@ -224,7 +236,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
             {showInfo && (
               <ExerciseInfo title={e.title} description={description} icon={icon}
                 images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: own?.hevyTitle })}>
-                <StepLine title={e.title} step={stepHere(e.exerciseId, equipment, history, studioHere, overrides)} onChoose={(kg) => chooseStep(e.exerciseId, kg)} />
+                <StepLine title={e.title} step={stepHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames)} onChoose={(kg) => chooseStep(e.exerciseId, kg)} />
                 <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
               </ExerciseInfo>
             )}
@@ -245,7 +257,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
                 onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
                 onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
-            {effortOn && asksEffort(w, e.rid, history, catalog) && (
+            {effortOn && asksEffort(w, e.rid, history, catalog, studios) && (
               <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
                 onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
             )}
@@ -286,7 +298,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
           like={picker.mode === 'swap' ? w.exercises.find((x) => x.rid === picker.ex) : undefined}
           onPick={(ex: Exercise) => {
             const p = picker; setPicker(null);
-            act((x) => (p.mode === 'swap' ? swapExercise(x, p.ex, ex, history) : addExercise(x, ex, history)));
+            act((x) => (p.mode === 'swap' ? swapExercise(x, p.ex, ex, history, studios) : addExercise(x, ex, history, studios)));
           }} />
       )}
     </div>
@@ -343,7 +355,10 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
 
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const logged = (workouts ?? []).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout);
-  const studio = chosen ?? defaultStudio(logged);
+  const studioRecords = usePortRecords(port, 'studio').records;
+  const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
+  const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
+  const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
 
   async function begin(w: TrackedWorkout) {
     if (starting.current) return; // a double tap makes one workout
@@ -355,7 +370,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       setStore({ s, autoEnd: false });
     } finally { starting.current = false; }
   }
-  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog, studio));
+  const startPlan = (g: GymWorkout) => begin(startFromPlan(g, history, now(), newId(), catalog, studio, studios));
 
   useEffect(() => {
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
@@ -396,7 +411,9 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       {message && <p role="status" className="tk-note">{message}</p>}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      <StudioLine value={studio} known={knownStudios(logged)} onChange={setChosen} />
+      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks)}
+        onChange={(n) => { setChosen(n); if (n) void rememberStudio(port, n, now()).catch(saveFailed); }}
+        onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
       {plan && (
         <section className="card tk-plan-preview" aria-label="Heutiger Plan">
           <h2>{plan.name}</h2>

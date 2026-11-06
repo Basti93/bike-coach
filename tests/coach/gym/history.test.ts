@@ -132,6 +132,14 @@ describe('progression per exercise', () => {
     expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Beta' })).toEqual({ weightKg: 20, reps: 8, why: 'keep' });
     expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Gamma' }).why).toBe('none');
   });
+  it('a renamed studio keeps its history', () => {
+    const own = (w: StrengthWorkout, studio: string): StrengthWorkout => ({ ...w, studio });
+    const ws = [own(at(21, 40, 12), 'Alpha'), own(at(14, 40, 12), 'Alpha'), own(at(7, 20, 8), 'Beta')];
+    const renames = new Map([['alpha', 'Neu']]);
+    expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Neu', renames })).toEqual({ weightKg: 45, reps: 6, why: 'progress' });
+    expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Alpha', renames })).toEqual({ weightKg: 45, reps: 6, why: 'progress' });
+    expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Neu' }).why).toBe('none');
+  });
   it('workouts without a studio count for the main one', () => {
     const ws = [at(21, 40, 12), { ...at(14, 40, 12), studio: 'Alpha' }];
     expect(suggest('sq', ws, NOW, MACHINE, { studio: 'Alpha' }).weightKg).toBe(45);
