@@ -1,5 +1,7 @@
 # Gym coach foundations
 
+Status note, 2026-11-06: this document describes the existing coach and its limits. The [updated training science foundation](research/2026-11-06-training-science-foundation.md) and [adaptive coach concept](superpowers/specs/2026-11-06-adaptive-training-coach-design.md) distinguish current behaviour from proposed changes; those changes are not implemented by updating these documents.
+
 The training knowledge behind the gym coach, as a source for its prompt. The findings are tendencies, never certainties.
 
 
@@ -7,11 +9,11 @@ The training knowledge behind the gym coach, as a source for its prompt. The fin
 
 Researched on 2026-11-02. Several findings come from secondary summaries or preprints, so the coach states them as tendencies and never as certainties.
 
-- **Volume.** More weekly sets per muscle tend to bring more growth, with diminishing returns ([Pelland et al., preprint](https://sportrxiv.org/index.php/server/preprint/download/460/967/908), [summary](https://biolayne.com/reps/issue-31/the-king-of-volume-metas/)). This is the main lever.
+- **Volume.** More weekly sets per muscle tend to bring more growth, with diminishing returns ([Pelland et al., published 2026](https://pubmed.ncbi.nlm.nih.gov/41343037/); originally linked here as a preprint). Direct and indirect contributions need explicit interpretation; this does not establish universal minimum quotas for every muscle.
 - **Frequency.** With equal volume, frequency has little effect on growth ([Schoenfeld et al., 2019](https://pubmed.ncbi.nlm.nih.gov/30236847/)). So one or two sessions a week can work, and the coach never treats a low frequency as a flaw. Its limit is how much quality volume fits into those sessions.
 - **Failure.** Getting closer to failure tends to bring more growth, non-linearly, but actually reaching momentary failure shows no clear advantage over stopping just short of it ([Refalo et al., 2023](https://dro.deakin.edu.au/articles/journal_contribution/Influence_of_Resistance_Training_Proximity-to-Failure_on_Skeletal_Muscle_Hypertrophy_A_Systematic_Review_with_Meta-analysis/22030796), [summary of Robinson et al.](https://biolayne.com/reps/issue-32/the-failure-factor-the-relationship-between-proximity-to-failure-and-strength-and-hypertrophy/)). This is where science and the old-schooler meet: sets must be truly hard, and failure is a tool and not a duty.
 - **Drop sets.** Similar growth to conventional training in far less time, but from few and short studies ([Sødal et al., 2023](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10390395/)). They suit a short session.
-- **Supersets.** Save time; no proven extra growth, according to a secondhand summary of a review, and no dedicated meta-analysis was found. Use them when time is short.
+- **Supersets.** A [dedicated meta-analysis published in 2025](https://pubmed.ncbi.nlm.nih.gov/39903375/) reports time savings and broadly similar chronic adaptations, with higher perceived effort and differences between pairings. The earlier statement here that no dedicated meta-analysis was found was incomplete. See the updated foundation for the proposed planning policy.
 - **Pyramid sets.** No evidence of an advantage, and one non-peer-reviewed review advises against them ([Brookbush](https://brookbushinstitute.com/courses/set-strategies-supersets-pyramid-sets-and-drop-sets)). The coach offers them for variety or because the rider likes them, and does not claim more.
 - **Ramping sets.** The stepping stones up to the working weight, with sparse research on any effect ([BarBend](https://barbend.com/?p=167498)). Treat them as preparation, mainly before heavy compound lifts.
 - **Widowmaker.** One set of 20 reps at about a 10-rep maximum, with pauses between reps once the first set of reps is done ([Lift Vault](https://liftvault.com/resources/widowmaker-sets/)). It is not an everyday tool, and it is rare and deliberate here. It is an old-school method with no dedicated evidence that the coach knows of, which it may say openly. The safety rule below applies: not on a lift where failing is dangerous without a spotter or safeties.

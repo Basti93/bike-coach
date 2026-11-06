@@ -1,5 +1,7 @@
 # Run coach foundations
 
+Status note, 2026-11-06: the [updated training science foundation](research/2026-11-06-training-science-foundation.md) reviews endurance, HIIT and cross-sport planning separately from the current rules below. It does not turn the weekly 10% limit into a scientifically established injury-prevention rule, change existing code, or replace an explicit distance-before-speed preference with intervals.
+
 The rules behind the run coach's weekly plan. Every number below is our own choice, not taken from research. They are cautious defaults for getting back into running and building distance before speed, and they live in `src/coach/run/limits.ts`. The rule plan uses them on its own, so it stands whenever Claude is unavailable. Claude may only adjust a plan inside these limits.
 
 The coach makes no medical claims. It does not promise a health effect, does not name a diagnosis, and treats every value as a planning aid.

@@ -1,6 +1,6 @@
 # PandaFit: persönlicher, wissenschaftlich begründeter Trainingscoach
 
-Status: **Grundkonzept zur gemeinsamen Prüfung**, keine Freigabe zur Produktimplementierung. Erstellt am 06.11.2026 aus Nutzungsrückmeldungen, bestätigten Entscheidungen und der [Quellcode- und Literaturrecherche](../../research/2026-11-06-open-source-training-audit.md).
+Status: **Grundkonzept zur gemeinsamen Prüfung**, keine Freigabe zur Produktimplementierung. Erstellt am 06.11.2026 aus Nutzungsrückmeldungen, bestätigten Entscheidungen und der [Quellcode- und Literaturrecherche](../../research/2026-11-06-open-source-training-audit.md). Ergänzt um die [wissenschaftliche Trainingsgrundlage für Kraft, Hypertrophie, Ausdauer und HIIT](../../research/2026-11-06-training-science-foundation.md).
 
 Kennzeichnung: **Bestätigt** bezeichnet Anforderungen aus dem Gespräch oder geltenden Projektvorgaben. **Entwurfsentscheidung** bezeichnet eine konkrete Empfehlung des Autors, die im Rahmen dieses Gesamtkonzepts geprüft werden soll. Technische Einzelheiten, die ausdrücklich dem Implementierer überlassen werden, sind keine offenen Produktfragen.
 
@@ -35,6 +35,24 @@ Dieses Konzept umfasst gemeinsame Ziel- und Planungslogik für Kraft, Rad und La
 Zum Umfang gehören Übungsdaten, Muskelbilanz, Progression, Aufwärmen, Pausen, Supersätze, Reihenfolge, Stangen-/Scheibenberechnung, persönliche Regeln, dauerhafte Änderungen und verständliche Coach-Unterhaltung.
 
 Es wird kein medizinisches Diagnoseprodukt, keine exakte Muskelwachstumsvorhersage und kein universeller physiologischer Erholungsrechner gebaut. Es ist kein Wechsel der bestehenden App-Technik, kein Neubau aller Sport-Coaches und keine vollständige Skriptsprache vorgesehen. Fremdprojekte dienen als geprüfte Referenzen; Code, Daten und Bilder werden nicht pauschal importiert.
+
+### Wissenschaftliche Grundlage als Bestandteil des Konzepts
+
+**Bestätigt:** Kraftentwicklung, Hypertrophie, Ausdauer und HIIT sollen fachlich ausgearbeitet werden. Die frühere Recherche mit Schwerpunkt Krafttraining deckte dies noch nicht gleichmäßig ab. Die [ergänzende Literaturprüfung](../../research/2026-11-06-training-science-foundation.md) dokumentiert jetzt 26 Quellen, deren Lesetiefe, relevante Befunde, Grenzen und daraus abgeleitete Vorschläge. Sie ist keine vollständige systematische Übersichtsarbeit.
+
+**Entwurfsentscheidung:** Ziele, Methoden und Messgrößen werden getrennt. Kraft, Muskelaufbau und Ausdauer beschreiben gewünschte Anpassungen. HIIT ist eine gezielt auswählbare Methode mit eigenständiger Dosisbeschreibung. Eine höhere FTP-Schätzung ist keine direkte VO₂max-Messung; Trainingsvolumen misst kein entstandenes Muskelgewebe.
+
+Die fachliche Grundlage umfasst:
+
+- Kraft: spezifische Zielübungen, passende Lastbereiche, Wiederholung der Zielbewegung, Reihenfolge und begründete Progression.
+- Hypertrophie: direkter/indirekter Umfang, Anstrengung, Wiederholungsbereiche, Pausen, Vorbereitung und passende Übungsauswahl.
+- Ausdauer: kontinuierliche Belastung, Ziel-/Trainingsstatus, Herkunft der Intensitätsanker und flexible Intensitätsverteilung; keine pauschale 80/20-Pflicht.
+- HIIT: Protokollfamilie, vollständige Belastungs-/Erholungsdosis, Sportart, Vorbereitung, Progression und zielgerechte Auswertung; keine automatisch verordneten Maximalsprints.
+- Kombination: persönliche Prioritäten, lokale und sportartspezifische Belastung, Zeitkonflikte und tatsächliche Verträglichkeit.
+
+Die anfängliche HIIT-Ausarbeitung knüpft an den vorhandenen Radtrainer an. Bestehende persönliche Laufziele wie „erst Distanz, dann Tempo“ bleiben erhalten; eine allgemeine Forschungsgrundlage aktiviert keine neue Trainingsmethode gegen diese Vorgaben. Eine spätere Laufintervall-Erweiterung wird eigens geplant.
+
+Jede verwendete Planungsregel unterscheidet Forschungsbefund, Unsicherheit und konkrete Produktpolicy. Die gemeinsamen Planer nutzen eine versionierte Grundlage für Prompt, Prüfung, Fallback und Erklärung. Eine neue Quelle ändert keine laufende Einheit automatisch. Bestehende Grenzen werden erst mit geprüftem Übergang im jeweils zuständigen Arbeitspaket ersetzt.
 
 ## 4. Ein Coach aus Nutzersicht, spezialisierte Planung im Inneren
 
@@ -182,7 +200,7 @@ Die folgende Reihenfolge ist eine **Entwurfsentscheidung** für die Zusammenarbe
 
 Ein passender Grund ist entweder persönliche Beobachtung, Nutzerwunsch, Planvereinbarung, wissenschaftliches Prinzip oder gekennzeichnete Produktheuristik. Studienlinks sind bei fachlichen Aussagen verfügbar; nicht jede Änderung braucht eine neue Literaturrecherche. Eine vorhandene Zitier-ID beweist weder einen konkreten Schwellenwert noch individuelle optimale Dosierung.
 
-Das Verständnis von Härte und Erholung wird zentral abgestimmt. Die bisherige pauschale Zwei-harte-Tage-/48-Stunden-Logik ist als Produktheuristik zu überprüfen und darf nicht als universelles Forschungsergebnis alle individuellen Ziele dominieren. Die konkrete neue Policy wird in einem eigenen Arbeitspaket mit Gegenbeispielen und Übergang aus dem bisherigen Verhalten festgelegt.
+Das Verständnis von Härte und Erholung wird zentral abgestimmt. Die bisherige pauschale Zwei-harte-Tage-/48-Stunden-Logik ist als Produktheuristik zu überprüfen und darf nicht als universelles Forschungsergebnis alle individuellen Ziele dominieren. Die [Trainingsgrundlage](../../research/2026-11-06-training-science-foundation.md) hält Befunde, vorgeschlagene Startwerte und Übergangsbedarf fest. Deren Evidenz-/Policyvertrag entsteht in Auftrag 0; die neue Ausführungslogik folgt in den betroffenen Arbeitspaketen mit Gegenbeispielen und Migration. Bis dahin bleiben aktuelle ausführbare Grenzen bestehen.
 
 ## 16. Unterhaltung und Erklärbarkeit
 
@@ -227,7 +245,9 @@ Die Forschungsaudits liefern konkrete Gegenbeispiele und geeignete Integrationss
 
 Die Umsetzung soll aus sequentiellen, prüfbaren Aufträgen bestehen. Jedes Paket liefert einen nutzbaren Schritt und ein klares Abnahmeszenario. Konkrete Dateilisten, Schnittstellen und kleine Commits folgen im Implementierungsplan.
 
-Die Aufträge bilden drei Etappen: **Grundlage korrigieren** (1–4), **Planung personalisieren** (5–8) und **Ausführung sowie Entwicklung verbessern** (9–12). Die Etappen sind eine Einführungsreihenfolge; es muss nicht erst das gesamte Konzept fertig sein, bevor Verbesserungen nutzbar werden.
+Vorgeschaltet ist **Auftrag 0: Evidenz- und Policy-Grundlage**. Er überführt die fachliche Recherche in ein versioniertes Quellen-/Regelregister, getrennte Zielbegriffe, den Umgang mit unbekannten Daten und eine Zuordnung bestehender Widersprüche zu Folgeaufträgen. Konkrete Abnahmekriterien stehen im Grundlagenpapier. Er implementiert noch nicht alle neuen Planer.
+
+Danach bilden die Aufträge drei Etappen: **Grundlage korrigieren** (1–4), **Planung personalisieren** (5–8) und **Ausführung sowie Entwicklung verbessern** (9–12). Die Etappen sind eine Einführungsreihenfolge; es muss nicht erst das gesamte Konzept fertig sein, bevor Verbesserungen nutzbar werden.
 
 1. **Verlässliche Übungsbasis:** Identitäten, Varianten, Beschreibungen und Icons.
 2. **Gemeinsame Muskelbilanz:** mehrere Rollen, getrennte Gruppen, erhaltene Bestandsdaten.
@@ -248,7 +268,7 @@ Kleine unabhängige Korrekturen können früher ausgeliefert werden, solange sie
 
 Die [Tiefenrecherche](../../research/2026-11-06-open-source-training-audit.md) und ihre vier Detailberichte dokumentieren feste Commitstände, Literatur, ausgeführte Tests und Grenzen. Cladirons Begründungsmodell, Heracles' Provenienz, Liftosaurs Geräte-/Regelmodell und Ironvellums Änderungsabläufe liefern die wichtigsten Vorbilder. Repstacks angekündigte, aber nicht implementierte Feedbacksteuerung ist kein zu übernehmender Regler.
 
-Fachliche Grundsätze und ihre Grenzen sind in der Recherche belegt, darunter [fraktionales Volumen](https://pubmed.ncbi.nlm.nih.gov/41343037/), [Kraft und Ausdauer gemeinsam](https://pubmed.ncbi.nlm.nih.gov/34757594/), [Nähe zum Versagen](https://pubmed.ncbi.nlm.nih.gov/38970765/), [Supersätze](https://pubmed.ncbi.nlm.nih.gov/39903375/) und [Übungsreihenfolge](https://pubmed.ncbi.nlm.nih.gov/32077380/). Konkrete Standards bleiben als Produktentscheidungen gekennzeichnet.
+Fachliche Grundsätze und ihre Grenzen sind in der [Trainingsgrundlage mit Quellenregister](../../research/2026-11-06-training-science-foundation.md) belegt. Sie ergänzt die erste Recherche um den ACSM-Positionsstand 2026, Kraftentwicklung, Ausdauerverteilung, Intensitätssteuerung, HIIT und den Übergang vorhandener Produktheuristiken. Konkrete Standards bleiben als Produktentscheidungen gekennzeichnet.
 
 Die wichtigsten noch zu prüfenden Entwurfsentscheidungen sind: relative statt prozentgenaue Zielprioritäten; Trennung von langfristigem Ziel, befristetem Fokus und Tagesabweichung; zunächst alle vom Coach vorgeschlagenen Struktur-/Satz-/Laständerungen im offenen Workout mit Übernehmen/Undo; zentrale gemeinsame Daten- und Regelquelle; schrittweise eigene Umsetzung im vorhandenen System. Diese Entscheidungen wurden nicht als bereits vom Nutzer freigegeben vorausgesetzt.
 

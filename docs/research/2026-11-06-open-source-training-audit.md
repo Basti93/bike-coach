@@ -2,6 +2,8 @@
 
 Stand: 6. November 2026. **Rechercheergebnis und Vorschlag, noch keine freigegebene Implementierungsspezifikation.** Der Nutzer möchte aus fünf Open-Source-Projekten die besten Ansätze für PandaFit nutzen. Dieser Bericht trennt überprüfte Implementierungen, Forschungsergebnisse und daraus abgeleitete Produktentscheidungen.
 
+Ergänzung: Die [gemeinsame wissenschaftliche Trainingsgrundlage](2026-11-06-training-science-foundation.md) erweitert den Kraftschwerpunkt dieses Audits um Kraftentwicklung, Ausdauer und HIIT sowie explizite Regeln für den Umgang mit Evidenz und bisherigen Produktheuristiken.
+
 ## Ergebnis
 
 PandaFit sollte die KI als flexiblen Planer behalten, ihr aber einen gemeinsamen, überprüfbaren Trainingszustand und nachvollziehbare Regeln geben. Aus den untersuchten Projekten lohnt sich eine gezielte Kombination:

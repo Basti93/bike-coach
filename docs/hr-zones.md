@@ -1,5 +1,7 @@
 # Heart rate zones: foundations and limits
 
+Update, 2026-11-06: the [training science foundation](research/2026-11-06-training-science-foundation.md) adds the distinction between measured thresholds, estimated anchors and display zones. The current settings below remain a description of the implementation; no new physiological zone calibration has been implemented.
+
 As of 2026-11-01, from a short search through summaries; I did not read the full texts.
 
 ## What the sources support
