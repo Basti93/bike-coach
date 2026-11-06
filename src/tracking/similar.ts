@@ -1,4 +1,4 @@
-import { exerciseDescription, type ExerciseDescription } from '../shared/exercise-descriptions';
+import { descriptionOf, type ExerciseDescription } from '../shared/exercise-descriptions';
 import type { Exercise } from '../shared/exercises';
 import { resolveExercise } from './exercise-identity';
 import { muscleLabel } from './ui/labels';
@@ -51,6 +51,5 @@ const mostCommon = (xs: string[]): string | undefined => {
  */
 export function describeExercise(current: { title: string; exerciseId: string }, catalog: Exercise[]): ExerciseDescription | null {
   const e = resolveExercise(current, catalog).exercise;
-  if (e?.description) return { text: e.description, source: { kind: 'own' } };
-  return exerciseDescription(e?.id ?? current.exerciseId);
+  return descriptionOf(e ?? { id: current.exerciseId });
 }

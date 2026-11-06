@@ -149,3 +149,7 @@ export const descriptionCredit = (d: ExerciseDescription): string | null => {
   const author = d.source.author === 'wger.de' ? '' : `${d.source.author}, `;
   return `Quelle: wger.de, ${author}${d.source.licence}`;
 };
+
+/** The description to show for a catalog exercise: its own text when it has one, else the bundled one for its id. */
+export const descriptionOf = (e: { id: string; description?: string }): ExerciseDescription | null =>
+  e.description ? { text: e.description, source: { kind: 'own' } } : exerciseDescription(e.id);

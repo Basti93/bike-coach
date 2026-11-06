@@ -1,4 +1,5 @@
 import type { Exercise } from './exercises';
+import { MUSCLE_TARGETS } from './muscle-targets';
 import type { TrackedRecord } from './records';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -23,8 +24,16 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
       if (aliases.length > 0) e.aliases = aliases;
       if (str(b.description)) e.description = b.description;
     } else if (str(b.id) && str(b.title) && str(b.primaryMuscle) && str(b.equipment) && str(b.type)) {
-      index.set(b.id, out.length);
-      out.push(b as unknown as Exercise);
+      index.set(b.id, out.length); // a later record with this id is only an overlay (aliases, description), never a replacement
+      const e: Exercise = { id: b.id, title: b.title, primaryMuscle: b.primaryMuscle, equipment: b.equipment, type: b.type };
+      const aliases = strings(b.aliases);
+      if (aliases.length > 0) e.aliases = aliases;
+      const secondary = strings(b.secondaryMuscles).filter((m) => Object.hasOwn(MUSCLE_TARGETS, m));
+      if (secondary.length > 0) e.secondaryMuscles = secondary;
+      if (str(b.description)) e.description = b.description;
+      if (str(b.hevyTitle)) e.hevyTitle = b.hevyTitle;
+      if (b.source === 'user' || b.source === 'ai') e.source = b.source;
+      out.push(e);
     }
   }
   return out;

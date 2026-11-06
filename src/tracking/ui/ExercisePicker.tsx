@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { exerciseDescription } from '../../shared/exercise-descriptions';
+import { descriptionOf } from '../../shared/exercise-descriptions';
 import type { Exercise } from '../../shared/exercises';
 import { muscleGroupOf } from '../../shared/muscle-targets';
 import { exerciseImages, videoSearchUrl } from '../media';
@@ -53,7 +53,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
             onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
         </div>
         {info === e.id && (
-          <ExerciseInfo title={e.title} description={e.description ? { text: e.description, source: { kind: 'own' } } : exerciseDescription(e.id)} images={exerciseImages(e.id)} video={videoSearchUrl(e)} icon={icon} />
+          <ExerciseInfo title={e.title} description={descriptionOf(e)} images={exerciseImages(e.id)} video={videoSearchUrl(e)} icon={icon} />
         )}
       </div>
     );

@@ -47,4 +47,9 @@ describe('mergeCatalog', () => {
     ]);
     expect(m.length).toBe(EXERCISES.length);
   });
+
+  it('builds own exercises from validated fields only', () => {
+    const m = mergeCatalog([], [], [rec('u-1', { ...own, aliases: ['ok', 3, null], secondaryMuscles: ['biceps', 'nonsense', 7], junk: 1 })]);
+    expect(m).toEqual([{ ...own, aliases: ['ok'], secondaryMuscles: ['biceps'] }]);
+  });
 });
