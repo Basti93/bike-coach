@@ -8,6 +8,7 @@ import { sealedTokens } from '../secrets/garmin-tokens';
 import { sealedCodec } from '../secrets/secret-box';
 import { computeTogether, type Together } from '../together';
 import type { RecordStore } from '../tracking/store';
+import { mirrorExercises } from '../tracking/mirror-exercises';
 import { errorKind } from '../error-kind';
 import { ChangeClock } from './change-clock';
 import { HeavyLock, inQuietHours } from './heavy';
@@ -249,10 +250,31 @@ export class Household {
   /** Starts every moved account, then runs each coach's scan and the shared meal plan. */
   scan(): void {
     for (const a of this.startAll()) a.runtime.scan();
+    // One exercise catalog across the accounts: mirrored on every scan. Touches no workout.
+    this.mirrorCatalog();
     // Separate safeguard: the meal plan must never disturb the coaches. It runs only once moved. At night it answers a person's
     // chat message but does not make the scheduled weekly plan.
     const mc = this.openMeals();
     if (mc) void mc.tick({ plan: !this.quiet() }).catch(() => {});
+  }
+
+  private mirrorCatalog(): void {
+    try {
+      const store: Pick<RecordStore, 'all' | 'putMany'> = {
+        all: (id, kind) => { const a = this.byProfile(id); return a ? a.runtime.records.all(id, kind) : []; },
+        putMany: (id, records, from) => {
+          const a = this.byProfile(id);
+          if (!a) throw new Error('Unbekanntes Profil');
+          return a.runtime.records.putMany(id, records, from);
+        },
+      };
+      for (const id of mirrorExercises(store, [...this.accounts.values()].map((a) => a.profileId))) {
+        const a = this.byProfile(id);
+        if (!a) continue;
+        a.runtime.accountSync.touch(id);
+        a.runtime.notify(id);
+      }
+    } catch { /* next scan */ }
   }
 
   /** Both accounts' derived values only: no note, complaint, ride id or health value. */

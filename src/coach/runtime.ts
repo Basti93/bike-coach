@@ -33,6 +33,7 @@ import { manualRuns } from './run/runs';
 import { CoachTasks, type CoachId, type TaskFrom } from './coach-tasks';
 import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
+import { mirrorExercises } from './tracking/mirror-exercises';
 import { ChatCoach } from './chat/chat-coach';
 import { planHint } from './chat/plan-hint';
 import { longTermHint } from './chat/long-term';
@@ -579,6 +580,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);
+      // One exercise catalog for every profile on this store: mirrored on every scan (cheap, idempotent, the first scan covers the start). Touches no workout.
+      if (free) mealsChanged(mirrorExercises(records, all.map((p) => p.id)));
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
