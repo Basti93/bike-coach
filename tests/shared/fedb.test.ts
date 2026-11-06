@@ -36,15 +36,14 @@ describe('base catalog (free-exercise-db)', () => {
     expect(merged.length).toBeGreaterThan(500);
     expect(new Set(merged.map((e) => e.id)).size).toBe(merged.length);
   });
-  it('keeps the English instructions as source only', () => {
-    const withText = FEDB_EXERCISES.filter((e) => (e.instructionsEn ?? []).length > 0);
-    expect(withText.length).toBeGreaterThan(400);
+  it('ships no English instruction text', () => {
+    for (const e of FEDB_EXERCISES) expect('instructionsEn' in e, e.id).toBe(false);
   });
 });
 
 describe('German guides for the base entries', () => {
-  it('gives every base entry with English instructions a German description', () => {
-    const withText = FEDB_EXERCISES.filter((e) => (e.instructionsEn ?? []).length > 0);
+  it('gives nearly every base entry a German description', () => {
+    const withText = FEDB_EXERCISES.filter((e) => e.description);
     expect(withText.length).toBeGreaterThan(600);
     for (const e of withText) expect((e.description ?? '').trim().length, e.id).toBeGreaterThan(20);
   });

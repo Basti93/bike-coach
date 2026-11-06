@@ -52,4 +52,9 @@ describe('mergeCatalog', () => {
     const m = mergeCatalog([], [], [rec('u-1', { ...own, aliases: ['ok', 3, null], secondaryMuscles: ['biceps', 'nonsense', 7], junk: 1 })]);
     expect(m).toEqual([{ ...own, aliases: ['ok'], secondaryMuscles: ['biceps'] }]);
   });
+
+  it('keeps the secondary muscles the mapper and the base list use', () => {
+    const m = mergeCatalog([], [], [rec('u-2', { ...own, id: 'u-2', secondaryMuscles: ['lats', 'quadriceps', 'glutes', 'abdominals', 'shoulders', 'back'] })]);
+    expect(m[0]!.secondaryMuscles).toEqual(['lats', 'quadriceps', 'glutes', 'abdominals', 'shoulders']);
+  });
 });

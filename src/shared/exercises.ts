@@ -15,7 +15,6 @@ export type Exercise = {
   source?: 'pandafit' | 'fedb' | 'ai' | 'user';
   fedbId?: string;
   /** The base catalog's English instructions, kept as source for the German guides (fedb-descriptions-de.json); never shown. */
-  instructionsEn?: string[];
   proposal?: ExerciseProposal;
 };
 

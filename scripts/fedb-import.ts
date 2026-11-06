@@ -2,6 +2,7 @@
  * Builds src/shared/fedb-exercises.json from a local clone of free-exercise-db (Unlicense).
  * Usage: npx tsx scripts/fedb-import.ts <path to dist/exercises.json>
  * Needs scripts/fedb-names-de.json (id -> German title) for every kept entry; fails loudly otherwise.
+ * The English instructions stay in the source dataset (the app ships the German guides, fedb-descriptions-de.json).
  * Entries that a built-in names in `fedbId` are left out (the built-in wins).
  */
 import fs from 'node:fs';
@@ -44,7 +45,6 @@ for (const r of raw) {
   // The English name is an alias for search, unless a built-in already logs under exactly that title (then the built-in owns it).
   if (!builtIn.has(r.name.toLowerCase())) e.aliases = [r.name];
   if (secondary.length > 0) e.secondaryMuscles = secondary;
-  if (r.instructions.length > 0) e.instructionsEn = r.instructions;
   out.push(e);
 }
 const known = new Set(raw.map((r) => fedbId(r.id)));

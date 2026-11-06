@@ -1,5 +1,5 @@
 import type { Exercise } from './exercises';
-import { MUSCLE_TARGETS } from './muscle-targets';
+import { MUSCLES } from '../tracking/ui/labels';
 import type { TrackedRecord } from './records';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -32,7 +32,7 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
       const e: Exercise = { id: b.id, title: b.title, primaryMuscle: b.primaryMuscle, equipment: b.equipment, type: b.type };
       const aliases = strings(b.aliases);
       if (aliases.length > 0) e.aliases = aliases;
-      const secondary = strings(b.secondaryMuscles).filter((m) => Object.hasOwn(MUSCLE_TARGETS, m));
+      const secondary = strings(b.secondaryMuscles).filter((m) => Object.hasOwn(MUSCLES, m));
       if (secondary.length > 0) e.secondaryMuscles = secondary;
       if (str(b.description)) e.description = b.description;
       if (str(b.hevyTitle)) e.hevyTitle = b.hevyTitle;
