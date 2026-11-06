@@ -9,7 +9,8 @@
   "front_delts"
  ],
  "fedb-alternating-deltoid-raise": [
-  "front_delts"
+  "front_delts",
+  "side_delts"
  ],
  "fedb-alternating-floor-press": [
   "front_delts"
@@ -272,7 +273,7 @@
   "side_delts"
  ],
  "fedb-dumbbell-raise": [
-  "front_delts"
+  "side_delts"
  ],
  "fedb-dumbbell-scaption": [
   "front_delts",
@@ -857,7 +858,7 @@
   "front_delts"
  ],
  "fedb-standing-low-pulley-deltoid-raise": [
-  "front_delts"
+  "side_delts"
  ],
  "fedb-standing-low-pulley-one-arm-triceps-extension": [
   "front_delts"
@@ -887,7 +888,7 @@
   "rear_delts"
  ],
  "fedb-straight-raises-on-incline-bench": [
-  "front_delts"
+  "rear_delts"
  ],
  "fedb-supine-chest-throw": [
   "front_delts"

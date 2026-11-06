@@ -42,11 +42,11 @@ export const MUSCLE_TARGETS: Record<MuscleGroup, MuscleTarget> = {
   other: { label: LABELS.other, muscle: { min: 0, max: 0 }, other: { min: 0, max: 0 }, reps: { min: 8, max: 15 } },
 };
 
-/** Muscle to group. Legacy `shoulders` counts as the front shoulder; abductors work like glutes, adductors like quads. */
+/** Muscle to group. Legacy `shoulders` counts as the front shoulder; abductors work like glutes, adductors count as other. */
 const BY_MUSCLE: Record<string, MuscleGroup> = {
   chest: 'chest', lats: 'back', upper_back: 'back', lower_back: 'back',
   shoulders: 'front_delts', front_delts: 'front_delts', side_delts: 'side_delts', rear_delts: 'rear_delts',
-  biceps: 'biceps', triceps: 'triceps', quadriceps: 'quads', adductors: 'quads', hamstrings: 'hamstrings', glutes: 'glutes', abductors: 'glutes',
+  biceps: 'biceps', triceps: 'triceps', quadriceps: 'quads', adductors: 'other', hamstrings: 'hamstrings', glutes: 'glutes', abductors: 'glutes',
   calves: 'calves', abdominals: 'abs', traps: 'traps', forearms: 'forearms',
 };
 

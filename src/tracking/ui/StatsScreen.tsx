@@ -34,8 +34,8 @@ const satz = (n: number) => `${n} ${n === 1 ? 'Satz' : 'Sätze'}`;
 
 /** The numbers behind a state, in words: this week's direct and indirect sets and the target. */
 function detailText(b: GroupBalance): string {
-  const parts = [satz(b.direct7) + ' direkt'];
-  if (b.indirect7 > 0) parts.push(`${b.indirect7} mittrainiert (zählen halb)`);
+  const parts = [`${satz(b.direct7)} direkt`];
+  if (b.indirect7 > 0) parts.push(`${satz(b.indirect7)} mittrainiert (${b.indirect7 === 1 ? 'zählt' : 'zählen'} halb)`);
   const week = `Diese Woche: ${parts.join(', ')}.`;
   return b.target.max > 0 ? `${week} Ziel: ${b.target.min}–${b.target.max} pro Woche.` : week;
 }

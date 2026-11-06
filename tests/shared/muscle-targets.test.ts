@@ -5,7 +5,7 @@ import { MUSCLES } from '../../src/shared/muscles';
 import { policyRule } from '../../src/shared/training-policy';
 
 describe('muscle groups', () => {
-  const SKIP = new Set(['full_body', 'cardio', 'other']);
+  const SKIP = new Set(['full_body', 'cardio', 'other', 'adductors']);
   it('maps every muscle of the vocabulary to a real group', () => {
     for (const m of Object.keys(MUSCLES).filter((k) => !SKIP.has(k))) {
       const g = muscleGroupOf({ primaryMuscle: m });
@@ -14,9 +14,9 @@ describe('muscle groups', () => {
     }
     for (const m of SKIP) expect(muscleGroupOf({ primaryMuscle: m })).toBe('other');
   });
-  it('counts abductors as glutes and adductors as quads', () => {
+  it('counts abductors as glutes and adductors as other', () => {
     expect(muscleGroupOf({ primaryMuscle: 'abductors' })).toBe('glutes');
-    expect(muscleGroupOf({ primaryMuscle: 'adductors' })).toBe('quads');
+    expect(muscleGroupOf({ primaryMuscle: 'adductors' })).toBe('other');
   });
   it('takes the targets from the register, with the new values', () => {
     for (const [g, t] of Object.entries(MUSCLE_TARGETS)) {

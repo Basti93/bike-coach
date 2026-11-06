@@ -26,7 +26,7 @@ describe('suggestMobility', () => {
     for (const a of ['hueftbeuger', 'oberschenkel-hinten', 'waden', 'brust']) expect(areas(s)).toContain(a);
   });
   it('after strength it focuses on the muscles used', () => {
-    const s = suggestMobility({ ...base, lastStrengthMs: NOW - HOUR, usedMuscles: ['chest', 'triceps', 'shoulders'] })!;
+    const s = suggestMobility({ ...base, lastStrengthMs: NOW - HOUR, usedMuscles: ['chest', 'triceps', 'front_delts'] })!;
     expect(s.forSession).toBe('strength');
     expect(areas(s)).toContain('brust');
     expect(areas(s)).not.toContain('waden');
@@ -349,5 +349,14 @@ describe('mobility after a run', () => {
 
   test('without the run coach nothing changes for bike and strength', () => {
     expect(suggestMobility(afterRide)!.forSession).toBe('bike');
+  });
+});
+
+describe('shoulder parts', () => {
+  it('each shoulder part maps to the shoulder stretch', () => {
+    for (const m of ['front_delts', 'side_delts', 'rear_delts', 'shoulders']) {
+      const s = suggestMobility({ ...base, lastStrengthMs: NOW - HOUR, usedMuscles: [m] })!;
+      expect(areas(s), m).toContain('schultern');
+    }
   });
 });

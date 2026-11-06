@@ -23,6 +23,18 @@ describe('muscleBalance', () => {
     const b = muscleBalance([{ exercise: bench, sets: 4, ageMs: 0 }], 'muscle');
     expect([get(b, 'chest').effective7, get(b, 'triceps').effective7, get(b, 'front_delts').effective7]).toEqual([4, 2, 2]);
   });
+  it('a deadlift-like hinge gives glutes and hamstrings half sets', () => {
+    const dl: BalanceExercise = { primaryMuscle: 'lower_back', secondaryMuscles: ['glutes', 'hamstrings'] };
+    const b = muscleBalance([{ exercise: dl, sets: 4, ageMs: 0 }], 'muscle');
+    expect([get(b, 'glutes').effective7, get(b, 'hamstrings').effective7]).toEqual([2, 2]);
+    const ex = EXERCISES.find((e) => e.id === 'pf-deadlift')!;
+    expect(ex.secondaryMuscles).toEqual(expect.arrayContaining(['glutes', 'hamstrings']));
+  });
+  it('a dip gives chest and front delts half sets', () => {
+    const dip: BalanceExercise = { primaryMuscle: 'triceps', secondaryMuscles: ['chest', 'front_delts'] };
+    const b = muscleBalance([{ exercise: dip, sets: 4, ageMs: 0 }], 'muscle');
+    expect([get(b, 'chest').effective7, get(b, 'front_delts').effective7]).toEqual([2, 2]);
+  });
   it('a secondary counts only when its group is a synergist of the primary group', () => {
     const c = contributions(snatch);
     expect(c.map((x) => x.group)).toEqual(['quads', 'glutes']);
@@ -41,7 +53,7 @@ describe('muscleBalance', () => {
     expect(get(b, 'other')).toMatchObject({ direct7: 3, effective7: 3, state: null });
   });
   it('the synergist table is a register rule', () => {
-    expect(policyRule('muscle.synergists').lists?.back).toEqual(['biceps', 'rear_delts']);
+    expect(policyRule('muscle.synergists').lists?.back).toEqual(['biceps', 'rear_delts', 'glutes', 'hamstrings']);
   });
   it('state thresholds: none, low, good, high against the goal range', () => {
     const range = MUSCLE_TARGETS.chest.muscle; // 12..18

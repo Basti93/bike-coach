@@ -194,8 +194,17 @@ test('indirect work shows "vor allem mittrainiert" and the half-count sentence',
   const row = within(week).getByRole('button', { name: /Trizeps/ });
   expect(row.textContent).toContain('vor allem mittrainiert');
   fireEvent.click(row);
-  expect(week.textContent).toContain('Diese Woche: 0 Sätze direkt, 4 mittrainiert (zählen halb). Ziel:');
+  expect(week.textContent).toContain('Diese Woche: 0 Sätze direkt, 4 Sätze mittrainiert (zählen halb). Ziel:');
   expect(within(week).getByRole('button', { name: /Brust/ }).textContent).not.toContain('mittrainiert');
+});
+
+test('the detail line uses singular and plural correctly', async () => {
+  await show([workout('w10', new Date(2026, 10, 3, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 1)]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  fireEvent.click(within(week).getByRole('button', { name: /Brust/ }));
+  expect(week.textContent).toContain('1 Satz direkt');
+  fireEvent.click(within(week).getByRole('button', { name: /Trizeps/ }));
+  expect(week.textContent).toContain('1 Satz mittrainiert (zählt halb)');
 });
 
 test('Fortschritt comes first, and the sets table shows the last four weeks', async () => {

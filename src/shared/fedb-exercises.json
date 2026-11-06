@@ -117,6 +117,9 @@
   "source": "fedb",
   "aliases": [
    "Alternating Deltoid Raise"
+  ],
+  "secondaryMuscles": [
+   "side_delts"
   ]
  },
  {
@@ -2700,7 +2703,7 @@
   "id": "fedb-dumbbell-raise",
   "title": "Heben mit Kurzhanteln",
   "type": "weight_reps",
-  "primaryMuscle": "front_delts",
+  "primaryMuscle": "side_delts",
   "equipment": "dumbbell",
   "source": "fedb",
   "aliases": [
@@ -8558,7 +8561,7 @@
   "id": "fedb-standing-low-pulley-deltoid-raise",
   "title": "Seitheben am unteren Kabel stehend",
   "type": "weight_reps",
-  "primaryMuscle": "front_delts",
+  "primaryMuscle": "side_delts",
   "equipment": "machine",
   "source": "fedb",
   "aliases": [
@@ -8850,7 +8853,7 @@
   "id": "fedb-straight-raises-on-incline-bench",
   "title": "Heben mit Langhantel an der Schrägbank",
   "type": "weight_reps",
-  "primaryMuscle": "front_delts",
+  "primaryMuscle": "rear_delts",
   "equipment": "barbell",
   "source": "fedb",
   "aliases": [
