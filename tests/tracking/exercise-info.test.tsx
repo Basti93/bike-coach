@@ -87,7 +87,57 @@ describe('workout: Ausführung in the exercise menu', () => {
     await running();
     const card = screen.getByRole('region', { name: 'Kniebeuge' });
     expect(within(card).getByRole('img', { name: 'Oberschenkel vorn' })).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: 'Meine Übung' })).getByRole('img', { name: 'Sonstiges' })).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Meine Übung' })).getByRole('img', { name: 'Muskel unbekannt' })).toBeTruthy();
+  });
+});
+
+describe('workout: imported exercises resolve by identity', () => {
+  const imported: LoggedWorkout = {
+    id: 'o2', title: 'Hevy', startMs: 1000, endMs: null, source: 'pandafit',
+    exercises: [ex('h-row', 'Cable Row Custom'), ex('h-smith', 'Squat (Smith Machine)'), ex('h-rdf', 'Rear Delt Reverse Fly (Machine)')],
+  };
+  const statsRec = (body: unknown): TrackedRecord => ({ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body });
+  const good = statsRec({ type: 'stats', atMs: 1, goal: null, days: [], muscles: { 'h-row': 'upper_back' } });
+  async function runningWith(extra: TrackedRecord[]) {
+    const { port } = fakePort([rec(imported), ...extra]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    await screen.findByText('Cable Row Custom');
+  }
+  const iconOf = (title: string) => within(within(screen.getByRole('region', { name: title })).getByRole('img').closest('.tk-ex-head') as HTMLElement).getByRole('img');
+
+  test('a Hevy row unknown to the catalog shows the back from the stats muscles', async () => {
+    await runningWith([good]);
+    expect(await within(screen.getByRole('region', { name: 'Cable Row Custom' })).findByRole('img', { name: 'Rücken' })).toBeTruthy();
+  });
+
+  test('without a stats record the same exercise shows "Muskel unbekannt", not Sonstiges', async () => {
+    await runningWith([]);
+    expect(iconOf('Cable Row Custom').getAttribute('aria-label')).toBe('Muskel unbekannt');
+  });
+
+  test('a malformed stats record is ignored', async () => {
+    await runningWith([statsRec({ type: 'stats' })]);
+    expect(iconOf('Cable Row Custom').getAttribute('aria-label')).toBe('Muskel unbekannt');
+  });
+
+  test('a Smith machine squat shows no free-weight text and no pictures', async () => {
+    await runningWith([good]);
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Squat (Smith Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ausführung Squat (Smith Machine)' }));
+    const note = screen.getByRole('note', { name: 'Ausführung Squat (Smith Machine)' });
+    expect(note.textContent).toContain('Noch keine Beschreibung.');
+    expect(note.textContent).not.toContain('Beschrieben am Beispiel');
+    expect(within(note).queryByRole('img', { name: /Ausführung/ })).toBeNull();
+  });
+
+  test('the machine reverse fly from Hevy shows its machine text', async () => {
+    await runningWith([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Rear Delt Reverse Fly (Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' }));
+    const note = screen.getByRole('note', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' });
+    expect(note.textContent).toContain(exerciseDescription('pf-rear-delt-fly-machine')!.text);
+    expect(note.textContent).not.toMatch(/Kurzhantel/);
   });
 });
 
@@ -108,6 +158,13 @@ describe('ExerciseInfo pictures', () => {
 });
 
 describe('MuscleIcon', () => {
+  test('with null is labelled as unknown and highlights nothing', () => {
+    render(<MuscleIcon group={null} />);
+    const icon = screen.getByRole('img', { name: 'Muskel unbekannt' });
+    expect(icon.querySelector('[fill="var(--tk-accent)"]')).toBeNull();
+    expect(icon.textContent).toContain('?');
+  });
+
   test('is an image named after the muscle group, with the group drawn in the accent colour', () => {
     const { container } = render(<><MuscleIcon group="chest" /><MuscleIcon group="calves" size={24} /><MuscleIcon group="other" /></>);
     expect(screen.getByRole('img', { name: 'Brust' }).querySelector('[data-region="chest"]')?.getAttribute('fill')).toBe('var(--tk-accent)');

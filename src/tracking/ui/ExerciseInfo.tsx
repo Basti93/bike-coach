@@ -10,8 +10,8 @@ const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
  * themselves. wger texts and pictures carry their credit line in small muted text. Without a text it still shows the
  * video link, so every exercise has somewhere to look.
  */
-export function ExerciseInfo({ title, description, via = null, images = [], video, icon, children }: {
-  title: string; description: ExerciseDescription | null; via?: string | null; images?: ExerciseImage[]; video: string;
+export function ExerciseInfo({ title, description, images = [], video, icon, children }: {
+  title: string; description: ExerciseDescription | null; images?: ExerciseImage[]; video: string;
   icon?: ReactNode; children?: ReactNode;
 }) {
   const credit = description && descriptionCredit(description);
@@ -27,7 +27,6 @@ export function ExerciseInfo({ title, description, via = null, images = [], vide
       ))}
       {description ? (
         <>
-          {via && <p className="muted tk-sub">Beschrieben am Beispiel „{via}“, die Bewegung ist dieselbe.</p>}
           <p>{description.text}</p>
           {credit && <small className="muted tk-credit">{credit}</small>}
         </>

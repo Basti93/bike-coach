@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
-import { muscleGroupOf } from '../../shared/muscle-targets';
+import { readStats, STATS_ID } from '../../shared/stats';
 import { exerciseImages, videoSearchUrl } from '../media';
 import { resolveExercise } from '../exercise-identity';
 import { describeExercise } from '../similar';
@@ -44,6 +44,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
   const leaving = useRef(false);
   const remote = usePortRecords(port, 'workout').all;
   const catalog = useCatalog(port);
+  const statsRecords = usePortRecords(port, 'stats').records;
+  const statsMuscles = useMemo(() => {
+    const r = (statsRecords ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+    return (r && readStats(r.body)?.muscles) || null;
+  }, [statsRecords]);
   const [notice, setNotice] = useState<string | null>(null);
   const [effortOn, setEffortOn] = useState(effortQuestionsOn);
   const pendingLeave = useRef<string | null>(null);
@@ -143,8 +148,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const before = previousSets(e.sets, lastValues(e.exerciseId, history));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
-        const own = resolveExercise(e, catalog).exercise;
-        const icon = <MuscleIcon group={muscleGroupOf(own ?? { title: e.title, primaryMuscle: null })} />;
+        const resolved = resolveExercise(e, catalog, statsMuscles);
+        const own = resolved.exercise;
+        const icon = <MuscleIcon group={resolved.group} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
         const current = e.rid === currentRid;

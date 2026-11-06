@@ -30,22 +30,24 @@ const BACK_GROUPS: ReadonlySet<MuscleGroup> = new Set(['back', 'side_rear_delts'
 
 /**
  * A small body silhouette with the trained group in the accent colour: front view for the muscles you see from the front,
- * back view for the rest. "other" is a plain silhouette. Own drawing, no external assets.
+ * back view for the rest. "other" is a plain silhouette; null (muscle not known) is a plain silhouette with a question
+ * mark, so an unknown exercise never looks like one that trains nothing. Own drawing, no external assets.
  */
-export function MuscleIcon({ group, size = 22 }: { group: MuscleGroup; size?: number }) {
-  const parts = BACK_GROUPS.has(group) ? BACK : FRONT;
+export function MuscleIcon({ group, size = 22 }: { group: MuscleGroup | null; size?: number }) {
+  const parts = group !== null && BACK_GROUPS.has(group) ? BACK : FRONT;
   const rect = (x: number, w: number, y: number, h: number, region: MuscleGroup | null, key: string) => {
     const on = region !== null && region === group;
     return <rect key={key} x={x} y={y} width={w} height={h} rx={Math.min(w, h) / 2.4} data-region={region ?? undefined}
       fill={on ? 'var(--tk-accent)' : 'var(--tk-muted)'} fillOpacity={on ? 1 : 0.35} />;
   };
   return (
-    <svg className="tk-muscle-icon" role="img" aria-label={MUSCLE_TARGETS[group].label} width={size} height={size} viewBox="0 0 24 24">
+    <svg className="tk-muscle-icon" role="img" aria-label={group === null ? 'Muskel unbekannt' : MUSCLE_TARGETS[group].label} width={size} height={size} viewBox="0 0 24 24">
       <circle cx={12} cy={2.6} r={1.9} fill="var(--tk-muted)" fillOpacity={0.35} />
       {parts.flatMap(([x, y, w, h, region, pair], i) => [
         rect(x, w, y, h, region, `${i}`),
         ...(pair ? [rect(24 - x - w, w, y, h, region, `${i}m`)] : []),
       ])}
+      {group === null && <text className="tk-muscle-unknown" x={12} y={11.6} textAnchor="middle" fontSize={8} fontWeight={700} fill="var(--tk-text)">?</text>}
     </svg>
   );
 }
