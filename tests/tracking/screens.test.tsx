@@ -147,7 +147,7 @@ test('an exercise can be swapped from the workout screen', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
   const similar = await screen.findByRole('region', { name: 'Ähnliche Übungen' });
-  expect(within(similar).getAllByRole('button').map((b) => b.textContent)[0]).toMatch(/Bankdrücken/); // same movement first
+  expect(within(similar).getAllByRole('button').map((b) => b.textContent)[0]).toMatch(/Bankdrücken|Schrägbankdrücken/); // a built-in leads, not a base variant
   fireEvent.click(within(similar).getByRole('button', { name: /^Brustpresse/ }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.exerciseId)).toEqual(['pf-chest-press-machine']));
 });

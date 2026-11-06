@@ -5,7 +5,7 @@ import type { TrackingPort } from '../ports';
 import { editSet, formatDecimal, lastValues, removeSet, type TrackedSet, type TrackedWorkout } from '../session';
 import { acquireStore, releaseStore } from '../registry';
 import { useEffect } from 'react';
-import { usePortRecords, useStoreView, type WorkoutStore } from './hooks';
+import type { Exercise } from '../../shared/exercises'; import { useCatalog, usePortRecords, useStoreView, type WorkoutStore } from './hooks';
 import { dateLabel } from './labels';
 import { SetHead, SetRow } from './SetRow';
 import { setLabels } from './setGrid';
@@ -76,8 +76,8 @@ function Detail({ port, store, history, onBack, onDeleted }: { port: TrackingPor
   );
 }
 
-function ExerciseHistory({ exerciseId, title, history, onBack }: { exerciseId: string; title: string; history: LoggedWorkout[]; onBack: () => void }) {
-  const last = lastValues(exerciseId, history);
+function ExerciseHistory({ exerciseId, title, history, catalog, onBack }: { exerciseId: string; title: string; history: LoggedWorkout[]; catalog: Exercise[]; onBack: () => void }) {
+  const last = lastValues(exerciseId, history, catalog);
   const sessions = history.filter((w) => w.exercises.some((e) => e.exerciseId === exerciseId && e.sets.some((s) => s.doneMs !== null)));
   const timed = history.some((w) => w.exercises.some((e) => e.exerciseId === exerciseId && (e as { timed?: boolean }).timed));
   return (
@@ -100,6 +100,7 @@ function ExerciseHistory({ exerciseId, title, history, onBack }: { exerciseId: s
 
 export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; now?: () => number; newId?: () => string }) {
   const q = usePortRecords(port, 'workout');
+  const catalog = useCatalog(port);
   const records = q.records;
   // One performed session counts once: an overlapping Hevy copy of an own workout is left out.
   const history = dedupeSessions((records ?? []).map((r) => r.body as LoggedWorkout));
@@ -111,7 +112,7 @@ export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; no
   if (store) return <Detail port={port} store={store} history={history} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
   const exercises = new Map<string, string>();
   for (const w of history) for (const e of w.exercises) if (e.sets.some((s) => s.doneMs !== null) && !exercises.has(e.exerciseId)) exercises.set(e.exerciseId, e.title);
-  if (exercise !== null) return <ExerciseHistory exerciseId={exercise} title={exercises.get(exercise) ?? ''} history={history} onBack={() => setExercise(null)} />;
+  if (exercise !== null) return <ExerciseHistory exerciseId={exercise} title={exercises.get(exercise) ?? ''} history={history} catalog={catalog} onBack={() => setExercise(null)} />;
 
   return (
     <div className="tk-screen">

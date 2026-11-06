@@ -15,6 +15,7 @@ import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
 import { ExerciseInfo } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
+import { ExerciseProposals } from './ExerciseProposals';
 import { MuscleIcon } from './MuscleIcon';
 import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
@@ -145,7 +146,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         const nextEx = w.exercises[ei + 1];
         const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
         const labels = setLabels(e.sets);
-        const before = previousSets(e.sets, lastValues(e.exerciseId, history));
+        const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
         const resolved = resolveExercise(e, catalog, statsMuscles);
@@ -203,7 +204,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
                 onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
                 onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
-            {effortOn && asksEffort(w, e.rid, history) && (
+            {effortOn && asksEffort(w, e.rid, history, catalog) && (
               <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
                 onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
             )}
@@ -362,6 +363,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
         return <button type="button" key={r.id} className="secondary" onClick={() => void startPlan(body)}>{body.name} starten</button>;
       })}
       <button type="button" className="ghost" onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
+      <ExerciseProposals port={port} now={now} newId={newId} />
     </div>
   );
 }

@@ -2,7 +2,21 @@
  * Own exercise list. Structurally an ExerciseTemplate plus the exact English Hevy title; src/shared must not import from src/coach.
  * `aliases` are further exact titles under which the very same exercise (same movement, same equipment) is logged.
  */
-export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string; aliases?: string[] };
+/** An open question about a logged title: is it the same as an existing exercise, or a new one? Not an exercise yet. */
+export type ExerciseProposal = { forTitle: string; kind: 'same' | 'new'; targetId?: string; reason: string; atMs: number };
+
+export type Exercise = {
+  id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string; aliases?: string[];
+  secondaryMuscles?: string[];
+  /** German, own text. */
+  description?: string;
+  /** Set when the description comes from a user overlay record, so a base entry does not carry the base-catalog credit. */
+  descriptionByUser?: true;
+  source?: 'pandafit' | 'fedb' | 'ai' | 'user';
+  fedbId?: string;
+  /** The base catalog's English instructions, kept as source for the German guides (fedb-descriptions-de.json); never shown. */
+  proposal?: ExerciseProposal;
+};
 
 const x = (id: string, title: string, type: string, primaryMuscle: string, equipment: string, hevyTitle?: string, aliases?: string[]): Exercise =>
   ({ id, title, type, primaryMuscle, equipment, ...(hevyTitle ? { hevyTitle } : {}), ...(aliases ? { aliases } : {}) });
@@ -133,14 +147,98 @@ export const EXERCISES: Exercise[] = [
   x('pf-walking', 'Gehen', 'steps_duration', 'cardio', 'none', 'Walking'),
 ];
 
+/** Built-ins that are exactly the same exercise as an entry of the base catalog (same movement, same equipment); the base entry is then left out. */
+const FEDB_LINKS: Record<string, string> = {
+  'pf-bicep-curl-bb': 'fedb-barbell-curl',
+  'pf-deadlift': 'fedb-barbell-deadlift',
+  'pf-squat': 'fedb-barbell-squat',
+  'pf-hip-thrust': 'fedb-barbell-hip-thrust',
+  'pf-glute-bridge': 'fedb-barbell-glute-bridge',
+  'pf-bench-dip': 'fedb-bench-dips',
+  'pf-bent-over-row': 'fedb-bent-over-barbell-row',
+  'pf-pec-deck': 'fedb-butterfly',
+  'pf-cable-crossover': 'fedb-cable-crossover',
+  'pf-crunch-cable': 'fedb-cable-crunch',
+  'pf-chin-up': 'fedb-chin-up',
+  'pf-clean-press': 'fedb-clean-and-press',
+  'pf-close-grip-bench': 'fedb-close-grip-barbell-bench-press',
+  'pf-dead-bug': 'fedb-dead-bug',
+  'pf-bench-press-db': 'fedb-dumbbell-bench-press',
+  'pf-bicep-curl-db': 'fedb-dumbbell-bicep-curl',
+  'pf-chest-fly-db': 'fedb-dumbbell-flyes',
+  'pf-shoulder-press-db': 'fedb-dumbbell-shoulder-press',
+  'pf-shrug': 'fedb-dumbbell-shrug',
+  'pf-face-pull': 'fedb-face-pull',
+  'pf-overhead-press': 'fedb-barbell-shoulder-press',
+  'pf-step-up': 'fedb-dumbbell-step-ups',
+  'pf-arnold-press': 'fedb-arnold-dumbbell-press',
+  'pf-incline-bench-press': 'fedb-barbell-incline-bench-press-medium-grip',
+  'pf-bench-press': 'fedb-barbell-bench-press-medium-grip',
+  'pf-lunge': 'fedb-dumbbell-lunges',
+  'pf-crunch': 'fedb-crunches',
+  'pf-squat-bw': 'fedb-bodyweight-squat',
+  'pf-bicycle-crunch': 'fedb-air-bike',
+  'pf-ab-wheel': 'fedb-ab-roller',
+  'pf-reverse-lunge': 'fedb-dumbbell-rear-lunge',
+  'pf-chest-supported-row': 'fedb-dumbbell-incline-row',
+  'pf-front-squat': 'fedb-front-barbell-squat',
+  'pf-front-raise': 'fedb-front-dumbbell-raise',
+  'pf-good-morning': 'fedb-good-morning',
+  'pf-hack-squat': 'fedb-hack-squat',
+  'pf-hammer-curl': 'fedb-hammer-curls',
+  'pf-leg-raise-hanging': 'fedb-hanging-leg-raise',
+  'pf-incline-curl': 'fedb-incline-dumbbell-curl',
+  'pf-incline-press-db': 'fedb-incline-dumbbell-press',
+  'pf-inverted-row': 'fedb-inverted-row',
+  'pf-leg-extension': 'fedb-leg-extensions',
+  'pf-leg-press': 'fedb-leg-press',
+  'pf-leg-curl-lying': 'fedb-lying-leg-curls',
+  'pf-chest-press-machine': 'fedb-machine-bench-press',
+  'pf-mountain-climber': 'fedb-mountain-climbers',
+  'pf-one-arm-row': 'fedb-one-arm-dumbbell-row',
+  'pf-pallof-press': 'fedb-pallof-press',
+  'pf-plank': 'fedb-plank',
+  'pf-preacher-curl': 'fedb-preacher-curl',
+  'pf-pull-up': 'fedb-pullups',
+  'pf-push-up': 'fedb-pushups',
+  'pf-romanian-deadlift': 'fedb-romanian-deadlift',
+  'pf-russian-twist': 'fedb-russian-twist',
+  'pf-calf-raise-seated': 'fedb-seated-calf-raise',
+  'pf-leg-curl-seated': 'fedb-seated-leg-curl',
+  'pf-seated-row-cable': 'fedb-seated-cable-rows',
+  'pf-lateral-raise': 'fedb-side-lateral-raise',
+  'pf-sit-up': 'fedb-sit-up',
+  'pf-sled-push': 'fedb-sled-push',
+  'pf-calf-raise-standing': 'fedb-standing-calf-raises',
+  'pf-sumo-deadlift': 'fedb-sumo-deadlift',
+  'pf-trap-bar-deadlift': 'fedb-trap-bar-deadlift',
+  'pf-triceps-pushdown': 'fedb-triceps-pushdown',
+  'pf-triceps-rope': 'fedb-triceps-pushdown-rope-attachment',
+  'pf-hip-abduction': 'fedb-thigh-abductor',
+  'pf-hip-adduction': 'fedb-thigh-adductor',
+  'pf-upright-row': 'fedb-upright-barbell-row',
+  'pf-lat-pulldown': 'fedb-wide-grip-lat-pulldown',
+  'pf-straight-arm-pulldown': 'fedb-straight-arm-pulldown',
+  'pf-split-squat': 'fedb-split-squat-with-dumbbells',
+  'pf-side-plank': 'fedb-side-bridge',
+  'pf-rear-delt-fly-machine': 'fedb-reverse-machine-flyes',
+  'pf-rear-delt-fly': 'fedb-reverse-flyes',
+  'pf-pull-up-weighted': 'fedb-weighted-pull-ups',
+  'pf-t-bar-row': 'fedb-t-bar-row-with-handle',
+  'pf-back-extension': 'fedb-hyperextensions-back-extensions',
+  'pf-cable-curl': 'fedb-standing-biceps-cable-curl',
+  'pf-dip': 'fedb-dips-triceps-version',
+};
+for (const e of EXERCISES) { const f = FEDB_LINKS[e.id]; if (f) e.fedbId = f; }
+
 /**
  * Hevy template id to own exercise id, matched on the exact English Hevy title or an alias. Several Hevy templates with one title
  * all link to the same own exercise. Unknown titles are ignored. The own id is the one history is kept under; to send
  * an own exercise to Hevy, look up the first Hevy id that maps to it.
  */
-export function linkHevyTemplates(templates: { id: string; title: string }[]): Map<string, string> {
+export function linkHevyTemplates(templates: { id: string; title: string }[], catalog: Exercise[] = EXERCISES): Map<string, string> {
   const ownByTitle = new Map<string, string>();
-  for (const e of EXERCISES) for (const t of [...(e.hevyTitle ? [e.hevyTitle] : []), ...(e.aliases ?? [])]) ownByTitle.set(t, e.id);
+  for (const e of catalog) for (const t of [...(e.hevyTitle ? [e.hevyTitle] : []), ...(e.aliases ?? [])]) ownByTitle.set(t, e.id);
   const links = new Map<string, string>();
   for (const t of templates) {
     const own = ownByTitle.get(t.title);

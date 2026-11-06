@@ -3,6 +3,8 @@ import {
   durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
+import { mergeCatalog } from '../../src/shared/catalog';
+import { EXERCISES } from '../../src/shared/exercises';
 import type { GymWorkout } from '../../src/coach/gym/types';
 
 const done = (weightKg: number | null, reps: number | null, doneMs: number | null = 1000, type: 'normal' | 'warmup' = 'normal') => ({ type, weightKg, reps, durationS: null, doneMs });
@@ -230,4 +232,15 @@ describe('last values across Hevy and own ids', () => {
     const hist = [{ ...hevyPreacher('b', 5000), exercises: [{ exerciseId: 'HEVY-TPL-2', title: 'Preacher Curl (Langhantel)', supersetId: null, notes: '', sets: [done(25, 12)] }] }];
     expect(lastValues('pf-preacher-curl', hist).map((x) => x.weightKg)).toEqual([25]);
   });
+});
+
+test('a title that is now an overlay alias of a built-in finds its past values', () => {
+  const alias = { kind: 'exercise' as const, id: 'pf-bench-press', updatedMs: 1, deleted: false, body: { id: 'pf-bench-press', aliases: ['Flat Press Custom'] } };
+  const catalog = mergeCatalog(EXERCISES, [], [alias]);
+  const hist = [past('h1', 5000, 'hevy-odd-1', [done(40, 10)])];
+  hist[0].exercises[0].title = 'Flat Press Custom';
+  expect(lastValues('pf-bench-press', hist)).toEqual([]);
+  expect(lastValues('pf-bench-press', hist, catalog).map((s) => [s.weightKg, s.reps])).toEqual([[40, 10]]);
+  const w = startFromPlan(plan, hist, 10, 'w1', catalog);
+  expect(w.exercises[0].sets.map((s) => [s.weightKg, s.reps])).toEqual([[50, 8], [40, 8]]);
 });

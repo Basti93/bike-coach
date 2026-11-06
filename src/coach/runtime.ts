@@ -16,6 +16,10 @@ import { activityName, canUpload, REPO_DESCRIPTION } from './garmin-upload';
 import { GarminUploader } from './garmin-uploader';
 import type { Together } from './together';
 import type { CoachState } from './state';
+import { mergeCatalog } from '../shared/catalog';
+import { EXERCISES } from '../shared/exercises';
+import { FEDB_EXERCISES } from '../shared/fedb';
+import { ExerciseMapper } from './gym/exercise-mapper';
 import { GymCoach } from './gym/gym-coach';
 import type { StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
@@ -33,6 +37,7 @@ import { manualRuns } from './run/runs';
 import { CoachTasks, type CoachId, type TaskFrom } from './coach-tasks';
 import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
+import { mirrorExercises } from './tracking/mirror-exercises';
 import { ChatCoach } from './chat/chat-coach';
 import { planHint } from './chat/plan-hint';
 import { longTermHint } from './chat/long-term';
@@ -182,9 +187,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs }) : null;
   };
   const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
+  // One exercise catalog per profile: built-ins, the base list and the profile's records (aliases the mapper or the person added).
+  const catalogOf = (id: string) => mergeCatalog(EXERCISES, FEDB_EXERCISES, records.all(id, 'exercise'));
   const gym = new GymCoach({
     dir: path.join(coachDir, 'gym'), nowMs,
-    store: records, hevy: gymConnected,
+    store: records, hevy: gymConnected, catalog: catalogOf,
     mobility: (id) => mobility.promptData(id),
     giveTask: (id, t) => giveTask(id, 'gym', t),
     planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'gym', nowMs()),
@@ -199,6 +206,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     writer: gymWriter,
     account: (id) => opts.links.status(id).state === 'linked',
     onWorkoutFinished: (id) => coach.strengthChanged(id),
+  });
+  const exerciseMapper = new ExerciseMapper({
+    store: records, ask, nowMs, dir: path.join(coachDir, 'gym'),
+    catalog: catalogOf,
+    mayAsk: () => noOpenRide() && scheduled(),
   });
   // Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
   const mobility = new MobilityCoach({
@@ -218,7 +230,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     const now = nowMs();
     const planned = runs === undefined;
     return dayRatings({
-      rides: s.summaries, bikeNext: planned ? s.next?.session ?? null : null, gym: history, gymNext: planned ? gym.state(id).next?.workout ?? null : null, muscleOf,
+      rides: s.summaries, bikeNext: planned ? s.next?.session ?? null : null, gym: history, gymNext: planned ? gym.state(id).next?.workout ?? null : null, muscleOf: (t, title) => gym.templateMuscle(id, t) ?? muscleOf(t, title),
       bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
       ...(runs ? { runs } : {}),
     }, dates);
@@ -251,7 +263,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
   const chat = new ChatCoach({
-    store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null,
+    store: records, ask, nowMs, newId: () => randomUUID(), catalog: catalogOf, goal: (id) => gym.state(id).goal ?? null,
     complaints: (id) => (coach.state(id).complaints ?? []).map((c) => ({ id: c.id, text: c.text, status: c.status })),
     addComplaint: (id, text) => coach.addComplaintFromText(id, text),
     endComplaint: (id, cid) => coach.updateComplaint(id, cid, 'over', nowMs()),
@@ -573,12 +585,15 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       const syncs = runs && !heavyBusy();
       if (syncs) void hevy.tick(list.map((p) => p.id), noOpenRide).catch(() => {}).finally(publish);
       // Separate safeguard: the gym coach must never disturb the bike coach or a ride, and runs with no ride open only.
-      if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
+      // Unknown exercise titles are then classified once; the answer is stored and applied by code, never by AI later. Written to this profile, the mirror copies it.
+      if (runs) for (const p of list) { try { void gym.tick(p.id).catch(() => {}).then(() => exerciseMapper.run(p.id)).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the run coach must never disturb a ride or the other coaches, and plans with no ride open only.
       if (runs) for (const p of list) { try { void run.tick(p.id).catch(() => {}).finally(publish); } catch { /* try again on the next run */ } }
       // Separate safeguard: the meal plan must never disturb a ride or the coach. It plans only with no ride open.
       // A shared meal plan is ticked by its owner.
       if (ownCoach && scheduled() && mealsHere()) void ownCoach.tick().catch(() => {}).finally(publish);
+      // One exercise catalog for every profile on this store: mirrored on every scan (cheap, idempotent, the first scan covers the start). Touches no workout.
+      if (free) mealsChanged(mirrorExercises(records, all.map((p) => p.id)));
       // The together page for linked accounts: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
