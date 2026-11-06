@@ -14,9 +14,15 @@ const MAX_TITLES = 20;
 const MAX_CANDIDATES = 12;
 /** A title the AI could not place (unsure, or dropped as invalid) waits this long before it is asked again; a failed or unanswered call only waits a day. */
 const UNPLACED_RETRY_MS = 7 * DAY_MS;
+/** After a failed AI call (timeout, limit, offline) the mapper stays quiet this long. */
+const COOLDOWN_MS = 3_600_000;
+/** Without a change in the records, a profile is scanned again after this long (asked titles may be due again). */
+const RESCAN_MS = DAY_MS;
+
+class NoAsk extends Error {}
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
-type Deps = { store: Pick<RecordStore, 'all' | 'putMany'>; ask: Ask; nowMs: () => number; catalog: (profileId: string) => Exercise[]; dir: string };
+type Deps = { store: Pick<RecordStore, 'all' | 'putMany'>; ask: Ask; nowMs: () => number; catalog: (profileId: string) => Exercise[]; dir: string; /** False while a ride is open or coaches may not run: no AI call is started then. */ mayAsk: () => boolean };
 export type MapperState = { asked: Record<string, number>; undone: string[] };
 
 const stateFile = (dir: string): string => path.join(dir, 'exercise-mapper.json');
@@ -66,14 +72,24 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 export class ExerciseMapper {
   constructor(private deps: Deps) {}
 
-  /** True when records were written. Never throws. */
+  /** True when records were written. Never throws. Returns false at once while a run is in flight (no queue) or after a failed AI call (1 h cooldown). */
   async run(profileId: string): Promise<boolean> {
-    // One run at a time across all profiles: a later one sees the state the earlier one saved, so no title is asked twice.
-    const turn = this.chain.then(async () => { try { return await this.runInner(profileId); } catch { return false; } });
-    this.chain = turn.then(() => undefined);
-    return turn;
+    if (this.running) return false;
+    this.running = true;
+    try { return await this.runInner(profileId); } catch { return false; } finally { this.running = false; }
   }
-  private chain: Promise<void> = Promise.resolve();
+  private running = false;
+  private coolUntil = 0;
+  private scanned = new Map<string, { key: string; atMs: number }>();
+
+  /** Cheap change marker of what the scan reads: count and newest update of workout and exercise records. */
+  private fingerprint(profileId: string): string {
+    const part = (kind: 'workout' | 'exercise'): string => {
+      const all = this.deps.store.all(profileId, kind);
+      return `${all.length}:${all.reduce((m, r) => Math.max(m, r.updatedMs), 0)}`;
+    };
+    return `${part('workout')}|${part('exercise')}`;
+  }
 
   private unresolved(profileId: string, catalog: Exercise[], state: MapperState, now: number): string[] {
     const records = this.deps.store.all(profileId, 'workout');
@@ -107,13 +123,20 @@ export class ExerciseMapper {
 
   private async runInner(profileId: string): Promise<boolean> {
     const now = this.deps.nowMs();
+    if (now < this.coolUntil) return false;
+    const key = this.fingerprint(profileId);
+    const last = this.scanned.get(profileId);
+    if (last && last.key === key && now - last.atMs < RESCAN_MS) return false;
     const catalog = this.deps.catalog(profileId);
     const state = loadState(this.deps.dir);
     const titles = this.unresolved(profileId, catalog, state, now);
-    if (titles.length === 0) return false;
+    if (titles.length === 0) { this.scanned.set(profileId, { key, atMs: now }); return false; }
     const asked = titles.map((title) => ({ title, candidates: candidatesFor(title, catalog) }));
     const wanted = new Set(titles);
-    const call = (rejection?: string) => this.deps.ask({ prompt: buildMapperPrompt({ titles: asked, rejection }), systemPrompt: MAPPER_SYSTEM_PROMPT, schema: mapperJsonSchema });
+    const call = (rejection?: string) => {
+      if (!this.deps.mayAsk()) throw new NoAsk();
+      return this.deps.ask({ prompt: buildMapperPrompt({ titles: asked, rejection }), systemPrompt: MAPPER_SYSTEM_PROMPT, schema: mapperJsonSchema });
+    };
     const parse = (raw: unknown): { items: unknown[] } | string => {
       const r = mapperAnswerSchema.safeParse(raw);
       return r.success ? r.data : r.error.message.slice(0, 300);
@@ -122,12 +145,17 @@ export class ExerciseMapper {
     try {
       answer = parse(await call());
       if (typeof answer === 'string') answer = parse(await call(answer));
-    } catch { return false; } // no AI: nothing written, nothing remembered
+    } catch (e) {
+      // No AI (timeout, limit, offline): nothing written; the whole mapper waits an hour. A ride that opened only stops the call quietly.
+      if (!(e instanceof NoAsk)) this.coolUntil = now + COOLDOWN_MS;
+      return false;
+    }
     if (typeof answer === 'string') {
       // An answer arrived but stays unreadable: wait a day instead of asking again on every scan.
       const fresh = loadState(this.deps.dir);
       for (const t of titles) fresh.asked[t] = Math.max(fresh.asked[t] ?? 0, now);
       saveState(this.deps.dir, fresh);
+      this.scanned.set(profileId, { key, atMs: now });
       return false;
     }
 
@@ -176,6 +204,7 @@ export class ExerciseMapper {
     for (const [t, at] of Object.entries(marks)) fresh.asked[t] = Math.max(fresh.asked[t] ?? 0, at);
     for (const [t, at] of Object.entries(fresh.asked)) if (now - at > 30 * DAY_MS) delete fresh.asked[t];
     saveState(this.deps.dir, fresh);
+    this.scanned.set(profileId, { key: this.fingerprint(profileId), atMs: now });
     return records.length > 0;
   }
 

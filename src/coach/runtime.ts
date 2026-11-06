@@ -210,6 +210,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const exerciseMapper = new ExerciseMapper({
     store: records, ask, nowMs, dir: path.join(coachDir, 'gym'),
     catalog: catalogOf,
+    mayAsk: () => noOpenRide() && scheduled(),
   });
   // Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
   const mobility = new MobilityCoach({

@@ -22,17 +22,17 @@ const workout = (title: string, daysAgo = 3): TrackedRecord => ({
   body: { id: `w-${title}`, title: 'Tag', startMs: NOW - daysAgo * DAY, endMs: NOW - daysAgo * DAY + 3600_000, source: 'hevy', exercises: [{ exerciseId: `hevy-${title}`, title, supersetId: null, notes: '', sets: [] }] },
 });
 
-function harness(answers: (() => unknown)[], titles = [TITLE], clock = { now: NOW }) {
+function harness(answers: (() => unknown)[], titles = [TITLE], clock = { now: NOW }, gate = { may: true }) {
   const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
   store.putMany(ID, titles.map((t) => workout(t)));
   const prompts: string[] = [];
   let n = 0;
   const mapper = new ExerciseMapper({
-    store, dir: path.join(tmp, 'coach'), nowMs: () => clock.now,
+    store, dir: path.join(tmp, 'coach'), nowMs: () => clock.now, mayAsk: () => gate.may,
     catalog: (id) => mergeCatalog(EXERCISES, [], store.all(id, 'exercise')),
     ask: async (i) => { prompts.push(i.prompt); const f = answers[Math.min(n, answers.length - 1)]; n += 1; return f(); },
   });
-  return { store, mapper, prompts, clock };
+  return { store, mapper, prompts, clock, gate };
 }
 const exRecords = (s: RecordStore) => s.all(ID, 'exercise');
 const same = (confidence: 'high' | 'medium', exerciseId = 'pf-squat', title = TITLE) => ({ items: [{ title, decision: 'same', exerciseId, confidence, reason: 'Gleiche Übung.' }] });
@@ -162,11 +162,54 @@ describe('ExerciseMapper', () => {
     expect((props[0]!.body as { proposal: { kind: string; forTitle: string } }).proposal).toMatchObject({ kind: 'same', forTitle: overlay.aliases[0] === A ? B : A });
   });
 
-  it('concurrent runs ask a shared title once', async () => {
+  it('a run while one is in flight returns false at once and does not queue', async () => {
     const h = harness([() => ({ items: [{ title: TITLE, decision: 'unsure', reason: 'Unklar.' }] })]);
     h.store.putMany('p2', [workout(TITLE)]);
-    await Promise.all([h.mapper.run(ID), h.mapper.run('p2')]);
+    const [a, b] = await Promise.all([h.mapper.run(ID), h.mapper.run('p2')]);
+    expect(b).toBe(false);
+    expect(a).toBe(false);
     expect(h.prompts).toHaveLength(1);
+  });
+
+  it('a failing ask causes no second call within 1 h, then tries again', async () => {
+    const h = harness([() => { throw new Error('offline'); }, () => ({ items: [] })]);
+    await h.mapper.run(ID);
+    h.clock.now += 3000_000;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+    h.clock.now += 700_000;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(2);
+  });
+
+  it('mayAsk false: no call, and nothing remembered', async () => {
+    const h = harness([() => ({ items: [] })]);
+    h.gate.may = false;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(0);
+    h.gate.may = true;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+  });
+
+  it('mayAsk is checked again before the retry call', async () => {
+    const h = harness([() => { h.gate.may = false; return 'garbage'; }]);
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+  });
+
+  it('nothing changed: no new scan within 24 h', async () => {
+    const h = harness([() => ({ items: [] })]);
+    await h.mapper.run(ID);
+    h.clock.now += 3600_000;
+    h.store.putMany(ID, [workout('Squat (Barbell)')]);
+    const spy = h.store.all.bind(h.store);
+    let reads = 0;
+    h.store.all = ((...a: Parameters<typeof spy>) => { reads += 1; return spy(...a); }) as typeof h.store.all;
+    await h.mapper.run(ID); // changed: scans
+    const afterChange = reads;
+    await h.mapper.run(ID); // unchanged: only the fingerprint reads
+    expect(reads - afterChange).toBeLessThanOrEqual(2);
   });
 
   it('unsure titles are asked again only after 7 days', async () => {
