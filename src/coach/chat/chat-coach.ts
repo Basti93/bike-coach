@@ -1,5 +1,5 @@
 import { CHAT_CONTEXT, CHAT_KEEP_MS, chatThread, readWorkoutChange, waitingMessage, type ChatEntry, type ChatMessage } from '../../shared/chat';
-import { EXERCISES } from '../../shared/exercises';
+import { EXERCISES, type Exercise } from '../../shared/exercises';
 import { validOps } from '../../tracking/workout-change';
 import type { TrackedWorkout } from '../../tracking/session';
 import type { TrackedRecord } from '../../shared/records';
@@ -23,6 +23,8 @@ type Deps = {
   /** The profile's complaints (the bike coach keeps them; every coach reads them). Without: the complaint records. */
   complaints?: (profileId: string) => { id: string; text: string; status: string }[];
   /** Starts a complaint the rider told the chat about. */
+  /** The profile's merged exercise catalog; decides which swap targets exist. Defaults to the built-ins. */
+  catalog?: (profileId: string) => Exercise[];
   addComplaint?: (profileId: string, text: string) => void;
   /** Ends a complaint the rider said is over. */
   endComplaint?: (profileId: string, complaintId: string) => void;
@@ -187,7 +189,7 @@ export class ChatCoach {
       Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : []);
     const msg: ChatMessage = { role: 'coach', text: raw.text.trim().slice(0, 1000) || 'Okay.', atMs: this.deps.nowMs(), inWorkout: w.id };
     const change = isObj(raw.change) ? readWorkoutChange({ workoutId: w.id, ops: raw.change.ops }) : null;
-    const ops = change ? validOps(change, w, EXERCISES) : [];
+    const ops = change ? validOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : [];
     if (ops.length > 0) msg.workoutChange = { workoutId: w.id, ops };
     return msg;
   }

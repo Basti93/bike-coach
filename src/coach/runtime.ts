@@ -187,9 +187,11 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     return key ? new HevyRoutines({ key, dir: path.join(hevyDir, profileId), nowMs }) : null;
   };
   const records = new RecordStore({ dir: path.join(coachDir, 'tracking') });
+  // One exercise catalog per profile: built-ins, the base list and the profile's records (aliases the mapper or the person added).
+  const catalogOf = (id: string) => mergeCatalog(EXERCISES, FEDB_EXERCISES, records.all(id, 'exercise'));
   const gym = new GymCoach({
     dir: path.join(coachDir, 'gym'), nowMs,
-    store: records, hevy: gymConnected,
+    store: records, hevy: gymConnected, catalog: catalogOf,
     mobility: (id) => mobility.promptData(id),
     giveTask: (id, t) => giveTask(id, 'gym', t),
     planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'gym', nowMs()),
@@ -207,7 +209,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   });
   const exerciseMapper = new ExerciseMapper({
     store: records, ask, nowMs, dir: path.join(coachDir, 'gym'),
-    catalog: (id) => mergeCatalog(EXERCISES, FEDB_EXERCISES, records.all(id, 'exercise')),
+    catalog: catalogOf,
   });
   // Mobility needs no Hevy and no Garmin: rides and the merged strength history are enough. Local rules and records, no AI.
   const mobility = new MobilityCoach({
@@ -227,7 +229,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     const now = nowMs();
     const planned = runs === undefined;
     return dayRatings({
-      rides: s.summaries, bikeNext: planned ? s.next?.session ?? null : null, gym: history, gymNext: planned ? gym.state(id).next?.workout ?? null : null, muscleOf,
+      rides: s.summaries, bikeNext: planned ? s.next?.session ?? null : null, gym: history, gymNext: planned ? gym.state(id).next?.workout ?? null : null, muscleOf: (t, title) => gym.templateMuscle(id, t) ?? muscleOf(t, title),
       bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
       ...(runs ? { runs } : {}),
     }, dates);
@@ -260,7 +262,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
   const chat = new ChatCoach({
-    store: records, ask, nowMs, newId: () => randomUUID(), goal: (id) => gym.state(id).goal ?? null,
+    store: records, ask, nowMs, newId: () => randomUUID(), catalog: catalogOf, goal: (id) => gym.state(id).goal ?? null,
     complaints: (id) => (coach.state(id).complaints ?? []).map((c) => ({ id: c.id, text: c.text, status: c.status })),
     addComplaint: (id, text) => coach.addComplaintFromText(id, text),
     endComplaint: (id, cid) => coach.updateComplaint(id, cid, 'over', nowMs()),

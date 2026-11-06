@@ -13,6 +13,9 @@ import type { ExerciseTemplate } from '../../../src/coach/gym/types';
 import type { StrengthWorkout } from '../../../src/coach/hevy';
 import type { RideSummary } from '../../../src/coach/metrics';
 import type { Complaint } from '../../../src/coach/motivation';
+import { RecordStore } from '../../../src/coach/tracking/store';
+import { mergeCatalog } from '../../../src/shared/catalog';
+import { EXERCISES, linkHevyTemplates } from '../../../src/shared/exercises';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 2, 12);
@@ -982,5 +985,38 @@ describe('final review', () => {
       expect(reason).not.toMatch(/ohne Gewichte/);
       expect(reason).not.toMatch(/Noch keine früheren Trainings/);
     });
+  });
+});
+
+describe('shared exercise catalog', () => {
+  const ROW = 'pf-seated-row-cable';
+  const CUSTOM = 'Cable Row Custom';
+  const alias = (aliases: string[]) => ({ kind: 'exercise' as const, id: ROW, updatedMs: NOW, deleted: false, body: { id: ROW, aliases } });
+  const setup = async (withAlias: boolean) => {
+    const store = new RecordStore({ dir: path.join(tmp, 'tracking') });
+    if (withAlias) store.putMany('p1', [alias([CUSTOM])]);
+    const tpl: ExerciseTemplate = { id: 'hevy-row-1', title: CUSTOM, type: 'weight_reps', primaryMuscle: 'upper_back', equipment: 'machine' };
+    const coach = new GymCoach({
+      dir, nowMs: () => NOW, store, ask: async () => answer(),
+      workouts: () => [wk(7, 'h1', [{ t: 'hevy-row-1', kg: 50, reps: 8 }]), wk(3, 'h2', [{ t: ROW, kg: 52.5, reps: 8 }])],
+      templates: async () => [tpl], refreshTemplates: async () => [tpl], ready: () => true,
+      bike: () => ({ summaries: [], complaints: [] }), complaint: () => {}, writer: () => null,
+    });
+    await coach.templateList('p1');
+    return coach;
+  };
+  it('an overlay alias links a Hevy template to the own id and merges its history', async () => {
+    const coach = await setup(true);
+    expect(coach.state('p1').links).toEqual({ 'hevy-row-1': ROW });
+    expect(coach.history('p1').flatMap((w) => w.exercises.map((e) => e.templateId))).toEqual([ROW, ROW]);
+  });
+  it('without the alias the title stays unlinked', async () => {
+    const coach = await setup(false);
+    expect(coach.state('p1').links).toEqual({});
+  });
+  it('linkHevyTemplates takes an optional catalog', () => {
+    const cat = mergeCatalog(EXERCISES, [], [alias([CUSTOM])]);
+    expect([...linkHevyTemplates([{ id: 'x', title: CUSTOM }], cat)]).toEqual([['x', ROW]]);
+    expect(linkHevyTemplates([{ id: 'x', title: CUSTOM }]).size).toBe(0);
   });
 });

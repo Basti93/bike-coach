@@ -237,9 +237,9 @@ for (const e of EXERCISES) { const f = FEDB_LINKS[e.id]; if (f) e.fedbId = f; }
  * all link to the same own exercise. Unknown titles are ignored. The own id is the one history is kept under; to send
  * an own exercise to Hevy, look up the first Hevy id that maps to it.
  */
-export function linkHevyTemplates(templates: { id: string; title: string }[]): Map<string, string> {
+export function linkHevyTemplates(templates: { id: string; title: string }[], catalog: Exercise[] = EXERCISES): Map<string, string> {
   const ownByTitle = new Map<string, string>();
-  for (const e of EXERCISES) for (const t of [...(e.hevyTitle ? [e.hevyTitle] : []), ...(e.aliases ?? [])]) ownByTitle.set(t, e.id);
+  for (const e of catalog) for (const t of [...(e.hevyTitle ? [e.hevyTitle] : []), ...(e.aliases ?? [])]) ownByTitle.set(t, e.id);
   const links = new Map<string, string>();
   for (const t of templates) {
     const own = ownByTitle.get(t.title);

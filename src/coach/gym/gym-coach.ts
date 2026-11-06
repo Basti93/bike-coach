@@ -7,7 +7,9 @@ import { HevyError, type HevyRoutines } from './hevy-routines';
 import { LONG_BREAK_DAYS, MAX_SETS, REP_MAX, REP_MIN } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
-import { EXERCISES, linkHevyTemplates } from '../../shared/exercises';
+import { mergeCatalog } from '../../shared/catalog';
+import { EXERCISES, linkHevyTemplates, type Exercise } from '../../shared/exercises';
+import { FEDB_EXERCISES } from '../../shared/fedb';
 import { onePerSession } from '../../shared/history';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { hevyRecord } from '../tracking/hevy-import';
@@ -51,6 +53,8 @@ type Deps = {
   giveTask?: (id: string, task: { to: CoachId; text: string; lasting: boolean }) => void;
   /** Own records of this Mac. Without one only Hevy counts, as before. */
   store?: RecordStore;
+  /** The profile's one exercise catalog. Defaults to the merged catalog of the store (built-ins without a store). */
+  catalog?: (id: string) => Exercise[];
   /** Whether Hevy is connected for this profile. Defaults to true: the coach was Hevy-only. */
   hevy?: (id: string) => boolean;
   /** Whether the profile is linked to an account: strength tracking is on then, as with Hevy. */
@@ -97,6 +101,11 @@ export class GymCoach {
   }
   isThinking(id: string): boolean { return this.running.has(id); }
 
+  /** The profile's merged catalog (aliases from the mapper or the person included). Built per call: callers hold on to it for one run. */
+  private catalog(id: string): Exercise[] {
+    if (this.deps.catalog) return this.deps.catalog(id);
+    return this.deps.store ? mergeCatalog(EXERCISES, FEDB_EXERCISES, this.deps.store.all(id, 'exercise')) : EXERCISES;
+  }
   isHevy(id: string): boolean { return this.deps.hevy ? this.deps.hevy(id) : true; }
   private logged(id: string): LoggedWorkout[] {
     if (!this.deps.store) return [];
@@ -175,20 +184,26 @@ export class GymCoach {
 
   /** Own exercises, the rider's own ones, and Hevy's that are not linked to an own one (under their Hevy id). */
   async templateList(id: string, fresh = false): Promise<ExerciseTemplate[]> {
+    const catalog = this.catalog(id);
     let hevy: ExerciseTemplate[] = [];
     if (this.isHevy(id)) {
       hevy = await (fresh ? this.deps.refreshTemplates(id) : this.deps.templates(id));
       // Merged, never shrunk: a failed or emptied fetch or a removed Hevy template must not split the history.
-      const links = { ...this.state(id).links, ...Object.fromEntries(linkHevyTemplates(hevy)) };
+      const links = { ...this.state(id).links, ...Object.fromEntries(linkHevyTemplates(hevy, catalog)) };
       if (JSON.stringify(links) !== JSON.stringify(this.state(id).links)) this.update(id, (s) => { s.links = links; });
     }
     const linked = new Set(Object.keys(this.state(id).links));
     // With Hevy the plan stays with Hevy's list; an own exercise joins it once it is linked or has been done in the app.
     const used = new Set(this.logged(id).filter((w) => w.source !== 'hevy').flatMap((w) => w.exercises.map((e) => e.exerciseId)));
-    const own: ExerciseTemplate[] = EXERCISES.filter((e) => !this.isHevy(id) || used.has(e.id) || Object.values(this.state(id).links).includes(e.id)).map((e) => ({ id: e.id, title: e.title, type: e.type, primaryMuscle: e.primaryMuscle, equipment: e.equipment }));
-    const list = [...own, ...this.ownExercises(id), ...hevy.filter((t) => !linked.has(t.id))];
-    // Remembered with the unlinked Hevy templates too, so a linked id still finds its muscle.
-    this.known.set(id, new Map([...hevy, ...list].map((t) => [t.id, t.primaryMuscle])));
+    const builtIn = new Set(EXERCISES.map((e) => e.id));
+    const linkedOwn = new Set(Object.values(this.state(id).links));
+    // The base list (thousands) is not offered as a whole: built-ins, the person's own and those used or linked are.
+    const own: ExerciseTemplate[] = catalog.filter((e) => builtIn.has(e.id) ? !this.isHevy(id) || used.has(e.id) || linkedOwn.has(e.id) : e.source === 'user' || e.source === 'ai' || used.has(e.id) || linkedOwn.has(e.id))
+      .map((e) => ({ id: e.id, title: e.title, type: e.type, primaryMuscle: e.primaryMuscle, equipment: e.equipment }));
+    const have = new Set(own.map((t) => t.id));
+    const list = [...own, ...this.ownExercises(id).filter((t) => !have.has(t.id)), ...hevy.filter((t) => !linked.has(t.id))];
+    // Remembered with the unlinked Hevy templates and the whole catalog, so any known id finds its muscle.
+    this.known.set(id, new Map([...catalog.map((e) => [e.id, e.primaryMuscle] as const), ...[...hevy, ...list].map((t) => [t.id, t.primaryMuscle] as const)]));
     return list;
   }
   private known = new Map<string, Map<string, string>>();
@@ -211,7 +226,7 @@ export class GymCoach {
   private toHevy(id: string, w: GymWorkout): { workout: GymWorkout; leftOut: string[] } {
     const reverse = new Map<string, string>();
     for (const [hevyId, ownId] of Object.entries(this.state(id).links)) if (!reverse.has(ownId)) reverse.set(ownId, hevyId);
-    const ownIds = new Set([...EXERCISES.map((e) => e.id), ...this.ownExercises(id).map((t) => t.id)]);
+    const ownIds = new Set([...this.catalog(id).map((e) => e.id), ...this.ownExercises(id).map((t) => t.id)]);
     const leftOut: string[] = [];
     const exercises: GymExercise[] = [];
     for (const e of w.exercises) {

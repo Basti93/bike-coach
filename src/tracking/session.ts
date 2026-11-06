@@ -43,8 +43,8 @@ export const formatDecimal = (n: number | null): string => (n === null ? '' : St
 
 /** Confirmed sets of the newest performed session containing the exercise. A session known twice (own and Hevy) counts once. */
 /** The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. */
-export function lastValues(exerciseId: string, history: LoggedWorkout[]): LoggedSet[] {
-  const own = EXERCISES.find((e) => e.id === exerciseId);
+export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog: Exercise[] = EXERCISES): LoggedSet[] {
+  const own = catalog.find((e) => e.id === exerciseId);
   const titles = own ? exerciseTitles(own) : [];
   for (const w of onePerSession(dedupeSessions(history))) {
     const sets = w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
@@ -57,7 +57,7 @@ const blank = (): TrackedSet => ({ rid: newRid(), type: 'normal', weightKg: null
 const typeOf = (id: string, catalog: Exercise[]): string => catalog.find((e) => e.id === id)?.type ?? 'weight_reps';
 
 function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exercise[]): TrackedExercise {
-  const last = lastValues(g.templateId, history);
+  const last = lastValues(g.templateId, history, catalog);
   const timed = isTimed(typeOf(g.templateId, catalog));
   const seen = { warm: 0, work: 0 };
   const sets = g.sets.map((p): TrackedSet => {
@@ -86,7 +86,7 @@ export const startEmpty = (nowMs: number, id: string, title = 'Training'): Track
   ({ id, title, startMs: nowMs, endMs: null, source: 'pandafit', exercises: [], rest: null });
 
 function fromCatalog(e: Exercise, history: LoggedWorkout[], keep?: Pick<TrackedExercise, 'supersetId' | 'restS'>): TrackedExercise {
-  const last = lastValues(e.id, history);
+  const last = lastValues(e.id, history, [e]);
   const sets: TrackedSet[] = last.length
     ? last.map((l) => ({ rid: newRid(), type: l.type, weightKg: l.weightKg, reps: l.reps, durationS: l.durationS, doneMs: null }))
     : [blank()];
