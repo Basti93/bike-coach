@@ -27,7 +27,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **0 Grundlage** | Regelregister existiert, Übungsidentität nur über ID/exakten Titel, unbekannte Muskeln sind sichtbar. | Auftrag 0, Schritt 0–1 (teilweise) |
 | ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
 | ✅ | **B Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
-| **C** | **Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
+| ✅ | **C Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | **E** | **Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | **F** | **Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
@@ -92,7 +92,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (Ledger):** Liste mit vier Zuständen statt Körperbild; Zielbereiche der neuen Teilmuskeln aus RP-Richtwerten im Regelregister; Altwert „Schultern“ ohne Teil zählt als „Schulter vorn“.
 
-## Meilenstein C — Brief
+## Meilenstein C — Brief (umgesetzt 06.11.2026)
 
 **Ziel:** Jeder Gewichtsvorschlag lässt sich am Gerät im jeweiligen Studio wirklich einstellen, und jede Übung steigert sich in ihrem eigenen Bereich.
 

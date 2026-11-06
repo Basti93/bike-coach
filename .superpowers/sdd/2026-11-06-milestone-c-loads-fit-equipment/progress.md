@@ -18,3 +18,9 @@ Branch: milestone-c-loads-fit-equipment
 - Rep range per exercise = rep range of its muscle group from the register.
 
 ## Tasks
+- T1 Studio: edcd695. Review: no must-fix. For final fix: UI test picker→begin→record.studio; mainStudio tie-break by id; reuse known name ignoring case on new-name commit.
+- T2 Loads: ca05d5e. Review: no must-fix. For final fix: platesPerSide guard non-finite input; tests for 1.25 grid with 61.25 and validBody('loadstep').
+- T3 Progression: 4ee2ad9. Accepted deviation: step-back may go one step below the lightest seen weight (barbell: down to bar); anchor = exact lightest weight (Hevy 22.68 stays on its own grid).
+- T3 review, for final fix: (MUST) drop rule counts only drops at exactly the same weight (a rise resets reps); ladder learns from normal+failure sets only; rule workout start reps from repRangeOf; guardrail snap never raises a weight (min with original); docs/gym-foundations.md update.
+- T4 Display: b6107b1. Screenshot check: "Ziel 6–12" repeated on every set (too many numbers) → only on the first working set; studio label + select stacked → one inline line.
+- Final fixes 1cb7660; Opus final review → 2604421 (lastValues per studio, one shared ladderFrom). 2529 tests green, typecheck clean. Parked: coach plans for last studio only; own inventory; no sharing between profiles.
