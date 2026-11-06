@@ -19,6 +19,8 @@ import type { Effort } from '../shared/records';
 
 export type StrengthWorkout = {
   id: string; title: string; startMs: number; durationS: number;
+  /** Own workouts only; a Hevy workout has none and counts for the main studio (shared/studio). */
+  studio?: string;
   exercises: {
     title: string; templateId: string; sets: number; reps: number; volumeKg: number;
     workSets: { type: SetType; weightKg: number | null; reps: number | null }[];

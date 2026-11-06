@@ -44,6 +44,7 @@
 .tk-ex-head .muted { padding-top: .6rem; }
 .tk-screen button.tk-more { flex: none; padding: 0; width: 44px; font-size: 1.3rem; line-height: 1; }
 .tk-menu { justify-content: flex-end; }
+.tk-studio { margin: 0; font-size: .9rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .tk-sub { margin: -.3rem 0 0; font-size: .9rem; }
 .tk-screen .tk-notes { width: 100%; resize: none; overflow: hidden; line-height: 1.4; font: inherit; }
 .tk-screen button.tk-skip { background: rgba(255, 255, 255, .3); color: var(--tk-ink); border: 1px solid rgba(31, 20, 8, .45); }

@@ -100,3 +100,10 @@ describe('hevyRecord links', () => {
     expect(hevyRecord(w).body).not.toEqual(r.body);
   });
 });
+
+describe('studio', () => {
+  test('toStrengthWorkout carries the studio, and none when there is none', () => {
+    expect(toStrengthWorkout({ ...logged('a', 0, 3600_000), studio: 'Alpha' }, NO).studio).toBe('Alpha');
+    expect('studio' in toStrengthWorkout(logged('a', 0, 3600_000), NO)).toBe(false);
+  });
+});

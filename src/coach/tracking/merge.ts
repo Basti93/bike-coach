@@ -12,6 +12,7 @@ export function toStrengthWorkout(w: LoggedWorkout, links: Links): StrengthWorko
   return {
     id: w.id, title: w.title, startMs: w.startMs,
     durationS: w.endMs === null ? 0 : Math.max(0, Math.round((w.endMs - w.startMs) / 1000)),
+    ...(w.studio ? { studio: w.studio } : {}),
     exercises: w.exercises.map((e) => ({ e, sets: real(e.sets) })).filter((x) => x.sets.length > 0).map(({ e, sets }) => {
       const work = sets.filter((s) => s.type !== 'warmup');
       return {

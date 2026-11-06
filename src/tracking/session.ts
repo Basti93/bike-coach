@@ -1,4 +1,5 @@
 import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
+import { studioName } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
@@ -80,6 +81,12 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
 
 export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES): TrackedWorkout {
   return { id, title: w.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises: w.exercises.map((g) => plannedExercise(g, history, catalog)), rest: null };
+}
+/** Sets (or, with an empty name, clears) the studio. */
+export function setStudio(w: TrackedWorkout, raw: string): TrackedWorkout {
+  const { studio: _old, ...rest } = w;
+  const studio = studioName(raw);
+  return studio ? { ...rest, studio } : rest;
 }
 export const startFromRoutine = startFromPlan;
 export const startEmpty = (nowMs: number, id: string, title = 'Training'): TrackedWorkout =>

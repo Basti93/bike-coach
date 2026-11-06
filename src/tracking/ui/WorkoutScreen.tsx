@@ -9,7 +9,7 @@ import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
   addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan,
-  setEffort, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
+  setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
@@ -27,6 +27,32 @@ import { applyWorkoutChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
+import { defaultStudio, knownStudios, studioName } from '../../shared/studio';
+
+const NEW_STUDIO = '\u0000new';
+
+/** One light line: "Studio: <Name>" with a select of the known names and "Neues Studio …", which opens a text input. */
+function StudioLine({ value, known, onChange }: { value: string | undefined; known: string[]; onChange: (name: string | undefined) => void }) {
+  const [typing, setTyping] = useState(false);
+  const names = value && !known.includes(value) ? [value, ...known] : known;
+  const commit = (raw: string) => { setTyping(false); const n = studioName(raw); if (n) onChange(n); };
+  return (
+    <p className="muted tk-studio">
+      <label>Studio:{' '}
+        <select aria-label="Studio" value={typing ? NEW_STUDIO : (value ?? '')}
+          onChange={(e) => (e.target.value === NEW_STUDIO ? setTyping(true) : onChange(e.target.value || undefined))}>
+          {!value && <option value="">–</option>}
+          {names.map((n) => <option key={n} value={n}>{n}</option>)}
+          <option value={NEW_STUDIO}>Neues Studio …</option>
+        </select>
+      </label>
+      {typing && (
+        <input type="text" aria-label="Name des neuen Studios" maxLength={40} autoFocus
+          onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); }} />
+      )}
+    </p>
+  );
+}
 
 type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
 type Ask = { question: 'nothing-confirmed' } | { question: 'open-sets'; open: number } | null;
@@ -127,6 +153,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     <div className="tk-screen" ref={screenRef}>
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
+      <StudioLine value={w.studio} known={knownStudios([...history, w])} onChange={(n) => act((x) => setStudio(x, n ?? ''))} />
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
           Gerade nicht gespeichert. Dein Training bleibt hier offen und wird mit dem nächsten Schritt erneut gespeichert.
@@ -300,11 +327,15 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const history = finishedWorkouts(workouts);
   const openRecs = (workouts ?? []).filter((r) => (r.body as LoggedWorkout).endMs === null).sort((a, b) => (b.body as LoggedWorkout).startMs - (a.body as LoggedWorkout).startMs);
 
+  const [chosen, setChosen] = useState<string | undefined>(undefined);
+  const logged = (workouts ?? []).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout);
+  const studio = chosen ?? defaultStudio(logged);
+
   async function begin(w: TrackedWorkout) {
     if (starting.current) return; // a double tap makes one workout
     starting.current = true;
     try {
-      const s = acquireStore(port, w, now);
+      const s = acquireStore(port, studio ? { ...w, studio } : w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
       setMessage(null);
       setStore({ s, autoEnd: false });
@@ -351,6 +382,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       {message && <p role="status" className="tk-note">{message}</p>}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
+      <StudioLine value={studio} known={knownStudios(logged)} onChange={setChosen} />
       {plan && (
         <section className="card tk-plan-preview" aria-label="Heutiger Plan">
           <h2>{plan.name}</h2>
