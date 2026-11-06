@@ -247,6 +247,8 @@ Die Umsetzung soll aus sequentiellen, prüfbaren Aufträgen bestehen. Jedes Pake
 
 Der [Architektur- und Migrationsabgleich](../../research/2026-11-06-migration-assessment.md) unterscheidet inzwischen vorhandene, zu erweiternde und gezielt zu ersetzende Module. Das fachliche Zielmodell bestimmt das Verhalten; Speicherung, Laufzeit und gemeinsame Tracking-Oberfläche werden als Grundlage weiterverwendet. Ausführbare Teilpläne verbinden Fachpakete zu nutzbaren Abläufen statt zunächst alle neuen Datentypen ohne Wirkung einzuführen.
 
+Die dortige Vorbildmatrix verbindet die fünf geprüften Fremdprojekte mit konkreten Einführungsschritten. Relevante Arbeitsaufträge nennen übernommenen Gedanken, festen Quellverweis, Übernahmeart, Anpassungen und Gegenproben. Persönliche Ziele und Forschung bestimmen die fachliche Eignung; der vorhandene Code bestimmt die technische Einbindung.
+
 Vorgeschaltet ist **Auftrag 0: Evidenz- und Policy-Grundlage**. Er überführt die fachliche Recherche in ein versioniertes Quellen-/Regelregister, getrennte Zielbegriffe, den Umgang mit unbekannten Daten und eine Zuordnung bestehender Widersprüche zu Folgeaufträgen. Konkrete Abnahmekriterien stehen im Grundlagenpapier. Er implementiert noch nicht alle neuen Planer.
 
 Danach bilden die Aufträge drei Etappen: **Grundlage korrigieren** (1–4), **Planung personalisieren** (5–8) und **Ausführung sowie Entwicklung verbessern** (9–12). Die Etappen sind eine Einführungsreihenfolge; es muss nicht erst das gesamte Konzept fertig sein, bevor Verbesserungen nutzbar werden.

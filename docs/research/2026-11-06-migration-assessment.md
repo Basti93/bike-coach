@@ -8,6 +8,8 @@ Zuerst das gewünschte fachliche Verhalten und seine Begriffe festlegen. Dann je
 
 Das bedeutet: Ziele, Regeln, Geräte, Trainingsbeiträge, Plan und Ausführung werden nach dem neuen Konzept modelliert. Bestehende Laufzeit, Aufzeichnung, Speicherung und Synchronisierung bleiben die Grundlage. Fachlich widersprüchliche Funktionen werden an ihrer tatsächlichen Aufrufstelle ersetzt. Ein zweites vollständiges Produkt oder eine dauerhaft parallel gepflegte Planungslogik ist nicht vorgesehen.
 
+**Ergänzung aus dem Gespräch:** Die geprüften Fremdprojekte werden ausdrücklich als weitere Entwurfsquelle genutzt. Jede größere Änderung verbindet persönliches Ziel, wissenschaftliche Grundlage, passende externe Vorbilder und den PandaFit-Bestand. Es ist nicht erforderlich, alle Lösungen selbst neu zu erfinden. Maßgeblich sind die bereits untersuchten festen Quellstände, nicht allein Produktversprechen.
+
 ## 1. Was im Code bereits trägt
 
 | Bereich | Tatsächlicher Bestand | Entscheidung |
@@ -36,6 +38,24 @@ Dies ist eine Quellcodebewertung, kein Nachweis, dass die gesamte bestehende Imp
 | Records mit `body: unknown` | Erweiterbare Hülle löst nicht das Problem, dass alte Leser neue Angaben entfernen können. | Schemafähigkeit, Roundtrip-Erhalt und Schreibberechtigung nach Versionsfähigkeit prüfen. |
 
 ## 3. Module nach fachlicher Verantwortung
+
+### Konkrete Vorbilder für die Migration
+
+Die [Tiefenrecherche](2026-11-06-open-source-training-audit.md) und ihre Detailberichte enthalten Quellpfade, feste Commitstände und Prüfgrenzen. Die folgenden Ansätze werden beim jeweiligen Teilplan konkret verglichen:
+
+| Vorbild | Nutzbarer Ansatz | Anschluss in PandaFit | Bewusste Anpassung und Gegenprobe |
+|---|---|---|---|
+| [Cladiron](open-source-training/cladiron.md) | Quellenregister, strukturierte Entscheidungsgründe und gemeinsamer Sportkontext | Evidenz-/Regelvertrag und Planungskontext | Pauschale Erholungssperren und Namens-Keywords nicht als fachliche Wahrheit übernehmen. Eine leichte Ruderübung darf keine Beinbelastung erfinden. |
+| [Heracles](open-source-training/heracles.md) | Herkunft und Version der Muskelzuordnung, direkte/indirekte Beiträge und Gerätevergleich | Übungswissen, Muskelbilanz und vergleichbare Vorleistung | Fehlende RIR bleiben unbekannt; Modellanteile sind keine gemessenen Wachstumsanteile. Hohe Wiederholungen bleiben sichtbar, extreme e1RM-Schätzungen werden verhindert. |
+| [Liftosaur](open-source-training/liftosaur.md) | Geräteinkremente, begrenzter Scheibenbestand, übungsbezogene Progression, Gruppierung und Umordnen | Geräte-/Progressionsschritt und Trainingsausführung | Ziel unter Stangengewicht ausdrücklich als unerreichbar zeigen; keine biologische Grenze bei acht Wiederholungen übernehmen. Umordnen erhält Auswahl und Satzdaten. |
+| [Ironvellum](open-source-training/repstack-ironvellum.md) | Annehmen/Undo, gezieltes Übertragen in die Routine, Vorbereitung pro Bewegungsblock und freie Partnerwahl | Dauerhafte Änderungen, Aufwärmen und Supersätze | Änderung und Rücknahmeinformation gemeinsam dauerhaft speichern. Tatsächliches Stangengewicht verwenden und Aufwärmzeit in die Dauer einrechnen. |
+| [Repstack](open-source-training/repstack-ironvellum.md) | Verständliche Trainingsblöcke und strukturierte Rückmeldungen | Befristete Schwerpunkte und Weiterentwicklung über Wochen | Feedback bekommt einen nachweisbaren Empfänger in der Planung; die dort angekündigte, aber nicht implementierte Volumenautoregulation wird nicht als fertiger Algorithmus eingeplant. |
+
+**Vorgabe für die Teilpläne:** Jeder relevante Auftrag nennt das externe Vorbild mit festem Quellverweis, den konkret verwendeten Gedanken, die Übernahmeart, nötige Anpassungen, den betroffenen produktiven PandaFit-Pfad sowie einen Erfolgs- und einen bekannten Fehlerfall. Die Übernahmeart ist ausdrücklich entweder eine eigenständig umgesetzte Idee, eine gezielte Anpassung vorhandenen PandaFit-Codes oder eine konkrete Übernahme fremden Codes bzw. Materials. Bei tatsächlicher Übernahme werden Herkunft und Bedingungen des konkreten Bestands geprüft; App-Code, Übungsdaten und Medien sind getrennte Bestände. Ein ähnliches Interface allein gilt nicht als bereits integrierte Funktion.
+
+Die Referenzen rechtfertigen keine zusätzliche allgemeine Architektur. Wir übernehmen passende Muster für konkrete Probleme; wissenschaftliche Annahmen werden weiterhin unabhängig an der Trainingsgrundlage geprüft.
+
+### Verantwortlichkeiten
 
 Die folgenden Namen beschreiben Verantwortlichkeiten, noch keine festgelegten Ordner oder TypeScript-Interfaces:
 
