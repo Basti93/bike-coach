@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
 import { readStats, STATS_ID } from '../../shared/stats';
+import { excludedIds } from '../../shared/personal';
 import { exerciseImages, videoSearchUrl } from '../media';
 import { resolveExercise } from '../exercise-identity';
 import { describeExercise } from '../similar';
@@ -17,7 +18,7 @@ import { ExerciseInfo, StepLine } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
 import { ExerciseProposals } from './ExerciseProposals';
 import { MuscleIcon } from './MuscleIcon';
-import { finishedWorkouts, useCatalog, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
+import { finishedWorkouts, useCatalog, useExcluded, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
 import { NotesField } from './NotesField';
 import { EffortQuestion, EFFORT_LABEL, effortQuestionsOn } from './EffortQuestion';
@@ -88,6 +89,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const leaving = useRef(false);
   const remote = usePortRecords(port, 'workout').all;
   const catalog = useCatalog(port);
+  const excluded = useExcluded(port);
   const statsRecords = usePortRecords(port, 'stats').records;
   const loadSteps = usePortRecords(port, 'loadstep').records;
   const overrides = useMemo(() => loadStepOverrides(loadSteps ?? []), [loadSteps]);
@@ -189,7 +191,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       )}
       {notice && <p role="note" className="tk-note">{notice}</p>}
       <WorkoutCoach port={port} workout={w} catalog={catalog} now={now} newId={newId}
-        onTake={(id, c) => act((x) => takeChange(x, id, c, history, catalog, studios, now()).workout)} onUndo={(id) => act((x) => undoChange(x, id).workout)} />
+        onTake={(id, c) => act((x) => takeChange(x, id, c, history, catalog, studios, now(), excluded).workout)} onUndo={(id) => act((x) => undoChange(x, id).workout)} />
       {w.rest && remaining > 0 && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
@@ -383,10 +385,11 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // finished one whose mark got lost is made up here.
   // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
-    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]);
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]), excluded: ReadonlySet<string> = new Set();
+    try { excluded = excludedIds(await port.list('rule')); } catch { /* start without them */ }
     try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
     let skipped: string[] = [];
-    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, onSkipped: (l) => { skipped = l; } });
+    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded, onSkipped: (l) => { skipped = l; } });
     if (!(await begin(w, skipped.length ? skipped.join(' ') : null))) return;
     await markUsed(port, all.filter((x) => x.endMs !== null), now());
   };

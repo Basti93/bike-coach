@@ -6,7 +6,6 @@ import type { GymOutlook } from '../../shared/gym-outlook';
 
 export type GymState = {
   profileId: string;
-  goal: 'muscle';
   next: { workout: GymWorkout; reason: string; source: 'claude' | 'rules' } | null;
   /** The workouts after the next one, sketched, and where the training is heading. Null until the AI planned. */
   outlook: GymOutlook | null;
@@ -40,7 +39,7 @@ export type GymState = {
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialGymState = (profileId: string): GymState => ({
-  profileId, goal: 'muscle', next: null, outlook: null, emptyReason: null, lastNote: null, notes: [], answers: [], seenWorkoutIds: [],
+  profileId, next: null, outlook: null, emptyReason: null, lastNote: null, notes: [], answers: [], seenWorkoutIds: [],
   routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null, localStart: false, links: {},
 });
 
@@ -50,7 +49,7 @@ export const loadGymState = (dir: string, profileId: string): GymState => {
   try {
     const parsed = JSON.parse(fs.readFileSync(f, 'utf8')) as GymState;
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not a state');
-    const { rules: _old, ...rest } = parsed as GymState & { rules?: unknown };
+    const { rules: _old, goal: _goal, ...rest } = parsed as GymState & { rules?: unknown; goal?: unknown };
     return { ...initialGymState(profileId), ...rest, profileId };
   } catch {
     try { fs.copyFileSync(f, `${f}.broken`); } catch { /* starting fresh matters more */ }

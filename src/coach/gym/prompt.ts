@@ -14,6 +14,7 @@ import type { GymState } from './state';
 import type { ExerciseTemplate } from './types';
 import type { Renames } from '../../shared/studio';
 import { TASKS_GUIDE, zTasks } from '../coach-tasks';
+import { goalOf, priorityLine, wishLine, type GoalBody } from '../../shared/personal';
 
 const EFFORT_WORDS = { none: '0', some: '1–2', plenty: '3 oder mehr' } as const;
 
@@ -74,7 +75,11 @@ export type PromptInput = {
   catalog?: Exercise[];
   /** The studio the plan is for, and the person's weight-step overrides. */
   studio?: string; overrides?: LoadStepOverrides; renames?: Renames;
+  /** The person's goal, the template ids their exclude rules rule out (own ids and linked Hevy ids) and their active wishes for strength. */
+  goal?: Omit<GoalBody, 'atMs'>; excluded?: ReadonlySet<string>; wishes?: readonly string[];
 };
+
+const STRENGTH_WORDS = { muscle: 'Muskelaufbau', strength: 'Kraft', fitness: 'Fitness' } as const;
 
 export function buildGymPrompt(i: PromptInput): string {
   const days = (ms: number) => Math.round((i.nowMs - ms) / DAY_MS * 10) / 10;
@@ -84,10 +89,12 @@ export function buildGymPrompt(i: PromptInput): string {
   const history = availableExercises(i.workouts, i.nowMs);
   const titleOf = new Map(i.workouts.flatMap((w) => w.exercises.map((e) => [e.templateId, e.title] as const)));
   const byId = new Map(i.templates.map((t) => [t.id, t]));
-  const available = history.filter((a) => { const t = byId.get(a.templateId); return !!t && isRepBased(t); });
+  const excluded = i.excluded ?? new Set<string>();
+  const goal = i.goal ?? goalOf([]);
+  const available = history.filter((a) => { const t = byId.get(a.templateId); return !!t && isRepBased(t) && !excluded.has(a.templateId); });
   const knownIds = new Set(available.map((a) => a.templateId));
   const equipment = new Set(available.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
-  const volume = muscleVolume(i.workouts, i.templates, i.catalog ?? [], i.nowMs, i.state.goal);
+  const volume = muscleVolume(i.workouts, i.templates, i.catalog ?? [], i.nowMs, goal.strength);
   const sums = Object.fromEntries(volume.map((g) => [g.group, g.effective28]));
   const blocks = [
     dataBlock('training', shown.map((w) => ({
@@ -105,7 +112,7 @@ export function buildGymPrompt(i: PromptInput): string {
         schritt: stepWords(ladderFor(a.templateId, t, i.workouts, i.nowMs, plan)),
       };
     })),
-    dataBlock('vorlagen', i.templates.filter((t) => isRepBased(t) && !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
+    dataBlock('vorlagen', i.templates.filter((t) => isRepBased(t) && !excluded.has(t.id) && !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
       .map((t) => ({ templateId: t.id, title: t.title, muskel: t.primaryMuscle, geraet: t.equipment }))),
     dataBlock('muskelvolumen', volume.map((g) => ({
       gruppe: g.label, saetze7Tage: g.effective7, saetzeProWocheLetzte4Wochen: g.perWeek4, zielSaetzeProWoche: g.target, wiederholungen: MUSCLE_TARGETS[g.group].reps,
@@ -122,7 +129,13 @@ export function buildGymPrompt(i: PromptInput): string {
     ...(i.mobility ? [dataBlock('beweglichkeit', i.mobility)] : []),
     ...(i.rejection ? [dataBlock('ablehnung', i.rejection)] : []),
   ];
+  const names = [...excluded].flatMap((x) => { const t = byId.get(x)?.title ?? titleOf.get(x); return t ? [t] : []; });
   const tail = [
+    `Ziel der Person: ${STRENGTH_WORDS[goal.strength]}.`,
+    goal.focus.length ? `Schwerpunkt: ${goal.focus.map((g) => MUSCLE_TARGETS[g as keyof typeof MUSCLE_TARGETS].label).join(', ')}.` : null,
+    names.length ? `Ausgeschlossen (Regel der Person): ${[...new Set(names)].join(', ')}. Plane sie nie.` : null,
+    priorityLine(goal),
+    wishLine(i.wishes ?? []),
     i.rejection ? 'Dein letzter Vorschlag wurde abgelehnt, der Grund steht im Block ablehnung-nur-daten. Korrigiere ihn.' : null,
     i.mobility ? 'Beweglichkeit (Dehnen) bietet die App selbst an, der Block beweglichkeit-nur-daten zeigt sie. Plane sie nicht und verspreche dazu weder Erholung noch Verletzungsschutz.' : null,
     'Plane jetzt das nächste Training.',

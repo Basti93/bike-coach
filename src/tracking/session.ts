@@ -101,7 +101,9 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
  * which at least one op applied (empty rows, so no undo after the start); the others stay taken. `onSkipped` gets the short lines for ops
  * that no longer fit; they are for the rider's screen only, not workout data.
  */
-export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides; onSkipped?: (lines: string[]) => void } = { changes: [], workouts: [] }): TrackedWorkout {
+export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides; /** Exercise ids the person's rules rule out: dropped from the plan, with a line in `onSkipped`. */ excluded?: ReadonlySet<string>; onSkipped?: (lines: string[]) => void } = { changes: [], workouts: [] }): TrackedWorkout {
+  const dropped = next.excluded ? w.exercises.filter((e) => next.excluded!.has(e.templateId)) : [];
+  if (dropped.length) w = { ...w, exercises: w.exercises.filter((e) => !next.excluded!.has(e.templateId)) };
   const listed = listedIds(next.workouts);
   const todo = next.changes.filter((c) => c.state === 'taken' && !listed.has(c.id));
   // A lowered weight lands on a weight the machine here can really show: the exercise's ladder in this workout's studio.
@@ -113,7 +115,8 @@ export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: nu
     const own = sessions.map((h) => ({ studio: h.studio, startMs: h.startMs, sets: h.exercises.filter((x) => x.exerciseId === exerciseId).flatMap((x) => x.sets.filter(isDone)) }));
     return snapDown(kg, ladderFrom(own, { exerciseId, studio: key, main, renames: studios.renames }, equipment, next.overrides ?? new Map()).ladder);
   };
-  const { plan, notes, applied } = applyNextChanges(w, todo, catalog, lower);
+  const { plan, notes: changeNotes, applied } = applyNextChanges(w, todo, catalog, lower, next.excluded);
+  const notes = [...dropped.map((e) => `Ohne ${e.title} – deine Regel.`), ...changeNotes];
   const done = todo.filter((c) => applied.includes(c.id));
   const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios));
   // Lighter also works on weights the last session gave (the plan had none); planned weights were lightened above.

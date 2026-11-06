@@ -25,6 +25,7 @@ import type { StrengthHealth } from './strength';
 import { HevyRoutines } from './gym/hevy-routines';
 import { gymPublic } from './gym/public';
 import { RecordStore } from './tracking/store';
+import { goalOfProfile, personalHint } from './tracking/personal';
 import { handleRecords } from './tracking/records-api';
 import { errorKind } from './error-kind';
 import { MobilityCoach, muscleOf } from './mobility/mobility';
@@ -243,7 +244,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     return statsContent({
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
-      ratings: (dates) => ratingsOf(id, dates, runs), goal: gym.state(id).goal ?? null,
+      ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id).strength,
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
       ftp: coach.state(id).ftpHistory, weightKg: profiles().find((p) => p.id === id)?.weightKg ?? null,
     });
@@ -263,7 +264,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   };
   // The coach chat: answers the rider's messages of the profiles coached here, never with a ride open.
   const chat = new ChatCoach({
-    store: records, ask, nowMs, newId: () => randomUUID(), catalog: catalogOf, goal: (id) => gym.state(id).goal ?? null,
+    store: records, ask, nowMs, newId: () => randomUUID(), catalog: catalogOf,
     complaints: (id) => (coach.state(id).complaints ?? []).map((c) => ({ id: c.id, text: c.text, status: c.status })),
     addComplaint: (id, text) => coach.addComplaintFromText(id, text),
     endComplaint: (id, cid) => coach.updateComplaint(id, cid, 'over', nowMs()),

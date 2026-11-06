@@ -129,3 +129,16 @@ export function excludedIds(records: readonly TrackedRecord[]): Set<string> {
 /** The texts of the active wishes for a sport. */
 export const wishes = (records: readonly TrackedRecord[], sport: SportKey): string[] =>
   activeRules(records, sport, 0).filter((r) => r.kind === 'wish').map((r) => r.text);
+
+const PRIO_WORDS: Record<Prio, string> = { focus: 'Schwerpunkt', equal: 'gleichrangig', keep: 'erhalten' };
+const SPORT_WORDS: Record<SportKey, string> = { gym: 'Kraft', bike: 'Rad', run: 'Laufen' };
+
+/** One prompt line with the person's sport priorities, or null when none is set. */
+export function priorityLine(goal: Pick<GoalBody, 'sports'>): string | null {
+  const parts = SPORT_KEYS.flatMap((k) => (goal.sports[k] ? [`${SPORT_WORDS[k]} ${PRIO_WORDS[goal.sports[k]!]}`] : []));
+  return parts.length ? `Sportarten nach Wunsch der Person: ${parts.join(', ')}.` : null;
+}
+
+/** One prompt line with the active wishes, or null when there are none. Wishes cannot be checked, so the line says so. */
+export const wishLine = (texts: readonly string[]): string | null =>
+  texts.length ? `Wünsche der Person (nicht prüfbar): ${texts.map((t) => t.replace(/\s+/g, ' ').trim()).join('; ')}` : null;

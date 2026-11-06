@@ -27,7 +27,7 @@ export function ruleWorkout(ctx: GymContext): { workout: GymWorkout; reason: str
   const byId = new Map(ctx.templates.map((t) => [t.id, t]));
   const recentLegs = recentLegWork(ctx.workouts, ctx.templates, ctx.nowMs);
   const legsTired = recentLegs || ctx.avoidLegs === true;
-  const allowed = (t: ExerciseTemplate): boolean => isRepBased(t) && !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
+  const allowed = (t: ExerciseTemplate): boolean => isRepBased(t) && !ctx.excluded?.has(t.id) && !(legsTired && LEG_MUSCLES.includes(t.primaryMuscle));
   const since = ctx.nowMs - RECENT_DAYS * DAY_MS;
   const count = new Map<string, number>();
   for (const w of ctx.workouts) {

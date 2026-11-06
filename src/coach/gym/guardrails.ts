@@ -8,7 +8,9 @@ import { repRangeOf } from '../../shared/muscle-targets';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
   /** The studio the plan is for (undefined: the main one) and the person's weight-step overrides. */
-  studio?: string; overrides?: LoadStepOverrides; renames?: Renames };
+  studio?: string; overrides?: LoadStepOverrides; renames?: Renames;
+  /** Template ids the person's active exclude rules rule out (own ids and the Hevy ids linked to them). */
+  excluded?: Set<string> };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;
@@ -113,6 +115,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const byId = new Map(ctx.templates.map((t) => [t.id, t]));
     const parsed = raw.exercises.map((e, i) => parseExercise(e, i, byId));
     const exercises = parsed.map((p) => p.ex);
+    if (exercises.some((e) => ctx.excluded?.has(e.templateId))) return no('Übung ausgeschlossen (Regel der Person)');
     const all = exercises.flatMap((e) => e.sets);
     if (all.length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
     if (all.filter((s) => s.type === 'failure').length > MAX_FAILURE_SETS) return no(`mehr als ${MAX_FAILURE_SETS} Sätze bis zum Versagen`);
@@ -136,6 +139,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
  */
 const REASON_PHRASES: [RegExp, string][] = [
   [/Schema/, 'die Antwort war nicht lesbar'],
+  [/ausgeschlossen/, 'eine Übung, die du ausgeschlossen hast'],
   [/mehr als \d+ Übungen/, 'zu viele Übungen'],
   [/mehr als \d+ Sätze bis zum Versagen/, 'zu viele Sätze bis zum Versagen'],
   [/mehr als \d+ Sätze/, 'zu viele Sätze'],

@@ -19,7 +19,7 @@ import { cleanSamples, loadModel, onTargetPctOf, powerCurveOf, summarizeRide, ty
 import { complaintFromNote, type ComplaintStatus } from './motivation';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import type { RecordStore } from './tracking/store';
-import { migrateRules } from './tracking/personal';
+import { migrateRules, personalHint } from './tracking/personal';
 import { legacyBikeRules, loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
 
 const RAISE_UNVERIFIED = 1.05;
@@ -415,7 +415,7 @@ export class Coach {
     this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
-      const input = { prompt: `${this.buildPrompt(s)}${this.deps.planHint?.(s.profileId) ?? ''}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
+      const input = { prompt: `${this.buildPrompt(s)}${this.deps.planHint?.(s.profileId) ?? ''}${this.deps.store ? personalHint(this.deps.store, s.profileId, 'bike') : ''}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
       let raw = await this.deps.ask(input);
       this.handOff(profileId, raw);
       const rejected = this.rejection(s, raw);

@@ -11,18 +11,18 @@ import { ClaudeError } from '../claude-client';
 import { dateKey } from '../day-load';
 import { dataBlock } from '../meals/prompt';
 import type { RecordStore } from '../tracking/store';
+import { excludedOf, goalOfProfile, wishesOf } from '../tracking/personal';
+import { wishLine, type SportKey } from '../../shared/personal';
 import { LONG_TERM_GUIDE, weekHistory } from './long-term';
 import { readTasks, tasksJsonSchema, type CoachId } from '../coach-tasks';
 
-type Draft = { ops: NextOp[]; reason: string };
+type Draft = { ops: NextOp[]; reason: string; refused?: string[] };
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = {
   store: Pick<RecordStore, 'all' | 'put'>;
   ask: Ask;
   nowMs: () => number;
   newId: () => string;
-  /** The gym coach's goal ("muscle" …), or null. */
-  goal?: (profileId: string) => string | null;
   /** The profile's complaints (the bike coach keeps them; every coach reads them). Without: the complaint records. */
   complaints?: (profileId: string) => { id: string; text: string; status: string }[];
   /** Starts a complaint the rider told the chat about. */
@@ -173,7 +173,11 @@ export class ChatCoach {
     }
     const msg: ChatMessage & { draft?: Draft } = { role: 'coach', text: a.text || 'Okay.', atMs: this.deps.nowMs() };
     // Only the rider's own words propose a change for the next workout.
-    if (fromRider && a.draft) msg.draft = a.draft;
+    if (fromRider && a.draft) {
+      const line = gehtNicht(a.draft.refused ?? []);
+      if (line) msg.text += `\n${line}`;
+      if (a.draft.ops.length) msg.draft = { ops: a.draft.ops, reason: a.draft.reason };
+    }
     if (a.proposal && broken.length === 0) msg.proposal = a.proposal;
     else if (a.proposal && a.more && !careful) { msg.proposal = a.proposal; msg.warnings = broken; }
     else if (a.proposal) msg.text += `\n\nMein Vorschlag passte nicht zu unseren Regeln für Erholung (${broken.map((b) => b.replace(/\.$/, '')).join('; ')}), deshalb lasse ich ihn weg. Sag mir, was dir wichtig ist, dann versuche ich es anders.`;
@@ -198,6 +202,7 @@ export class ChatCoach {
       dataBlock('training', { name: w.title, minutenSeitStart: Math.round((at - w.startMs) / 60_000), uebungen: w.exercises.map((e) => ({ ex: e.rid, uebungId: e.exerciseId, uebung: e.title, erledigt: sets(e.sets, true), offen: sets(e.sets, false) })) }),
       dataBlock('katalog', EXERCISES.map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, geraet: e.equipment }))),
       dataBlock('beschwerden', this.complaintList(id)),
+      ...this.wishLines(id, ['gym']),
       dataBlock('verlauf', thread.filter((m) => m.inWorkout === w.id).slice(-10).map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text }))),
       'Antworte auf die letzte Nachricht der Person im Verlauf.',
     ].join('\n');
@@ -207,21 +212,37 @@ export class ChatCoach {
       Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : []);
     const msg: ChatMessage & { draft?: Draft } = { role: 'coach', text: raw.text.trim().slice(0, 1000) || 'Okay.', atMs: this.deps.nowMs(), inWorkout: w.id };
     const draft = this.draftOf(id, raw.nextChange);
-    if (draft) msg.draft = draft;
+    if (draft) {
+      const refusal = gehtNicht(draft.refused ?? []);
+      if (refusal) msg.text = `${msg.text}\n${refusal}`;
+      if (draft.ops.length) msg.draft = { ops: draft.ops, reason: draft.reason };
+    }
     const change = isObj(raw.change) ? readWorkoutChange({ workoutId: w.id, ops: raw.change.ops }) : null;
-    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES) : { ops: [], reasons: [] };
+    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES, excludedOf(this.deps.store, id)) : { ops: [], reasons: [] };
     if (ops.length > 0) msg.workoutChange = { workoutId: w.id, ops };
     const line = gehtNicht(reasons);
     if (line) msg.text = `${msg.text}\n${line}`;
     return msg;
   }
 
+  /** One line with the active wishes of these sports, or nothing. Same wording as in the planners' prompts. */
+  private wishLines(id: string, sports: SportKey[]): string[] {
+    const line = wishLine([...new Set(sports.flatMap((s) => wishesOf(this.deps.store, id, s)))]);
+    return line ? [line] : [];
+  }
+
   /** A change for the next workout the coach proposed: valid ops and a reason, or null. */
   private draftOf(id: string, x: unknown): Draft | null {
     if (!isObj(x)) return null;
-    const ops = readNextOps(x.ops, this.deps.catalog?.(id) ?? EXERCISES);
+    const read = readNextOps(x.ops, this.deps.catalog?.(id) ?? EXERCISES);
     const reason = typeof x.reason === 'string' ? x.reason.trim().slice(0, 200) : '';
-    return ops && reason ? { ops, reason } : null;
+    if (!read || !reason) return null;
+    // A swap into an excluded exercise is refused whole; the others stay. `refused` carries the reasons to the message.
+    const excluded = excludedOf(this.deps.store, id);
+    const catalog = this.deps.catalog?.(id) ?? EXERCISES;
+    const refused = read.flatMap((o) => (o.op === 'swap' && excluded.has(o.toId) ? [`du ${catalog.find((e) => e.id === o.toId)?.title ?? 'die Übung'} ausgeschlossen hast`] : []));
+    const ops = read.filter((o) => !(o.op === 'swap' && excluded.has(o.toId)));
+    return ops.length || refused.length ? { ops, reason, ...(refused.length ? { refused } : {}) } : null;
   }
 
   /** A proposal for this or next week only. */
@@ -308,7 +329,8 @@ export class ChatCoach {
       dataBlock('einheiten', this.sessionsOf(id)),
       dataBlock('naechstesKrafttraining', this.nextExercises(id)),
       dataBlock('wochenVerlauf', weekHistory(this.deps.store.all(id, 'stats'), now)),
-      dataBlock('ziel', this.deps.goal?.(id) ?? null),
+      dataBlock('ziel', goalOfProfile(this.deps.store, id)),
+      ...this.wishLines(id, ['gym', 'bike', 'run']),
       dataBlock('beschwerden', this.complaintList(id)),
       dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}), ...(m.undoes ? { hatZurueckgenommen: true } : {}) }))),
       instruction,

@@ -1,5 +1,5 @@
 import type { TrackedRecord } from '../../shared/records';
-import { excludedIds, goalOf, migratedRuleId, ruleRecord, wishes, RULE_TEXT_MAX, type SportKey, type RuleSport } from '../../shared/personal';
+import { excludedIds, goalOf, migratedRuleId, priorityLine, ruleRecord, wishes, wishLine, RULE_TEXT_MAX, type SportKey, type RuleSport } from '../../shared/personal';
 
 type Reader = { all(profileId: string, kind?: 'rule' | 'goal'): TrackedRecord[] };
 type Writer = Reader & { put(profileId: string, r: TrackedRecord): unknown };
@@ -13,6 +13,12 @@ export function excludedOf(store: Reader, profileId: string): Set<string> {
 }
 export function wishesOf(store: Reader, profileId: string, sport: SportKey): string[] {
   try { return wishes(store.all(profileId, 'rule'), sport); } catch { return []; }
+}
+
+/** The run and bike prompt addition: the sport priorities and the wishes for this sport, one line each. '' when there are none. */
+export function personalHint(store: Reader, profileId: string, sport: SportKey): string {
+  const lines = [priorityLine(goalOfProfile(store, profileId)), wishLine(wishesOf(store, profileId, sport))].filter((x): x is string => x !== null);
+  return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
 /**

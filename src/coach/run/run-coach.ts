@@ -19,6 +19,7 @@ import type { WorkoutOps, WorkoutResult } from './garmin-workouts';
 import { TEST_EVERY_DAYS, TEST_MAIN_MIN, TEST_WARM_MIN } from './limits';
 import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from './numbers';
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
+import { personalHint } from '../tracking/personal';
 import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
 import { manualRuns, mergeRuns } from './runs';
 import { loadRunCache, saveRunCache, type RunCache } from './state';
@@ -311,7 +312,7 @@ export class RunCoach {
     const numbers = runNumbers(ctx.runs, [...ctx.weeks.values()], now);
     const ask = async (rejection?: string): Promise<unknown> => {
       const raw = await this.deps.ask({
-        prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? '') + personalHint(this.deps.store, id, 'run'),
         systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
       });
       // Tasks for the other coaches; never in the way of the run plan.
