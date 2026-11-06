@@ -49,3 +49,18 @@ describe('search over the base catalog', () => {
     expect(matchesSearch(e, 'Zottman Curl')).toBe(true);
   });
 });
+
+describe('swap ranking with the base catalog', () => {
+  it('ranks built-ins and done exercises before base entries', async () => {
+    const { similarExercises } = await import('../../src/tracking/similar');
+    const cat = mergeCatalog(EXERCISES, FEDB_EXERCISES, []);
+    const got = similarExercises({ title: 'Bankdrücken', exerciseId: 'pf-bench-press' }, cat).slice(0, 6);
+    expect(got.every((e) => e.source !== 'fedb')).toBe(true);
+    const base = cat.find((e) => e.source === 'fedb' && e.primaryMuscle === 'chest')!;
+    const withDone = similarExercises({ title: 'Bankdrücken', exerciseId: 'pf-bench-press' }, cat, new Set([base.id]));
+    expect(withDone[0]!.id).toBe(base.id);
+  });
+  it('types a base entry without equipment as bodyweight', () => {
+    expect(FEDB_EXERCISES.find((e) => e.id === 'fedb-decline-push-up')).toMatchObject({ equipment: 'none', type: 'reps_only' });
+  });
+});

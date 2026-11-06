@@ -7,7 +7,7 @@ import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
 import { MuscleIcon } from './MuscleIcon';
 import { matchesSearch, similarExercises } from '../similar';
-import { useCatalog } from './hooks';
+import { finishedWorkouts, useCatalog, usePortRecords } from './hooks';
 import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
 
 /** `like` is the exercise being swapped; similar ones then come first. */
@@ -16,20 +16,23 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   now?: () => number; newId?: () => string;
 }) {
   const catalog = useCatalog(port);
+  const workouts = usePortRecords(port, 'workout').records;
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ name: '', muscle: '', equipment: '', type: '' });
   const [error, setError] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  const done = useMemo(() => new Set(finishedWorkouts(workouts).flatMap((w) => w.exercises.map((x) => x.exerciseId))), [workouts]);
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const hit = catalog.filter((e) => matchesSearch(e, needle));
+    const hit = catalog.filter((e) => matchesSearch(e, needle) && (needle !== '' || more || e.source !== 'fedb'));
     const by = new Map<string, Exercise[]>();
     for (const e of hit) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
     return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
-  }, [catalog, q]);
-  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog).slice(0, 8) : []), [like, catalog, q]);
+  }, [catalog, q, more]);
+  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog, done).slice(0, 8) : []), [like, catalog, q, done]);
 
   const valid = draft.name.trim() !== '' && draft.muscle !== '' && draft.equipment !== '' && draft.type !== '';
   async function save() {
@@ -105,6 +108,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
           <div className="tk-list">{list.map(item)}</div>
         </section>
       ))}
+      {!q.trim() && !more && <button type="button" className="ghost" onClick={() => setMore(true)}>Mehr Übungen</button>}
     </div>
   );
 }

@@ -17,10 +17,11 @@ export function matchesSearch(e: Exercise, needle: string): boolean {
 
 /**
  * What fits in place of an exercise: the same muscle on top, and within it the same movement first (any equipment).
+ * Within the same movement: done before first, then own and built-in before base entries, then the same equipment, then by title.
  * Another muscle only appears for the exact same movement. Works for Hevy titles too, whose template ids are not in
  * the own list: their muscle comes from the same movement, else from what most exercises of that kind train.
  */
-export function similarExercises(current: { title: string; exerciseId: string }, catalog: Exercise[]): Exercise[] {
+export function similarExercises(current: { title: string; exerciseId: string }, catalog: Exercise[], done: ReadonlySet<string> = new Set()): Exercise[] {
   const want = base(current.title);
   const word = lastWord(want);
   const movement = (e: Exercise) => {
@@ -31,11 +32,14 @@ export function similarExercises(current: { title: string; exerciseId: string },
   };
   const self = catalog.find((e) => e.id === current.exerciseId || names(e).includes(current.title));
   const muscle = self?.primaryMuscle ?? catalog.find((e) => movement(e) === 2)?.primaryMuscle ?? mostCommon(catalog.filter((e) => movement(e) === 1).map((e) => e.primaryMuscle));
+  const equipment = self?.equipment ?? catalog.find((e) => movement(e) === 2)?.equipment;
   return catalog
     .filter((e) => e !== self && e.id !== current.exerciseId)
     .map((e) => ({ e, same: !!muscle && e.primaryMuscle === muscle, move: movement(e) }))
     .filter((x) => x.same || x.move === 2)
-    .sort((a, b) => Number(b.same) - Number(a.same) || b.move - a.move || a.e.title.localeCompare(b.e.title, 'de'))
+    .sort((a, b) => Number(b.same) - Number(a.same) || Number(b.move === 2) - Number(a.move === 2) || Number(done.has(b.e.id)) - Number(done.has(a.e.id))
+      || Number(a.e.source === 'fedb') - Number(b.e.source === 'fedb') || b.move - a.move || Number(b.e.equipment === equipment) - Number(a.e.equipment === equipment)
+      || a.e.title.localeCompare(b.e.title, 'de'))
     .map((x) => x.e);
 }
 

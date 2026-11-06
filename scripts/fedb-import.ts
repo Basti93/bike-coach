@@ -14,6 +14,7 @@ const MUSCLE: Record<string, string> = { 'middle back': 'upper_back', 'lower bac
 const EQUIPMENT: Record<string, string> = {
   'body only': 'none', cable: 'machine', machine: 'machine', 'e-z curl bar': 'barbell', barbell: 'barbell', dumbbell: 'dumbbell', kettlebells: 'kettlebell',
 };
+// equipment null (nothing listed) is a bodyweight move: 'none', reps_only. bands, balls, foam roll and the rest: 'other'.
 const fedbId = (id: string) => `fedb-${id.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const muscle = (m: string) => MUSCLE[m] ?? m;
 
@@ -35,11 +36,13 @@ for (const r of raw) {
   if (!title) { problems.push(`no German name: ${id}`); continue; }
   if (seen.has(title.toLowerCase())) problems.push(`duplicate name "${title}": ${id} and ${seen.get(title.toLowerCase())}`);
   seen.set(title.toLowerCase(), id);
-  if (builtIn.has(title.toLowerCase()) || builtIn.has(r.name.toLowerCase())) problems.push(`collides with a built-in: ${id} (${title} / ${r.name})`);
-  const equipment = EQUIPMENT[r.equipment ?? ''] ?? 'other';
+  if (builtIn.has(title.toLowerCase()) ) problems.push(`collides with a built-in: ${id} (${title} / ${r.name})`);
+  const equipment = r.equipment === null ? 'none' : (EQUIPMENT[r.equipment] ?? 'other');
   const primary = muscle(r.primaryMuscles[0] ?? 'other');
   const secondary = [...new Set(r.secondaryMuscles.map(muscle))].filter((m) => m !== primary);
-  const e: Exercise = { id, title, type: equipment === 'none' ? 'reps_only' : 'weight_reps', primaryMuscle: primary, equipment, aliases: [r.name], source: 'fedb' };
+  const e: Exercise = { id, title, type: equipment === 'none' ? 'reps_only' : 'weight_reps', primaryMuscle: primary, equipment, source: 'fedb' };
+  // The English name is an alias for search, unless a built-in already logs under exactly that title (then the built-in owns it).
+  if (!builtIn.has(r.name.toLowerCase())) e.aliases = [r.name];
   if (secondary.length > 0) e.secondaryMuscles = secondary;
   if (r.instructions.length > 0) e.instructionsEn = r.instructions;
   out.push(e);
