@@ -325,7 +325,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();

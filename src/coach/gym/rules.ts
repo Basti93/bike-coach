@@ -8,7 +8,7 @@ const CORE_SIZE = 6;
 const SETS = 3;
 const START_REPS = 10;
 const REST_S = 90;
-const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'shoulders', 'hamstrings', 'triceps', 'biceps'];
+const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'front_delts', 'side_delts', 'hamstrings', 'triceps', 'biceps'];
 
 function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t.type);

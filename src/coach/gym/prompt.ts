@@ -1,4 +1,6 @@
-import { MUSCLE_TARGETS, pairVerdicts, type MuscleGroup } from '../../shared/muscle-targets';
+import type { Exercise } from '../../shared/exercises';
+import { STATE_LABELS } from '../../shared/muscle-balance';
+import { MUSCLE_TARGETS, pairVerdicts } from '../../shared/muscle-targets';
 import { muscleVolume } from './muscle-volume';
 import { z } from 'zod';
 import type { StrengthWorkout } from '../hevy';
@@ -51,7 +53,7 @@ Techniken setzt du ein, wo sie passen, und nie zur Show; bei wenigen Einheiten p
 Muskelversagen nur am letzten Satz sicherer Übungen wie Maschinen, Kabelzug und Isolationsübungen, nie bei schweren freien Übungen ohne Sicherung wie Langhantel-Kniebeuge oder Bankdrücken. Offene Beschwerden gehen der Härte vor; du stellst keine Diagnose und rätst bei ernsten Beschwerden zu ärztlichem Rat.
 So kommt das Training nach Hevy: Aufwärmsätze sind type "warmup", Muskelversagen "failure", Drop-Sets "dropset", Supersätze teilen eine supersetId (mindestens zwei Übungen), Pyramiden sind unterschiedliche Gewichte. Ein Widowmaker hat keinen eigenen Typ: Die Notiz der Übung beginnt mit „Widowmaker“ und genau ein Satz hat 20 Wiederholungen.
 Grenzen, die nicht verhandelbar sind: höchstens ${MAX_EXERCISES} Übungen, ${MAX_SETS} Sätze, ${MAX_FAILURE_SETS} Versagenssätze und ein Widowmaker pro Training. Wiederholungen ${REP_MIN} bis ${REP_MAX} (Körpergewichtsübungen dürfen mehr). Nutze nur templateId-Werte aus den Datenblöcken. Gewichte nur für Übungen mit Verlauf, nie über dem Vorschlag plus einem Schritt (${MAX_STEP_PCT} %, mindestens ${MIN_STEP_KG} kg); ohne Verlauf weight null. Bei unterstützten Übungen bleibt das Gewicht genau beim Vorschlag. Nutze Übungen, die in den letzten Monaten gemacht wurden, oder Übungen mit Geräten, die in diesem Verlauf vorkommen. Der Vorschlag je Übung (vorschlag) ist die Grundlage für Gewicht und Wiederholungen. Steht bei einer Übung im Training nochMoeglich, hat die Person nach dem letzten Satz gesagt, wie viele Wiederholungen noch gegangen wären; der Vorschlag berücksichtigt das schon. Sieh dir an, was wirklich gemacht wurde, nicht nur, was geplant war: ausgelassene oder geänderte Übungen sind einfach das, was passiert ist.
-Wochenvolumen und Wiederholungsbereich je Muskelgruppe stehen im Block muskelvolumen: Liegt eine Gruppe unter ihrem Zielbereich, plane sie bevorzugt ein; liegt sie darüber, nimm dort eher etwas weg. Steht in muskelpaare eine Seite unter zuKurz, plane sie in den nächsten Trainings bevorzugt ein; das ist ein Hinweis, keine Pflicht. Der Wiederholungsbereich ist ein Startpunkt aus der Praxis: Große Grundübungen eher im unteren, kleine Muskeln wie seitliche und hintere Schulter, Waden und Unterarme eher im oberen Bereich. Wachstum gibt es von etwa 5 bis 30 Wiederholungen, wenn der Satz nahe ans Versagen geht; sage das so, wenn es zur Sprache kommt. Schreibe reason in ein bis zwei Sätzen. Nenne nur Gewichte, Wiederholungen und Satzzahlen, die in den Daten stehen oder im Training, das du planst. Nach schwerer Beinarbeit oder harter Radfahrt in den letzten zwei Tagen plane die Beine schonender, ebenso umgekehrt.
+Wochenvolumen und Wiederholungsbereich je Muskelgruppe stehen im Block muskelvolumen: zustand nennt in Worten, wo die Gruppe steht; „vor allem mittrainiert“ heißt, dass sie mehr durch andere Übungen als direkt trainiert wurde. Liegt eine Gruppe unter ihrem Zielbereich, plane sie bevorzugt ein; liegt sie darüber, nimm dort eher etwas weg. Steht in muskelpaare eine Seite unter zuKurz, plane sie in den nächsten Trainings bevorzugt ein; das ist ein Hinweis, keine Pflicht. Der Wiederholungsbereich ist ein Startpunkt aus der Praxis: Große Grundübungen eher im unteren, kleine Muskeln wie seitliche und hintere Schulter, Waden und Unterarme eher im oberen Bereich. Wachstum gibt es von etwa 5 bis 30 Wiederholungen, wenn der Satz nahe ans Versagen geht; sage das so, wenn es zur Sprache kommt. Schreibe reason in ein bis zwei Sätzen. Nenne nur Gewichte, Wiederholungen und Satzzahlen, die in den Daten stehen oder im Training, das du planst. Nach schwerer Beinarbeit oder harter Radfahrt in den letzten zwei Tagen plane die Beine schonender, ebenso umgekehrt.
 outlook: der Ausblick, damit die Person sieht, wie ihr Training aufgebaut ist. sessions skizziert die zwei bis drei Krafttrainings nach diesem (date aus dem wochenplan, sonst null), je mit name, focus (Schwerpunkt in wenigen Worten) und exercises (Übungstitel und Satzzahl, ohne Gewichte), so dass jede Muskelgruppe über die Woche in ihren Zielbereich aus muskelvolumen kommt und kein Muskel auf Dauer zu kurz kommt (auch Beinbeuger und Gesäß, mit Beinbeugen und Hüftstrecken). direction ist ein bis zwei Sätze, wohin das Training in den nächsten Wochen geht (etwa welche Muskeln mehr Sätze bekommen, wann eine leichtere Woche kommt); ehrlich, ohne Versprechen. Die Skizze ist ein Ausblick, kein Versprechen: Das nächste Training planst du immer neu mit dem, was wirklich passiert ist.
 note: eine kurze Rückmeldung zum letzten Training, ein bis zwei Sätze, nur wenn es verlangt wird. questions: höchstens zwei freiwillige Rückfragen, nur wenn die Antwort die Planung ändern würde, sonst leer. newRule: nur eine dauerhafte Vorliebe oder Einschränkung der Person als kurzer Satz.
 Keine Schuld, kein Druck, kein „musst“, keine Vergleiche mit anderen, keine Serien und kein Zählen oder Nachholen verpasster Einheiten. Es gibt keinen Kalender.
@@ -66,6 +68,8 @@ export type PromptInput = {
   summaries: RideSummary[]; complaints: Complaint[]; previous: GymState['next']; wantNote: boolean; rejection?: string;
   /** Recent mobility, as data only. */
   mobility?: unknown;
+  /** The profile's exercise catalog; resolves the secondary muscles of the logged exercises. */
+  catalog?: Exercise[];
 };
 
 export function buildGymPrompt(i: PromptInput): string {
@@ -79,8 +83,8 @@ export function buildGymPrompt(i: PromptInput): string {
   const available = history.filter((a) => { const t = byId.get(a.templateId); return !!t && isRepBased(t); });
   const knownIds = new Set(available.map((a) => a.templateId));
   const equipment = new Set(available.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
-  const volume = muscleVolume(i.workouts, i.templates, i.nowMs, i.state.goal);
-  const sums: Partial<Record<MuscleGroup, number>> = Object.fromEntries(volume.map((g) => [g.group, g.sum4Weeks]));
+  const volume = muscleVolume(i.workouts, i.templates, i.catalog ?? [], i.nowMs, i.state.goal);
+  const sums = Object.fromEntries(volume.map((g) => [g.group, g.effective28]));
   const blocks = [
     dataBlock('training', shown.map((w) => ({
       tageHer: days(w.startMs), titel: w.title, minuten: Math.round(w.durationS / 60),
@@ -94,11 +98,12 @@ export function buildGymPrompt(i: PromptInput): string {
     dataBlock('vorlagen', i.templates.filter((t) => isRepBased(t) && !knownIds.has(t.id) && equipment.has(t.equipment)).slice(0, MAX_TEMPLATES)
       .map((t) => ({ templateId: t.id, title: t.title, muskel: t.primaryMuscle, geraet: t.equipment }))),
     dataBlock('muskelvolumen', volume.map((g) => ({
-      gruppe: g.label, saetze7Tage: g.last7Days, saetzeProWocheLetzte4Wochen: g.perWeek4Weeks, zielSaetzeProWoche: g.target, wiederholungen: g.reps,
+      gruppe: g.label, saetze7Tage: g.effective7, saetzeProWocheLetzte4Wochen: g.perWeek4, zielSaetzeProWoche: g.target, wiederholungen: MUSCLE_TARGETS[g.group].reps,
+      ...(g.state ? { zustand: STATE_LABELS[g.state] } : {}), ...(g.indirect7 > g.direct7 ? { hinweis: 'vor allem mittrainiert' } : {}),
     }))),
     // The coach looks at a rolling 28 days of Hevy and own workouts; the statistics page at 4 complete weeks.
     // The same rule (pairVerdicts), a slightly different window.
-    dataBlock('muskelpaare',pairVerdicts(sums).map((p) => ({ paar: p.label, seiteA: p.a, seiteB: p.b, zuKurz: p.short ? MUSCLE_TARGETS[p.short].label : null }))),
+    dataBlock('muskelpaare',pairVerdicts(sums).map((p) => ({ paar: p.label, seiteA: p.a, seiteB: p.b, zuKurz: p.shortLabel }))),
     dataBlock('fahrten', i.summaries.filter((r) => i.nowMs - r.startedAtMs <= PROMPT_DAYS * DAY_MS)
       .map((r) => ({ tageHer: days(r.startedAtMs), minuten: Math.round(r.durationS / 60), avgPowerW: r.avgPowerW, tss: r.tss, name: r.sessionName ?? null }))),
     dataBlock('beschwerden', i.complaints.filter((c) => c.status !== 'over').map((c) => ({ text: c.text, status: c.status }))),

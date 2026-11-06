@@ -26,6 +26,10 @@ export type PolicyRule = {
   domain: 'gym' | 'muscle' | 'rest' | 'bike' | 'run' | 'planner' | 'endurance' | 'data';
   statement: string; decision: string; class: RuleClass; enforcement: Enforcement;
   value?: RuleValue; unit?: string;
+  /** Further named ranges of the same rule, e.g. the sets for other goals and the reps of a muscle target. */
+  ranges?: Record<string, { min: number; max: number }>;
+  /** Named lists of the same rule, e.g. which groups work as synergists of a muscle group. */
+  lists?: Record<string, string[]>;
   /** A source id proves neither a threshold nor an individual optimum. */
   sourceIds: string[];
   /** Code paths that apply the rule today or will apply it. */

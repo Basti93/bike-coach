@@ -110,8 +110,12 @@ describe('statsView verdicts', () => {
       workout('now', at(2026, 10, 3), 'pf-bench-press', 'Bankdrücken', Array.from({ length: 30 }, () => set())),
     ];
     const v = statsView(null, w, NOW);
-    expect(v.pairs[0]).toMatchObject({ a: 14, b: 8, short: 'back' });
-    expect(v.verdicts.filter((s) => s.includes('kommt zu kurz'))).toEqual(['Rücken 8 Sätze, Brust 14: Rücken kommt zu kurz.']);
+    expect(v.pairs[0]).toMatchObject({ a: 14, b: 8, short: 'b', shortLabel: 'Rücken' });
+    expect(v.verdicts.filter((s) => s.includes('kommt zu kurz'))).toEqual([
+      'Rücken 8 Sätze, Brust 14: Rücken kommt zu kurz.',
+      // The bench counts half for the front shoulder (7), the rows half for the rear one (4): counted on effective sets.
+      'Schulter seitlich und Schulter hinten 4 Sätze, Schulter vorn 7: Schulter seitlich und Schulter hinten kommt zu kurz.',
+    ]);
   });
 
   it('warns about more than two hard days in a week, also in the current week', () => {

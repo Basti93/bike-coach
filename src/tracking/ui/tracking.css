@@ -1,7 +1,7 @@
 /* Standalone: the web build does not load the Electron CSS. Variables mirror src/ui/style.css and can be overridden. */
 .tk-screen {
   --tk-bg: var(--bg, #12201a); --tk-text: var(--text, #f6eedd); --tk-ink: var(--ink, #1f1408); --tk-field: var(--field, #101b16);
-  --tk-card: var(--card, #1c2f26); --tk-line: var(--line, #33493c); --tk-muted: var(--muted, #aebba9); --tk-accent: var(--accent, #e8964a); --tk-good: var(--good, #9ccb68);
+  --tk-card: var(--card, #1c2f26); --tk-line: var(--line, #33493c); --tk-muted: var(--muted, #aebba9); --tk-accent: var(--accent, #e8964a); --tk-good: var(--good, #9ccb68); --tk-warm: var(--low, #f2bd55);
   font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--tk-text);
   display: flex; flex-direction: column; gap: .8rem; padding: 1rem; max-width: 640px; margin: 0 auto; box-sizing: border-box; width: 100%;
 }
@@ -132,14 +132,18 @@
 .tk-sport-run { background: var(--tk-sport-run); }
 .tk-sport-mobility { background: var(--tk-sport-mobility); }
 .tk-sport-other { background: var(--tk-sport-other); }
-.tk-band-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
-.tk-band-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "icon label text" "icon bar bar"; gap: .2rem .5rem; align-items: center; }
-.tk-band-list li > svg { grid-area: icon; }
-.tk-band-label { grid-area: label; }
-.tk-band-text { grid-area: text; color: var(--tk-muted); font-variant-numeric: tabular-nums; font-size: .9rem; }
-.tk-band { grid-area: bar; position: relative; height: .7rem; border-radius: 999px; background: var(--tk-field); overflow: hidden; }
-.tk-band-range { position: absolute; top: 0; bottom: 0; background: var(--tk-line); border-left: 1px solid var(--tk-muted); border-right: 1px solid var(--tk-muted); }
-.tk-band-value { position: absolute; left: 0; top: .2rem; bottom: .2rem; border-radius: 0 4px 4px 0; background: var(--tk-accent); }
+.tk-muscle-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tk-screen .tk-muscle-row { all: unset; box-sizing: border-box; width: 100%; background: none; color: inherit; font: inherit; border-radius: 0; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: .5rem; align-items: center; padding: .45rem 0; cursor: pointer; }
+.tk-screen .tk-muscle-row:focus-visible { outline: 2px solid var(--tk-accent); outline-offset: 2px; border-radius: 6px; }
+.tk-muscle-name { display: flex; flex-direction: column; }
+.tk-muscle-name small { font-size: .8rem; }
+.tk-screen .card p.tk-muscle-detail { margin: 0 0 .4rem 30px; }
+.tk-state { display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem; }
+.tk-state-dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--tk-muted); }
+.tk-state-low .tk-state-dot { background: var(--tk-accent); }
+.tk-state-good .tk-state-dot { background: var(--tk-good); }
+.tk-state-high .tk-state-dot { background: var(--tk-warm); }
+.tk-state-none { color: var(--tk-muted); }
 .tk-verdicts { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: .3rem; }
 .tk-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .9rem; }
 .tk-legend li { display: flex; align-items: center; gap: .35rem; }

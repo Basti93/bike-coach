@@ -175,6 +175,28 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Training starten' }).click();
     await win.waitForTimeout(300);
   } },
+  { name: 'stats-muscles', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1500, steps: async (win) => {
+    // Bench press and lateral raises this week, a squat last week. The app reads the records once at start, so seed them and reload.
+    await win.addInitScript((t) => {
+      const rows: [string, number, string, string, number][] = [['s1', 0.2, 'pf-bench-press', 'Bankdrücken', 4], ['s2', 0.2, 'pf-lateral-raise', 'Seitheben', 3], ['s3', 6, 'pf-squat', 'Kniebeuge', 4]];
+      const db = new Map<string, unknown>();
+      for (const [id, ago, exerciseId, title, n] of rows) {
+        const startMs = t - ago * 86400000;
+        const sets = [];
+        for (let i = 0; i < n; i++) sets.push({ type: 'normal', weightKg: 40, reps: 8, durationS: null, doneMs: startMs });
+        db.set(`workout:${id}`, { kind: 'workout', id, updatedMs: startMs, deleted: false, body: { id, title: 'Training', startMs, endMs: startMs + 3600000, source: 'pandafit', exercises: [{ exerciseId, title, supersetId: null, notes: '', sets }] } });
+      }
+      (window as unknown as { __db: Map<string, unknown> }).__db = db;
+    }, Date.now());
+    await win.reload();
+    await win.waitForTimeout(300);
+    await win.getByRole('button', { name: /Max/ }).first().click();
+    await win.waitForTimeout(300);
+    await win.getByRole('button', { name: 'Statistik', exact: true }).first().click();
+    await win.waitForTimeout(300);
+    await win.getByRole('button', { name: /Schulter seitlich/ }).first().click();
+    await win.waitForTimeout(150);
+  } },
   { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
   { name: 'meals-chat', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280 },
   { name: 'meals-chat-history', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, steps: async (win) => { await win.getByText(/Bisheriges Gespräch/).click(); await win.waitForTimeout(150); } },

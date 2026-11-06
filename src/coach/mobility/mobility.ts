@@ -37,7 +37,7 @@ const FALLBACK: MobilityArea[] = [...RIDE_FOCUS, 'gesaess', 'ruecken', 'obersche
 /** Hevy's muscle names to the areas worth a calm stretch afterwards. */
 const MUSCLE_AREAS: Record<string, MobilityArea[]> = {
   quadriceps: ['oberschenkel-vorn', 'hueftbeuger'], hamstrings: ['oberschenkel-hinten'], glutes: ['gesaess', 'hueftbeuger'], calves: ['waden'],
-  abductors: ['gesaess', 'hueftbeuger'], adductors: ['hueftbeuger', 'gesaess'], chest: ['brust'], shoulders: ['schultern', 'brust'],
+  abductors: ['gesaess', 'hueftbeuger'], adductors: ['hueftbeuger', 'gesaess'], chest: ['brust'], shoulders: ['schultern', 'brust'], front_delts: ['schultern', 'brust'], side_delts: ['schultern'], rear_delts: ['schultern', 'ruecken'],
   triceps: ['schultern'], biceps: ['brust', 'schultern'], lats: ['ruecken', 'schultern'], upper_back: ['ruecken', 'schultern'],
   lower_back: ['ruecken', 'gesaess'], traps: ['nacken', 'schultern'], neck: ['nacken'], abdominals: ['hueftbeuger', 'ruecken'],
 };

@@ -17,16 +17,19 @@ const FRONT: Part[] = [
 
 const BACK: Part[] = [
   [10.4, 4.4, 3.2, 1.6, 'traps', false],
-  [6.4, 5.6, 2.6, 2.6, 'side_rear_delts', true],
+  [6.4, 5.6, 2.6, 2.6, 'rear_delts', true],
   [9.2, 5.8, 5.6, 7.9, 'back', false],
   [6.2, 8.4, 2.2, 3.8, 'triceps', true],
   [5.8, 12.4, 2, 3.6, null, true], // forearms from behind
-  [9.2, 13.9, 5.6, 2, 'hams_glutes', false], // glutes
-  [9.2, 16, 2.6, 3.8, 'hams_glutes', true],
+  [9.2, 13.9, 5.6, 2, 'glutes', false],
+  [9.2, 16, 2.6, 3.8, 'hamstrings', true],
   [9.4, 20, 2.2, 3.6, 'calves', true],
 ];
 
-const BACK_GROUPS: ReadonlySet<MuscleGroup> = new Set(['back', 'side_rear_delts', 'triceps', 'hams_glutes', 'calves', 'traps']);
+/** The side shoulder has no part of its own; it lights up the shoulder cap of the front view (no new art). */
+const SHAPE_OF: Partial<Record<MuscleGroup, MuscleGroup>> = { side_delts: 'front_delts' };
+
+const BACK_GROUPS: ReadonlySet<MuscleGroup> = new Set(['back', 'rear_delts', 'triceps', 'glutes', 'hamstrings', 'calves', 'traps']);
 
 /**
  * A small body silhouette with the trained group in the accent colour: front view for the muscles you see from the front,
@@ -34,9 +37,10 @@ const BACK_GROUPS: ReadonlySet<MuscleGroup> = new Set(['back', 'side_rear_delts'
  * mark, so an unknown exercise never looks like one that trains nothing. Own drawing, no external assets.
  */
 export function MuscleIcon({ group, size = 22 }: { group: MuscleGroup | null; size?: number }) {
-  const parts = group !== null && BACK_GROUPS.has(group) ? BACK : FRONT;
+  const shown = group === null ? null : SHAPE_OF[group] ?? group;
+  const parts = shown !== null && BACK_GROUPS.has(shown) ? BACK : FRONT;
   const rect = (x: number, w: number, y: number, h: number, region: MuscleGroup | null, key: string) => {
-    const on = region !== null && region === group;
+    const on = region !== null && region === shown;
     return <rect key={key} x={x} y={y} width={w} height={h} rx={Math.min(w, h) / 2.4} data-region={region ?? undefined}
       fill={on ? 'var(--tk-accent)' : 'var(--tk-muted)'} fillOpacity={on ? 1 : 0.35} />;
   };

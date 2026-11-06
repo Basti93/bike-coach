@@ -51,7 +51,8 @@ test('with a stats record and workouts: both sections, the date, the band and th
   expect(within(week).queryByText('Laufen')).toBeNull();
   expect(within(week).getByText('Locker 0 · Mittel 0 · Hart 1 · Ruhetage 0')).toBeTruthy();
   expect(within(week).getByText('Brust')).toBeTruthy();
-  expect(within(week).getByText('3 von 12–18 Sätzen')).toBeTruthy();
+  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
+  expect(week.textContent).not.toMatch(/\bvon\b.*Sätzen/);
   const last = screen.getByRole('region', { name: 'Letzte 8 Wochen' });
   expect(within(last).getByRole('img', { name: 'Woche vom 26.10.: 95 Minuten, Locker 0, Mittel 1, Hart 0, Ruhetage 0' })).toBeTruthy();
   expect(within(last).getByRole('img', { name: 'Woche vom 19.10.: 60 Minuten, Locker 0, Mittel 0, Hart 1, Ruhetage 0' })).toBeTruthy();
@@ -69,7 +70,7 @@ test('without a stats record: the note, and still the muscle part', async () => 
   expect(screen.queryByText(/^Stand:/)).toBeNull();
   const week = screen.getByRole('region', { name: 'Diese Woche' });
   expect(within(week).getByText('Brust')).toBeTruthy();
-  expect(within(week).getByText('3 von 6–8 Sätzen')).toBeTruthy();
+  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
   expect(within(week).queryByText(/Harte Tage|Ruhetage/)).toBeNull();
   expect(container.textContent).not.toMatch(BAD);
 });
@@ -110,7 +111,7 @@ test('broken workout bodies next to a good one do not break the page', async () 
   ];
   await show([...broken, good]);
   const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(week).getByText('3 von 6–8 Sätzen')).toBeTruthy();
+  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
   expect(statsVisible([], broken.slice(0, 3))).toBe(false);
   expect(statsVisible([], [...broken, good])).toBe(true);
 });
@@ -136,15 +137,74 @@ test('Fortschritt shows one line per area with data and nothing for the rest', a
   expect(card.querySelectorAll('dt')).toHaveLength(1);
 });
 
-test('this week lists only trained muscles; the rest is one tap away', async () => {
+test('rows exist for trained groups; untrained groups are one muted line', async () => {
   await show([statsRec(statsBody(days)), ...workouts]);
   const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(week).getByText('Brust')).toBeTruthy();
-  expect(within(week).queryByText('Rücken')).toBeNull();
+  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
+  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  const line = within(week).getByText(/^Noch nichts: /);
+  expect(line.textContent).toMatch(/Rücken.*Bizeps/);
+  expect(line.textContent).not.toMatch(/Brust/);
+  expect(within(week).queryByText('Noch nichts', { selector: '.tk-state *, .tk-state' })).toBeNull();
   fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
-  expect(within(week).getByText('Rücken')).toBeTruthy();
-  fireEvent.click(within(week).getByRole('button', { name: 'Nur trainierte Muskeln' }));
-  expect(within(week).queryByText('Rücken')).toBeNull();
+  expect(within(within(week).getByRole('button', { name: /Rücken/ })).getByText('Noch nichts')).toBeTruthy();
+  expect(within(week).queryByText(/^Noch nichts: /)).toBeNull();
+});
+
+test('the sets table counts effective sets like the states', async () => {
+  await show([workout('w8', new Date(2026, 9, 27, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 4)]);
+  const table = within(screen.getByRole('region', { name: 'Letzte 8 Wochen' })).getByRole('table');
+  const chest = within(table).getByRole('rowheader', { name: 'Brust' }).closest('tr') as HTMLElement;
+  expect(chest.textContent).toContain('4');
+  // Triceps get half of the bench sets.
+  const tri = within(table).getByRole('rowheader', { name: 'Trizeps' }).closest('tr') as HTMLElement;
+  expect(tri.textContent).toContain('2');
+});
+
+test('a new person with no sets in the last 4 weeks is not flooded with "Noch nichts"', async () => {
+  await show([workout('old', new Date(2026, 8, 1, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 3)]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  expect(within(week).queryByText('Noch nichts')).toBeNull();
+  expect(within(week).getByText('Diese Woche noch keine Sätze.')).toBeTruthy();
+  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
+  expect(within(week).getByRole('button', { name: /Rücken/ })).toBeTruthy();
+  fireEvent.click(within(week).getByRole('button', { name: 'Weniger Muskelgruppen' }));
+  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
+});
+
+test('tapping a row expands the numbers in words; they appear nowhere else in the muscle section', async () => {
+  await show([statsRec(statsBody(days)), ...workouts]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  const row = within(week).getByRole('button', { name: /Brust/ });
+  expect(row.getAttribute('aria-expanded')).toBe('false');
+  expect(week.textContent).not.toMatch(/Ziel:|direkt/);
+  fireEvent.click(row);
+  expect(row.getAttribute('aria-expanded')).toBe('true');
+  expect(week.textContent).toContain('Diese Woche: 3 Sätze direkt. Ziel: 12–18 pro Woche.');
+  fireEvent.click(row);
+  expect(row.getAttribute('aria-expanded')).toBe('false');
+  expect(week.textContent).not.toContain('Ziel:');
+});
+
+test('indirect work shows "vor allem mittrainiert" and the half-count sentence', async () => {
+  // Overhead press works the front delts directly and the triceps indirectly; triceps have more indirect than direct sets.
+  await show([workout('w9', new Date(2026, 10, 3, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 4)]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  const row = within(week).getByRole('button', { name: /Trizeps/ });
+  expect(row.textContent).toContain('vor allem mittrainiert');
+  fireEvent.click(row);
+  expect(week.textContent).toContain('Diese Woche: 0 Sätze direkt, 4 Sätze mittrainiert (zählen halb). Ziel:');
+  expect(within(week).getByRole('button', { name: /Brust/ }).textContent).not.toContain('mittrainiert');
+});
+
+test('the detail line uses singular and plural correctly', async () => {
+  await show([workout('w10', new Date(2026, 10, 3, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 1)]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  fireEvent.click(within(week).getByRole('button', { name: /Brust/ }));
+  expect(week.textContent).toContain('1 Satz direkt');
+  fireEvent.click(within(week).getByRole('button', { name: /Trizeps/ }));
+  expect(week.textContent).toContain('1 Satz mittrainiert (zählt halb)');
 });
 
 test('Fortschritt comes first, and the sets table shows the last four weeks', async () => {
