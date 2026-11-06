@@ -99,7 +99,7 @@ describe('ExerciseMapper', () => {
   });
 
   it('asks a title at most once per 24 h', async () => {
-    const h = harness([() => ({ items: [{ title: TITLE, decision: 'unsure', reason: 'Unklar.' }] })]);
+    const h = harness([() => ({ items: [] })]);
     await h.mapper.run(ID);
     await h.mapper.run(ID);
     expect(h.prompts).toHaveLength(1);
@@ -126,6 +126,38 @@ describe('ExerciseMapper', () => {
     await h.mapper.run(ID);
     const recs = exRecords(h.store);
     expect(recs.map((r) => r.id)).toEqual([proposalId(TITLE)]);
+  });
+
+  it('links one title per target, the other becomes a proposal', async () => {
+    const A = 'Zorbo Squat A';
+    const B = 'Zorbo Squat B';
+    const h = harness([() => ({ items: [...same('high', 'pf-squat', A).items, ...same('high', 'pf-squat', B).items] })], [A, B]);
+    await h.mapper.run(ID);
+    const recs = exRecords(h.store);
+    const overlay = recs.find((r) => r.id === 'pf-squat')!.body as { aliases: string[]; lastAutoLink: { title: string } };
+    expect(overlay.aliases).toHaveLength(1);
+    expect(overlay.lastAutoLink.title).toBe(overlay.aliases[0]);
+    const props = recs.filter((r) => r.id !== 'pf-squat');
+    expect(props).toHaveLength(1);
+    expect((props[0]!.body as { proposal: { kind: string; forTitle: string } }).proposal).toMatchObject({ kind: 'same', forTitle: overlay.aliases[0] === A ? B : A });
+  });
+
+  it('concurrent runs ask a shared title once', async () => {
+    const h = harness([() => ({ items: [{ title: TITLE, decision: 'unsure', reason: 'Unklar.' }] })]);
+    h.store.putMany('p2', [workout(TITLE)]);
+    await Promise.all([h.mapper.run(ID), h.mapper.run('p2')]);
+    expect(h.prompts).toHaveLength(1);
+  });
+
+  it('unsure titles are asked again only after 7 days', async () => {
+    const h = harness([() => ({ items: [{ title: TITLE, decision: 'unsure', reason: 'Unklar.' }] })]);
+    await h.mapper.run(ID);
+    h.clock.now += 2 * DAY;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+    h.clock.now += 6 * DAY;
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(2);
   });
 
   it('ignores titles older than 180 days and caps at 20 titles', async () => {

@@ -12,6 +12,8 @@ const DAY_MS = 86_400_000;
 const WINDOW_DAYS = 180;
 const MAX_TITLES = 20;
 const MAX_CANDIDATES = 12;
+/** A title the AI could not place (unsure, or dropped as invalid) waits this long before it is asked again; a failed or unanswered call only waits a day. */
+const UNPLACED_RETRY_MS = 7 * DAY_MS;
 
 type Ask = (input: { prompt: string; systemPrompt: string; schema: object }) => Promise<unknown>;
 type Deps = { store: Pick<RecordStore, 'all' | 'putMany'>; ask: Ask; nowMs: () => number; catalog: (profileId: string) => Exercise[]; dir: string };
@@ -66,8 +68,12 @@ export class ExerciseMapper {
 
   /** True when records were written. Never throws. */
   async run(profileId: string): Promise<boolean> {
-    try { return await this.runInner(profileId); } catch { return false; }
+    // One run at a time across all profiles: a later one sees the state the earlier one saved, so no title is asked twice.
+    const turn = this.chain.then(async () => { try { return await this.runInner(profileId); } catch { return false; } });
+    this.chain = turn.then(() => undefined);
+    return turn;
   }
+  private chain: Promise<void> = Promise.resolve();
 
   private unresolved(profileId: string, catalog: Exercise[], state: MapperState, now: number): string[] {
     const records = this.deps.store.all(profileId, 'workout');
@@ -126,13 +132,15 @@ export class ExerciseMapper {
     const records: TrackedRecord[] = [];
     const undone = new Set(state.undone);
     const done = new Set<string>();
+    const linked = new Set<string>(); // one auto link per target and run, so each stays undoable
     for (const it of valid) {
       if (done.has(it.title)) continue;
       done.add(it.title);
       if (it.decision === 'unsure') continue;
       if (it.decision === 'same') {
         const target = catalog.find((c) => c.id === it.exerciseId)!;
-        if (it.confidence === 'high' && !undone.has(it.title)) {
+        if (it.confidence === 'high' && !undone.has(it.title) && !linked.has(target.id)) {
+          linked.add(target.id);
           const have = existing.get(target.id);
           const body = !have?.deleted && isObj(have?.body) && have.body.proposal === undefined ? have.body : {};
           const aliases = [...new Set([...(Array.isArray(body.aliases) ? body.aliases.filter((a): a is string => typeof a === 'string') : []), it.title])];
@@ -148,10 +156,16 @@ export class ExerciseMapper {
         }, now));
       }
     }
-    for (const t of titles) state.asked[t] = now;
-    for (const [t, at] of Object.entries(state.asked)) if (now - at > 30 * DAY_MS) delete state.asked[t];
+    // A future timestamp delays the next ask beyond the usual day: unplaced titles wait 7 days.
+    const placed = new Set(records.map((r) => (r.body as { proposal?: { forTitle?: string } }).proposal?.forTitle ?? (r.body as { lastAutoLink?: { title?: string } }).lastAutoLink?.title));
+    const mentioned = new Set(answer.items.flatMap((x) => (isObj(x) && typeof x.title === 'string' ? [x.title] : [])));
+    const marks: Record<string, number> = {};
+    for (const t of titles) marks[t] = mentioned.has(t) && !placed.has(t) ? now + UNPLACED_RETRY_MS - DAY_MS : now;
     if (records.length > 0) this.deps.store.putMany(profileId, records);
-    saveState(this.deps.dir, state);
+    const fresh = loadState(this.deps.dir); // another writer (the UI undoing a link) may have changed it meanwhile
+    for (const [t, at] of Object.entries(marks)) fresh.asked[t] = Math.max(fresh.asked[t] ?? 0, at);
+    for (const [t, at] of Object.entries(fresh.asked)) if (now - at > 30 * DAY_MS) delete fresh.asked[t];
+    saveState(this.deps.dir, fresh);
     return records.length > 0;
   }
 
