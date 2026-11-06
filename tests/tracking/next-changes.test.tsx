@@ -72,8 +72,12 @@ test('taken changes apply oldest first; ops for exercises not in the plan are sk
   expect(out.plan.exercises.map((e) => e.templateId)).toEqual(['pf-bench-press']);
   expect(out.plan.exercises[0]!.sets.map((s) => s.weightKg)).toEqual([54, 54]);
   expect(out.notes).toHaveLength(1);
-  const w = startFromPlan(plan, [], 0, 'w1', EXERCISES, undefined, undefined, { changes: takenChanges([gone]), workouts: [] });
-  expect(w.exercises[0]!.notes).toContain('passte nicht mehr');
+  let lines: string[] = [];
+  const w = startFromPlan(plan, [], 0, 'w1', EXERCISES, undefined, undefined, { changes: takenChanges([gone]), workouts: [], onSkipped: (l) => { lines = l; } });
+  // the line goes to the rider's screen, never into the exercise notes (those are exported)
+  expect(lines.join(' ')).toContain('passte nicht mehr');
+  expect(w.exercises[0]!.notes).toBe('');
+  expect(w.changes).toBeUndefined();
 });
 
 test('lighter lands on the exercise\'s weight ladder of the workout\'s studio, not on 0.5 kg', () => {
@@ -110,11 +114,47 @@ test('starting twice does not apply a change twice, and a start that died before
   expect(usedMarks(marks, [first as LoggedWorkout], 40)).toEqual([]);
 });
 
+test('a change is listed (and later used) only if one of its ops applied; otherwise it stays taken', () => {
+  const upper: GymWorkout = { ...plan, name: 'Oberkörper', exercises: [plan.exercises[0]!] };
+  const t = taken();
+  const a = startFromPlan(upper, [], 10, 'w1', EXERCISES, undefined, undefined, { changes: takenChanges([t]), workouts: [] });
+  expect(a.changes).toBeUndefined();
+  expect(usedMarks([t], [a as LoggedWorkout], 20)).toEqual([]);
+  expect(takenChanges([t]).map((c) => c.id)).toEqual(['chg-m1']);
+  const b = startFromPlan(plan, [], 30, 'w2', EXERCISES, undefined, undefined, { changes: takenChanges([t]), workouts: [a as LoggedWorkout] });
+  expect(b.exercises).toHaveLength(1);
+  expect(b.changes?.map((c) => c.id)).toEqual(['chg-m1']);
+  expect(usedMarks([t], [a as LoggedWorkout, b as LoggedWorkout], 40)[0]!.body).toMatchObject({ state: 'used', usedBy: 'w2' });
+});
+
+test('a thrown-away workout leaves the change taken; it is marked used when a workout is finished', async () => {
+  const { port, map } = fakePort([taken()]);
+  const { unmount } = render(<WorkoutScreen port={port} plan={plan} routine={plan} {...env} newId={() => 'w-a'} />);
+  await waitFor(() => expect(map.has('workout:w-a')).toBe(true));
+  expect((map.get('workout:w-a')!.body as LoggedWorkout).changes?.map((c) => c.id)).toEqual(['chg-m1']);
+  expect(stateOf(map, 'chg-m1')).toBe('taken');
+  unmount();
+  // thrown away: the workout is deleted
+  map.set('workout:w-a', { ...map.get('workout:w-a')!, deleted: true, updatedMs: NOW + 5 });
+  render(<WorkoutScreen port={port} plan={plan} routine={plan} {...env} newId={() => 'w-b'} />);
+  await waitFor(() => expect(map.has('workout:w-b')).toBe(true));
+  expect((map.get('workout:w-b')!.body as LoggedWorkout).exercises.map((e) => e.exerciseId)).toEqual(['pf-bench-press']);
+  expect(stateOf(map, 'chg-m1')).toBe('taken');
+  // finished: the mark is made up
+  const done = map.get('workout:w-b')!;
+  map.set('workout:w-b', { ...done, updatedMs: NOW + 9, body: { ...(done.body as object), endMs: NOW + 8 } });
+  cleanup();
+  render(<WorkoutScreen port={port} plan={plan} routine={null} {...env} newId={() => 'w-c'} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Plan starten' }));
+  await waitFor(() => expect(stateOf(map, 'chg-m1')).toBe('used'));
+  expect(map.get('change:chg-m1')!.body).toMatchObject({ usedBy: 'w-b' });
+});
+
 const chatRec = (id: string, body: object, updatedMs = 1): TrackedRecord => ({ kind: 'chat', id, updatedMs, deleted: false, body });
 const NOW = new Date(2026, 10, 4, 18).getTime();
 const env = { now: () => NOW, newId: () => 'new-id' };
 
-test('propose -> take -> the plan is regenerated -> reopen -> start: the change is in the workout and marked used', async () => {
+test('propose -> take -> the plan is regenerated -> reopen -> start: the change is in the workout (still taken until it is finished)', async () => {
   // the coach side proposes
   const recs = new Map<string, TrackedRecord>([['chat:r1', chatRec('r1', { role: 'rider', text: 'Nächstes Mal ohne Kniebeuge', atMs: NOW - 1000 })]]);
   const store = {
@@ -149,15 +189,15 @@ test('propose -> take -> the plan is regenerated -> reopen -> start: the change 
   const w = map.get('workout:w-new')!.body as LoggedWorkout;
   expect(w.exercises.map((e) => e.exerciseId)).toEqual(['pf-bench-press']);
   expect(w.changes?.map((c) => c.id)).toEqual(['chg-m1']);
-  await waitFor(() => expect(stateOf(map, 'chg-m1')).toBe('used'));
-  expect(map.get('change:chg-m1')!.body).toMatchObject({ usedBy: 'w-new' });
-  expect(JSON.stringify(map.get('change:chg-m1'))).not.toBe(before);
+  // used only when the workout is finished, not at the start
+  expect(stateOf(map, 'chg-m1')).toBe('taken');
+  expect(JSON.stringify(map.get('change:chg-m1'))).toBe(before);
 });
 
 test('the rider can say no, and undo while it is not used', async () => {
   const { port, map } = fakePort([chatRec('c1', { role: 'coach', text: 'Vorschlag.', atMs: NOW - 500, nextChange: 'chg-m1' }), proposed(), chatRec('c2', { role: 'coach', text: 'Zwei.', atMs: NOW - 400, nextChange: 'chg-m2' }), proposed('m2')]);
   render(<CoachScreen port={port} {...env} />);
-  const nein = await screen.findAllByRole('button', { name: 'Nein' });
+  const nein = await screen.findAllByRole('button', { name: 'Nein danke' });
   fireEvent.click(nein[0]!);
   await waitFor(() => expect(stateOf(map, 'chg-m1')).toBe('declined'));
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));

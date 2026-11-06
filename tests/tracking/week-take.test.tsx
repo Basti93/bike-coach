@@ -76,3 +76,33 @@ test('screen: a take on a plan changed after the proposal was shown shows the re
   expect((await screen.findByRole('alert')).textContent).toBe(TAKE_REFUSED);
   expect(sportOf(map)).toBe('bike');
 });
+
+test('screen: the undone state is remembered in the chat, a reload shows it; a lost "Übernommen." note still shows taken', async () => {
+  const { port, map } = fakePort([old, coachMsg]);
+  const first = render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
+  await waitFor(() => expect(sportOf(map)).toBe('bike'));
+  first.unmount();
+  render(<CoachScreen port={port} {...env} />);
+  expect(await screen.findByText(/Wochenplan rückgängig gemacht/)).toBeTruthy();
+  expect([...map.values()].some((r) => r.kind === 'chat' && (r.body as { undoes?: string }).undoes === 'c1')).toBe(true);
+  cleanup();
+  // the plan was written but the chat note was not: still shown as taken
+  const lost = fakePort([old, coachMsg]);
+  await takeWeekPlan(lost.port, { proposal, changeId: 'c1', shownMs: 5, now: NOW });
+  render(<CoachScreen port={lost.port} {...env} />);
+  expect(await screen.findByText(/Wochenplan übernommen/)).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Rückgängig' })).toBeTruthy();
+});
+
+test('screen: when the undo is not possible any more the reason stands there instead of a missing button', async () => {
+  const { port, map, notify } = fakePort([old, coachMsg]);
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  await screen.findByRole('button', { name: 'Rückgängig' });
+  const cur = map.get('weekplan:2026-11-02')!;
+  map.set('weekplan:2026-11-02', { ...cur, updatedMs: cur.updatedMs + 10, body: { ...(cur.body as object), days: (mk('run') as { days: unknown[] }).days } }); notify();
+  expect(await screen.findByText(UNDO_REFUSED)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Rückgängig' })).toBeNull();
+});

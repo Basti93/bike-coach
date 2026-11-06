@@ -1,7 +1,8 @@
 import { changeId, changeRecord, readNextOps, type NextOp } from '../../shared/changes';
 import { CHAT_CONTEXT, CHAT_KEEP_MS, chatThread, readWorkoutChange, waitingMessage, type ChatEntry, type ChatMessage } from '../../shared/chat';
 import { EXERCISES, type Exercise } from '../../shared/exercises';
-import { checkOps, gehtNicht } from '../../tracking/workout-change';
+import { checkOps } from '../../tracking/workout-change';
+import { gehtNicht } from '../../shared/wording';
 import type { TrackedWorkout } from '../../tracking/session';
 import type { TrackedRecord } from '../../shared/records';
 import { readStats, STATS_ID } from '../../shared/stats';
@@ -309,7 +310,7 @@ export class ChatCoach {
       dataBlock('wochenVerlauf', weekHistory(this.deps.store.all(id, 'stats'), now)),
       dataBlock('ziel', this.deps.goal?.(id) ?? null),
       dataBlock('beschwerden', this.complaintList(id)),
-      dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}) }))),
+      dataBlock('verlauf', thread.map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text, ...(m.proposal ? { vorschlagFuerWoche: m.proposal.weekStart } : {}), ...(m.takes ? { hatUebernommen: true } : {}), ...(m.declines ? { hatAbgelehnt: true } : {}), ...(m.undoes ? { hatZurueckgenommen: true } : {}) }))),
       instruction,
     ].join('\n');
   }

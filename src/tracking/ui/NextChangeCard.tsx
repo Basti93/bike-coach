@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { changesOf, moveChange, type ChangeState } from '../../shared/changes';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
+import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 
 /**
- * The coach's proposal for the next workout: one reason sentence and Übernehmen / Nein; Rückgängig while it is not used.
+ * The coach's proposal for the next workout: one reason sentence and Übernehmen / Nein danke; Rückgängig while it is not used.
  * The state lives in the `change` record and only moves forward, so a reload or a second device shows the same.
  */
 export function NextChangeCard({ port, changeId, records, now }: { port: TrackingPort; changeId: string; records: TrackedRecord[] | null; now: () => number }) {
@@ -24,13 +25,13 @@ export function NextChangeCard({ port, changeId, records, now }: { port: Trackin
       <p>{c.state === 'proposed' ? `Fürs nächste Training: ${c.reason}` : c.reason}</p>
       {c.state === 'proposed' && (
         <div className="tk-row">
-          <button type="button" onClick={() => void go('taken')}>Übernehmen</button>
-          <button type="button" className="ghost" onClick={() => void go('declined')}>Nein</button>
+          <button type="button" onClick={() => void go('taken')}>{TAKE}</button>
+          <button type="button" className="ghost" onClick={() => void go('declined')}>{DECLINE}</button>
         </div>
       )}
-      {c.state === 'taken' && <div className="tk-row"><span className="muted">Übernommen fürs nächste Training.</span><button type="button" className="ghost" onClick={() => void go('undone')}>Rückgängig</button></div>}
+      {c.state === 'taken' && <div className="tk-row"><span className="muted">Übernommen fürs nächste Training.</span><button type="button" className="ghost" onClick={() => void go('undone')}>{UNDO}</button></div>}
       {c.state === 'used' && <p className="muted">Im Training berücksichtigt.</p>}
-      {c.state === 'declined' && <p className="muted">Abgelehnt.</p>}
+      {c.state === 'declined' && <p className="muted">{DECLINED}.</p>}
       {c.state === 'undone' && <p className="muted">Rückgängig gemacht.</p>}
       {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>}
     </div>

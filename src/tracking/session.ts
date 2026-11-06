@@ -97,10 +97,11 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
 
 /**
  * `next`: the changes for this workout that are `taken` (see shared/changes). Applied oldest first, except those a workout
- * already lists (`workouts`, any, open or finished): a second start never applies one twice. The new workout lists each applied
- * change with empty rows, so there is no undo after the start, and a skipped op leaves a short line in the first exercise's notes.
+ * already lists (`workouts`, any, open or finished): a second start never applies one twice. The new workout lists each change of
+ * which at least one op applied (empty rows, so no undo after the start); the others stay taken. `onSkipped` gets the short lines for ops
+ * that no longer fit; they are for the rider's screen only, not workout data.
  */
-export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides } = { changes: [], workouts: [] }): TrackedWorkout {
+export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: number, id: string, catalog: Exercise[] = EXERCISES, studio?: string, studios: StudioState = NO_STUDIOS, next: { changes: NextChange[]; workouts: LoggedWorkout[]; overrides?: LoadStepOverrides; onSkipped?: (lines: string[]) => void } = { changes: [], workouts: [] }): TrackedWorkout {
   const listed = listedIds(next.workouts);
   const todo = next.changes.filter((c) => c.state === 'taken' && !listed.has(c.id));
   // A lowered weight lands on a weight the machine here can really show: the exercise's ladder in this workout's studio.
@@ -112,15 +113,16 @@ export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: nu
     const own = sessions.map((h) => ({ studio: h.studio, startMs: h.startMs, sets: h.exercises.filter((x) => x.exerciseId === exerciseId).flatMap((x) => x.sets.filter(isDone)) }));
     return snapDown(kg, ladderFrom(own, { exerciseId, studio: key, main, renames: studios.renames }, equipment, next.overrides ?? new Map()).ladder);
   };
-  const { plan, notes } = applyNextChanges(w, todo, catalog, lower);
+  const { plan, notes, applied } = applyNextChanges(w, todo, catalog, lower);
+  const done = todo.filter((c) => applied.includes(c.id));
   const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios));
   // Lighter also works on weights the last session gave (the plan had none); planned weights were lightened above.
-  for (const c of todo) for (const o of c.ops) {
+  for (const c of done) for (const o of c.ops) {
     const g = o.op === 'lighter' ? plan.exercises.findIndex((x) => x.templateId === o.exerciseId) : -1;
     if (g >= 0) exercises[g] = { ...exercises[g]!, sets: exercises[g]!.sets.map((x, k) => (plan.exercises[g]!.sets[k]?.weightKg === null && x.weightKg !== null ? { ...x, weightKg: lower(o.exerciseId, x.weightKg * (1 - LIGHTER_PCT / 100)) } : x)) };
   }
-  if (notes.length && exercises[0]) exercises[0] = { ...exercises[0], notes: [exercises[0].notes, ...notes].filter(Boolean).join('\n') };
-  const changes = todo.map((c) => ({ id: c.id, atMs: nowMs, prior: [], pos: [], after: [] }));
+  if (notes.length) next.onSkipped?.(notes);
+  const changes = done.map((c) => ({ id: c.id, atMs: nowMs, prior: [], pos: [], after: [] }));
   return { id, title: plan.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises, rest: null, ...(changes.length ? { changes } : {}) };
 }
 /** Sets (or, with an empty name, clears) the studio. */

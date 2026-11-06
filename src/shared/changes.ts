@@ -2,6 +2,10 @@ import type { TrackedRecord } from './records';
 import type { Exercise } from './exercises';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
+const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
+/** The nearest 0.5 kg. */
+export const half = (kg: number): number => Math.round(kg * 2) / 2;
+
 /**
  * A change the rider wants for the NEXT workout (record kind `change`, id `chg-<chat message id>`). Its state only moves
  * forward: proposed -> taken | declined; taken -> undone | used. `used` is final: the workout it went into lists its id.
@@ -10,7 +14,6 @@ export type NextOp = { op: 'drop'; exerciseId: string } | { op: 'swap'; exercise
 export type ChangeState = 'proposed' | 'taken' | 'declined' | 'undone' | 'used';
 export type NextChange = { id: string; ops: NextOp[]; reason: string; state: ChangeState; atMs: number; usedBy?: string };
 
-const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const STATES: ChangeState[] = ['proposed', 'taken', 'declined', 'undone', 'used'];
 const MAX_OPS = 8;
 /** Lighter takes this share off the planned weights. */
@@ -68,33 +71,34 @@ export function listedIds(workouts: readonly { changes?: { id: string }[] }[]): 
   return new Set(workouts.flatMap((w) => (Array.isArray(w.changes) ? w.changes.map((c) => c.id) : [])));
 }
 
-const half = (kg: number) => Math.round(kg * 2) / 2;
-
 /**
  * The plan with the taken changes applied, oldest first. An op whose exercise is not in the plan (any more) is skipped with a
- * short line. `lower`: where a lowered weight lands (default: the nearest 0.5 kg; the app passes the exercise's weight ladder). `applied`: the changes that did anything or were meant to; every taken change counts as used once it is listed.
+ * short line. `lower`: where a lowered weight lands (default: the nearest 0.5 kg; the app passes the exercise's weight ladder). `applied`: the ids of the changes of which at least one op did something; the others are not used up.
  */
-export function applyNextChanges(plan: GymWorkout, changes: readonly NextChange[], catalog: readonly Exercise[], lower: (exerciseId: string, kg: number) => number = (_id, kg) => half(kg)): { plan: GymWorkout; notes: string[] } {
+export function applyNextChanges(plan: GymWorkout, changes: readonly NextChange[], catalog: readonly Exercise[], lower: (exerciseId: string, kg: number) => number = (_id, kg) => half(kg)): { plan: GymWorkout; notes: string[]; applied: string[] } {
   let exercises: GymExercise[] = plan.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) }));
   const notes: string[] = [];
+  const applied: string[] = [];
   for (const c of changes) for (const o of c.ops) {
     const i = exercises.findIndex((e) => e.templateId === o.exerciseId);
     if (i < 0) { notes.push('Eine Änderung fürs Training passte nicht mehr zum Plan.'); continue; }
     const e = exercises[i]!;
-    if (o.op === 'drop') exercises = exercises.filter((_, k) => k !== i);
+    if (o.op === 'drop') { exercises = exercises.filter((_, k) => k !== i); applied.push(c.id); }
     else if (o.op === 'swap') {
       const to = catalog.find((x) => x.id === o.toId);
       if (!to) { notes.push('Eine Änderung fürs Training passte nicht mehr zum Plan.'); continue; }
       exercises[i] = { ...e, templateId: to.id, title: to.title, sets: e.sets.map((s) => ({ ...s, weightKg: null })) };
+      applied.push(c.id);
     } else if (o.op === 'sets') {
       const warm = e.sets.filter((s) => s.type === 'warmup');
       const work = e.sets.filter((s) => s.type !== 'warmup');
       if (work.length === 0) { notes.push('Eine Änderung fürs Training passte nicht mehr zum Plan.'); continue; }
       const fitted = o.sets <= work.length ? work.slice(0, o.sets) : [...work, ...Array.from({ length: o.sets - work.length }, () => ({ ...work[work.length - 1]! }))].filter(Boolean);
       exercises[i] = { ...e, sets: [...warm, ...fitted] };
-    } else exercises[i] = { ...e, sets: e.sets.map((s) => (s.weightKg !== null ? { ...s, weightKg: lower(e.templateId, s.weightKg * (1 - LIGHTER_PCT / 100)) } : s)) };
+      applied.push(c.id);
+    } else { exercises[i] = { ...e, sets: e.sets.map((s) => (s.weightKg !== null ? { ...s, weightKg: lower(e.templateId, s.weightKg * (1 - LIGHTER_PCT / 100)) } : s)) }; applied.push(c.id); }
   }
-  return { plan: { ...plan, exercises }, notes: [...new Set(notes)] };
+  return { plan: { ...plan, exercises }, notes: [...new Set(notes)], applied: [...new Set(applied)] };
 }
 
 /** The reason line for the coach's preview: what is taken for the next workout. Empty without any. */

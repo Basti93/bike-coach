@@ -69,8 +69,13 @@ function StudioLine({ value, known, onChange, onRename }: { value: string | unde
 type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
 type Ask = { question: 'nothing-confirmed' } | { question: 'open-sets'; open: number } | null;
 
-function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
-  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; onLeave: (message: string) => void;
+/** A finished workout uses up the taken changes it lists. A workout thrown away never gets here, so its changes stay taken for the next one. */
+async function markUsed(port: TrackingPort, workouts: { id: string; changes?: { id: string }[] }[], nowMs: number): Promise<void> {
+  try { for (const r of usedMarks(await port.list('change'), workouts, nowMs)) await port.put(r); } catch { /* the next start marks them */ }
+}
+
+function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice, onLeave }: {
+  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; startNotice?: string | null; onLeave: (message: string) => void;
 }) {
   const { workout: w, save } = useStoreView(store);
   const [picker, setPicker] = useState<Picker>(null);
@@ -96,7 +101,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
     const r = (statsRecords ?? []).find((x) => x.id === STATS_ID && !x.deleted);
     return (r && readStats(r.body)?.muscles) || null;
   }, [statsRecords]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(startNotice ?? null);
   const [effortOn, setEffortOn] = useState(effortQuestionsOn);
   const pendingLeave = useRef<string | null>(null);
   useWakeLock(true);
@@ -144,7 +149,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
 
   // A finish that could not be saved at first leaves the screen once a retry succeeds.
   useEffect(() => {
-    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; closeStore(port, store); onLeave(m); }
+    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; void markUsed(port, [w], now()); closeStore(port, store); onLeave(m); }
   }, [save, w]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
@@ -163,6 +168,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, onLeave }: {
         else leaving.current = false;
         return;
       }
+      if (r.status === 'finished') await markUsed(port, [w], now());
       closeStore(port, store);
       onLeave(msg);
     } finally { ending.current = false; }
@@ -347,7 +353,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const routinesQ = usePortRecords(port, 'routine');
   const workouts = workoutsQ.records;
   const catalog = useCatalog(port);
-  const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean } | null>(null);
+  const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean; notice?: string | null } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const starting = useRef(false);
   const started = useRef<GymWorkout | null>(null);
@@ -361,32 +367,35 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
   const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
 
-  async function begin(w: TrackedWorkout): Promise<boolean> {
+  async function begin(w: TrackedWorkout, startNotice: string | null = null): Promise<boolean> {
     if (starting.current) return false; // a double tap makes one workout
     starting.current = true;
     try {
       const s = acquireStore(port, studio ? { ...w, studio } : w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
       setMessage(null);
-      setStore({ s, autoEnd: false });
+      setStore({ s, autoEnd: false, notice: startNotice });
       return true;
     } finally { starting.current = false; }
   }
-  // The changes taken for the next workout go in when it starts; each is marked used only after the workout is saved.
-  // A workout that already lists a change stops it from applying again (a start that died before the mark), and the mark is made up.
+  // The changes taken for the next workout go in when it starts and are listed in the workout; each is marked used only when the
+  // workout is finished (a thrown-away one leaves them taken). A listing workout stops a change from applying twice, and a
+  // finished one whose mark got lost is made up here.
+  // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
     let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]);
     try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
-    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides });
-    if (!(await begin(w))) return;
-    try { for (const r of usedMarks(changeRecs, [...all, w], now())) await port.put(r); } catch { /* the next start marks them */ }
+    let skipped: string[] = [];
+    const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, onSkipped: (l) => { skipped = l; } });
+    if (!(await begin(w, skipped.length ? skipped.join(' ') : null))) return;
+    await markUsed(port, all.filter((x) => x.endMs !== null), now());
   };
 
   useEffect(() => {
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
   }, [routine, workouts]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} onLeave={(m) => { setStore(null); setMessage(m); }} />;
+  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} startNotice={store.notice} onLeave={(m) => { setStore(null); setMessage(m); }} />;
   if (workoutsQ.failed) {
     return (
       <div className="tk-screen">

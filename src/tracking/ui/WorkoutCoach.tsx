@@ -3,7 +3,8 @@ import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEnt
 import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
 import type { TrackedWorkout } from '../session';
-import { changeTaken, checkOps, gehtNicht, undoRefusal } from '../workout-change';
+import { changeTaken, checkOps, undoRefusal } from '../workout-change';
+import { DECLINE, DECLINED, gehtNicht, TAKE, UNDO } from '../../shared/wording';
 import { changesOf } from '../../shared/changes';
 import { NextChangeCard } from './NextChangeCard';
 import { usePortRecords } from './hooks';
@@ -30,7 +31,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   const chat = usePortRecords(port, 'chat').all;
   const changeRecs = usePortRecords(port, 'change').all;
   const thread = chatThread(chat ?? []);
-  const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines);
+  const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines && !m.undoes);
   const key = (m: ChatEntry) => `${m.id}:0`;
   const pending = mine.some((m) => m.workoutChange && proposalAnswer(thread, m.id) === null && !changeTaken(workout, key(m)));
   const proposedNext = mine.some((m) => m.nextChange && changesOf(changeRecs ?? []).some((c) => c.id === m.nextChange && c.state === 'proposed'));
@@ -83,13 +84,13 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
               <ul>{m.workoutChange.ops.map((o, i) => <li key={i}>{opText(o, workout, catalog)}</li>)}</ul>
               {proposalAnswer(thread, m.id) === null && !changeTaken(workout, key(m)) ? (
                 <div className="tk-row">
-                  <button type="button" onClick={() => void take(m as ChatEntry & { workoutChange: WorkoutChange })}>Übernehmen</button>
-                  <button type="button" className="ghost" onClick={() => { setOpen(true); void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id, inWorkout: workout.id }); }}>Nein danke</button>
+                  <button type="button" onClick={() => void take(m as ChatEntry & { workoutChange: WorkoutChange })}>{TAKE}</button>
+                  <button type="button" className="ghost" onClick={() => { setOpen(true); void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id, inWorkout: workout.id }); }}>{DECLINE}</button>
                 </div>
               ) : changeTaken(workout, key(m)) ? (
                 <div className="tk-row"><span className="muted">Übernommen.</span>
-                  <button type="button" className="ghost" onClick={() => undo(m)}>Rückgängig</button></div>
-              ) : <p className="muted">{proposalAnswer(thread, m.id) === 'declined' ? 'Abgelehnt.' : 'Rückgängig gemacht.'}</p>}
+                  <button type="button" className="ghost" onClick={() => undo(m)}>{UNDO}</button></div>
+              ) : <p className="muted">{proposalAnswer(thread, m.id) === 'declined' ? `${DECLINED}.` : 'Rückgängig gemacht.'}</p>}
             </>
           )}
         </div>

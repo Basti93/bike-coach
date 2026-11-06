@@ -2,8 +2,8 @@ import type { TrackedRecord } from '../shared/records';
 import type { WeekProposal } from '../shared/week-plan';
 import type { TrackingPort } from './ports';
 
-export const TAKE_REFUSED = 'Geht gerade nicht, weil der Wochenplan inzwischen geändert wurde. Frag den Coach nochmal.';
-export const UNDO_REFUSED = 'Geht nicht mehr, weil der Wochenplan danach geändert wurde.';
+export const TAKE_REFUSED = 'Geht nicht, weil der Wochenplan inzwischen geändert wurde. Frag den Coach nochmal.';
+export const UNDO_REFUSED = 'Geht nicht, weil der Wochenplan danach geändert wurde.';
 
 export type WeekResult = { ok: true } | { ok: false; reason: string };
 
@@ -29,11 +29,19 @@ export async function takeWeekPlan(port: TrackingPort, p: { proposal: WeekPropos
   return r.kept ? { ok: true } : { ok: false, reason: TAKE_REFUSED };
 }
 
+/** Whether the stored plan of that week is the one this take wrote (the stored data decides, nothing remembered by the screen). */
+export const weekTaken = (have: TrackedRecord | undefined, changeId: string): boolean => !!have && !have.deleted && isObj(have.body) && have.body.takenFrom === changeId;
+
+/** null when the take can be undone, else the reason in words. */
+export const weekUndoRefusal = (have: TrackedRecord | undefined, proposal: WeekProposal, changeId: string): string | null =>
+  weekTaken(have, changeId) && JSON.stringify((have!.body as Record<string, unknown>).days) === JSON.stringify(proposal.days) ? null : UNDO_REFUSED;
+
 /** Undoes a take: restores `prior`, or removes the plan if there was none. Only while the stored plan is still the one this take wrote (same take and same days as the proposal). */
 export async function undoWeekPlan(port: TrackingPort, p: { proposal: WeekProposal; changeId: string; now: number }): Promise<WeekResult> {
   const weekStart = p.proposal.weekStart;
   const have = await storedOf(port, weekStart);
-  if (!have || have.deleted || !isObj(have.body) || have.body.takenFrom !== p.changeId || JSON.stringify(have.body.days) !== JSON.stringify(p.proposal.days)) return { ok: false, reason: UNDO_REFUSED };
+  if (weekUndoRefusal(have, p.proposal, p.changeId) || !have) return { ok: false, reason: UNDO_REFUSED };
+  if (!isObj(have.body)) return { ok: false, reason: UNDO_REFUSED };
   const prior = isObj(have.body.prior) ? plain(have.body.prior) : null;
   const next: TrackedRecord = { kind: 'weekplan', id: weekStart, updatedMs: Math.max(p.now, have.updatedMs + 1), deleted: prior === null, body: prior ?? have.body };
   const r = await port.put(next);

@@ -61,10 +61,10 @@ test('take lists the change once; undo of a drop and a swap restores rows and po
 
 test('a missing row says the exercise is gone, not that the set is done', async () => {
   const { checkOps } = await import('../../src/tracking/workout-change');
-  expect(checkOps(ch([{ op: 'drop', ex: 'nope' }]), start(), EXERCISES).reasons).toEqual(['Übung nicht mehr da']);
+  expect(checkOps(ch([{ op: 'drop', ex: 'nope' }]), start(), EXERCISES).reasons).toEqual(['die Übung nicht mehr da ist']);
   const w = start();
   const allDone = { ...w, exercises: w.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s, doneMs: 1 })) })) };
-  expect(checkOps(ch([{ op: 'drop', ex: w.exercises[0]!.rid }]), allDone, EXERCISES).reasons).toEqual(['Satz schon erledigt']);
+  expect(checkOps(ch([{ op: 'drop', ex: w.exercises[0]!.rid }]), allDone, EXERCISES).reasons).toEqual(['der Satz schon erledigt ist']);
 });
 
 test('undo ignores planned values the rider did not edit, and refuses a set confirmed at the very moment of the change', async () => {

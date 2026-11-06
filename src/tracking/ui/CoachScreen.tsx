@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
 import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
-import { takeWeekPlan, undoWeekPlan } from '../week-take';
+import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
+import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { NextChangeCard } from './NextChangeCard';
 import { usePortRecords } from './hooks';
 import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
@@ -34,19 +35,21 @@ function Week({ days, label, today, runs = [] }: { days: PlanDay[]; label: strin
   );
 }
 
-const takenFrom = (plans: TrackedRecord[], weekStart: string): unknown => {
-  const r = plans.find((x) => x.kind === 'weekplan' && x.id === weekStart && !x.deleted);
-  return r && typeof r.body === 'object' && r.body !== null ? (r.body as { takenFrom?: unknown }).takenFrom : undefined;
-};
+const storedWeek = (plans: TrackedRecord[], weekStart: string): TrackedRecord | undefined => plans.find((x) => x.kind === 'weekplan' && x.id === weekStart);
 
-function Proposal({ m, answer, canUndo, past, loading, onTake, onUndo, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | 'undone' | null; canUndo: boolean; past: boolean; loading: boolean; onTake: () => void; onUndo: () => void; onDecline: () => void }) {
+/** What the stored data says wins over what the chat remembers: a plan written by this proposal is taken, even if the chat note was lost. */
+const weekAnswer = (chat: 'taken' | 'declined' | 'undone' | null, undone: boolean, stored: TrackedRecord | undefined, id: string): 'taken' | 'declined' | 'undone' | null =>
+  weekTaken(stored, id) ? 'taken' : undone ? 'undone' : chat;
+
+function Proposal({ m, answer, undoWhy, past, loading, onTake, onUndo, onDecline }: { m: ChatEntry & { proposal: WeekProposal }; answer: 'taken' | 'declined' | 'undone' | null; undoWhy: string | null; past: boolean; loading: boolean; onTake: () => void; onUndo: () => void; onDecline: () => void }) {
   const p = m.proposal;
   // A proposal that was answered is one line; the plan itself stands at the top of the page.
   if (answer !== null) {
     const when = `(ab ${p.weekStart.slice(8, 10)}.${p.weekStart.slice(5, 7)}.)`;
     if (answer === 'undone') return <p className="muted">Wochenplan rückgängig gemacht {when}</p>;
-    if (answer === 'taken' && canUndo) return <div className="tk-row"><span className="muted">Wochenplan übernommen {when}</span><button type="button" className="ghost" onClick={onUndo}>Rückgängig</button></div>;
-    return <p className="muted">{answer === 'taken' ? 'Wochenplan übernommen' : 'Vorschlag abgelehnt'} {when}</p>;
+    if (answer === 'taken' && !loading && undoWhy === null) return <div className="tk-row"><span className="muted">Wochenplan übernommen {when}</span><button type="button" className="ghost" onClick={onUndo}>{UNDO}</button></div>;
+    if (answer === 'taken') return <><p className="muted">Wochenplan übernommen {when}</p>{!loading && undoWhy && <p className="muted">{undoWhy}</p>}</>;
+    return <p className="muted">{DECLINED} {when}</p>;
   }
   return (
     <div className="tk-proposal">
@@ -54,10 +57,10 @@ function Proposal({ m, answer, canUndo, past, loading, onTake, onUndo, onDecline
       {m.warnings && m.warnings.length > 0 && <p className="tk-note">Mehr als unsere Regeln für Erholung empfehlen: {m.warnings.join(' ')}</p>}
       {answer === null && past ? <p className="muted">Diese Woche ist vorbei.</p> : answer === null ? (
         <div className="tk-row">
-          <button type="button" disabled={loading} onClick={onTake}>Übernehmen</button>
-          <button type="button" className="ghost" onClick={onDecline}>Nein danke</button>
+          <button type="button" disabled={loading} onClick={onTake}>{TAKE}</button>
+          <button type="button" className="ghost" onClick={onDecline}>{DECLINE}</button>
         </div>
-      ) : <p className="muted">{answer === 'taken' ? 'Übernommen.' : 'Abgelehnt.'}</p>}
+      ) : null}
     </div>
   );
 }
@@ -99,7 +102,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const [undone, setUndone] = useState<Set<string>>(new Set());
   const thread = chatThread(chat ?? []);
   const complaints = (complaintRecords ?? []).flatMap((r) => {
     const b = r.body as { text?: unknown; status?: unknown } | null;
@@ -137,7 +139,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
     setError(null);
     try {
       const res = await undoWeekPlan(port, { proposal: m.proposal, changeId: m.id, now: now() });
-      if (res.ok) setUndone((u) => new Set(u).add(m.id)); else setError(res.reason);
+      if (res.ok) await write({ role: 'rider', text: 'Wochenplan rückgängig gemacht.', atMs: now(), undoes: m.id }); else setError(res.reason);
     } catch { setError('Der Plan konnte nicht gespeichert werden. Versuch es gleich nochmal.'); }
   };
   const savePrefs = (p: CoachPrefs) => {
@@ -163,12 +165,12 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
-        {thread.map((m) => (m.takes || m.declines ? null : (
+        {thread.map((m) => (m.takes || m.declines || m.undoes ? null : (
           <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
             <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
             <p>{m.text}</p>
             {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
-            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={undone.has(m.id) ? 'undone' : proposalAnswer(thread, m.id)} canUndo={takenFrom(plans ?? [], m.proposal!.weekStart) === m.id} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} loading={plans === null} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
+            {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={weekAnswer(proposalAnswer(thread, m.id), thread.some((x) => x.undoes === m.id), storedWeek(plans ?? [], m.proposal!.weekStart), m.id)} undoWhy={weekUndoRefusal(storedWeek(plans ?? [], m.proposal!.weekStart), m.proposal!, m.id)} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} loading={plans === null} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
         )))}
         {waiting && <p role="status" className="muted">{now() - waiting.atMs > STALE_MS ? 'Darauf kam keine Antwort mehr. Schreib gern nochmal.' : now() - waiting.atMs > SLOW_MS ? 'Der Coach antwortet, sobald er wieder erreichbar ist.' : 'Der Coach denkt nach …'}</p>}

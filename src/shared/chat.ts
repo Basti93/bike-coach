@@ -4,7 +4,7 @@ import { parseProposal, type WeekProposal } from './week-plan';
 /**
  * One chat thread per profile, one `chat` record per message. The rider's messages are written by any of their devices,
  * the coach's only by the side that coaches the profile. `replyTo` ties a coach answer to the rider message it answers;
- * `takes`/`declines` mark the rider's answer to a proposal (no coach reply follows those).
+ * `takes`/`declines`/`undoes` mark the rider's answer to a proposal (no coach reply follows those).
  */
 /**
  * A change to the rest of an open workout, proposed by the coach during the workout. Only open sets change; done sets never.
@@ -24,6 +24,8 @@ export type ChatMessage = {
   warnings?: string[];
   takes?: string;
   declines?: string;
+  /** The rider took the proposal back (the week plan undone). */
+  undoes?: string;
   /** The coach could not answer (no Claude, limit); the rider may write again. */
   failed?: boolean;
   /** A coach message the rider did not ask for (the week conversation, the evening before): the server sends a push for it. */
@@ -51,6 +53,7 @@ export function readChat(x: unknown): ChatMessage | null {
   if (typeof x.replyTo === 'string') m.replyTo = x.replyTo;
   if (typeof x.takes === 'string') m.takes = x.takes;
   if (typeof x.declines === 'string') m.declines = x.declines;
+  if (typeof x.undoes === 'string') m.undoes = x.undoes;
   if (x.failed === true) m.failed = true;
   if (typeof x.inWorkout === 'string') m.inWorkout = x.inWorkout;
   if (x.push === true) m.push = true;
@@ -75,16 +78,17 @@ export function waitingMessage(thread: ChatEntry[]): ChatEntry | null {
   const answered = new Set(thread.filter((m) => m.role === 'coach' && m.replyTo).map((m) => m.replyTo));
   for (let i = thread.length - 1; i >= 0; i--) {
     const m = thread[i]!;
-    if (m.role === 'coach' || m.takes || m.declines) continue;
+    if (m.role === 'coach' || m.takes || m.declines || m.undoes) continue;
     return answered.has(m.id) ? null : m;
   }
   return null;
 }
 
 /** Whether the rider already took or declined a proposal. */
-export const proposalAnswer = (thread: ChatEntry[], id: string): 'taken' | 'declined' | null => {
-  for (const m of thread) { if (m.takes === id) return 'taken'; if (m.declines === id) return 'declined'; }
-  return null;
+export const proposalAnswer = (thread: ChatEntry[], id: string): 'taken' | 'declined' | 'undone' | null => {
+  let answer: 'taken' | 'declined' | 'undone' | null = null;
+  for (const m of thread) { if (m.takes === id) answer = 'taken'; else if (m.declines === id) answer = 'declined'; else if (m.undoes === id) answer = 'undone'; }
+  return answer;
 };
 
 const OPS = ['drop', 'swap', 'sets', 'lighter'];

@@ -3,32 +3,30 @@ import type { Exercise } from '../shared/exercises';
 import type { LoggedWorkout } from '../shared/records';
 import { NO_STUDIOS, type StudioState } from '../shared/studio';
 import type { WorkoutChangeEntry } from '../shared/records';
+import { gehtNicht } from '../shared/wording';
+import { half } from '../shared/changes';
 import { removeExercise, swapExercise, type TrackedWorkout } from './session';
 
 const open = (w: TrackedWorkout, ex: string) => w.exercises.find((e) => e.rid === ex)?.sets.filter((s) => s.doneMs === null) ?? [];
-const half = (kg: number) => Math.round(kg * 2) / 2;
 
 /**
  * The ops that can apply to this workout (their row exists and still has open sets, a swap target is in the catalog)
  * and, for the others, one reason each in words.
  */
 export function checkOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[]): { ops: WorkoutOp[]; reasons: string[] } {
-  if (change.workoutId !== w.id || w.endMs !== null) return { ops: [], reasons: change.ops.length ? ['Training schon beendet'] : [] };
+  if (change.workoutId !== w.id || w.endMs !== null) return { ops: [], reasons: change.ops.length ? ['das Training schon beendet ist'] : [] };
   const ops: WorkoutOp[] = [];
   const reasons: string[] = [];
   for (const o of change.ops) {
-    if (!w.exercises.some((e) => e.rid === o.ex)) reasons.push('Übung nicht mehr da');
-    else if (open(w, o.ex).length === 0) reasons.push('Satz schon erledigt');
-    else if (o.op === 'swap' && !catalog.some((e) => e.id === o.to)) reasons.push('Übung nicht im Katalog');
+    if (!w.exercises.some((e) => e.rid === o.ex)) reasons.push('die Übung nicht mehr da ist');
+    else if (open(w, o.ex).length === 0) reasons.push('der Satz schon erledigt ist');
+    else if (o.op === 'swap' && !catalog.some((e) => e.id === o.to)) reasons.push('die Übung nicht im Katalog ist');
     else ops.push(o);
   }
   return { ops, reasons };
 }
 
 export const validOps = (change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[]): WorkoutOp[] => checkOps(change, w, catalog).ops;
-
-/** One line for the rider, or null when nothing was rejected. */
-export const gehtNicht = (reasons: string[]): string | null => (reasons.length ? `Geht nicht: ${[...new Set(reasons)].join(', ')}.` : null);
 
 /** Applies the valid ops in order. Done sets are never touched. */
 export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState = NO_STUDIOS): TrackedWorkout {
@@ -88,8 +86,8 @@ export function undoRefusal(w: TrackedWorkout, id: string): string | null {
   if (!c) return 'Das gibt es nicht mehr.';
   const mine = rids(c.after as { rid?: string }[]);
   const rows = w.exercises.filter((e) => mine.has(e.rid));
-  if (rows.some((e) => e.sets.some((s) => s.doneMs !== null && s.doneMs >= c.atMs))) return 'Geht nicht mehr, weil du in dieser Übung schon weitertrainiert hast.';
-  if (edited(rows) !== edited(c.after as TrackedWorkout['exercises'])) return 'Geht nicht mehr, weil du sie inzwischen selbst geändert hast.';
+  if (rows.some((e) => e.sets.some((s) => s.doneMs !== null && s.doneMs >= c.atMs))) return 'Geht nicht, weil du in dieser Übung schon weitertrainiert hast.';
+  if (edited(rows) !== edited(c.after as TrackedWorkout['exercises'])) return 'Geht nicht, weil du sie inzwischen selbst geändert hast.';
   return null;
 }
 
