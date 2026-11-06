@@ -1,3 +1,4 @@
+import type { Exercise } from '../shared/exercises';
 import type { LoggedWorkout } from '../shared/records';
 import { lastValues, type TrackedSet, type TrackedWorkout } from './session';
 
@@ -12,7 +13,7 @@ const work = (s: TrackedSet) => s.type !== 'warmup';
  * was swapped in, or the weight is higher than last time. Never when the reps were 2 or more off the plan, never for timed
  * exercises, never twice, and at most MAX_EFFORT_QUESTIONS per workout.
  */
-export function asksEffort(w: TrackedWorkout, ex: string, history: LoggedWorkout[]): boolean {
+export function asksEffort(w: TrackedWorkout, ex: string, history: LoggedWorkout[], catalog?: Exercise[]): boolean {
   const e = w.exercises.find((x) => x.rid === ex);
   if (!e || e.timed || e.effort !== undefined) return false;
   if (w.exercises.filter((x) => x.effort !== undefined).length >= MAX_EFFORT_QUESTIONS) return false;
@@ -29,7 +30,7 @@ export function asksEffort(w: TrackedWorkout, ex: string, history: LoggedWorkout
     if (reps <= last.repRange.start - 2 || reps >= last.repRange.end + 2) return false;
     exact = reps >= last.repRange.start && reps <= last.repRange.end;
   }
-  const before = lastValues(e.exerciseId, history).filter((s) => s.type !== 'warmup' && s.weightKg !== null).map((s) => s.weightKg as number);
+  const before = lastValues(e.exerciseId, history, catalog).filter((s) => s.type !== 'warmup' && s.weightKg !== null).map((s) => s.weightKg as number);
   const top = Math.max(0, ...sets.map((s) => s.weightKg ?? 0));
   const heavier = before.length > 0 && top > Math.max(...before);
   return exact || !!e.swappedIn || heavier;

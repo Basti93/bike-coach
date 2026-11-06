@@ -43,8 +43,8 @@ export const formatDecimal = (n: number | null): string => (n === null ? '' : St
 
 /** Confirmed sets of the newest performed session containing the exercise. A session known twice (own and Hevy) counts once. */
 /** The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. */
-export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog: Exercise[] = EXERCISES): LoggedSet[] {
-  const own = catalog.find((e) => e.id === exerciseId);
+export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog?: Exercise[]): LoggedSet[] {
+  const own = (catalog ?? EXERCISES).find((e) => e.id === exerciseId);
   const titles = own ? exerciseTitles(own) : [];
   for (const w of onePerSession(dedupeSessions(history))) {
     const sets = w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
