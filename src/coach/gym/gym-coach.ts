@@ -2,7 +2,7 @@ import { ClaudeError } from '../claude-client';
 import type { StrengthWorkout } from '../hevy';
 import type { RideSummary } from '../metrics';
 import { complaintFromNote, type Complaint } from '../motivation';
-import { checkWorkout, WIDOWMAKER_REPS, type GymContext } from './guardrails';
+import { checkWorkout, reasonPhrase, WIDOWMAKER_REPS, type GymContext } from './guardrails';
 import { HevyError, type HevyRoutines } from './hevy-routines';
 import { LONG_BREAK_DAYS, MAX_SETS } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
@@ -364,7 +364,12 @@ export class GymCoach {
       const checked = parsed.success ? checkWorkout(parsed.data.workout, ctx) : null;
       this.updateIf(gen, id, (x) => {
         if (parsed.success && checked?.ok) this.applyAnswer(x, parsed.data, checked.workout, real, wantNote, now, id);
-        else x.lastError = 'invalid';
+        else {
+          x.lastError = 'invalid';
+          // The rules take over; say so in words instead of the neutral sentence.
+          const why = parsed.success ? (checked && !checked.ok ? checked.reason : '') : 'Schema';
+          if (x.next?.source === 'rules') x.next = { ...x.next, reason: this.withTaken(id, `Mein Plan passte nicht zu deinen Grenzen (${reasonPhrase(why)}), deshalb heute ein einfacher Plan.`) };
+        }
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
       });

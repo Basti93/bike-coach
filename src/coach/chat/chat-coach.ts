@@ -175,7 +175,7 @@ export class ChatCoach {
     if (fromRider && a.draft) msg.draft = a.draft;
     if (a.proposal && broken.length === 0) msg.proposal = a.proposal;
     else if (a.proposal && a.more && !careful) { msg.proposal = a.proposal; msg.warnings = broken; }
-    else if (a.proposal) msg.text += '\n\nMein Vorschlag passte nicht zu unseren Regeln für Erholung, deshalb lasse ich ihn weg. Sag mir, was dir wichtig ist, dann versuche ich es anders.';
+    else if (a.proposal) msg.text += `\n\nMein Vorschlag passte nicht zu unseren Regeln für Erholung (${broken.map((b) => b.replace(/\.$/, '')).join('; ')}), deshalb lasse ich ihn weg. Sag mir, was dir wichtig ist, dann versuche ich es anders.`;
     return msg;
   }
 

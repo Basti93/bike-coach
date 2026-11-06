@@ -44,6 +44,7 @@ test('a proposal that breaks a rule is asked again once, and dropped if still br
   const [m] = replies(s);
   expect(m!.proposal).toBeUndefined();
   expect(m!.text).toContain('passte nicht zu unseren Regeln');
+  expect(m!.text).toContain('Mehr als zwei harte Tage in der Woche');
 });
 
 test('when the rider asks for more, the proposal stays with its warnings', async () => {
