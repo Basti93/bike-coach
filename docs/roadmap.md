@@ -126,6 +126,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (06.11.2026, Person hat Produktfragen an Claude übergeben):** Ein gemeinsamer Datensatz „Änderung“ für alle Vorschläge; Rückgängig bis zum Ende des Trainings bzw. bis zum Start des nächsten Trainings bzw. für den Wochenplan bis zur nächsten Änderung.
 
+## Meilenstein E — Brief
+
+**Ziel:** Was du dauerhaft willst („künftig keine Kniebeugen“, „Schwerpunkt Rücken“, „Laufen nur erhalten“), steht als Regel oder Ziel sichtbar in der App und wirkt in jeder Planung, bis du es pausierst oder löschst.
+
+**Abnahme:**
+1. Sagst du dem Coach etwas Dauerhaftes, schlägt er eine Regel vor (ein Satz, bei Übungen mit den betroffenen Übungen). Nach „Übernehmen“ steht sie unter „Meine Regeln“ auf der Wochenseite.
+2. Eine ausgeschlossene Übung taucht nirgends mehr auf: nicht im Coach-Plan, nicht im einfachen Ersatzplan, nicht in Tauschvorschlägen, nicht beim Start aus Plan oder Routine (dort mit kurzem Hinweis). Der Coach sagt „geht nicht, weil …“, wenn man sie per Chat einbauen will. Selbst hinzufügen bleibt möglich.
+3. Wünsche, die sich nicht prüfen lassen („lieber kurze Einheiten“), wirken als Hinweis in allen Planern und sind als Wunsch gekennzeichnet.
+4. Ziele: Kraftziel (Muskelaufbau / Kraft / Fit bleiben), bis zu drei Schwerpunkt-Muskeln und pro Sportart Schwerpunkt / gleichrangig / erhalten. Sie stehen sichtbar in der App und ersetzen das fest eingebaute „Muskelaufbau“.
+5. Pausieren oder Löschen hebt die Wirkung sofort auf; Regeln und Ziele sind synchronisiert und gelten auf allen Geräten.
+
+**Fällt weg:** Die nur auf dem Mac gespeicherten freien Coach-Regeln (Kraft und Rad) – sie werden einmal als Wünsche übernommen; das fest eingebaute Ziel „muscle“.
+
+**Nicht dabei:** befristete Schwerpunkte/Blöcke (H), Regeln mit Wochentag oder Uhrzeit (F), Ausschluss ganzer Bewegungsfamilien ohne Übungsliste.
+
+**Von Claude entschieden (07.11.2026):** Prüfbare Regel = Liste konkreter Übungen (der Coach schlägt alle passenden Varianten aus dem Katalog vor, du siehst sie vor dem Übernehmen); alles andere ist ein Wunsch. Regeln immer erst als Vorschlag, auch bei klarer Aussage. Selbst hinzugefügte Übungen werden nicht blockiert (deine eigene Wahl).
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
