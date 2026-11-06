@@ -42,12 +42,30 @@ describe('checkWorkout', () => {
     refused(wo([]));
     refused(wo([ex('cp', [])]));
   });
-  it('a weight above suggestNext plus the step is refused', () => {
+  it('a weight above suggestNext plus one reachable step is refused', () => {
     passes(wo([ex('cp', [set(40, 9)])]));
-    passes(wo([ex('cp', [set(42.5, 8)])]));
-    refused(wo([ex('cp', [set(42.6, 8)])]));
-    passes(wo([ex('bp', [set(84, 8)])]));
-    refused(wo([ex('bp', [set(84.5, 8)])]));
+    passes(wo([ex('cp', [set(45, 8)])]));
+    refused(wo([ex('cp', [set(50, 8)])]));
+    passes(wo([ex('bp', [set(82.5, 8)])]));
+    refused(wo([ex('bp', [set(85, 8)])]));
+  });
+  it('snaps a weight down onto the exercise ladder before it is checked', () => {
+    const ws = [wk(21, 'cp', [[40, 8]]), wk(14, 'cp', [[45, 8]]), wk(7, 'cp', [[50, 8]])];
+    const ctx = { ...CTX, workouts: ws };
+    expect(passes(wo([ex('cp', [set(47, 8), set(50, 8)])]), ctx).exercises[0].sets.map((s) => s.weightKg)).toEqual([45, 50]);
+    expect(passes(wo([ex('cp', [set(52, 8)])]), ctx).exercises[0].sets[0].weightKg).toBe(50);
+  });
+  it('only the planned studio\'s history counts for the ladder and the suggestion', () => {
+    const other = { ...wk(3, 'cp', [[100, 8]]), studio: 'Beta' };
+    const ctx = { ...CTX, workouts: [...CTX.workouts.map((w) => ({ ...w, studio: 'Alpha' })), other], studio: 'Alpha' };
+    passes(wo([ex('cp', [set(45, 8)])]), ctx);
+    refused(wo([ex('cp', [set(100, 8)])]), ctx);
+  });
+  it("the range is the exercise's own", () => {
+    const ctx = { ...CTX, workouts: [...CTX.workouts, ...two('lat', 8, 12)], templates: [...TEMPLATES, T('lat', 'dumbbell', 'side_delts')] };
+    passes(wo([ex('lat', [set(8, 20)])]), ctx);
+    refused(wo([ex('lat', [set(8, 26)])]), ctx);
+    refused(wo([ex('cp', [set(40, 20)])]), ctx);
   });
   it('a weight without history is refused', () => {
     refused(wo([ex('lp', [set(30, 8)])]));
@@ -104,7 +122,7 @@ describe('checkWorkout', () => {
   it('a widowmaker is 20 reps at no more than the suggested weight', () => {
     const w = { notes: 'Widowmaker: 20 Wiederholungen' };
     passes(wo([ex('cp', [set(40, 20)], w)]));
-    refused(wo([ex('cp', [set(42.5, 20)], w)]));
+    refused(wo([ex('cp', [set(45, 20)], w)]));
     refused(wo([ex('lp', [set(null, 20)], w)])); // no history: no widowmaker
   });
   it('malformed values are refused', () => {

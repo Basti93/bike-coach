@@ -1,4 +1,4 @@
-import { POLICY_VERSION, ruleNumber, ruleRange } from '../../shared/training-policy';
+import { POLICY_VERSION, ruleNumber } from '../../shared/training-policy';
 
 /**
  * Our own choices for the gym coach, not taken from research. The values live in the policy register
@@ -11,13 +11,8 @@ export const LONG_BREAK_DAYS = ruleNumber('gym.long-break-days');
 export const MIN_COMPARABLE = ruleNumber('gym.min-comparable');
 export const COMPARABLE_DAYS = ruleNumber('gym.comparable-days');
 export const STEP_BACK = ruleNumber('gym.step-back-share');
-/** Sessions in a row with "0 left" before the weight steps back. */
-export const EFFORT_STEP_BACK = ruleNumber('gym.effort-step-back-count');
-/** The weight rises by at most this share, or MIN_STEP_KG when that is more. */
-export const MAX_STEP_PCT = ruleNumber('gym.max-step-pct');
-export const MIN_STEP_KG = ruleNumber('gym.min-step-kg');
-export const REP_MIN = ruleRange('gym.rep-range').min;
-export const REP_MAX = ruleRange('gym.rep-range').max;
+/** Comparable sessions in a row with fewer reps at the same or a higher weight before the weight steps back. */
+export const DROP_STEP_BACK = ruleNumber('gym.drop-step-back-count');
 export const MAX_EXERCISES = ruleNumber('gym.max-exercises');
 export const MAX_SETS = ruleNumber('gym.max-sets');
 export const MAX_FAILURE_SETS = ruleNumber('gym.max-failure-sets');

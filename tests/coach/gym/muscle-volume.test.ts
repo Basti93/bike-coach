@@ -125,4 +125,11 @@ describe('the muscle pairs in the gym prompt', () => {
     const p = buildGymPrompt({ state: initialGymState('p'), workouts: ws, templates: tpl, nowMs: NOW, summaries: [], complaints: [], previous: null, wantNote: false });
     expect(p).toContain('"paar":"Brust : Rücken","seiteA":8,"seiteB":8,"zuKurz":null');
   });
+  it('gives every exercise its rep range and step in words, and the studio as one line', () => {
+    const base = { state: initialGymState('p'), workouts: [workout(3, [{ ...bench, sets: 3 }])], templates: tpl, nowMs: NOW, summaries: [], complaints: [], previous: null, wantNote: false };
+    const p = buildGymPrompt({ ...base, studio: 'Invented Gym' });
+    expect(p).toContain('\nStudio: Invented Gym\n');
+    expect(p).toMatch(/"wiederholungen":\{"min":6,"max":12\},"schritt":"in [\d,]+-kg-Stufen"/);
+    expect(buildGymPrompt(base)).not.toContain('Studio:');
+  });
 });

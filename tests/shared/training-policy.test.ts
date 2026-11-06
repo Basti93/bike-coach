@@ -2,7 +2,7 @@ import { POLICY_VERSION, RULES, SCENARIOS, SOURCES, policyRule, ruleNumber, rule
 
 describe('training policy register', () => {
   it('has a version and unique ids', () => {
-    expect(POLICY_VERSION).toBe('2026-11-06.5');
+    expect(POLICY_VERSION).toBe('2026-11-06.6');
     for (const list of [SOURCES, RULES, SCENARIOS]) expect(new Set(list.map((x) => x.id)).size).toBe(list.length);
   });
 
@@ -33,11 +33,10 @@ describe('training policy register', () => {
     for (const r of RULES) for (const s of r.scenarioIds) expect(ids.has(s)).toBe(true);
   });
 
-  it("keeps today's gym limits as product heuristics with their current values", () => {
-    expect(ruleRange('gym.rep-range')).toEqual({ min: 6, max: 12 });
-    expect(ruleNumber('gym.min-step-kg')).toBe(2.5);
-    expect(policyRule('gym.rep-range')).toMatchObject({ class: 'product', enforcement: 'checked', status: { state: 'to-replace', task: 4 } });
-    expect(policyRule('gym.min-step-kg').status).toMatchObject({ state: 'to-replace', task: 3 });
+  it('replaced the global gym range and step rules by per-exercise ones', () => {
+    for (const id of ['gym.rep-range', 'gym.min-step-kg', 'gym.max-step-pct', 'gym.effort-step-back-count']) expect(() => policyRule(id)).toThrow();
+    expect(ruleNumber('gym.drop-step-back-count')).toBe(2);
+    expect(policyRule('gym.step-back-share').status).toEqual({ state: 'active' });
   });
 
   it('fixes the proposed start values as planned, not active', () => {
@@ -56,7 +55,7 @@ describe('training policy register', () => {
 
   it('throws on unknown ids and on the wrong value shape', () => {
     expect(() => policyRule('nope')).toThrow('unknown policy rule: nope');
-    expect(() => ruleNumber('gym.rep-range')).toThrow();
-    expect(() => ruleRange('gym.min-step-kg')).toThrow();
+    expect(() => ruleNumber('muscle.target.chest')).toThrow();
+    expect(() => ruleRange('gym.max-sets')).toThrow();
   });
 });
