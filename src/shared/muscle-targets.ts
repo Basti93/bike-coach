@@ -39,7 +39,7 @@ const BY_MUSCLE: Record<string, MuscleGroup> = {
   traps: 'traps', forearms: 'forearms',
 };
 const REAR_OR_SIDE = /lateral raise|seitheben|rear delt|reverse fly|face pull|upright row|y raise|reverse flys/i;
-const REAR_OR_SIDE_IDS = new Set(['pf-lateral-raise', 'pf-lateral-raise-cable', 'pf-rear-delt-fly', 'pf-face-pull']);
+const REAR_OR_SIDE_IDS = new Set(['pf-lateral-raise', 'pf-lateral-raise-cable', 'pf-rear-delt-fly', 'pf-face-pull', 'pf-rear-delt-fly-machine', 'pf-bent-over-lateral-raise-cable']);
 
 /** The group an exercise counts for: its primary muscle, with shoulders split by the kind of exercise. */
 export function muscleGroupOf(e: { id?: string; title: string; primaryMuscle: string | null | undefined }): MuscleGroup {

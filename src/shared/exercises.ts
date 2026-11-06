@@ -1,8 +1,11 @@
-/** Own exercise list. Structurally an ExerciseTemplate plus the exact English Hevy title; src/shared must not import from src/coach. */
-export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string };
+/**
+ * Own exercise list. Structurally an ExerciseTemplate plus the exact English Hevy title; src/shared must not import from src/coach.
+ * `aliases` are further exact titles under which the very same exercise (same movement, same equipment) is logged.
+ */
+export type Exercise = { id: string; title: string; type: string; primaryMuscle: string; equipment: string; hevyTitle?: string; aliases?: string[] };
 
-const x = (id: string, title: string, type: string, primaryMuscle: string, equipment: string, hevyTitle?: string): Exercise =>
-  ({ id, title, type, primaryMuscle, equipment, ...(hevyTitle ? { hevyTitle } : {}) });
+const x = (id: string, title: string, type: string, primaryMuscle: string, equipment: string, hevyTitle?: string, aliases?: string[]): Exercise =>
+  ({ id, title, type, primaryMuscle, equipment, ...(hevyTitle ? { hevyTitle } : {}), ...(aliases ? { aliases } : {}) });
 
 /** hevyTitle is the exact English Hevy name that linkHevyTemplates matches on. */
 export const EXERCISES: Exercise[] = [
@@ -47,7 +50,7 @@ export const EXERCISES: Exercise[] = [
   x('pf-push-up', 'Liegestütze', 'reps_only', 'chest', 'none', 'Push Up'),
   x('pf-push-up-knee', 'Liegestütze auf den Knien', 'reps_only', 'chest', 'none', 'Kneeling Push Up'),
   x('pf-push-up-weighted', 'Liegestütze mit Gewicht', 'bodyweight_weighted', 'chest', 'other', 'Push Up (Weighted)'),
-  x('pf-dip', 'Dips', 'reps_only', 'triceps', 'none', 'Triceps Dip'),
+  x('pf-dip', 'Dips', 'reps_only', 'triceps', 'none', 'Triceps Dip', ['Dip']),
   x('pf-dip-weighted', 'Dips mit Zusatzgewicht', 'bodyweight_weighted', 'chest', 'other', 'Chest Dip (Weighted)'),
   x('pf-dip-assisted', 'Dips mit Unterstützung', 'bodyweight_assisted', 'chest', 'machine', 'Chest Dip (Assisted)'),
   x('pf-overhead-press', 'Schulterdrücken mit der Langhantel', 'weight_reps', 'shoulders', 'barbell', 'Overhead Press (Barbell)'),
@@ -58,6 +61,8 @@ export const EXERCISES: Exercise[] = [
   x('pf-lateral-raise-cable', 'Seitheben am Kabel', 'weight_reps', 'shoulders', 'machine', 'Lateral Raise (Cable)'),
   x('pf-front-raise', 'Frontheben', 'weight_reps', 'shoulders', 'dumbbell', 'Front Raise (Dumbbell)'),
   x('pf-rear-delt-fly', 'Reverse Flys mit Kurzhanteln', 'weight_reps', 'shoulders', 'dumbbell', 'Rear Delt Reverse Fly (Dumbbell)'),
+  x('pf-rear-delt-fly-machine', 'Reverse Butterfly an der Maschine', 'weight_reps', 'shoulders', 'machine', 'Rear Delt Reverse Fly (Machine)'),
+  x('pf-bent-over-lateral-raise-cable', 'Vorgebeugtes Seitheben am Kabel', 'weight_reps', 'shoulders', 'machine', 'Bent Over Lateral Raise (Cable)'),
   x('pf-face-pull', 'Face Pull', 'weight_reps', 'shoulders', 'machine', 'Face Pull'),
   x('pf-upright-row', 'Aufrechtes Rudern', 'weight_reps', 'shoulders', 'barbell', 'Upright Row (Barbell)'),
   x('pf-shrug', 'Schulterheben', 'weight_reps', 'traps', 'dumbbell', 'Shrug (Dumbbell)'),
@@ -70,8 +75,11 @@ export const EXERCISES: Exercise[] = [
   x('pf-straight-arm-pulldown', 'Gestreckter Latzug', 'weight_reps', 'lats', 'machine', 'Straight Arm Lat Pulldown (Cable)'),
   x('pf-bent-over-row', 'Langhantelrudern vorgebeugt', 'weight_reps', 'upper_back', 'barbell', 'Bent Over Row (Barbell)'),
   x('pf-pendlay-row', 'Pendlay-Rudern', 'weight_reps', 'upper_back', 'barbell', 'Pendlay Row (Barbell)'),
-  x('pf-one-arm-row', 'Einarmiges Kurzhantelrudern', 'weight_reps', 'lats', 'dumbbell', 'Dumbbell Row'),
+  x('pf-one-arm-row', 'Einarmiges Kurzhantelrudern', 'weight_reps', 'lats', 'dumbbell', 'Dumbbell Row', ['Single Arm Dumbbell Row']),
   x('pf-seated-row-cable', 'Rudern am Kabel sitzend', 'weight_reps', 'upper_back', 'machine', 'Seated Cable Row - Bar Grip'),
+  x('pf-seated-row-cable-v', 'Rudern am Kabel mit V-Griff', 'weight_reps', 'upper_back', 'machine', 'Seated Cable Row - V Grip (Cable)'),
+  x('pf-seated-row-cable-close', 'Rudern am Kabel eng', 'weight_reps', 'upper_back', 'machine', 'Seated Cable Row (Close Grip)'),
+  x('pf-seated-row-machine', 'Rudern sitzend an der Maschine', 'weight_reps', 'upper_back', 'machine', 'Seated Row (Machine)'),
   x('pf-t-bar-row', 'T-Bar-Rudern', 'weight_reps', 'upper_back', 'barbell', 'T Bar Row'),
   x('pf-row-machine', 'Rudermaschine', 'weight_reps', 'upper_back', 'machine', 'Iso-Lateral Row (Machine)'),
   x('pf-chest-supported-row', 'Rudern brustgestützt', 'weight_reps', 'upper_back', 'dumbbell', 'Chest Supported Incline Row (Dumbbell)'),
@@ -83,11 +91,13 @@ export const EXERCISES: Exercise[] = [
   x('pf-hammer-curl', 'Hammercurl', 'weight_reps', 'biceps', 'dumbbell', 'Hammer Curl (Dumbbell)'),
   x('pf-incline-curl', 'Schrägbankcurl', 'weight_reps', 'biceps', 'dumbbell', 'Seated Incline Curl (Dumbbell)'),
   x('pf-preacher-curl', 'Scott-Curl', 'weight_reps', 'biceps', 'barbell', 'Preacher Curl (Barbell)'),
-  x('pf-cable-curl', 'Curl am Kabel', 'weight_reps', 'biceps', 'machine', 'Bicep Curl (Cable)'),
+  x('pf-cable-curl', 'Curl am Kabel', 'weight_reps', 'biceps', 'machine', 'Bicep Curl (Cable)', ['Cable Curl']),
+  x('pf-behind-back-curl-cable', 'Curl hinter dem Rücken am Kabel', 'weight_reps', 'biceps', 'machine', 'Behind the Back Curl (Cable)'),
   x('pf-triceps-pushdown', 'Trizepsdrücken am Kabel', 'weight_reps', 'triceps', 'machine', 'Triceps Pushdown'),
   x('pf-triceps-rope', 'Trizepsdrücken mit Seil', 'weight_reps', 'triceps', 'machine', 'Triceps Rope Pushdown'),
   x('pf-skullcrusher', 'Stirndrücken', 'weight_reps', 'triceps', 'barbell', 'Skullcrusher (Barbell)'),
   x('pf-overhead-triceps', 'Trizepsstrecken über Kopf', 'weight_reps', 'triceps', 'dumbbell', 'Triceps Extension (Dumbbell)'),
+  x('pf-overhead-triceps-cable', 'Trizepsstrecken über Kopf am Kabel', 'weight_reps', 'triceps', 'machine', 'Overhead Triceps Extension (Cable)'),
   x('pf-close-grip-bench', 'Enges Bankdrücken', 'weight_reps', 'triceps', 'barbell', 'Bench Press - Close Grip (Barbell)'),
   x('pf-bench-dip', 'Dips an der Bank', 'reps_only', 'triceps', 'none', 'Bench Dip'),
   x('pf-wrist-curl', 'Handgelenkscurl', 'weight_reps', 'forearms', 'barbell', 'Seated Wrist Curl (Barbell)'),
@@ -124,13 +134,13 @@ export const EXERCISES: Exercise[] = [
 ];
 
 /**
- * Hevy template id to own exercise id, matched on the exact English Hevy title. Several Hevy templates with one title
+ * Hevy template id to own exercise id, matched on the exact English Hevy title or an alias. Several Hevy templates with one title
  * all link to the same own exercise. Unknown titles are ignored. The own id is the one history is kept under; to send
  * an own exercise to Hevy, look up the first Hevy id that maps to it.
  */
 export function linkHevyTemplates(templates: { id: string; title: string }[]): Map<string, string> {
   const ownByTitle = new Map<string, string>();
-  for (const e of EXERCISES) if (e.hevyTitle) ownByTitle.set(e.hevyTitle, e.id);
+  for (const e of EXERCISES) for (const t of [...(e.hevyTitle ? [e.hevyTitle] : []), ...(e.aliases ?? [])]) ownByTitle.set(t, e.id);
   const links = new Map<string, string>();
   for (const t of templates) {
     const own = ownByTitle.get(t.title);
@@ -142,7 +152,7 @@ export function linkHevyTemplates(templates: { id: string; title: string }[]): M
 /** Hevy shows the equipment in the app's language; the same exercise can be logged under either title. */
 const EQUIPMENT_DE: Record<string, string> = { Barbell: 'Langhantel', Dumbbell: 'Kurzhantel', Machine: 'Maschine', Cable: 'Kabel', 'Smith Machine': 'Smith-Maschine', Bodyweight: 'Körpergewicht' };
 
-/** Every title an own exercise may be logged under: German, English Hevy, and Hevy with the equipment in German. */
+/** Every title an own exercise may be logged under: German, English Hevy, Hevy with the equipment in German, and its aliases. */
 export function exerciseTitles(e: Exercise): string[] {
   const out = [e.title];
   if (e.hevyTitle) {
@@ -151,5 +161,6 @@ export function exerciseTitles(e: Exercise): string[] {
     const de = m ? EQUIPMENT_DE[m[2]!.trim()] : undefined;
     if (m && de) out.push(`${m[1]}(${de})`);
   }
+  out.push(...(e.aliases ?? []));
   return out;
 }
