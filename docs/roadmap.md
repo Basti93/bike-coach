@@ -28,7 +28,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
 | ✅ | **B Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
 | ✅ | **C Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
-| **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
+| ✅ | **D Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | **E** | **Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | **F** | **Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
 | **G** | **Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
@@ -109,7 +109,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Entscheidungen der Person (06.11.2026):** Stufen selbst lernen statt Einrichtung; mehrere Studios mit getrennten Verläufen; Scheibenrechner gehört in C.
 
-## Meilenstein D — Brief
+## Meilenstein D — Brief (umgesetzt 07.11.2026)
 
 **Ziel:** Was der Coach ändern will, ist ein Vorschlag mit Grund. Übernommenes bleibt, lässt sich rückgängig machen und geht durch Schließen, Neustart oder ein altes Gerät nicht verloren. Was nicht geht, sagt der Coach mit Grund.
 
@@ -154,3 +154,8 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze).
   - Gewichtsstufen und Studios werden nicht zwischen Profilen geteilt.
   - Eine eigene Gewichtsstufe geht beim Umbenennen eines Studios verloren; ein Studio lässt sich noch nicht entfernen.
+- Aus Meilenstein D:
+  - Übernehmen einer Änderung fürs nächste Training plant nicht sofort neu; „Berücksichtigt: …“ erscheint erst beim nächsten Neuplanen.
+  - Der Wochen-Chat kennt keinen Übungskatalog und kann fürs nächste Training nicht zuverlässig tauschen.
+  - Keine Konflikterkennung auf dem Server; ein Wochenvorschlag wird nur gegen die Zeit des Vorschlags geprüft.
+  - Rückgängig eines schon an Garmin gesendeten Wochenplans: prüfen, ob Garmin-Einheiten verwaist bleiben.
