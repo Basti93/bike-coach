@@ -1,0 +1,63 @@
+import type { PolicySource, SourceDepth } from './types';
+
+/**
+ * The sources of docs/research/2026-11-06-training-science-foundation.md §12. Population, endpoint and limits only
+ * repeat what the foundation states; they are no full extraction of the studies.
+ */
+const s = (id: string, citation: string, url: string, studyType: string, depth: SourceDepth, population: string, endpoint: string, limits: string): PolicySource =>
+  ({ id, citation, url, studyType, depth, population, endpoint, limits, checkedOn: '2026-11-06' });
+
+export const SOURCES: PolicySource[] = [
+  s('S01', 'Currier et al., ACSM-Positionsstand 2026, DOI 10.1249/MSS.0000000000003897', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/', 'Positionsstand / Review-Überblick über 137 systematische Reviews', 'fulltext-excerpts',
+    'Erwachsene, großer Anteil wenig Trainierter', 'Kraft und Hypertrophie', 'Ausgangspunkte für die Zielrichtung, keine persönliche Optimierungsfunktion.'),
+  s('S02', 'Currier et al. 2023, PMID 37414459', 'https://pubmed.ncbi.nlm.nih.gov/37414459/', 'Netzwerkmetaanalyse', 'fulltext-excerpts',
+    'Erwachsene in Krafttrainingsstudien', 'Kraft bei unterschiedlicher Last, Satzzahl und Frequenz', 'Rangplätze begründen kein für alle überlegenes Programm.'),
+  s('S03', 'Pelland et al. 2026, PMID 41343037', 'https://pubmed.ncbi.nlm.nih.gov/41343037/', 'Metaanalyse/Metaregression, 67 Studien', 'abstract',
+    '2058 überwiegend junge, männliche Teilnehmende', 'Hypertrophie und Kraft nach direktem und indirektem Satzvolumen', 'Modell mit abnehmendem Zusatznutzen; misst keine individuellen Muskelanteile oder persönliches Höchstvolumen.'),
+  s('S04', 'Lopez et al. 2021, DOI 10.1249/MSS.0000000000002585', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8126497/', 'Netzwerkmetaanalyse', 'fulltext-excerpts',
+    'Programme mit Training bis zum willentlichen Versagen', 'Hypertrophie und Kraft über Lastbereiche', 'Nicht auf beliebig leichte, wenig anstrengende Sätze übertragbar.'),
+  s('S05', 'Robinson et al. 2024, DOI 10.1007/s40279-024-02069-2', 'https://rke.abertay.ac.uk/en/publications/exploring-the-dose-response-relationship-between-estimated-resist/', 'Explorative Metaregression', 'abstract',
+    'Krafttrainingsstudien mit vielfach aus Beschreibungen geschätzter RIR', 'Hypertrophie und Kraft nach Nähe zum Versagen', 'Tendenz, keine scharfe Grenze zwischen RIR-Werten; für Kraft anderes Muster.'),
+  s('S06', 'Singer et al. 2024, PMID 39205815', 'https://pubmed.ncbi.nlm.nih.gov/39205815/', 'Metaanalyse', 'abstract',
+    'Wenige Studien zu Satzpausen', 'Hypertrophie nach Pausenlänge', 'Möglicher kleiner Vorteil gegenüber sehr kurzen Pausen bei erheblicher Unsicherheit; keine sekundengenaue Bestpause.'),
+  s('S07', 'Grgic et al. 2018, PMID 28933024', 'https://pubmed.ncbi.nlm.nih.gov/28933024/', 'Systematischer Review', 'abstract',
+    'Trainierte und Untrainierte', 'Kraft nach Pausenlänge', 'Ältere Synthese, kein sekundengenaues Optimum.'),
+  s('S08', 'Nunes et al. 2021, DOI 10.1080/17461391.2020.1733672', 'https://onlinelibrary.wiley.com/doi/abs/10.1080/17461391.2020.1733672', 'Metaanalyse', 'abstract',
+    'Krafttrainingsstudien zur Übungsreihenfolge', 'Kraft und Hypertrophie nach Reihenfolge', 'Kraft eher bei früh absolvierten Übungen; kein universelles Muskelranking.'),
+  s('S09', 'Moesgaard et al. 2022, PMID 35044672', 'https://pubmed.ncbi.nlm.nih.gov/35044672/', 'Metaanalyse', 'abstract',
+    'Volumenangeglichene Periodisierungsstudien', '1RM-Kraft und Hypertrophie', 'Kleiner Kraftvorteil, kein klarer Hypertrophievorteil; keine Pflichtfolge.'),
+  s('S10', 'Zhang et al. 2025, PMID 39903375', 'https://pubmed.ncbi.nlm.nih.gov/39903375/', 'Metaanalyse', 'abstract',
+    'Studien zu Supersätzen', 'Zeitbedarf, langfristige Anpassung, wahrgenommene Anstrengung', 'Begrenzte Zahl langfristiger Untersuchungen; ähnliche Bewegungsmuster können die Volumenlast senken.'),
+  s('S11', 'Ribeiro et al. 2021, DOI 10.6063/motricidade.21143', 'https://revistas.rcaap.pt/motricidade/article/view/21143', 'Systematischer Review, elf Studien', 'abstract',
+    'Studien zu spezifischer Vorbereitung', 'Leistung nach Aufwärmen', 'Kein einheitlich überlegenes Schema, kein Nachweis der Verletzungsprävention.'),
+  s('S12', 'Plotkin et al. 2022, PMID 36199287', 'https://pubmed.ncbi.nlm.nih.gov/36199287/', 'Randomisierte Originalstudie, acht Wochen', 'abstract',
+    'Trainierte Erwachsene', 'Hypertrophie und Kraft bei Last- gegenüber Wiederholungsprogression', 'Kurze Dauer; kein direkter Test der PandaFit-Doppelprogression.'),
+  s('S13', 'WHO 2020: Bewegungsempfehlungen für Erwachsene', 'https://www.who.int/europe/news-room/fact-sheets/item/physical-activity', 'Offizielle Leitlinienzusammenfassung', 'guideline-summary',
+    'Erwachsene allgemein', 'Gesundheitlicher Nutzen von Wochenumfang aerober Aktivität und Muskelkräftigung', 'Kein Optimierer für sportliche Leistung oder individuellen Umfang.'),
+  s('S14', 'Lehtonen et al. 2022, PMID 35722045', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9185660/', 'Kritischer Review', 'fulltext-excerpts',
+    'Ausdauertraining allgemein', 'Steuerung der Intensität', 'Vorgeschlagener Rahmen, keine für jede Person validierte Schwellenmessung.'),
+  s('S15', 'Chorley und Lamb 2020, DOI 10.3390/sports8090123', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7552657/', 'Narrativer Review', 'fulltext-excerpts',
+    'Radsport und Ausdauer', 'FTP, Critical Power und W′', 'Gleiche FTP-Prozente bedeuten nicht gleiche Beanspruchung; Modelle hängen vom Protokoll ab.'),
+  s('S16', 'Oliveira et al. 2024, DOI 10.1007/s40279-024-02034-z', 'https://link.springer.com/article/10.1007/s40279-024-02034-z', 'Metaanalyse', 'fulltext-excerpts',
+    'Ausdauertrainierte unterschiedlichen Niveaus', 'VO₂peak und Leistungsendpunkte nach Intensitätsverteilung', 'Kleiner VO₂peak-Vorteil vor allem kurz und bei hoch Trainierten; keine allgemeine 80/20-Pflicht.'),
+  s('S17', 'Rosenblat et al. 2025, DOI 10.1007/s40279-024-02149-3', 'https://dspace.stir.ac.uk/handle/1893/38072', 'Individualdaten-Netzwerkmetaanalyse, 13 Studien', 'abstract',
+    '348 überwiegend männliche Ausdauerathleten', 'Leistung bei polarisierter gegenüber pyramidaler Verteilung', 'Kein klarer Gesamtunterschied; kleine Stichprobe, Subgruppen nur Hinweise.'),
+  s('S18', 'Li et al. 2026, PMID 42171506', 'https://pubmed.ncbi.nlm.nih.gov/42171506/', 'Netzwerkmetaanalyse', 'abstract',
+    'Ausdauertrainingsstudien', 'Ausdauerleistung nach Intensitätsverteilung', 'Keine eindeutige allgemeine Überlegenheit; Rangwahrscheinlichkeiten sind kein gesicherter Unterschied.'),
+  s('S19', 'Poon et al. 2024, DOI 10.1111/sms.14652', 'https://onlinelibrary.wiley.com/doi/10.1111/sms.14652', 'Umbrella-Review', 'fulltext-excerpts',
+    'Unterschiedliche Populationen und Protokolle', 'Kardiorespiratorische Fitness nach HIIT', 'Qualität vieler eingeschlossener Reviews niedrig bis kritisch niedrig.'),
+  s('S20', 'Bi et al. 2026, PMID 41804294', 'https://pubmed.ncbi.nlm.nih.gov/41804294/', 'Metaanalyse, 115 Studien', 'abstract',
+    'Studien zu HIIT und kontinuierlichem Training', 'VO₂max, Schwellen, Ökonomie und Leistung getrennt', 'Vorteil bei VO₂max, nicht ebenso bei anderen Endpunkten; keine universelle Protokolldosis.'),
+  s('S21', 'Schoenmakers et al. 2026, PMID 42237396', 'https://pubmed.ncbi.nlm.nih.gov/42237396/', 'Systematischer Review/Metaanalyse, 239 Protokolle', 'abstract',
+    'Akute Intervallprotokolle aus 86 Arbeiten', 'Zeit nahe VO₂max', 'Akuter Messwert, nicht gleich langfristigem Effekt; keine individuelle optimale Intervalllänge.'),
+  s('S22', 'Buchheit und Laursen 2013, DOI 10.1007/s40279-013-0029-x', 'https://martin-buchheit.net/wp-content/uploads/2018/01/buchheit-laursen-hit-solutions-to-the-programming-puzzle-part-i.pdf', 'Programmierungsreview, Autorenfassung', 'abstract',
+    'Ausdauer- und Mannschaftssport', 'Stellgrößen eines HIIT-Protokolls', 'Fachliche Übersicht, kein einzelnes randomisiertes Dosisexperiment.'),
+  s('S23', 'Helgerud et al. 2007, PMID 17414804', 'https://pubmed.ncbi.nlm.nih.gov/17414804/', 'Randomisierte Originalstudie, acht Wochen', 'abstract',
+    '40 moderat trainierte Männer', 'VO₂max nach 4 × 4 und kurzen Intervallen', 'Eine wirksame Möglichkeit, keine allgemeine Einstiegsvorschrift.'),
+  s('S24', 'Übersicht: Unterschiede der Trainierbarkeit und Antwortklassifikation 2021', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8606564/', 'Systematischer Review', 'fulltext-excerpts',
+    'Trainingsstudien mit Responder-Einstufung', 'Einstufung individueller Trainingsantworten', 'Messfehler und Schwellen verändern die Einstufung; keine schnelle persönliche Kategorie.'),
+  s('S25', 'The Association Between Running Injuries and Training Parameters, 2022', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9528699/', 'Systematischer Review', 'fulltext-excerpts',
+    'Läuferinnen und Läufer, heterogene Studien', 'Laufverletzungen nach Trainingsparametern', 'Wöchentliche 10-%-Regel nicht allgemein begründet.'),
+  s('S26', 'Frandsen et al. 2025, PMID 40623829', 'https://pubmed.ncbi.nlm.nih.gov/40623829/', 'Prospektive Kohorte', 'fulltext-excerpts',
+    '5205 Läuferinnen und Läufer', 'Überlastungsbeschwerden nach Distanzsprung einzelner Läufe gegenüber den letzten 30 Tagen', 'Zusammenhang, kein randomisierter Nachweis einer sicheren Grenze.'),
+];

@@ -1,0 +1,67 @@
+import type { Enforcement, PolicyRule, RuleClass, RuleStatus, RuleValue } from './types';
+
+const UNTIL_THEN = 'Gilt unverändert in Vorschlag, Prüfer und Prompt.';
+const active: RuleStatus = { state: 'active' };
+const replace = (task: number, replacement: string): RuleStatus => ({ state: 'to-replace', task, replacement, untilThen: UNTIL_THEN });
+const planned = (task: number): RuleStatus => ({ state: 'planned', task });
+
+type Opt = { value?: RuleValue; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
+const r = (id: string, domain: PolicyRule['domain'], cls: RuleClass, enforcement: Enforcement, statement: string, decision: string, status: RuleStatus, o: Opt = {}): PolicyRule => ({
+  id, domain, statement, decision, class: cls, enforcement,
+  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.unit ? { unit: o.unit } : {}),
+  sourceIds: o.sourceIds ?? [], where: o.where ?? [], status, scenarioIds: o.scenarioIds ?? [],
+});
+
+const GYM = ['src/coach/gym/limits.ts', 'src/coach/gym/history.ts', 'src/coach/gym/guardrails.ts', 'src/coach/gym/prompt.ts'];
+
+/**
+ * The rules PandaFit plans with, today's and the agreed start values, each with its kind and its follow-up task
+ * (docs/superpowers/specs/2026-11-06-adaptive-training-coach-design.md §19). A 'to-replace' rule still applies as it
+ * is; a 'planned' value is fixed but has no effect before its task.
+ */
+export const RULES: PolicyRule[] = [
+  // Today's gym limits: own product choices, see docs/gym-foundations.md.
+  r('gym.rep-range', 'gym', 'product', 'checked', 'Doppelte Progression arbeitet global zwischen 6 und 12 Wiederholungen.', 'Wiederholungsbereich', replace(4, 'Übungsbezogene Wiederholungsbereiche aus einer gemeinsamen Quelle.'), { value: { min: 6, max: 12 }, unit: 'Wiederholungen', where: GYM, scenarioIds: ['F01'] }),
+  r('gym.min-step-kg', 'gym', 'product', 'checked', 'Ein Lastschritt beträgt mindestens 2,5 kg.', 'Lastschritt', replace(3, 'Tatsächlich erreichbare Geräteschritte.'), { value: 2.5, unit: 'kg', where: GYM }),
+  r('gym.max-step-pct', 'gym', 'product', 'checked', 'Die Last steigt höchstens um 5 % oder den Mindestschritt.', 'Lastschritt', replace(3, 'Tatsächlich erreichbare Geräteschritte.'), { value: 5, unit: '%', where: GYM }),
+  r('gym.step-back-share', 'gym', 'product', 'checked', 'Nach langer Pause oder Rückschritt geht es auf 90 % der letzten Last.', 'Lastauswahl', active, { value: 0.9, where: GYM }),
+  r('gym.effort-step-back-count', 'gym', 'product', 'checked', 'Drei Rückmeldungen ohne Reserve senken die Last pauschal.', 'Lastauswahl', replace(4, 'Leistung und Kontext beurteilen statt pauschal −10 %.'), { value: 3, unit: 'Rückmeldungen', where: ['src/coach/gym/history.ts'], scenarioIds: ['F02'] }),
+  r('gym.long-break-days', 'gym', 'product', 'checked', 'Nach mehr als 28 Tagen ohne Übung geht es etwas zurück.', 'Lastauswahl', active, { value: 28, unit: 'Tage', where: GYM, scenarioIds: ['F12'] }),
+  r('gym.recent-days', 'gym', 'product', 'checked', 'Eine Übung gilt als verfügbar, wenn sie in den letzten 120 Tagen gemacht wurde.', 'Übungsauswahl', active, { value: 120, unit: 'Tage', where: GYM }),
+  r('gym.min-comparable', 'gym', 'product', 'checked', 'Zwei Vorkommen einer Übung innerhalb von 56 Tagen sind nötig, bevor sich etwas ändert.', 'Vergleichbare Vorleistung', replace(4, 'Echte unterschiedliche Trainingsgelegenheiten statt Übungsinstanzen.'), { value: 2, where: GYM }),
+  r('gym.comparable-days', 'gym', 'product', 'checked', 'Vergleichbar sind Vorkommen der letzten 56 Tage.', 'Vergleichbare Vorleistung', replace(4, 'Echte unterschiedliche Trainingsgelegenheiten statt Übungsinstanzen.'), { value: 56, unit: 'Tage', where: GYM }),
+  r('gym.max-exercises', 'gym', 'product', 'checked', 'Höchstens 10 Übungen pro Training.', 'Trainingsumfang', active, { value: 10, where: GYM }),
+  r('gym.max-sets', 'gym', 'product', 'checked', 'Höchstens 30 Sätze pro Training.', 'Trainingsumfang', active, { value: 30, where: GYM }),
+  r('gym.max-failure-sets', 'gym', 'product', 'checked', 'Höchstens 4 Versagenssätze pro Training.', 'Anstrengung', active, { value: 4, where: GYM }),
+  r('gym.max-widowmakers', 'gym', 'product', 'checked', 'Höchstens ein Widowmaker pro Training.', 'Anstrengung', active, { value: 1, where: GYM }),
+  r('muscle.weekly-set-targets', 'muscle', 'product', 'weighed', 'Feste wöchentliche Satzbereiche je Muskelgruppe, gleichzeitig für alle Gruppen.', 'Umfangsverteilung', replace(2, 'Gemeinsam verfügbaren Umfang verteilen statt gleichzeitiger Mindestquoten; indirekte Arbeit kenntlich machen.'), { sourceIds: ['S03'], where: ['src/shared/muscle-targets.ts', 'src/coach/gym/muscle-volume.ts'], scenarioIds: ['F04'] }),
+
+  // Other existing heuristics, foundation §10.
+  r('bike.hard-gap-48h', 'bike', 'product', 'checked', 'Nach hoher Gesamtintensität 48 Stunden nur locker fahren.', 'Härte der nächsten Einheit', replace(7, 'Protokollverträglichkeit, tatsächliche Vorbelastung und Datenqualität prüfen.'), { value: 48, unit: 'h', where: ['src/coach/guardrails.ts'], scenarioIds: ['F10'] }),
+  r('planner.two-hard-days', 'planner', 'product', 'checked', 'Höchstens zwei harte Tage pro Woche und eine harte Sache pro Tag.', 'Wochenverteilung', replace(7, 'Aufteilung nach Zielen, lokaler und sportartspezifischer Belastung.'), { value: 2, unit: 'Tage', where: ['src/shared/week-plan.ts', 'src/coach/guardrails.ts'], scenarioIds: ['F11'] }),
+  r('hr.fixed-zones', 'endurance', 'product', 'checked', 'Feste 10-%-Pulszonen und pauschale Leistungszuordnung.', 'Intensitätsanker', replace(12, 'Herkunft und Zonenmodell zeigen, keine behaupteten physiologischen Schwellen.'), { sourceIds: ['S14', 'S15'], where: ['src/shared/hr-zones.ts'] }),
+  r('run.distance-before-pace', 'run', 'personal', 'weighed', 'Laufen: Distanz vor Tempo.', 'Laufausrichtung', active, { where: ['src/coach/run'], scenarioIds: ['F09'] }),
+  r('run.weekly-growth-pct', 'run', 'product', 'checked', 'Die wöchentliche Laufzeit steigt höchstens um 10 %.', 'Laufprogression', replace(12, 'Einzelne Einheit und Wochenänderung unterscheiden; als eigene Vorsicht kennzeichnen.'), { value: 10, unit: '%', sourceIds: ['S25', 'S26'], where: ['src/coach/run/limits.ts'], scenarioIds: ['F13'] }),
+  r('run.deload-every-4th', 'run', 'product', 'checked', 'Jede vierte Woche ist mit 70 % leichter.', 'Laufprogression', replace(12, 'Entlastung nach Leistung, Verfügbarkeit und Rückmeldung.'), { value: 0.7, where: ['src/coach/run/limits.ts'] }),
+  r('run.test-every-days', 'run', 'product', 'checked', 'Ein Testlauf alle 28 Tage.', 'Laufkalibrierung', replace(12, 'Prüfintervall als Option, keine Schuld.'), { value: 28, unit: 'Tage', where: ['src/coach/run/limits.ts'] }),
+  r('run.cross-sport-minutes', 'run', 'product', 'checked', 'Rad- und Gymminuten der Woche vermindern den Laufumfang.', 'Sportübergreifende Belastung', replace(6, 'Nachvollziehbare gemeinsame Kontextbewertung statt gleichwertiger Minuten.'), { where: ['src/coach/run'] }),
+
+  // Agreed start values, not in effect before their task (foundation §4, §5, §6, §7).
+  r('strength.main-lift-reps', 'gym', 'product', 'weighed', 'Bei Kraftschwerpunkt sind 3–6 Wiederholungen ein möglicher Startbereich passender Hauptübungen.', 'Wiederholungsbereich', planned(4), { value: { min: 3, max: 6 }, unit: 'Wiederholungen', sourceIds: ['S01', 'S02', 'S04'], scenarioIds: ['F01'] }),
+  r('hypertrophy.compound-reps', 'gym', 'product', 'weighed', 'Viele Mehrgelenksübungen starten bei 6–15 Wiederholungen.', 'Wiederholungsbereich', planned(4), { value: { min: 6, max: 15 }, unit: 'Wiederholungen', sourceIds: ['S01', 'S04'], scenarioIds: ['F01'] }),
+  r('hypertrophy.isolation-reps', 'gym', 'product', 'weighed', 'Geeignete Isolationsübungen starten bei 10–20 Wiederholungen.', 'Wiederholungsbereich', planned(4), { value: { min: 10, max: 20 }, unit: 'Wiederholungen', sourceIds: ['S01', 'S04'], scenarioIds: ['F03'] }),
+  r('hypertrophy.target-rir', 'gym', 'product', 'weighed', 'Viele Arbeitssätze planen ungefähr 1–3 Wiederholungen Reserve; Versagen ist Option, kein Misserfolg.', 'Anstrengung', planned(4), { value: { min: 1, max: 3 }, unit: 'RIR', sourceIds: ['S05'], scenarioIds: ['F02'] }),
+  r('muscle.direct-weight', 'muscle', 'product', 'checked', 'Direkte Beiträge eines Satzes zählen 1.', 'Muskelbilanz', planned(2), { value: 1, sourceIds: ['S03'], scenarioIds: ['F04'] }),
+  r('muscle.indirect-weight', 'muscle', 'product', 'checked', 'Relevante indirekte Beiträge zählen 0,5, ohne exakt halbe Wachstumswirkung zu behaupten.', 'Muskelbilanz', planned(2), { value: 0.5, sourceIds: ['S03'], scenarioIds: ['F04'] }),
+  r('rest.compound-s', 'rest', 'product', 'weighed', 'Anstrengende Mehrgelenksübungen: 2–3 Minuten Pause als veränderbarer Start.', 'Satzpause', planned(10), { value: { min: 120, max: 180 }, unit: 's', sourceIds: ['S06', 'S07'] }),
+  r('rest.isolation-s', 'rest', 'product', 'weighed', 'Geeignete Isolationen: 1–2 Minuten Pause als veränderbarer Start.', 'Satzpause', planned(10), { value: { min: 60, max: 120 }, unit: 's', sourceIds: ['S06', 'S07'] }),
+  r('rest.heavy-strength-s', 'rest', 'product', 'weighed', 'Schwere priorisierte Kraftsätze: 3–5 Minuten Pause als veränderbarer Start.', 'Satzpause', planned(10), { value: { min: 180, max: 300 }, unit: 's', sourceIds: ['S06', 'S07'] }),
+  r('prep.per-movement-block', 'gym', 'product', 'weighed', 'Vorbereitung vor der ersten relevanten Belastung eines Bewegungsblocks, auch spät im Training.', 'Aufwärmen', planned(10), { sourceIds: ['S11'], scenarioIds: ['F10'] }),
+  r('superset.any-partner', 'gym', 'product', 'weighed', 'Beliebige Supersatz-Partner sind bedienbar; der Coach bevorzugt bei Zeitdruck geeignete Paarungen.', 'Gruppierung', planned(9), { sourceIds: ['S10'] }),
+  r('progression.double', 'gym', 'product', 'checked', 'Doppelte Progression pro Übung mit erreichbarem Lastschritt.', 'Progression', planned(4), { sourceIds: ['S12'], scenarioIds: ['F02'] }),
+  r('endurance.no-forced-distribution', 'endurance', 'orientation', 'weighed', 'Keine Pflichtquote für eine Intensitätsverteilung; Mischung nach Ziel, Erfahrung, Zeit und Verträglichkeit.', 'Intensitätsverteilung', planned(6), { sourceIds: ['S16', 'S17', 'S18'], scenarioIds: ['F05'] }),
+  r('endurance.health-minutes', 'endurance', 'orientation', 'weighed', 'Für gesundheitlichen Nutzen 150–300 Minuten moderate Aktivität pro Woche; weniger ist trotzdem sinnvoll.', 'Gesundheitsumfang', planned(6), { value: { min: 150, max: 300 }, unit: 'min/Woche', sourceIds: ['S13'], scenarioIds: ['F05'] }),
+  r('hiit.full-dose', 'endurance', 'orientation', 'weighed', 'Ein Intervallplan nennt Ziel, Protokollfamilie, Vorbereitung, Belastung, Erholung, Wiederholungen und Gesamtdauer.', 'Intervallprotokoll', planned(7), { sourceIds: ['S19', 'S20', 'S21', 'S22', 'S23'], scenarioIds: ['F06', 'F07', 'F08'] }),
+  r('data.unknown-rir-stays-unknown', 'data', 'technical', 'checked', 'Fehlende RIR bleiben unbekannt und werden nicht ergänzt.', 'Datenqualität', planned(2), { scenarioIds: ['F03'] }),
+  r('data.identity-not-from-name', 'data', 'technical', 'checked', 'Übungsidentität kommt aus ID oder exakt bekanntem Titel, nie aus einem ähnlichen Namen.', 'Übungsidentität', planned(1), { where: ['src/tracking/similar.ts'], scenarioIds: ['U01', 'U02', 'U03', 'U04'] }),
+];
