@@ -65,9 +65,16 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Nicht dabei:** Wirkung sekundärer Muskeln auf Bilanz und Planung (kommt in B; die Daten werden aber schon mitgenommen), Geräteinventar (C).
 
-**Offene Fragen an die Person:**
-- Gilt eine bestätigte Einordnung für beide Profile (gemeinsamer Haushaltskatalog) oder pro Profil?
-- Darf ein sehr eindeutiger Vorschlag („Cable Curl“ = „Curl am Kabel“) ohne Rückfrage übernommen werden, mit Rückgängig?
+**Entscheidungen der Person (06.11.2026):**
+- Eine gemeinsame Übungsdatenbank für beide Profile; eine bestätigte Einordnung gilt für beide.
+- Sehr eindeutige Vorschläge („Cable Curl“ = „Curl am Kabel“) werden ohne Rückfrage übernommen, mit Rückgängig.
+- Basis ist free-exercise-db (gemeinfrei, Stand `f00c92c`, lokal in `~/Projects/pandafit-references/free-exercise-db`): 876 Übungen, 604 mit Nebenmuskeln, 1746 Bilder (~100 MB).
+
+**Notizen für den Plan (noch nicht entschieden):**
+- Records liegen heute pro Profil/Konto (`src/coach/server/household.ts`: „Each profile's records go to its own account's store“). Die gemeinsame Übungsdatenbank braucht deshalb einen Haushalts-Speicherort oder eine bewusste Spiegelung – das ist die erste Designfrage des Plans.
+- Deutsche Namen für die Basis einmalig erzeugen und mitliefern (für die Suche); deutsche Kurzanleitung erst beim ersten Verwenden per KI erzeugen und speichern, statt 876 Anleitungen vorab zu übersetzen.
+- Bilder nicht alle bündeln (Größe der PWA); zunächst nur für tatsächlich genutzte Übungen.
+- Der KI-Vorschlag läuft auf der Coach-Seite (`coachHere`); Ergebnis ist eine gespeicherte Zuordnung, die UI, Statistik und Coach-Historie gleichermaßen verwenden.
 
 ## Parkplatz
 
