@@ -26,7 +26,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 |---|---|---|---|
 | ✅ | **0 Grundlage** | Regelregister existiert, Übungsidentität nur über ID/exakten Titel, unbekannte Muskeln sind sichtbar. | Auftrag 0, Schritt 0–1 (teilweise) |
 | ✅ | **A Jede Übung ist richtig bekannt** | Jede gemachte oder importierte Übung hat Muskel, Gerät und passende Anleitung; Unbekanntes wird einmal per KI-Vorschlag eingeordnet. | Auftrag 1 |
-| **B** ▶ | **Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
+| ✅ | **B Die Muskelbilanz stimmt** | Zusatzarbeit (z. B. Bizeps beim Rudern) zählt mit, Gesäß/Beinbeuger und Schulterteile sind getrennt; Anzeige in vier Zuständen statt Zahlenwand. | Auftrag 2 |
 | **C** | **Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | **D** | **Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | **E** | **Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
@@ -76,7 +76,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Bilder nicht alle bündeln (Größe der PWA); zunächst nur für tatsächlich genutzte Übungen.
 - Der KI-Vorschlag läuft auf der Coach-Seite (`coachHere`); Ergebnis ist eine gespeicherte Zuordnung, die UI, Statistik und Coach-Historie gleichermaßen verwenden.
 
-## Meilenstein B — Brief (06.11.2026)
+## Meilenstein B — Brief (umgesetzt 06.11.2026)
 
 **Ziel:** Die Muskelübersicht sagt pro Muskel in einem Wort, wo ihr steht – und rechnet die Arbeit mit, die andere Übungen nebenbei leisten.
 
@@ -109,3 +109,9 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Einige übersetzte Anleitungen sind lang (>90 Wörter); wenige Originaltexte passen nicht zum Titel.
   - `src/shared/catalog.ts` importiert Muskelnamen aus `src/tracking/ui/labels` (Schichtung).
   - Eigene Übungs-Records: Muskel/Gerät/Typ werden nicht gegen die erlaubten Werte geprüft.
+- Aus Meilenstein B:
+  - Körperbild/Muskelkarte statt Liste? (Frage an die Person offen.)
+  - Zielbereiche Gesäß + Oberschenkel hinten und Schulter seitlich + hinten summieren sich höher als früher; beobachten, ob der Coach dort zu viele Sätze plant.
+  - Muskelpaare zählen halbe Sätze einer Übung auch auf der Gegenseite (Kniebeuge → Gesäß), das mildert den Ungleichgewichtshinweis.
+  - Unbekannte Hevy-Übungen mit „Schultern“ zählen als Schulter vorn.
+  - Coach erkennt Übungen über ID/Hevy-Verknüpfung, die Statistik zusätzlich über deutsche Titel; in seltenen Fällen leicht abweichende halbe Sätze.
