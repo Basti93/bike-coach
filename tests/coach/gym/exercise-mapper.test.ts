@@ -90,6 +90,8 @@ describe('ExerciseMapper', () => {
     expect(exRecords(h.store)).toHaveLength(0);
     expect(h.prompts).toHaveLength(2);
     expect(h.prompts[1]).toContain('ungültig');
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(2);
   });
 
   it('ask throws: nothing written, quietly', async () => {

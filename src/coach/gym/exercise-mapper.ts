@@ -121,7 +121,13 @@ export class ExerciseMapper {
       answer = parse(await call());
       if (typeof answer === 'string') answer = parse(await call(answer));
     } catch { return false; } // no AI: nothing written, nothing remembered
-    if (typeof answer === 'string') return false;
+    if (typeof answer === 'string') {
+      // An answer arrived but stays unreadable: wait a day instead of asking again on every scan.
+      const fresh = loadState(this.deps.dir);
+      for (const t of titles) fresh.asked[t] = Math.max(fresh.asked[t] ?? 0, now);
+      saveState(this.deps.dir, fresh);
+      return false;
+    }
 
     const valid: MapperItem[] = [];
     for (const raw of answer.items) {
