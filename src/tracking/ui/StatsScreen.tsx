@@ -5,7 +5,7 @@ import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
 import type { TrackingPort } from '../ports';
 import { statsView, wellFormed, type StatsView, type WeekStats } from '../stats';
-import { finishedWorkouts, useCatalog, usePortRecords } from './hooks';
+import { finishedWorkouts, useCatalog, useGoal, usePortRecords } from './hooks';
 import { dateLabel } from './labels';
 import { MuscleIcon } from './MuscleIcon';
 import { progressRows, type ProgressRow } from '../progress';
@@ -169,7 +169,8 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
   const workouts: LoggedWorkout[] = useMemo(() => countable(workoutRecords), [workoutRecords]);
   const nowMs = now();
   const catalog = useCatalog(port);
-  const v = useMemo(() => statsView(stats, workouts, nowMs, catalog), [stats, workouts, nowMs, catalog]);
+  const goal = useGoal(port);
+  const v = useMemo(() => statsView(stats, workouts, nowMs, catalog, goal.strength), [stats, workouts, nowMs, catalog, goal]);
   const progress = useMemo(() => progressRows({
     nowMs, ftp: stats?.ftp ?? [], weightKg: stats?.weightKg ?? null, runPace: runView(runRecords ?? [], nowMs).status?.numbers.easyPace ?? null,
     workouts, weeks: v.weeks.slice(0, -1).map((w) => ({ sets: w.effective })), targets: v.targets,

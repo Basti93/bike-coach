@@ -13,7 +13,7 @@ const open = (w: TrackedWorkout, ex: string) => w.exercises.find((e) => e.rid ==
  * The ops that can apply to this workout (their row exists and still has open sets, a swap target is in the catalog)
  * and, for the others, one reason each in words.
  */
-export function checkOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[]): { ops: WorkoutOp[]; reasons: string[] } {
+export function checkOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[], excluded?: ReadonlySet<string>): { ops: WorkoutOp[]; reasons: string[] } {
   if (change.workoutId !== w.id || w.endMs !== null) return { ops: [], reasons: change.ops.length ? ['das Training schon beendet ist'] : [] };
   const ops: WorkoutOp[] = [];
   const reasons: string[] = [];
@@ -21,17 +21,18 @@ export function checkOps(change: WorkoutChange, w: TrackedWorkout, catalog: Exer
     if (!w.exercises.some((e) => e.rid === o.ex)) reasons.push('die Übung nicht mehr da ist');
     else if (open(w, o.ex).length === 0) reasons.push('der Satz schon erledigt ist');
     else if (o.op === 'swap' && !catalog.some((e) => e.id === o.to)) reasons.push('die Übung nicht im Katalog ist');
+    else if (o.op === 'swap' && excluded?.has(o.to)) reasons.push(`du ${catalog.find((e) => e.id === o.to)?.title ?? 'die Übung'} ausgeschlossen hast`);
     else ops.push(o);
   }
   return { ops, reasons };
 }
 
-export const validOps = (change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[]): WorkoutOp[] => checkOps(change, w, catalog).ops;
+export const validOps = (change: WorkoutChange, w: TrackedWorkout, catalog: Exercise[], excluded?: ReadonlySet<string>): WorkoutOp[] => checkOps(change, w, catalog, excluded).ops;
 
 /** Applies the valid ops in order. Done sets are never touched. */
-export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState = NO_STUDIOS): TrackedWorkout {
+export function applyWorkoutChange(w: TrackedWorkout, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState = NO_STUDIOS, excluded?: ReadonlySet<string>): TrackedWorkout {
   let x = w;
-  for (const o of validOps(change, w, catalog)) {
+  for (const o of validOps(change, w, catalog, excluded)) {
     const e = x.exercises.find((y) => y.rid === o.ex);
     if (!e) continue;
     if (o.op === 'drop') {
@@ -60,12 +61,12 @@ export const changeTaken = (w: TrackedWorkout, id: string): boolean => !!w.chang
  * Applies the change and records it in the workout, so one write of the workout holds both. Taking an id that is
  * already listed changes nothing. `line`: why some ops did not apply, in words.
  */
-export function takeChange(w: TrackedWorkout, id: string, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState, nowMs: number): { workout: TrackedWorkout; line: string | null } {
+export function takeChange(w: TrackedWorkout, id: string, change: WorkoutChange, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState, nowMs: number, excluded?: ReadonlySet<string>): { workout: TrackedWorkout; line: string | null } {
   if (changeTaken(w, id)) return { workout: w, line: null };
-  const { ops, reasons } = checkOps(change, w, catalog);
+  const { ops, reasons } = checkOps(change, w, catalog, excluded);
   const line = gehtNicht(reasons);
   if (ops.length === 0) return { workout: w, line };
-  const next = applyWorkoutChange(w, { workoutId: change.workoutId, ops }, history, catalog, studios);
+  const next = applyWorkoutChange(w, { workoutId: change.workoutId, ops }, history, catalog, studios, excluded);
   const touched = new Set(ops.map((o) => o.ex));
   const before = new Set(w.exercises.map((e) => e.rid));
   const isTouched = (e: TrackedWorkout['exercises'][number]) => touched.has(e.rid) || !before.has(e.rid);

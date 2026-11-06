@@ -5,7 +5,9 @@ import type { TrackingPort } from '../ports';
 import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { NextChangeCard } from './NextChangeCard';
-import { usePortRecords } from './hooks';
+import { RuleCard } from './RuleCard';
+import { RulesCard } from './RulesCard';
+import { useCatalog, usePortRecords } from './hooks';
 import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
 import type { TrackedRecord } from '../../shared/records';
 import type { PlannedRun } from '../../shared/run';
@@ -96,6 +98,8 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
   const changeRecs = usePortRecords(port, 'change').all;
+  const ruleRecs = usePortRecords(port, 'rule').all;
+  const catalog = useCatalog(port);
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
   const prefRecords = usePortRecords(port, 'coachprefs').all;
@@ -162,6 +166,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
         )}
         {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
       </section>
+      <RulesCard port={port} now={now} newId={newId} />
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
@@ -170,6 +175,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
             <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
             <p>{m.text}</p>
             {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
+            {m.rule && <RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} />}
             {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={weekAnswer(proposalAnswer(thread, m.id), thread.some((x) => x.undoes === m.id), storedWeek(plans ?? [], m.proposal!.weekStart), m.id)} undoWhy={weekUndoRefusal(storedWeek(plans ?? [], m.proposal!.weekStart), m.proposal!, m.id)} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} loading={plans === null} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
         )))}

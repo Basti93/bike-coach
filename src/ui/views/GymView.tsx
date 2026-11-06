@@ -165,16 +165,6 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
           {gym.complaints.length > 0 && (
             <p className="muted">Der Coach nimmt Rücksicht auf: {gym.complaints.map((c) => c.text).join(', ')}. Sag ihm unter Woche, wenn es wieder gut ist.</p>
           )}
-          {state.rules.length > 0 && (
-            <section className="card">
-              <h3>Das merkt sich der Coach</h3>
-              <ul className="rules">
-                {state.rules.map((r) => (
-                  <li key={r.atMs}><span>{r.text}</span><button className="ghost" onClick={() => send({ type: 'gym-remove-rule', profileId, atMs: r.atMs })}>Entfernen</button></li>
-                ))}
-              </ul>
-            </section>
-          )}
         </div>
       </div>
     </main>

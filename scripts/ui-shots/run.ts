@@ -212,6 +212,20 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: /Schulter seitlich/ }).first().click();
     await win.waitForTimeout(150);
   } },
+  { name: 'week-rules', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1100, steps: async (win) => {
+    // Invented rules and a goal; the week screen reads the records when it opens.
+    const t = Date.now() - 3600000;
+    const R = (id: string, kind: string, text: string, sport: string, state: string, extra: object = {}) => ({ kind: 'rule', id, updatedMs: t, deleted: false, body: { kind, text, sport, state, source: 'person', atMs: t, ...extra } });
+    const rows = [
+      { kind: 'goal', id: 'goal', updatedMs: t, deleted: false, body: { strength: 'muscle', focus: ['chest', 'side_delts'], sports: { gym: 'focus', bike: 'equal', run: 'keep' }, atMs: t } },
+      R('rule-s1', 'exclude', 'Ohne Beinpresse', 'gym', 'active', { exerciseIds: ['pf-leg-press'] }),
+      R('rule-s2', 'wish', 'Lieber kurze Pausen zwischen den Sätzen', 'gym', 'active'),
+      R('rule-s3', 'wish', 'Sonntags nur locker', 'all', 'paused'),
+    ];
+    await win.evaluate((rs) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map(rs.map((r) => [`${r.kind}:${r.id}`, r])); }, rows);
+    await win.getByRole('button', { name: 'Woche', exact: true }).first().click();
+    await win.waitForTimeout(300);
+  }, crop: '.tk-rules' },
   { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
   { name: 'meals-chat', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280 },
   { name: 'meals-chat-history', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, steps: async (win) => { await win.getByText(/Bisheriges Gespräch/).click(); await win.waitForTimeout(150); } },

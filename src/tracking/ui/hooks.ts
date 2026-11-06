@@ -4,6 +4,7 @@ import { mergeCatalog } from '../../shared/catalog';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import { EXERCISES } from '../../shared/exercises';
 import type { LoggedWorkout, RecordKind, TrackedRecord } from '../../shared/records';
+import { excludedIds, goalOf } from '../../shared/personal';
 import type { TrackingPort } from '../ports';
 import type { createWorkoutStore, StoreView } from '../store';
 
@@ -39,6 +40,18 @@ export const finishedWorkouts = (records: TrackedRecord[] | null): LoggedWorkout
 export function useCatalog(port: TrackingPort): Exercise[] {
   const own = usePortRecords(port, 'exercise').records;
   return useMemo(() => mergeCatalog(EXERCISES, FEDB_EXERCISES, own ?? []), [own]);
+}
+
+/** The exercise ids the person's active exclude rules rule out. */
+export function useExcluded(port: TrackingPort): ReadonlySet<string> {
+  const rules = usePortRecords(port, 'rule').records;
+  return useMemo(() => excludedIds(rules ?? []), [rules]);
+}
+
+/** The person's goal (today's default without a record). */
+export function useGoal(port: TrackingPort) {
+  const goal = usePortRecords(port, 'goal').records;
+  return useMemo(() => goalOf(goal ?? []), [goal]);
 }
 
 export function useStoreView(store: WorkoutStore): StoreView {

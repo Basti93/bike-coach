@@ -8,29 +8,30 @@ import { LONG_BREAK_DAYS, MAX_SETS } from './limits';
 import { buildGymPrompt, gymAnswerJsonSchema, gymAnswerSchema, GYM_SYSTEM_PROMPT, honestFigures, NEUTRAL_REASON, type GymAnswer } from './prompt';
 import { ruleWorkout } from './rules';
 import { mergeCatalog } from '../../shared/catalog';
-import { EXERCISES, linkHevyTemplates, type Exercise } from '../../shared/exercises';
+import { isExcluded } from '../../shared/excluded';
+import { EXERCISES, exerciseTitles, linkHevyTemplates, type Exercise } from '../../shared/exercises';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import { onePerSession } from '../../shared/history';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { hevyRecord } from '../tracking/hevy-import';
 import { historyFromLogged, mergeHistory } from '../tracking/merge';
 import type { RecordStore } from '../tracking/store';
-import { loadGymState, removeGymState, saveGymState, type GymState } from './state';
+import { legacyGymRules, loadGymState, removeGymState, saveGymState, type GymState } from './state';
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { readTasks, type CoachId } from '../coach-tasks';
-import { readOutlook } from '../../shared/gym-outlook';
+import { readOutlook, type GymOutlook } from '../../shared/gym-outlook';
 import type { LoadStepOverrides } from '../../shared/loads';
 import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
 import { defaultStudio, NO_STUDIOS, type StudioState } from '../../shared/studio';
 import { studiosOf } from '../tracking/studios';
 import { loadStepsOf } from '../tracking/load-steps';
 import { takenChangesOf } from '../tracking/changes';
+import { excludedOf, goalOfProfile, migrateRules, wishesOf } from '../tracking/personal';
 import { considered } from '../../shared/changes';
 
 const DAY_MS = 86_400_000;
 const RETRY_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 3;
-const MAX_RULES = 20;
 const MAX_NOTES = 20;
 const MAX_ANSWERS = 20;
 const MAX_QUESTIONS = 2;
@@ -105,10 +106,36 @@ export class GymCoach {
 
   state(id: string): GymState {
     let s = this.states.get(id);
-    if (!s) { s = loadGymState(this.deps.dir, id); this.states.set(id, s); }
+    if (!s) {
+      s = loadGymState(this.deps.dir, id);
+      this.states.set(id, s);
+      this.migrateRules(id);
+    }
     return s;
   }
+  /** Once per profile: the old free-text rules become wish records, then the state file is written without them. */
+  private migrateRules(id: string): void {
+    const old = legacyGymRules(this.deps.dir, id);
+    if (old.length === 0) return;
+    if (!this.deps.store) return;
+    try {
+      // A legacy rule that is just a complaint's text stays a complaint, it does not become a wish too.
+      const norm = (t: string): string => t.trim().toLowerCase().replace(/\s+/g, ' ');
+      const complaints = new Set(this.deps.store.all(id, 'complaint').filter((r) => !r.deleted && typeof (r.body as { text?: unknown })?.text === 'string').map((r) => norm((r.body as { text: string }).text)));
+      migrateRules(this.deps.store, id, 'gym', old.filter((t) => !complaints.has(norm(t))), this.deps.nowMs());
+      saveGymState(this.deps.dir, this.states.get(id)!, true);
+    } catch { /* the file keeps the rules; the next start tries again */ }
+  }
   isThinking(id: string): boolean { return this.running.has(id); }
+
+  /** The exercises the person's active exclude rules rule out, as own ids plus the Hevy template ids linked to them. */
+  private excluded(id: string): Set<string> {
+    if (!this.deps.store) return new Set();
+    const own = excludedOf(this.deps.store, id);
+    const out = new Set(own);
+    for (const [hevyId, ownId] of Object.entries(this.state(id).links)) if (own.has(ownId)) out.add(hevyId);
+    return out;
+  }
 
   /** The profile's merged catalog (aliases from the mapper or the person included). Built per call: callers hold on to it for one run. */
   private catalog(id: string): Exercise[] {
@@ -331,7 +358,8 @@ export class GymCoach {
       real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
       const studio = this.studio(id);
       const overrides = this.loadSteps(id);
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
+      const excluded = this.excluded(id);
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
       const rule = ruleWorkout(ctx);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
@@ -350,7 +378,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
@@ -392,17 +420,24 @@ export class GymCoach {
     return checked.ok ? null : checked.reason;
   }
 
+  /** The sketch without exercises the person's rules rule out (matched by title, the sketch has no ids). */
+  private withoutExcluded(id: string, o: GymOutlook): GymOutlook {
+    const own = this.deps.store ? excludedOf(this.deps.store, id) : new Set<string>();
+    if (own.size === 0) return o;
+    const catalog = this.catalog(id);
+    return { ...o, sessions: o.sessions.map((x) => ({ ...x, exercises: x.exercises.filter((e) => !isExcluded({ title: e.title }, own, catalog)) })).filter((x) => x.exercises.length > 0) };
+  }
+
   private applyAnswer(s: GymState, a: GymAnswer, workout: GymWorkout, real: StrengthWorkout[], wantNote: boolean, now: number, id: string): void {
     const honest = (text: string) => honestFigures(text, figures(real, workout));
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
     s.next = { workout, reason: this.withTaken(id, (reason && honest(reason)) || fallback), source: 'claude' };
     // A sketch without weights; an answer without one keeps the last sketch rather than none.
-    s.outlook = readOutlook(a.outlook) ?? s.outlook;
+    const outlook = readOutlook(a.outlook);
+    s.outlook = outlook ? this.withoutExcluded(id, outlook) : s.outlook;
     s.emptyReason = null;
     s.lastError = null;
-    const rule = clean(a.newRule, 200);
-    if (rule && honest(rule) && !s.rules.some((r) => r.text === rule)) s.rules = [...s.rules, { atMs: now, text: rule }].slice(-MAX_RULES);
     if (!wantNote) return;
     const text = clean(a.note, TEXT_MAX);
     const newest = real.reduce((m, w) => (w.startMs > m.startMs ? w : m), real[0]);
@@ -455,7 +490,7 @@ export class GymCoach {
     this.update(id, (s) => {
       const now = this.deps.nowMs();
       s.notes = [...s.notes, { atMs: now, text: text.slice(0, 300) }].slice(-MAX_NOTES);
-      this.keepComplaint(id, s, text, now);
+      this.keepComplaint(id, text);
       s.dirty = true; s.attempts = 0;
     });
   }
@@ -466,24 +501,19 @@ export class GymCoach {
       s.answers = [...s.answers, { atMs: now, question: question.slice(0, QUESTION_MAX), text: text.slice(0, 300) }].slice(-MAX_ANSWERS);
       if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question);
       // Only the rider's own words are checked, so a "fine" answer to a question about a knee is no complaint.
-      this.keepComplaint(id, s, text, now);
+      this.keepComplaint(id, text);
       s.dirty = true; s.attempts = 0;
     });
   }
 
-  /** A body complaint goes to the bike coach and stays as a preference of its own. */
-  private keepComplaint(id: string, s: GymState, text: string, now: number): void {
+  /** A body complaint goes to the bike coach. */
+  private keepComplaint(id: string, text: string): void {
     if (!complaintFromNote(text)) return;
     this.deps.complaint(id, text);
-    s.rules = [...s.rules, { atMs: now, text: text.slice(0, 200) }].slice(-MAX_RULES);
   }
 
   skipQuestion(id: string, question: string): void {
     this.update(id, (s) => { if (s.lastNote) s.lastNote.questions = s.lastNote.questions.filter((q) => q !== question); });
-  }
-
-  removeRule(id: string, atMs: number): void {
-    this.update(id, (s) => { s.rules = s.rules.filter((r) => r.atMs !== atMs); });
   }
 
   forget(id: string): void {

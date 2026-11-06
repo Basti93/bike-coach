@@ -7,7 +7,7 @@ import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
 import { MuscleIcon } from './MuscleIcon';
 import { matchesSearch, similarExercises } from '../similar';
-import { finishedWorkouts, useCatalog, usePortRecords } from './hooks';
+import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
 import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
 
 /** `like` is the exercise being swapped; similar ones then come first. */
@@ -23,6 +23,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   const [error, setError] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [more, setMore] = useState(false);
+  const excluded = useExcluded(port);
   const done = useMemo(() => new Set(finishedWorkouts(workouts).flatMap((w) => w.exercises.map((x) => x.exerciseId))), [workouts]);
 
   const groups = useMemo(() => {
@@ -32,7 +33,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
     for (const e of hit) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
     return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
   }, [catalog, q, more]);
-  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog, done).slice(0, 8) : []), [like, catalog, q, done]);
+  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog, done, excluded).slice(0, 8) : []), [like, catalog, q, done, excluded]);
 
   const valid = draft.name.trim() !== '' && draft.muscle !== '' && draft.equipment !== '' && draft.type !== '';
   async function save() {

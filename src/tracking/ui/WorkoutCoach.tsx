@@ -7,7 +7,8 @@ import { changeTaken, checkOps, undoRefusal } from '../workout-change';
 import { DECLINE, DECLINED, gehtNicht, TAKE, UNDO } from '../../shared/wording';
 import { changesOf } from '../../shared/changes';
 import { NextChangeCard } from './NextChangeCard';
-import { usePortRecords } from './hooks';
+import { RuleCard } from './RuleCard';
+import { useExcluded, usePortRecords } from './hooks';
 
 /** One op in plain German, with the exercise names of this workout. */
 export function opText(o: WorkoutOp, w: TrackedWorkout, catalog: Exercise[]): string {
@@ -28,8 +29,10 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   port: TrackingPort; workout: TrackedWorkout; catalog: Exercise[]; now: () => number; newId: () => string; /** One workout write that applies the ops and lists `id`; `onUndo` restores the rows in one write. */
   onTake: (id: string, c: WorkoutChange) => void; onUndo: (id: string) => void;
 }) {
+  const excluded = useExcluded(port);
   const chat = usePortRecords(port, 'chat').all;
   const changeRecs = usePortRecords(port, 'change').all;
+  const ruleRecs = usePortRecords(port, 'rule').all;
   const thread = chatThread(chat ?? []);
   const mine = thread.filter((m) => m.inWorkout === workout.id && !m.takes && !m.declines && !m.undoes);
   const key = (m: ChatEntry) => `${m.id}:0`;
@@ -57,7 +60,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   const take = async (m: ChatEntry & { workoutChange: WorkoutChange }) => {
     if (changeTaken(workout, key(m))) return;
     setOpen(true);
-    const { ops, reasons } = checkOps(m.workoutChange, workout, catalog);
+    const { ops, reasons } = checkOps(m.workoutChange, workout, catalog, excluded);
     const why = gehtNicht(reasons);
     setLine(ops.length === 0 ? ['Nicht übernommen.', why].filter(Boolean).join(' ') : why);
     if (ops.length === 0) { await write({ role: 'rider', text: 'Nicht übernommen.', atMs: now(), declines: m.id, inWorkout: workout.id }); return; }
@@ -79,6 +82,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
         <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
           <p>{m.text}</p>
           {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
+          {m.rule && <RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} />}
           {m.workoutChange && (
             <>
               <ul>{m.workoutChange.ops.map((o, i) => <li key={i}>{opText(o, workout, catalog)}</li>)}</ul>
