@@ -1,0 +1,31 @@
+{
+  "reviewDate": "2026-11-06",
+  "pandafitCommit": "9039f2ae50198f9c974b8827cef4f04a1d96230a",
+  "repositories": [
+    {
+      "repo": "johnarleyburns/parso-workout-ios-app",
+      "sha": "0b3c533933ecd02eef208ed40ff9990fd35ccfb4",
+      "commitDate": "2026-11-06T06:40:48Z"
+    },
+    {
+      "repo": "NeoLorenzo/Heracles",
+      "sha": "a739f993473915a7d2451cc8ca0ce8fd6cc2378c",
+      "commitDate": "2026-10-17T15:16:18Z"
+    },
+    {
+      "repo": "astashov/liftosaur",
+      "sha": "bd12069c950e3223c17ba9ec4d15d5122c2fa61d",
+      "commitDate": "2026-11-02T13:41:04Z"
+    },
+    {
+      "repo": "wulfland/Repstack",
+      "sha": "b94fac0af4b0e8f449f8d6fad71c4a973ab37685",
+      "commitDate": "2026-10-20T09:09:39Z"
+    },
+    {
+      "repo": "AlexMollard/Ironvellum",
+      "sha": "9bf636afa08c35ba8cd07f480b6bf25341c752da",
+      "commitDate": "2026-11-06T12:10:30Z"
+    }
+  ]
+}
