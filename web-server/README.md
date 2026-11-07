@@ -73,6 +73,10 @@ Sonst nichts: keine Trainings-Erinnerungen, keine Serien.
 - **Netz:** Der Container braucht ausgehend HTTPS zu diesen Hosts.
 - **iPhone:** geht nur mit Pandafit auf dem Home-Bildschirm und iOS 16.4 oder neuer. In einem normalen Safari-Tab zeigt die App stattdessen den Hinweis zum Installieren.
 
+## Wochenübersicht per E-Mail
+
+Sonntagabend (ab 18 Uhr, Zeit des Coach-Containers, siehe `TZ`) schickt der Coach pro Person, die in der App unter Profil eine Adresse und „Wochenübersicht per E-Mail“ eingestellt hat, einen kurzen Rückblick und die nächste Woche. Das geht über den Mail-Dienst des Heimservers (Netz `homeserver-mail`, muss existieren). Einschalten: in `.env` `PANDAFIT_MAIL_TOKEN` (der Token des Mail-Clients, der `allowRecipient` hat) und optional `PANDAFIT_APP_URL` (Link am Ende der Mail) setzen, dann `docker compose up -d coach`. Ohne Token ist Mail aus, ohne Fehlermeldung. Den Token nie ins Repo und nie in die Compose-Datei schreiben. Adressen setzt die Person selbst in der App; für den Server geht auch `docker compose exec api web-server/node_modules/.bin/tsx web-server/cli.ts set-contact <Profilname> <E-Mail|-> [weekly on|off]` (`-` entfernt die Adresse). Eine Woche geht höchstens einmal raus (Datei `mail-sent.json` im Coach-Volume); lehnt der Dienst eine Mail ab (400 oder 413), wird sie nicht wiederholt, bei Ausfall, 401 oder 429 gibt es alle 30 Minuten einen neuen Versuch. Im Log steht nie eine Adresse.
+
 ## Kill Switch
 
 - Sofort aus: `docker compose stop api` (die App arbeitet offline weiter, der Abgleich pausiert).

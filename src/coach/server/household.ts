@@ -11,6 +11,7 @@ import type { RecordStore } from '../tracking/store';
 import { mirrorExercises } from '../tracking/mirror-exercises';
 import { errorKind } from '../error-kind';
 import { ChangeClock } from './change-clock';
+import type { MailConfig } from '../mail-client';
 import { HeavyLock, inQuietHours } from './heavy';
 import { internalLinks } from './internal-links';
 import { MigrationDesk } from './migration';
@@ -34,6 +35,8 @@ export type HouseholdOptions = {
   spawnFn?: typeof spawn;
   fetchFn?: typeof fetch;
   waitMs?: number;
+  /** The mail service for the weekly overview; null or missing: no mail. */
+  mail?: MailConfig | null;
 };
 
 export type AccountCoach = {
@@ -151,6 +154,7 @@ export class Household {
       }),
       ...(this.opts.spawnFn ? { spawnFn: this.opts.spawnFn } : {}),
       ...(this.opts.fetchFn ? { fetchFn: this.opts.fetchFn } : {}),
+      ...(this.opts.mail ? { mail: this.opts.mail } : {}),
       ...(this.opts.waitMs !== undefined ? { waitMs: this.opts.waitMs } : {}),
     });
     this.accounts.set(accountId, {

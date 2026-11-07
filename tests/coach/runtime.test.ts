@@ -460,3 +460,40 @@ test('a change asked for in the week chat goes to the coach in charge, who plans
   expect(bike.length).toBeGreaterThan(0);
   expect(bike[0]!.prompt).toContain('Nächste Fahrt kürzer');
 });
+
+describe('the weekly mail in the runtime', () => {
+  const SUNDAY = new Date(2026, 10, 15, 18, 30).getTime();
+  const mailFetch = () => vi.fn(async (url: string) => (String(url).endsWith('/v1/send') ? new Response(JSON.stringify({ status: 'ok' }), { status: 200 }) : new Response('', { status: 401 })));
+  const CFG = { url: 'http://mail.example.org:8080', token: 'tok', appUrl: 'https://app.example.org' };
+  const contact = (runtime: ReturnType<typeof make>['runtime'], weekly = true) => runtime.records.put('pa', { kind: 'contact', id: 'contact', updatedMs: 1, deleted: false, body: { email: 'a@example.org', weekly, atMs: 1 } });
+  const sends = (f: ReturnType<typeof mailFetch>) => f.mock.calls.filter((c) => String(c[0]).endsWith('/v1/send'));
+
+  test('a scan on Sunday evening sends one overview to the address, and a second scan does not', async () => {
+    const fetchFn = mailFetch();
+    const { runtime } = make({ mail: CFG, nowMs: () => SUNDAY, fetchFn: fetchFn as never });
+    contact(runtime);
+    runtime.scan(); await settle(); runtime.scan(); await settle();
+    expect(sends(fetchFn)).toHaveLength(1);
+    const body = JSON.parse(String((sends(fetchFn)[0] as unknown as [string, RequestInit])[1].body)) as Record<string, string>;
+    expect(body.to).toBe('a@example.org');
+    expect(body.subject).toBe('Deine Woche ab Mo., 16. Nov.');
+    expect(body.text).toContain('Hallo A,');
+    expect(body.text).toContain('Zur App: https://app.example.org');
+  });
+
+  test('nothing goes out without mail settings, with the switch off, or before the hour', async () => {
+    const off = mailFetch();
+    const a = make({ nowMs: () => SUNDAY, fetchFn: off as never });
+    contact(a.runtime);
+    a.runtime.scan(); await settle();
+    const b = mailFetch();
+    const c = make({ mail: CFG, nowMs: () => SUNDAY, fetchFn: b as never });
+    contact(c.runtime, false);
+    c.runtime.scan(); await settle();
+    const d = mailFetch();
+    const e = make({ mail: CFG, nowMs: () => SUNDAY - 3 * 3600_000, fetchFn: d as never });
+    contact(e.runtime);
+    e.runtime.scan(); await settle();
+    expect([off, b, d].map((f) => sends(f).length)).toEqual([0, 0, 0]);
+  });
+});

@@ -69,10 +69,15 @@ services:
       # Claude runs in the home server's AI service (heimserver ki/README.md); empty = the local claude as before.
       PANDAFIT_AI_URL: ${PANDAFIT_AI_URL:-}
       PANDAFIT_AI_TOKEN: ${PANDAFIT_AI_TOKEN:-}
+      # Weekly overview by email through the home server's mail service (heimserver mail/). Mail is off while MAIL_TOKEN is empty.
+      # The token lives only in .env, never in the repo.
+      MAIL_URL: http://homeserver-mail:8080
+      MAIL_TOKEN: ${PANDAFIT_MAIL_TOKEN:-}
+      PANDAFIT_APP_URL: ${PANDAFIT_APP_URL:-}
       TZ: ${TZ:-UTC}
     # internal: shared with api, no way out. coach-egress: the coach's own way out to Hevy and Garmin; no other service joins it,
-    # so tailscale (on default) cannot reach the coach. homeserver-ai: internal network of the shared AI service, no way out.
-    networks: [internal, coach-egress, homeserver-ai]
+    # so tailscale (on default) cannot reach the coach. homeserver-ai, homeserver-mail: internal networks of the shared AI and mail services, no way out.
+    networks: [internal, coach-egress, homeserver-ai, homeserver-mail]
     volumes:
       - coach:/data
     tmpfs:
@@ -138,6 +143,9 @@ networks:
   homeserver-ai:
     external: true
     name: homeserver-ai
+  homeserver-mail:
+    external: true
+    name: homeserver-mail
 
 volumes:
   coach:

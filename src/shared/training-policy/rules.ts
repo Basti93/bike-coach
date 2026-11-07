@@ -46,6 +46,9 @@ export const RULES: PolicyRule[] = [
   r('today.done-after-hour', 'planner', 'product', 'checked', 'Ab 18 Uhr gilt ein Tag, an dem schon trainiert wurde, als erledigt.', 'Heutiger Vorschlag', active, { value: 18, unit: 'Uhr', where: ['src/shared/today.ts'] }),
   r('goal.used-sports-days', 'planner', 'product', 'checked', 'Bei den Sportarten im Ziel zeigt die Karte die, in denen in den letzten 90 Tagen etwas war.', 'Zielkarte', active, { value: 90, unit: 'Tage', where: ['src/tracking/ui/RulesCard.tsx'] }),
 
+  // The weekly overview by email (src/coach/weekly-mail.ts): own product choice.
+  r('mail.weekly-hour', 'planner', 'product', 'checked', 'Die Wochenübersicht per E-Mail geht sonntags ab 18 Uhr raus.', 'Wochenmail', active, { value: 18, unit: 'Uhr', where: ['src/coach/weekly-mail.ts'] }),
+
   // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
   r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
   r('load.step-choices', 'gym', 'product', 'checked', 'Den Lastschritt einer Übung kann man auf 0,5, 1, 1,25, 2, 2,5, 4, 5, 7 oder 10 kg setzen.', 'Lastschritt', active, { numbers: [0.5, 1, 1.25, 2, 2.5, 4, 5, 7, 10], unit: 'kg', where: ['src/shared/loads.ts'] }),
