@@ -1,6 +1,7 @@
+import { ruleNumber } from './training-policy';
+
 /** The shape of a gym workout the estimate needs (the coach's GymWorkout fits). */
 export type TimedWorkout = { exercises: { restS: number | null; sets: readonly unknown[] }[] };
-import { ruleNumber } from './training-policy';
 
 const roundTo5 = (min: number): number => Math.round(min / 5) * 5;
 

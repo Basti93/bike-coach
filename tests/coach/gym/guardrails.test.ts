@@ -239,6 +239,12 @@ describe('time budget', () => {
     expect(r.reason).toMatch(/Dauer ca\. \d+ Min\./);
     expect(r.workout.exercises.every((e) => e.sets.length >= 2)).toBe(true);
   });
+  it('says so when even the smallest plan is longer than the time', () => {
+    const r = ruleWorkout(budgeted(5));
+    expect(gymMinutes(r.workout)).toBeGreaterThan(5 * 1.1);
+    expect(r.reason).toContain('länger als deine 5 Min');
+    expect(ruleWorkout(budgeted(60)).reason).not.toContain('länger als deine');
+  });
   it('leaves the rule fallback whole without a budget', () => {
     const r = ruleWorkout(CTX);
     const sets3 = r.workout.exercises.every((e) => e.sets.length === 3);

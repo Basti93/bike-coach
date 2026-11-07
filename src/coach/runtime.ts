@@ -46,9 +46,10 @@ import { frameOfProfile } from './tracking/frame';
 import { longTermHint } from './chat/long-term';
 import { PlanSeen, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
-import { addDays, mondayOf } from '../shared/week-plan';
+import { addDays, mondayOf, planFor } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
-import type { StatsBody } from '../shared/stats';
+import type { PublishedAdvice, StatsBody } from '../shared/stats';
+import { todayAdvice } from '../shared/today';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
 import { exportTogether } from './tracking/together-export';
@@ -206,6 +207,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     ready: (id) => (gymConnected(id) ? hevy.strengthReady(id) : noOpenRide()),
     bike: (id) => { const s = coach.state(id); return { summaries: s.summaries, complaints: s.complaints ?? [] }; },
     complaint: (id, text) => coach.addComplaintFromText(id, text),
+    // Tired legs today: strength goes on, without leg exercises.
+    avoidLegsToday: (id) => { const a = adviceOf(id); return a !== null && a.legs === false && (a.sport === 'gym' || a.also?.sport === 'gym'); },
     writer: gymWriter,
     account: (id) => opts.links.status(id).state === 'linked',
     onWorkoutFinished: (id) => coach.strengthChanged(id),
@@ -248,24 +251,35 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     try { const data = garminData(id); if (data) readiness = { restingHrRaised: restingHrRaised(data.days) }; } catch { /* no body data */ }
     return { ratings, goal: goalOfProfile(records, id), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
   };
+  /** What fits today for a profile, with the bike rides in the ratings; null when it cannot be told. */
+  const adviceOf = (id: string): PublishedAdvice | null => {
+    try {
+      const ctx = todayContextOf(id);
+      const date = dateKey(nowMs());
+      return { ...todayAdvice({ ...ctx, date, planDay: planFor(records.all(id, 'weekplan'), date) }), date, mode: ctx.frame.mode };
+    } catch { return null; }
+  };
   /** What the stats record of a profile says; null when there is nothing in the nine weeks. */
   const statsOf = (id: string): Omit<StatsBody, 'atMs'> | null => {
     // After a start the gym coach has not listed the templates yet: list them once (cache first), then make the stats again.
     if (!gym.knowsTemplates(id)) void gym.templateList(id).then(() => { statsMade.delete(id); }, () => {});
     const runs = run.runsFor(id);
-    return statsContent({
+    const content = statsContent({
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
       ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id).strength,
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
       ftp: coach.state(id).ftpHistory, weightKg: profiles().find((p) => p.id === id)?.weightKg ?? null,
     });
+    // The advice with the bike rides in it, for the devices that cannot see them.
+    const advice = content ? adviceOf(id) : null;
+    return content && advice ? { ...content, advice } : content;
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
-  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'));
+  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'));
   // The week conversation and the evening suggestion, only when the rider switched them on.
   const sentPrompts = new SentPrompts(path.join(coachDir, 'chat', 'prompts-sent.json'));
   /** The week conversation is tried at most this often while it fails. */

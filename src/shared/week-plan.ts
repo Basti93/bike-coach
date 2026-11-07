@@ -74,9 +74,9 @@ export function parseProposal(x: unknown): WeekProposal | null {
     const day: PlanDay = { date: dates[i]!, sport: d.sport as Sport, hardness: d.hardness as Hardness, fixed: d.fixed === true };
     if (d.legs === true) day.legs = true; else if (d.legs === false) day.legs = false;
     if (d.long === true) day.long = true;
-    // Never rest plus something, never the same sport twice; such a second part is left out.
+    // Never rest plus something, never the same sport twice, never two hard parts; such a second part is left out.
     if (isObj(d.also) && SPORTS.includes(d.also.sport as Sport) && HARDNESSES.includes(d.also.hardness as Hardness)
-      && d.also.sport !== 'rest' && day.sport !== 'rest' && d.also.sport !== day.sport) day.also = { sport: d.also.sport as Sport, hardness: d.also.hardness as Hardness };
+      && d.also.sport !== 'rest' && day.sport !== 'rest' && d.also.sport !== day.sport && !(day.hardness === 'hard' && d.also.hardness === 'hard')) day.also = { sport: d.also.sport as Sport, hardness: d.also.hardness as Hardness };
     if (typeof d.note === 'string' && d.note.trim()) day.note = d.note.trim().slice(0, 120);
     days.push(day);
   }
@@ -95,5 +95,5 @@ export const planFor = (records: TrackedRecord[], date: string): PlanDay | null 
   planOfWeek(records, mondayOf(date))?.days.find((d) => d.date === date) ?? null;
 
 /** The first date from `from` on (within seven days) whose plan day has this sport, or null. */
-export const nextPlanDate = (records: TrackedRecord[], from: string, sport: Sport): string | null =>
-  [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(from, i)).find((d) => { const p = planFor(records, d); return p ? hasSport(p, sport) : false; }) ?? null;
+export const nextPlanDate = (records: TrackedRecord[], from: string, sport: Sport, skip: (date: string) => boolean = () => false): string | null =>
+  [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(from, i)).find((d) => { const p = planFor(records, d); return p && !skip(d) ? hasSport(p, sport) : false; }) ?? null;

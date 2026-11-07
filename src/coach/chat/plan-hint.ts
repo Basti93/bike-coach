@@ -14,7 +14,9 @@ export type TodayContext = Pick<TodayInput, 'ratings' | 'goal' | 'frame' | 'read
  */
 export function planHint(records: TrackedRecord[], nowMs: number, sport: Exclude<Sport, 'rest' | 'mobility'>, ctx?: TodayContext): string {
   const today = dateKey(nowMs);
-  const advice = ctx ? todayAdvice({ ...ctx, date: today, planDay: planOfWeek(records, mondayOf(today))?.days.find((x) => x.date === today) ?? null }) : null;
+  const planDay = planOfWeek(records, mondayOf(today))?.days.find((x) => x.date === today) ?? null;
+  // In week mode a day without a plan day says nothing; the advice only comments on a plan day (spontaneous mode always has one).
+  const advice = ctx && (ctx.frame.mode === 'spontaneous' || planDay) ? todayAdvice({ ...ctx, date: today, planDay }) : null;
   const todayLine = advice ? `\nHeute passt: ${advice.line}.` : '';
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(today, i)).flatMap((date) => {
     const d = planOfWeek(records, mondayOf(date))?.days.find((x) => x.date === date);

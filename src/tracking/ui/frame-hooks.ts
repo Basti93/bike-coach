@@ -7,6 +7,7 @@ import { todayAdvice, type TodayAdvice } from '../../shared/today';
 import type { RunWeekBody } from '../../shared/run';
 import type { LoggedWorkout } from '../../shared/records';
 import type { TrackingPort } from '../ports';
+import { readStats } from '../../shared/stats';
 import { finishedWorkouts, useCatalog, useGoal, usePortRecords } from './hooks';
 
 const LEG_MUSCLES = ['quadriceps', 'hamstrings', 'glutes', 'calves'];
@@ -51,14 +52,24 @@ export function useTodayAdvice(port: TrackingPort, nowMs: number): { advice: Tod
   const workouts = usePortRecords(port, 'workout').records;
   const runs = usePortRecords(port, 'run').records;
   const weekplans = usePortRecords(port, 'weekplan').records;
+  const stats = usePortRecords(port, 'stats').records;
   const date = dateKey(nowMs);
   const ratings = useMemo(() => {
     const weeks = (runs ?? []).map((r) => r.body as RunWeekBody).filter((b) => b && b.type === 'week' && Array.isArray(b.runs));
     return ratingsFromRecords(finishedWorkouts(workouts), weeks, catalog, Array.from({ length: DAYS_BACK }, (_, i) => addDays(date, -(i + 1))));
   }, [workouts, runs, catalog, date]);
-  const advice = useMemo(
+  // The coach's advice for today counts when it is there (it knows the bike rides); else the app's own.
+  const published = useMemo(() => {
+    const r = (stats ?? []).find((x) => x.kind === 'stats' && x.id === 'stats' && !x.deleted);
+    const a = r ? readStats(r.body)?.advice : undefined;
+    if (!a || a.date !== date || a.mode !== fr.frame.mode) return null;
+    const { date: _d, mode: _m, ...rest } = a;
+    return rest as TodayAdvice;
+  }, [stats, date, fr.frame.mode]);
+  const own = useMemo(
     () => todayAdvice({ date, ratings, planDay: planFor(weekplans ?? [], date), goal, frame: { mode: fr.frame.mode } }),
     [date, ratings, weekplans, goal, fr.frame.mode],
   );
+  const advice = published ?? own;
   return { advice, ratings, ...fr };
 }

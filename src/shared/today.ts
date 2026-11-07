@@ -29,6 +29,8 @@ export type TodayAdvice = {
   line: string;
   /** True when this is today's plan day unchanged; then a reason adds nothing. */
   fromPlan: boolean;
+  /** false: a strength session today leaves the legs out (the plan day says so, or the legs are tired). */
+  legs?: boolean;
 };
 
 const SPORT_KEYS: readonly SportKey[] = ['gym', 'bike', 'run'];
@@ -44,6 +46,9 @@ const mapParts = (parts: Parts, f: (p: AlsoPart) => AlsoPart): Parts => {
   return out[1] && out[1].sport === out[0]!.sport ? [out[0]!] : out;
 };
 const same = (a: Parts, b: Parts): boolean => a.length === b.length && a.every((p, i) => p.sport === b[i]!.sport && p.hardness === b[i]!.hardness);
+/** The sessions in words; a strength part without legs says so instead of its hardness. */
+const wordsOf = (date: string, parts: Parts, noLegs: boolean): string =>
+  noLegs ? dayParts(asDay(date, parts)).map((p) => (p.sport === 'gym' ? 'Kraft ohne Beine' : dayLabel(asDay(date, [p])))).join(' + ') : dayLabel(asDay(date, parts));
 const REST: Parts = [{ sport: 'rest', hardness: 'easy' }];
 
 export function todayAdvice(input: TodayInput): TodayAdvice {
@@ -72,24 +77,28 @@ export function todayAdvice(input: TodayInput): TodayAdvice {
   }
 
   // Protective rules, in order; the first that changes the day gives the reason.
-  const hardLegPart = (p: AlsoPart): boolean => p.hardness === 'hard' || (plan === null && p.sport === 'gym');
+  // Tired legs keep the sport: strength goes on without legs, bike and run get less hard. Only a plan day that already leaves
+  // the legs out is fine as it is. (A plan day cannot say "only legs", so strength is never swapped for another sport.)
+  const gymWithLegs = plan?.legs !== false && parts.some((p) => p.sport === 'gym');
   const hardInRow = ruleNumber('today.hard-days-in-row');
   const restAfter = ruleNumber('today.rest-after-days');
   const hardRun = Array.from({ length: hardInRow }, (_, i) => before(i + 1)?.hardness === 'hard').every(Boolean);
   const noBreak = Array.from({ length: restAfter }, (_, i) => before(i + 1)?.hardness != null).every(Boolean);
   const day = asDay(date, parts, plan?.legs);
-  const protective: { to: Parts; reason: string }[] = [
+  const protective: { to: Parts; reason: string; noLegs?: boolean }[] = [
     { to: dayHardness(day) === 'hard' ? REST : mapParts(parts, (p) => (p.sport === 'rest' ? p : { sport: p.sport, hardness: 'easy' })), reason: 'weil dein Ruhepuls erhöht ist' },
-    { to: mapParts(parts, (p) => (hardLegPart(p) ? (p.sport === 'gym' ? { sport: 'mobility', hardness: 'easy' } : { sport: p.sport, hardness: 'moderate' }) : p)), reason: 'weil deine Beine gestern hart gearbeitet haben' },
+    { to: mapParts(parts, (p) => (p.sport !== 'gym' && p.hardness === 'hard' ? { sport: p.sport, hardness: 'moderate' } : p)), reason: 'weil deine Beine gestern hart gearbeitet haben', noLegs: gymWithLegs },
     { to: mapParts(parts, (p) => (p.sport === 'rest' ? p : { sport: p.sport, hardness: 'easy' })), reason: `weil du ${NUMBER_WORD[hardInRow] ?? hardInRow} harte Tage hintereinander hattest` },
     { to: REST, reason: `weil du seit ${restAfter} Tagen ohne Pause trainierst` },
   ];
   const active = [input.readiness?.restingHrRaised === true, legsHardYesterday, hardRun, noBreak];
   let fromPlan = plan !== null;
-  const hit = protective.find((r, i) => active[i] && !same(r.to, parts));
+  const hit = protective.find((r, i) => active[i] && (!same(r.to, parts) || r.noLegs === true));
   if (hit) { parts = hit.to; reason = hit.reason; fromPlan = false; }
+  const noLegs = hit?.noLegs === true;
 
   const [first, also] = parts as [AlsoPart, AlsoPart?];
-  const label = dayLabel(asDay(date, parts));
-  return { sport: first.sport, hardness: first.hardness, ...(also ? { also } : {}), label, reason, line: `${label} – ${reason}`, fromPlan };
+  const label = wordsOf(date, parts, noLegs);
+  const legs = noLegs ? false : plan?.legs;
+  return { sport: first.sport, hardness: first.hardness, ...(also ? { also } : {}), label, reason, line: `${label} – ${reason}`, fromPlan, ...(legs !== undefined ? { legs } : {}) };
 }

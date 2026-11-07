@@ -54,6 +54,15 @@ describe('gym time budget', () => {
     expect(gymBudgetOf(store([plan, f({ date: '2026-11-09', minutes: 30 })]), 'p', '2026-11-09')).toBe(60);
     expect(gymBudgetOf(store([plan, f({ date: '2026-11-11', minutes: 20 })]), 'p', '2026-11-09')).toBe(20);
   });
+  it('skips a gym day that already has a finished workout', () => {
+    const body = (endMs: number | null) => ({ id: 'w', title: 't', startMs: new Date(2026, 10, 11, 8).getTime(), endMs, source: 'pandafit', exercises: [] });
+    const w = (endMs: number | null): TrackedRecord => ({ kind: 'workout', id: 'w', updatedMs: 1, deleted: false, body: body(endMs) });
+    const f = frameRecord({ mode: 'week', minutes: 60, today: { date: '2026-11-11', minutes: 20 } }, 5);
+    // finished: that day is done, so the usual time counts (no later gym day: today)
+    expect(gymBudgetOf(store([plan, f, w(new Date(2026, 10, 11, 9).getTime())]), 'p', '2026-11-09')).toBe(60);
+    // still open: the day stays
+    expect(gymBudgetOf(store([plan, f, w(null)]), 'p', '2026-11-09')).toBe(20);
+  });
   it('is one line in the prompt', () => {
     const p = buildGymPrompt({ state: initialGymState('p'), workouts: [], templates: [], nowMs: 1, summaries: [], complaints: [], previous: null, wantNote: false, budgetMinutes: 30 });
     expect(p).toContain('Zeit: höchstens 30 Min einschließlich Aufwärmen und Pausen.');

@@ -73,3 +73,10 @@ test('the harder part counts for hard days', () => {
   const v = checkWeekPlan(week({ 0: day('', 'gym', 'hard', { also: also('bike') }), 2: day('', 'bike', 'easy', { also: also('run', 'hard') }), 4: day('', 'run', 'hard') }));
   expect(v).toEqual(['Mehr als zwei harte Tage in der Woche.']);
 });
+
+test('a second part is dropped when both parts are hard', () => {
+  const days = week({ 1: day('', 'gym', 'hard', { also: { sport: 'bike', hardness: 'hard' } }), 2: day('', 'gym', 'hard', { also: { sport: 'bike', hardness: 'easy' } }) });
+  const p = parseProposal({ weekStart: '2026-11-02', days })!;
+  expect(p.days[1]!.also).toBeUndefined();
+  expect(p.days[2]!.also).toEqual({ sport: 'bike', hardness: 'easy' });
+});

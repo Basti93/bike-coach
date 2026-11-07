@@ -37,4 +37,10 @@ describe('what fits today in the hint', () => {
     (hard.body as { days: { hardness: string }[] }).days[5]!.hardness = 'hard';
     expect(planHint([hard], NOW, 'bike', { ...ctx('week'), readiness: { restingHrRaised: true } })).toContain('Heute passt: Ruhetag – weil dein Ruhepuls erhöht ist.');
   });
+  it('week mode: no line at all when today has no plan day', () => {
+    const rec = plan('2026-11-02', { 0: 'bike' });
+    const h = planHint([rec], NOW, 'bike', ctx('week'));
+    expect(h).not.toContain('Heute passt');
+    expect(planHint([], NOW, 'run', ctx('week'))).toBe('');
+  });
 });

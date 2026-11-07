@@ -109,5 +109,8 @@ export function ruleWorkout(ctx: GymContext): Plan & { guard?: string } {
   if (minimal.workout.exercises.length === 0) return { ...minimal, ...(guard ? { guard } : {}) };
   const fit = trimToLimit(minimal.workout, limit);
   const again = checkWorkout(fit, ctx);
-  return { ...finish(minimal, again.ok ? again.workout : fit), ...(guard ? { guard } : {}) };
+  const done = finish(minimal, again.ok ? again.workout : fit);
+  // Even the smallest plan is longer than the time: say so instead of a number that looks like it fits.
+  if (ctx.budgetMinutes !== undefined && gymMinutes(done.workout) > limit) done.reason = `${done.reason} Das ist länger als deine ${ctx.budgetMinutes} Min.`;
+  return { ...done, ...(guard ? { guard } : {}) };
 }

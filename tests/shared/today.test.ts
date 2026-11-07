@@ -19,8 +19,16 @@ describe('todayAdvice', () => {
 
   it('2: hard legs yesterday, no hard leg day today', () => {
     const ratings = rated(past(1, { hardness: 'hard', legs: true, sports: ['gym'] }));
+    // the planned sport stays: strength goes on without legs, bike and run get less hard
     expect(todayAdvice(base({ ratings, planDay: planDay({ sport: 'gym', hardness: 'hard' }) })))
-      .toMatchObject({ sport: 'mobility', hardness: 'easy', reason: 'weil deine Beine gestern hart gearbeitet haben' });
+      .toMatchObject({ sport: 'gym', hardness: 'hard', legs: false, label: 'Kraft ohne Beine', line: 'Kraft ohne Beine – weil deine Beine gestern hart gearbeitet haben', fromPlan: false });
+    expect(todayAdvice(base({ ratings, planDay: planDay({ sport: 'gym', hardness: 'moderate', also: { sport: 'bike', hardness: 'hard' } }) })))
+      .toMatchObject({ sport: 'gym', legs: false, label: 'Kraft ohne Beine + Rad, mittel', also: { sport: 'bike', hardness: 'moderate' } });
+    expect(todayAdvice(base({ ratings, planDay: planDay({ sport: 'bike', hardness: 'hard' }) })))
+      .toMatchObject({ sport: 'bike', hardness: 'moderate', reason: 'weil deine Beine gestern hart gearbeitet haben' });
+    // a plan day that leaves the legs out anyway is fine as it is
+    expect(todayAdvice(base({ ratings, planDay: planDay({ sport: 'gym', hardness: 'moderate', legs: false }) })))
+      .toMatchObject({ sport: 'gym', fromPlan: true, legs: false });
     // spontaneous: the gym is not picked even if it was done longest ago
     const a = todayAdvice(base({ ratings: rated(past(1, { hardness: 'hard', legs: true, sports: ['gym'] }), past(3, { hardness: 'easy', sports: ['bike'] })), frame: { mode: 'spontaneous' }, goal: { sports: { gym: 'equal', bike: 'equal' } } }));
     expect(a.sport).toBe('bike');

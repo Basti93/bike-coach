@@ -58,6 +58,8 @@ type Deps = {
   complaint: (id: string, text: string) => void;
   /** Recent mobility for the prompt, as data. */
   mobility?: (id: string) => unknown;
+  /** Today's advice asks for strength without leg exercises (tired legs): plan without them. */
+  avoidLegsToday?: (id: string) => boolean;
   /** The accepted week plan as prompt text, or ''. */
   planHint?: (id: string) => string;
   /** Hands a task from this coach to another one. */
@@ -363,7 +365,7 @@ export class GymCoach {
       const overrides = this.loadSteps(id);
       const excluded = this.excluded(id);
       const budget = this.deps.store ? gymBudgetOf(this.deps.store, id, dateKey(now)) : null;
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) };
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) || this.deps.avoidLegsToday?.(id) ? { avoidLegs: true } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) };
       const rule = ruleWorkout(ctx);
       if (rule.guard) console.warn(`Regel-Training: erster Plan verworfen (${rule.guard})`);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;

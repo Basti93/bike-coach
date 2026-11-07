@@ -154,6 +154,9 @@ describe('replan key and exact-title exclusion', () => {
     expect(personalKeyOf([rec('proposed')], [])).toBe(base);
     expect(personalKeyOf([rec('declined')], [])).toBe(base);
     expect(personalKeyOf([rec('active')], [])).not.toBe(base);
+    const frame = { kind: 'frame' as const, id: 'frame', updatedMs: 5, deleted: false, body: {} };
+    expect(personalKeyOf([], [], [frame])).not.toBe(base);
+    expect(personalKeyOf([], [], [{ ...frame, updatedMs: 6 }])).not.toBe(personalKeyOf([], [], [frame]));
   });
 
   it('an unlinked Hevy template with the exact title of an excluded exercise is rejected and filtered', () => {

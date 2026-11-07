@@ -29,8 +29,7 @@ test('the mode and minutes selects write the frame, stamped above a stored one',
 test('spontaneous mode shows the advice instead of the week', async () => {
   const { port } = fakePort([plan(['gym', 'bike', 'run']), frameRecord({ mode: 'spontaneous', minutes: null }, 1)]);
   render(<CoachScreen port={port} {...env} />);
-  expect(await screen.findByRole('heading', { name: /^Heute: / })).toBeTruthy();
-  expect(screen.getByText(/^weil /)).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: /^Heute: .* – weil / })).toBeTruthy();
   expect(screen.queryByRole('list', { name: 'Wochenplan diese Woche' })).toBeNull();
 });
 
@@ -44,15 +43,21 @@ test('"Heute nur" writes frame.today for today only', async () => {
 test('the start screen without a plan shows the advice with its reason', async () => {
   const { port } = fakePort([]);
   render(<TodayCard port={port} weekplans={[]} runs={[]} nowMs={NOW} gym={null} />);
-  expect(await screen.findByRole('heading', { name: /^Heute: / })).toBeTruthy();
-  expect(screen.getByText(/^weil /)).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: /^Heute: .* – weil / })).toBeTruthy();
   expect(screen.getByLabelText('Heute nur')).toBeTruthy();
 });
 
-test('week mode with a plan shows the plan, and the advice only when it differs', async () => {
-  const day = (sports: string[]) => [plan(sports)];
-  const { port } = fakePort([{ kind: 'workout', id: 'w', updatedMs: 1, deleted: false, body: { id: 'w', title: 'Beine', startMs: NOW - 86_400_000, endMs: NOW - 86_400_000 + 3_600_000, source: 'pandafit', exercises: [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [] }] } }]);
-  render(<TodayCard port={port} weekplans={day(['rest', 'rest', 'gym'])} runs={[]} nowMs={NOW} gym={null} />);
-  expect(screen.getByRole('heading').textContent).toBe('Heute: Kraft, mittel');
-  expect(await screen.findByText(/^Heute passt: /)).toBeTruthy();
+test('week mode: the plan day is the headline when it fits; when it does not, the advice is, with the plan in one muted line', async () => {
+  const legs = { kind: 'workout', id: 'w', updatedMs: 1, deleted: false, body: { id: 'w', title: 'Beine', startMs: NOW - 86_400_000, endMs: NOW - 86_400_000 + 3_600_000, source: 'pandafit', exercises: [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [] }] } } as TrackedRecord;
+  const fits = fakePort([plan(['rest', 'rest', 'bike'])]);
+  render(<TodayCard port={fits.port} weekplans={[plan(['rest', 'rest', 'bike'])]} runs={[]} nowMs={NOW} gym={null} />);
+  expect((await screen.findByRole('heading')).textContent).toBe('Heute: Rad, mittel');
+  expect(screen.queryByText(/Geplant war/)).toBeNull();
+  cleanup();
+  const { port } = fakePort([plan(['rest', 'rest', 'gym']), legs]);
+  render(<TodayCard port={port} weekplans={[plan(['rest', 'rest', 'gym'])]} runs={[]} nowMs={NOW} gym={<button type="button">Zum Krafttraining</button>} />);
+  await waitFor(() => expect(screen.getByRole('heading').textContent).toBe('Heute: Kraft ohne Beine – weil deine Beine gestern hart gearbeitet haben'));
+  expect(screen.getByText('Geplant war: Kraft, mittel')).toBeTruthy();
+  expect(screen.getByText('Zum Krafttraining')).toBeTruthy();
+  expect(screen.queryByText(/Heute passt/)).toBeNull();
 });

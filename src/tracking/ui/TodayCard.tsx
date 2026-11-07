@@ -40,9 +40,10 @@ function Connected({ port, ...props }: Props & { port: TrackingPort }) {
 
 function View({ weekplans, runs, nowMs, gym, onRun, bike, a }: Props & { a?: Advice }) {
   const date = dateKeyOf(nowMs);
-  const spontaneous = a?.frame.mode === 'spontaneous';
   const planned = todayPlan(weekplans, nowMs);
-  const today: PlanDay | null = spontaneous && a
+  // The advice is the headline whenever it is not the plan day unchanged; the plan day is then one muted line.
+  const deviates = a !== undefined && (a.frame.mode === 'spontaneous' || (planned !== null && !a.advice.fromPlan));
+  const today: PlanDay | null = a && deviates
     ? { date, sport: a.advice.sport, hardness: a.advice.hardness, fixed: false, ...(a.advice.also ? { also: a.advice.also } : {}) }
     : planned;
   const only = a && <TodayOnly frame={a.frame} date={date} onChange={(m) => void a.setToday(m).catch(() => {})} />;
@@ -50,19 +51,19 @@ function View({ weekplans, runs, nowMs, gym, onRun, bike, a }: Props & { a?: Adv
     if (!a) return null;
     return (
       <section className="card tk-today-card" aria-label="Heute">
-        <h2>Heute: {a.advice.label}</h2>
-        <p className="muted">{a.advice.reason}</p>
+        <h2>Heute: {a.advice.line}</h2>
         {only}
       </section>
     );
   }
+  const spontaneous = a?.frame.mode === 'spontaneous';
   const tomorrow = spontaneous ? null : planFor(weekplans ?? [], addDays(today.date, 1));
   const run = hasSport(today, 'run') ? runView(runs ?? [], nowMs).week?.runs.find((r) => r.date === today.date) ?? null : null;
   return (
-    <section className="card tk-today-card" aria-label={spontaneous ? 'Heute' : 'Heute laut Wochenplan'}>
-      <h2>Heute: {label(today)}</h2>
-      {spontaneous && a ? <p className="muted">{a.advice.reason}</p> : a && !a.advice.fromPlan && <p className="muted">Heute passt: {a.advice.line}</p>}
-      {today.note && <p className="muted">{today.note}</p>}
+    <section className="card tk-today-card" aria-label={deviates ? 'Heute' : 'Heute laut Wochenplan'}>
+      <h2>Heute: {deviates && a ? a.advice.line : label(today)}</h2>
+      {deviates && !spontaneous && planned && <p className="muted">Geplant war: {label(planned)}</p>}
+      {!deviates && today.note && <p className="muted">{today.note}</p>}
       {hasSport(today, 'gym') && gym}
       {hasSport(today, 'run') && (
         <>

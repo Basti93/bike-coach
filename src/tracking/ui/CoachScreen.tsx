@@ -165,8 +165,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
       <PlanningLine frame={fr.frame} onMode={(m) => void fr.setMode(m).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'))} onMinutes={(m) => void fr.setMinutes(m).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'))} />
       {fr.frame.mode === 'spontaneous' ? (
         <section className="card" aria-label="Heute">
-          <h2>Heute: {fr.advice.label}</h2>
-          <p className="muted">{fr.advice.reason}</p>
+          <h2>Heute: {fr.advice.line}</h2>
           <p className="muted">Zuletzt: {recent || 'noch nichts'}</p>
         </section>
       ) : (
