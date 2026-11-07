@@ -7,6 +7,7 @@ import { readLoadStep } from '../shared/loads';
 import { readChange } from '../shared/changes';
 import { readGoal, readRule } from '../shared/personal';
 import { readFrame } from '../shared/frame';
+import { readTask } from '../shared/tasks';
 import { readStudio } from '../shared/studio';
 import { readChat } from '../shared/chat';
 import { parseProposal } from '../shared/week-plan';
@@ -44,6 +45,7 @@ export function validBody(kind: RecordKind, body: unknown): boolean {
     case 'goal': return readGoal(body) !== null;
     case 'rule': return readRule('', body) !== null;
     case 'frame': return readFrame(body) !== null;
+    case 'task': return readTask(body) !== null;
   }
 }
 

@@ -66,11 +66,11 @@ export function stateOf(effective: number, range: { min: number; max: number }):
  * The one balance for app, statistics and coach: effective sets per group over the last 7 days against the weekly range, and
  * the weekly average of the last 4 weeks. Unresolved exercises count as `other`, direct only. `other` is listed only when trained.
  */
-export function muscleBalance(items: BalanceItem[], goal: string | null | undefined): GroupBalance[] {
+export function muscleBalance(items: BalanceItem[], goal: string | null | undefined, focus: readonly MuscleGroup[] = []): GroupBalance[] {
   const inDays = (d: number) => items.filter((i) => i.ageMs >= 0 && i.ageMs <= d * DAY_MS);
   const week = tally(inDays(7)), month = tally(inDays(28));
   return GROUPS.filter((g) => g !== 'other' || effectiveOf(month, g) > 0).map((g) => {
-    const target = weeklySetRange(g, goal);
+    const target = weeklySetRange(g, goal, focus);
     const effective7 = effectiveOf(week, g);
     return {
       group: g, label: MUSCLE_TARGETS[g].label,

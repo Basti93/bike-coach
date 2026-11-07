@@ -4,6 +4,7 @@ import { mergeCatalog } from '../../shared/catalog';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import { EXERCISES } from '../../shared/exercises';
 import type { LoggedWorkout, RecordKind, TrackedRecord } from '../../shared/records';
+import { dateKey } from '../../shared/day-rating';
 import { excludedIds, goalOf } from '../../shared/personal';
 import type { TrackingPort } from '../ports';
 import type { createWorkoutStore, StoreView } from '../store';
@@ -49,9 +50,10 @@ export function useExcluded(port: TrackingPort): ReadonlySet<string> {
 }
 
 /** The person's goal (today's default without a record). */
-export function useGoal(port: TrackingPort) {
+export function useGoal(port: TrackingPort, nowMs: number) {
   const goal = usePortRecords(port, 'goal').records;
-  return useMemo(() => goalOf(goal ?? []), [goal]);
+  const today = dateKey(nowMs);
+  return useMemo(() => goalOf(goal ?? [], today), [goal, today]);
 }
 
 export function useStoreView(store: WorkoutStore): StoreView {

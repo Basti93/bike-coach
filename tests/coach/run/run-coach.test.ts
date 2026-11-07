@@ -299,6 +299,42 @@ describe('test runs and restarts', () => {
   const tests = (w: string) => (week(w)?.runs ?? []).filter((r) => r.kind === 'test');
   const weekKey = (n: number) => { const d = new Date(2026, 10, 2 + 7 * n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
+  describe('what changed ("Zuletzt geändert")', () => {
+    const steady = (): GarminRun[] => Array.from({ length: 5 }, (_, i) => [1, 3, 5].map((d) => run(`s${i}${d}`, at(7 * (i - 5) + d, 18), 40, 6))).flat();
+    test('a phase change gets one note with its reason, the first plan none, and the same plan again adds none', async () => {
+      garmin = steady();
+      settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+      const first = make();
+      await first.tick('pa');
+      expect(first.changeNotes('pa').filter((n) => n.text.startsWith('Lauf: Phase'))).toEqual([]);
+      // The coach had planned in phase 1 before.
+      saveRunCache(path.join(dir, 'run'), { ...loadRunCache(path.join(dir, 'run'), 'pa'), lastPhase: 1, planKey: {} });
+      now += HOUR;
+      const coach = make();
+      await coach.tick('pa');
+      const phase = coach.changeNotes('pa').filter((n) => n.text.startsWith('Lauf: Phase'));
+      expect(phase).toEqual([{ atMs: now, coach: 'run', text: 'Lauf: Phase 2', reason: 'drei Läufe pro Woche in 4 von 5 Wochen' }]);
+      saveRunCache(path.join(dir, 'run'), { ...loadRunCache(path.join(dir, 'run'), 'pa'), planKey: {} });
+      now += HOUR;
+      const again = make();
+      await again.tick('pa');
+      expect(again.changeNotes('pa').filter((n) => n.text.startsWith('Lauf: Phase'))).toEqual(phase);
+    });
+    test('a test week gets a note, and the notes keep at most 20', async () => {
+      garmin = history(-11, -1);
+      settings({ weekdays: [0, 2, 4, 6] }, at(-60));
+      now = at(6, 8);
+      const coach = make();
+      await coach.tick('pa');
+      garmin = [...history(-11, -1), run('g-sun', at(6, 9), 60, 9)];
+      now = at(6, 18);
+      await coach.tick('pa');
+      expect(coach.changeNotes('pa').map((n) => n.text)).toEqual(expect.arrayContaining(['Lauf: leichtere Woche', 'Lauf: Testlauf in dieser Woche']));
+      const cache = { ...loadRunCache(path.join(dir, 'run'), 'pa') };
+      expect(cache.changeNotes.length).toBeLessThanOrEqual(20);
+    });
+  });
+
   test('a test is offered 28 days after switch-on', async () => {
     garmin = history(-1, 3);
     // Switched on on Sunday evening; the coach ticks every Monday morning and every Sunday evening, as the runtime would.

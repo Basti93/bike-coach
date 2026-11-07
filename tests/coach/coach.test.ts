@@ -493,3 +493,11 @@ describe('mountains across rides', () => {
     expect(coach.state('p').dirty).toBe(false);
   });
 });
+
+test('the bike changes become notes: the FTP changes with their cause, anything else as said', () => {
+  const c = make(); c.scanRides([A]);
+  c.setFtp('pa', 215);
+  const notes = c.changeNotes('pa');
+  expect(notes.at(-1)).toEqual({ atMs: NOW, coach: 'bike', text: 'FTP: 215 W', reason: 'von dir gesetzt' });
+  expect(notes.every((n) => n.coach === 'bike')).toBe(true);
+});

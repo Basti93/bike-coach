@@ -32,7 +32,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **E Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | ✅ | **F Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
 | ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
-| **H** | **Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
+| ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 
 Die Reihenfolge folgt dem Nutzen: A–C machen die Kraftdaten verlässlich, D ist die Voraussetzung dafür, dass E–H dem Coach mehr erlauben.
 
@@ -176,6 +176,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Verschieben mit „Nach oben/unten“ im Übungsmenü statt Ziehen (leicht, sicher auf dem Handy); Bewegungsblock = Muskelgruppe der Übung (B-Gruppen); Aufwärmen in der App nur als Angebot, im einfachen Coach-Plan automatisch; Steigerung 40 %×5, 60 %×3, 80 %×2, bei Langhantel zuerst die leere Stange (Werte im Regelregister).
 
+## Meilenstein H — Brief (umgesetzt 07.11.2026)
+
+**Ziel:** Über Wochen bleibt nachvollziehbar, was der Coach tut und warum: Schwerpunkte haben ein Ende, deine Rückmeldung zeigt sichtbar Wirkung, und der Chat ist ein Verlauf mit Datum und Uhrzeit.
+
+**Abnahme:**
+1. Ein Schwerpunkt (Muskeln oder Sportart) kann befristet sein („4 Wochen Rücken“). Solange er gilt, plant der Coach mehr dafür und die Muskelbilanz rechnet mit höherem Ziel; danach gilt wieder dein Grundziel, und die App sagt einmal sichtbar, dass er ausgelaufen ist.
+2. Nach dem Training sieht man pro Übung in einem Satz, was beim nächsten Mal passiert und warum („Nächstes Mal 62,5 kg – weil du alle Wiederholungen geschafft hast“; „Gewicht bleibt – weil noch 0 übrig war“).
+3. Auf der Wochenseite steht „Zuletzt geändert“: die letzten Änderungen aller Coaches mit Datum und Grund (z. B. FTP angepasst, Lauf-Phase gewechselt, Gewicht gesteigert).
+4. Der Chat zeigt Tagestrenner und Uhrzeiten; ältere Nachrichten lassen sich schrittweise laden.
+5. Was der Chat-Coach an andere Coaches weitergibt, steht sichtbar unter „Meine Regeln und Ziele“ und lässt sich entfernen; es ist synchronisiert.
+
+**Fällt weg:** die nur auf dem Mac gespeicherte Auftragsliste der Coaches; unbefristete Schwerpunkte als einzige Möglichkeit.
+
+**Nicht dabei:** neue Lösch-Regeln für den Chat (90 Tage bleiben), automatische Volumenanpassung über Wochen ohne Bestätigung, Rückfrage nach jedem Lauf.
+
+**Von Claude entschieden (07.11.2026):** Befristung als optionaler Zeitraum im Ziel (Grundziel bleibt gespeichert); Schwerpunkt-Muskeln erhöhen das Wochenziel um einen Faktor aus dem Regelregister; Begründungen der Steigerung kommen vom Coach mit dem Plan; Aufträge werden eigene Datensätze statt Mac-Datei.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
@@ -221,3 +238,8 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Pausen pro einzelnem Satz und Aufwärmen nach Erfahrung der Person.
   - Verschieben per Ziehen statt über das Menü.
   - Eigene Pausen-Einstellung geht beim Tauschen einer Übung verloren (die neue Übung bekommt ihre eigene Pause).
+- Aus Meilenstein H:
+  - „Nächstes Mal“ steht nur im Verlauf beim letzten Training; eine eigene Zusammenfassung nach dem Training fehlt.
+  - Rad-Änderungen ohne eigenen Grund erscheinen in „Zuletzt geändert“ ohne „– Grund“.
+  - Chat-Nachrichten werden weiter nach 90 Tagen gelöscht (alte Regel, bewusst beibehalten).
+  - Läufe haben keine eigene Rückfrage nach dem Training.

@@ -28,7 +28,7 @@ export type RuleInput = {
   /** Dates of long runs planned before this plan (the week before, earlier days of this week): no test the day after. */
   longDates?: string[];
 };
-export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null;
+export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null; light?: boolean;
   /** The week's heart-rate cap for easy runs (null without a max heart rate), and whether the counts text mentions the trend. */
   hrCap: number | null; hasTrend: boolean };
 
@@ -237,6 +237,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     totalMinutes: runs.reduce((s, r) => s + r.minutes * (r.kind === 'test' ? TEST_LOAD : 1), 0),
     maxRunMinutes: runs.reduce((m, r) => Math.max(m, r.minutes), 0),
     testDate,
+    light,
     hrCap,
     hasTrend,
   };

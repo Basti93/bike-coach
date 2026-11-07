@@ -14,7 +14,8 @@ const wk = (daysAgo: number, sets: S[], templateId = 'sq', title = 'Squat'): Str
 const PLATES = { type: 'weight_reps', equipment: 'barbell', primaryMuscle: 'chest' };
 const MACHINE = { type: 'weight_reps', equipment: 'machine', primaryMuscle: 'chest' };
 const RAISE = { type: 'weight_reps', equipment: 'dumbbell', primaryMuscle: 'side_delts' };
-const suggest = (id: string, ws: StrengthWorkout[], now: number, ex: Parameters<typeof suggestNext>[3] = PLATES, plan?: Parameters<typeof suggestNext>[4]) => suggestNext(id, ws, now, ex, plan);
+const suggest = (id: string, ws: StrengthWorkout[], now: number, ex: Parameters<typeof suggestNext>[3] = PLATES, plan?: Parameters<typeof suggestNext>[4]) => { const { reason: _r, ...rest } = suggestNext(id, ws, now, ex, plan); return rest; };
+const reasonOf = (ws: StrengthWorkout[], now = NOW) => suggestNext('sq', ws, now, PLATES).reason;
 
 const withEffort = (w: StrengthWorkout, effort: 'none' | 'some' | 'plenty'): StrengthWorkout => ({ ...w, exercises: w.exercises.map((e) => ({ ...e, effort })) });
 
@@ -222,5 +223,33 @@ describe('drops and ladder from work sets', () => {
   it('warmup and dropset weights do not shrink the step', () => {
     const ws = [wk(14, [[22.5, 5, 'warmup'], [40, 8], [30, 8, 'dropset'], [50, 8]]), wk(7, [[27.5, 5, 'warmup'], [55, 8]])];
     expect(ladderFor('sq', MACHINE, ws, NOW).stepKg).toBe(5);
+  });
+});
+
+describe('suggestNext says why, one sentence per decision path', () => {
+  it('all reps reached', () => {
+    expect(reasonOf([wk(14, [[60, 8], [60, 8]]), wk(7, [[60, 8], [60, 9]])])).toBe('weil du alle Wiederholungen geschafft hast');
+  });
+  it('not all reps reached', () => {
+    expect(reasonOf([wk(14, [[60, 10], [60, 10]]), wk(7, [[60, 10], [60, 8]])])).toBe('weil du noch nicht alle Wiederholungen geschafft hast');
+  });
+  it('too little to compare', () => {
+    expect(reasonOf([wk(7, [[60, 8]])])).toBe('weil erst eine Einheit zum Vergleichen da ist');
+  });
+  it('0 left and the reps hold', () => {
+    const a = wk(14, [[60, 8], [60, 8]]);
+    expect(reasonOf([a, withEffort(wk(7, [[60, 8], [60, 9]]), 'none')])).toBe('weil noch 0 übrig waren und die Leistung hält');
+  });
+  it('3+ left', () => {
+    expect(reasonOf([withEffort(wk(7, [[60, 8], [60, 8]]), 'plenty')])).toBe('weil noch 3 oder mehr übrig waren');
+  });
+  it('performance dropped twice', () => {
+    expect(reasonOf([wk(21, [[60, 10]]), wk(14, [[60, 9]]), wk(7, [[60, 8]])])).toBe('weil die Leistung zweimal gesunken ist');
+  });
+  it('a long break', () => {
+    expect(reasonOf([wk(40, [[60, 8], [60, 8]])])).toBe('weil die letzte Einheit lange her ist');
+  });
+  it('no history has no reason to give', () => {
+    expect(suggestNext('sq', [], NOW, PLATES).reason).toBe('');
   });
 });

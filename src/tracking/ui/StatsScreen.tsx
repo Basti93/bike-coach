@@ -169,8 +169,8 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
   const workouts: LoggedWorkout[] = useMemo(() => countable(workoutRecords), [workoutRecords]);
   const nowMs = now();
   const catalog = useCatalog(port);
-  const goal = useGoal(port);
-  const v = useMemo(() => statsView(stats, workouts, nowMs, catalog, goal.strength), [stats, workouts, nowMs, catalog, goal]);
+  const goal = useGoal(port, nowMs);
+  const v = useMemo(() => statsView(stats, workouts, nowMs, catalog, goal.strength, goal.focus), [stats, workouts, nowMs, catalog, goal]);
   const progress = useMemo(() => progressRows({
     nowMs, ftp: stats?.ftp ?? [], weightKg: stats?.weightKg ?? null, runPace: runView(runRecords ?? [], nowMs).status?.numbers.easyPace ?? null,
     workouts, weeks: v.weeks.slice(0, -1).map((w) => ({ sets: w.effective })), targets: v.targets,

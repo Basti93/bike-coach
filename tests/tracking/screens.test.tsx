@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { WorkoutScreen } from '../../src/tracking/ui/WorkoutScreen';
 import { RoutinesScreen } from '../../src/tracking/ui/RoutinesScreen';
+import { CoachScreen } from '../../src/tracking/ui/CoachScreen';
 import { HistoryScreen } from '../../src/tracking/ui/HistoryScreen';
 import { ExercisePicker } from '../../src/tracking/ui/ExercisePicker';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
@@ -697,6 +698,15 @@ describe('effort question after an exercise', () => {
     expect(screen.queryByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).toBeNull();
     expect(screen.getByText('Noch möglich: 1–2')).toBeTruthy();
   });
+  it('thanks for the answer and says it goes into the next suggestion', async () => {
+    const { port } = fakePort([rec(planned())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    expect(screen.queryByText('Danke – das fließt in den nächsten Vorschlag ein.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
+    fireEvent.click(within(await screen.findByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).getByRole('button', { name: '1–2' }));
+    expect(await screen.findByText('Danke – das fließt in den nächsten Vorschlag ein.')).toBeTruthy();
+  });
   it('can be skipped, and switched off on this device', async () => {
     const { port, map } = fakePort([rec(planned())]);
     render(<WorkoutScreen port={port} {...ids} />);
@@ -732,4 +742,60 @@ test('the rest timer has +30 s, and the per-exercise Pause select sets the rest'
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.change(screen.getByLabelText('Pause Bankdrücken'), { target: { value: '180' } });
   await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
+});
+
+describe('next time, in the history of the latest workout', () => {
+  const stats = (next: object[]): TrackedRecord => ({ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body: { type: 'stats', atMs: 1, goal: null, days: [], muscles: {}, next } });
+  const step = (over: object = {}) => ({ exerciseId: 'pf-squat', title: 'Kniebeuge', weightKg: 62.5, reps: 8, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'b', atMs: 8000, ...over });
+  it('shows one line per exercise with the reason', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000)), stats([step()])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
+    expect(await screen.findByText('Nächstes Mal: 62,5 kg × 8 – weil du alle Wiederholungen geschafft hast.')).toBeTruthy();
+    expect(screen.queryByText('Kommt nach der Auswertung')).toBeNull();
+  });
+  it('says it comes after the evaluation until the publish arrives', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
+    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
+  });
+  it('an older workout shows neither', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000)), stats([step()])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[1]);
+    await screen.findByText('Kniebeuge');
+    expect(screen.queryByText(/Nächstes Mal/)).toBeNull();
+    expect(screen.queryByText('Kommt nach der Auswertung')).toBeNull();
+  });
+  it('a step for another workout is not shown for this one', async () => {
+    const { port } = fakePort([rec(finished('b', 9000)), stats([step({ forWorkoutId: 'zzz', atMs: 1 })])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Beine/ }));
+    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
+    expect(screen.queryByText(/Nächstes Mal/)).toBeNull();
+  });
+});
+
+describe('Zuletzt geändert on the week page', () => {
+  const at = (day: number) => new Date(2026, 10, day, 12).getTime();
+  const note = (i: number, over: object = {}) => ({ atMs: at(i), coach: 'gym', text: `Bankdrücken ${i}`, reason: 'weil du alle Wiederholungen geschafft hast', ...over });
+  const stats = (changes: object[]): TrackedRecord => ({ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body: { type: 'stats', atMs: 1, goal: null, days: [], muscles: {}, changes } });
+  it('shows up to 5 lines with date, text and reason', async () => {
+    const { port } = fakePort([stats([1, 2, 3, 4, 5, 6, 7].map((i) => note(i)))]);
+    render(<CoachScreen port={port} now={() => at(8)} newId={() => 'x'} />);
+    const card = await screen.findByLabelText('Zuletzt geändert');
+    const lines = within(card).getAllByRole('listitem');
+    expect(lines).toHaveLength(5);
+    expect(lines[0]!.textContent).toBe('Sa., 7. Nov. · Bankdrücken 7 – weil du alle Wiederholungen geschafft hast');
+  });
+  it('without notes there is no card, and a note without a reason has no dash', async () => {
+    const { port } = fakePort([]);
+    render(<CoachScreen port={port} now={() => at(8)} newId={() => 'x'} />);
+    await screen.findByText('Woche');
+    expect(screen.queryByLabelText('Zuletzt geändert')).toBeNull();
+    const second = fakePort([stats([note(3, { reason: '' })])]);
+    render(<CoachScreen port={second.port} now={() => at(8)} newId={() => 'x'} />);
+    expect((await screen.findByLabelText('Zuletzt geändert')).textContent).toContain('Di., 3. Nov. · Bankdrücken 3');
+  });
 });

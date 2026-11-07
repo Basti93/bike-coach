@@ -259,6 +259,26 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Woche', exact: true }).first().click();
     await win.waitForTimeout(300);
   }, crop: '.tk-rules' },
+  { name: 'week-chat', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1500, steps: async (win) => {
+    // Invented chat over three days and two forwarded requests; the week screen reads the records when it opens.
+    const t = Date.now();
+    const at = (daysAgo: number, h: number, m: number) => { const d = new Date(t); d.setDate(d.getDate() - daysAgo); d.setHours(h, m, 0, 0); return d.getTime(); };
+    const M = (id: string, role: string, text: string, atMs: number) => ({ kind: 'chat', id, updatedMs: atMs, deleted: false, body: { role, text, atMs } });
+    const T = (id: string, from: string, to: string, text: string, lasting: boolean, atMs: number) => ({ kind: 'task', id, updatedMs: atMs, deleted: false, body: { from, to, text, lasting, atMs } });
+    const rows = [
+      M('c1', 'rider', 'Diese Woche passt Donnerstag nicht.', at(3, 18, 20)),
+      M('c2', 'coach', 'Verstanden, ich lege Donnerstag frei.', at(3, 18, 21)),
+      M('c3', 'rider', 'Heute nur eine Trizepsübung, die Schulter zwickt.', at(1, 7, 55)),
+      M('c4', 'coach', 'Gebe ich an den Kraft-Coach weiter.', at(1, 7, 56)),
+      M('c5', 'rider', 'Wie sieht morgen aus?', at(0, 8, 40)),
+      M('c6', 'coach', 'Morgen ein lockerer Lauf, danach frei.', at(0, 8, 41)),
+      T('task-s1', 'chat', 'gym', 'Nur eine Trizepsübung, Schulter schonen', false, at(1, 7, 56)),
+      T('task-s2', 'bike', 'run', 'Beine nach der langen Fahrt locker halten', true, at(2, 19, 0)),
+    ];
+    await win.evaluate((rs) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map(rs.map((r) => [`${r.kind}:${r.id}`, r])); }, rows);
+    await win.getByRole('button', { name: 'Woche', exact: true }).first().click();
+    await win.waitForTimeout(300);
+  } },
   { name: 'meals-week', ride: idle(), coach: coach({ meals: MEALS }), pick: true, click: 'Essen', height: 860, width: 1280 },
   { name: 'meals-chat', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280 },
   { name: 'meals-chat-history', ride: idle(), coach: coach({ meals: MEALS_CHAT }), pick: true, click: 'Essen', height: 980, width: 1280, steps: async (win) => { await win.getByText(/Bisheriges Gespräch/).click(); await win.waitForTimeout(150); } },

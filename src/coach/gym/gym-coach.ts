@@ -1,5 +1,8 @@
 import { ClaudeError } from '../claude-client';
 import type { StrengthWorkout } from '../hevy';
+import { isAssisted, suggestNext } from './history';
+import { addNote, type ChangeNote } from '../../shared/change-notes';
+import type { NextStep } from '../../shared/stats';
 import type { RideSummary } from '../metrics';
 import { complaintFromNote, type Complaint } from '../motivation';
 import { checkWorkout, reasonPhrase, WIDOWMAKER_REPS, type GymContext } from './guardrails';
@@ -262,10 +265,73 @@ export class GymCoach {
     const have = new Set(own.map((t) => t.id));
     const list = [...own, ...this.ownExercises(id).filter((t) => !have.has(t.id)), ...hevy.filter((t) => !linked.has(t.id))];
     // Remembered with the unlinked Hevy templates and the whole catalog, so any known id finds its muscle.
+    this.listed.set(id, new Map([...hevy, ...list].map((t) => [t.id, t] as const)));
     this.known.set(id, new Map([...catalog.map((e) => [e.id, e.primaryMuscle] as const), ...[...hevy, ...list].map((t) => [t.id, t.primaryMuscle] as const)]));
     return list;
   }
   private known = new Map<string, Map<string, string>>();
+  private listed = new Map<string, Map<string, ExerciseTemplate>>();
+  /**
+   * What the next plan would give for each exercise of the latest workout, with the words for why. It uses exactly what the plan uses
+   * (studio, weight steps, renames, the template of the last list), so "next time" and the next plan agree. Empty before the first template list.
+   */
+  nextSteps(id: string): NextStep[] {
+    const now = this.deps.nowMs();
+    const known = this.listed.get(id);
+    if (!known) return [];
+    const real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
+    const latest = real.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
+    if (!latest) return [];
+    const plan = { studio: this.studio(id), overrides: this.loadSteps(id), renames: this.studios(id).renames };
+    const seen = new Set<string>();
+    const out: NextStep[] = [];
+    for (const e of latest.exercises) {
+      if (!e.templateId || seen.has(e.templateId)) continue;
+      seen.add(e.templateId);
+      const t = known.get(e.templateId);
+      const s = suggestNext(e.templateId, real, now, t, plan);
+      if (s.why === 'none') continue;
+      out.push({ exerciseId: e.templateId, title: t?.title ?? e.title, weightKg: s.weightKg, reps: s.reps, why: s.why, reason: s.reason, forWorkoutId: latest.id, atMs: latest.startMs });
+    }
+    return out.slice(0, 30);
+  }
+  /** What the coach changed on exercises, newest last: the notes of the plans, kept up to 20 and 60 days. */
+  changeNotes(id: string): ChangeNote[] { return this.state(id).changeNotes.map(({ key: _k, ...n }) => n); }
+  /**
+   * After a plan: an exercise whose first work weight differs from the last session's gets a note with the reason the progression
+   * gives. One note per exercise and latest workout, so replanning replaces it. Never throws; a note is a bonus.
+   */
+  private noteChanges(id: string): void {
+    try {
+      const now = this.deps.nowMs();
+      const next = this.state(id).next;
+      if (!next) return;
+      const real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
+      const latest = real.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
+      if (!latest) return;
+      const known = this.listed.get(id);
+      const plan = { studio: this.studio(id), overrides: this.loadSteps(id), renames: this.studios(id).renames };
+      const firstKg = (sets: { type: string; weightKg: number | null }[]): number | null => sets.find((x) => x.type === 'normal' && x.weightKg !== null)?.weightKg ?? null;
+      const fmt = (kg: number): string => String(kg).replace('.', ',');
+      let notes = this.state(id).changeNotes;
+      const before = JSON.stringify(notes);
+      const seen = new Set<string>();
+      for (const e of next.workout.exercises) {
+        if (!e.templateId || seen.has(e.templateId)) continue;
+        seen.add(e.templateId);
+        const t = known?.get(e.templateId);
+        const key = `${e.templateId}|${latest.id}`;
+        const last = real.filter((w) => w.exercises.some((x) => x.templateId === e.templateId)).sort((a, b) => b.startMs - a.startMs)[0];
+        const was = last ? firstKg(last.exercises.find((x) => x.templateId === e.templateId)!.workSets) : null;
+        const to = firstKg(e.sets);
+        if (was === null || to === null || was === to || isAssisted(t?.type)) { notes = notes.filter((n) => n.key !== key); continue; }
+        const s = suggestNext(e.templateId, real, now, t, plan);
+        const agrees = (to > was && s.why === 'progress') || (to < was && s.why === 'step-back');
+        notes = addNote(notes, { atMs: now, coach: 'gym', text: `${t?.title ?? e.title}: ${fmt(was)} → ${fmt(to)} kg`, reason: agrees && s.reason ? s.reason : 'weil der Plan es so vorsieht', key }, now);
+      }
+      if (JSON.stringify(notes) !== before) this.update(id, (x) => { x.changeNotes = notes; });
+    } catch { /* the plan stands without its note */ }
+  }
   /** Whether a template list of this profile was made since the start. */
   knowsTemplates(id: string): boolean { return this.known.has(id); }
   /** The primary muscle of a template from the last template list of this profile; null before the first one or when unknown. */
@@ -313,13 +379,13 @@ export class GymCoach {
   tick(id: string): Promise<void> {
     const active = this.running.get(id);
     if (active) return active;
-    const run: Promise<void> = this.plan(id).finally(() => { if (this.running.get(id) === run) this.running.delete(id); });
+    const run: Promise<void> = this.plan(id).then((planned) => { if (planned) this.noteChanges(id); }).finally(() => { if (this.running.get(id) === run) this.running.delete(id); });
     this.running.set(id, run);
     return run;
   }
 
-  private async plan(id: string): Promise<void> {
-    if (!this.enabled(id) || !this.deps.ready(id)) return;
+  private async plan(id: string): Promise<boolean> {
+    if (!this.enabled(id) || !this.deps.ready(id)) return false;
     // Workouts loaded before the store existed reach it once, without waiting for a change.
     if (this.isHevy(id) && !this.imported.has(id)) { this.imported.add(id); try { this.importHevy(id); } catch { this.imported.delete(id); } }
     const now = this.deps.nowMs();
@@ -332,12 +398,12 @@ export class GymCoach {
     if (used !== s.complaintsFingerprint) this.update(id, (x) => { x.complaintsFingerprint = used; x.dirty = true; x.attempts = 0; });
     const seen = new Set(s.seenWorkoutIds);
     const unseen = real.filter((w) => !seen.has(w.id));
-    if (s.planned && !s.dirty && unseen.length === 0) return;
+    if (s.planned && !s.dirty && unseen.length === 0) return false;
     const newest = (list: StrengthWorkout[]) => list.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
     const key = (newest(unseen) ?? newest(real))?.id ?? 'none';
     if (s.attemptKey !== key) this.update(id, (x) => { x.attemptKey = key; x.attempts = 0; });
-    if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return;
-    if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return;
+    if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return false;
+    if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return false;
     this.update(id, (x) => { x.dirty = true; });
     const latest = newest(real);
     // Old workouts surfacing during a break get no feedback, which would also replace the note about the break.
@@ -350,7 +416,7 @@ export class GymCoach {
       templates = await this.templateList(id);
     } catch {
       this.updateIf(gen, id, (x) => { x.lastError = 'failed'; x.templatesFailedMs = now; });
-      return;
+      return false;
     }
     this.updateIf(gen, id, (x) => { x.templatesFailedMs = null; x.attempts += 1; x.lastAttemptMs = now; });
     try {
@@ -378,7 +444,7 @@ export class GymCoach {
           x.emptyReason = hasRule ? null : rule.reason;
           x.lastError = null; x.dirty = false; x.planned = true; x.attempts = 0; x.seenWorkoutIds = [];
         });
-        return;
+        return true;
       }
       // An empty rule workout is never stored as an offer; only its reason is kept.
       this.updateIf(gen, id, (x) => {
@@ -386,7 +452,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(avoidLegs ? { avoidLegs: true } : {}), ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(avoidLegs ? { avoidLegs: true } : {}), ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id, dateKey(now)), wishes: wishesOf(this.deps.store, id, 'gym') } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
@@ -409,8 +475,10 @@ export class GymCoach {
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
       });
+      return true;
     } catch (e) {
       this.updateIf(gen, id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
+      return false;
     }
   }
 

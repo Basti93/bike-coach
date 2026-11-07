@@ -1,6 +1,8 @@
 import type { TrackedRecord } from './records';
 import type { MuscleGroup } from './muscle-targets';
 import { titleHash, above } from './exercise-links';
+import { addDays } from './week-plan';
+import { ruleNumber } from './training-policy';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
@@ -14,8 +16,13 @@ export const MAX_EXCLUDED = 30;
 export type Strength = 'muscle' | 'strength' | 'fitness';
 export type Prio = 'focus' | 'equal' | 'keep';
 export type SportKey = 'gym' | 'bike' | 'run';
-export type GoalBody = { strength: Strength; focus: MuscleGroup[]; sports: Partial<Record<SportKey, Prio>>; atMs: number };
+/** A focus that lies over the base goal until a date (inclusive). It never changes the base; `endedSeenMs` hides the end notice. */
+export type TemporaryFocus = { focus?: MuscleGroup[]; sports?: Partial<Record<SportKey, Prio>>; until: string; endedSeenMs?: number };
+export type GoalBody = { strength: Strength; focus: MuscleGroup[]; sports: Partial<Record<SportKey, Prio>>; temporary?: TemporaryFocus; atMs: number };
 export const DEFAULT_GOAL: Omit<GoalBody, 'atMs'> = { strength: 'muscle', focus: [], sports: {} };
+export const MAX_WEEKS = 12;
+/** The goal as the coaches and screens use it: the base with an active temporary focus laid over it, plus a recently ended one. */
+export type EffectiveGoal = Omit<GoalBody, 'atMs' | 'temporary'> & { temporary?: TemporaryFocus; ended?: { until: string; focus: MuscleGroup[]; sports: Partial<Record<SportKey, Prio>> } };
 
 const STRENGTHS: Strength[] = ['muscle', 'strength', 'fitness'];
 const PRIOS: Prio[] = ['focus', 'equal', 'keep'];
@@ -36,28 +43,61 @@ function readGoalParts(b: Record<string, unknown>): Omit<GoalBody, 'atMs'> | nul
   return { strength: b.strength as Strength, focus: b.focus as MuscleGroup[], sports };
 }
 
-/** The body of a `goal` record, or null for anything else. */
+const isDateKey = (x: unknown): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && addDays(x, 0) === x;
+
+function readTemporary(t: unknown): TemporaryFocus | null {
+  if (!isObj(t) || !isDateKey(t.until) || (t.focus === undefined && t.sports === undefined)) return null;
+  if (t.endedSeenMs !== undefined && !num(t.endedSeenMs)) return null;
+  const parts = readGoalParts({ strength: 'muscle', focus: t.focus ?? [], sports: t.sports ?? {} });
+  if (!parts) return null;
+  return { ...(t.focus !== undefined ? { focus: parts.focus } : {}), ...(t.sports !== undefined ? { sports: parts.sports } : {}), until: t.until, ...(t.endedSeenMs !== undefined ? { endedSeenMs: t.endedSeenMs as number } : {}) };
+}
+
+/** The body of a `goal` record, or null for anything else. A record without `temporary` reads as before. */
 export function readGoal(body: unknown): GoalBody | null {
   if (!isObj(body) || !num(body.atMs)) return null;
   const g = readGoalParts(body);
-  return g ? { ...g, atMs: body.atMs } : null;
+  if (!g) return null;
+  if (body.temporary === undefined) return { ...g, atMs: body.atMs };
+  const temporary = readTemporary(body.temporary);
+  return temporary ? { ...g, temporary, atMs: body.atMs } : null;
 }
 
 export const goalRecord = (g: Omit<GoalBody, 'atMs'>, nowMs: number, have?: TrackedRecord): TrackedRecord =>
   ({ kind: 'goal', id: GOAL_ID, updatedMs: above(nowMs, have), deleted: false, body: { ...g, atMs: nowMs } });
 
-/** The profile's goal; without a record (or a readable one) today's behaviour: build muscle, no focus, no priorities. */
-export function goalOf(records: readonly TrackedRecord[]): Omit<GoalBody, 'atMs'> {
+/** The stored goal as it is, whatever the date (default without a readable record). Edits start from this, never from the overlay. */
+export function storedGoalOf(records: readonly TrackedRecord[]): Omit<GoalBody, 'atMs'> {
   const r = records.find((x) => x.kind === 'goal' && x.id === GOAL_ID && !x.deleted);
   const g = r ? readGoal(r.body) : null;
-  return g ? { strength: g.strength, focus: g.focus, sports: g.sports } : { ...DEFAULT_GOAL, focus: [], sports: {} };
+  return g ? { strength: g.strength, focus: g.focus, sports: g.sports, ...(g.temporary ? { temporary: g.temporary } : {}) } : { ...DEFAULT_GOAL, focus: [], sports: {} };
+}
+
+/**
+ * The profile's goal on `today` (YYYY-MM-DD): the base, overlaid by a temporary focus while today <= until. After that the base
+ * returns, and `ended` says what ran out for `focus.ended-notice-days` days unless the person has seen it.
+ * Without a record (or a readable one) today's behaviour: build muscle, no focus, no priorities.
+ */
+export function goalOf(records: readonly TrackedRecord[], today: string): EffectiveGoal {
+  const { temporary: t, ...base } = storedGoalOf(records);
+  if (!t) return base;
+  if (today <= t.until) return { ...base, focus: t.focus ?? base.focus, sports: { ...base.sports, ...t.sports }, temporary: t };
+  const noticeUntil = addDays(t.until, ruleNumber('focus.ended-notice-days'));
+  return t.endedSeenMs === undefined && today <= noticeUntil ? { ...base, ended: { until: t.until, focus: t.focus ?? [], sports: t.sports ?? {} } } : base;
+}
+
+/** A goal change applied to the stored goal. With `weeks`, focus and sports go into a temporary focus until then; the strength stays a base change. */
+export function applyGoalPatch(prior: Omit<GoalBody, 'atMs'>, patch: NonNullable<Rule['goal']>, today: string): Omit<GoalBody, 'atMs'> {
+  const { weeks, ...rest } = patch;
+  if (!weeks) return { ...prior, ...rest };
+  return { ...prior, ...(rest.strength ? { strength: rest.strength } : {}), temporary: { ...(rest.focus ? { focus: rest.focus } : {}), ...(rest.sports ? { sports: rest.sports } : {}), until: addDays(today, weeks * 7) } };
 }
 
 export type RuleKind = 'exclude' | 'wish' | 'goal';
 export type RuleSport = SportKey | 'all';
 export type RuleState = 'proposed' | 'active' | 'paused' | 'declined';
 export type RuleSource = 'chat' | 'person' | 'migrated';
-export type Rule = { id: string; kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; goal?: Partial<Omit<GoalBody, 'atMs'>>; state: RuleState; source: RuleSource; atMs: number };
+export type Rule = { id: string; kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; goal?: Partial<Omit<GoalBody, 'atMs' | 'temporary'>> & { weeks?: number }; state: RuleState; source: RuleSource; atMs: number };
 
 const KINDS: RuleKind[] = ['exclude', 'wish', 'goal'];
 const RULE_STATES: RuleState[] = ['proposed', 'active', 'paused', 'declined'];
@@ -90,6 +130,10 @@ export function readRule(id: string, body: unknown): Rule | null {
       if (!parts) return null;
       if (g.focus !== undefined) goal.focus = parts.focus;
       if (g.sports !== undefined) goal.sports = parts.sports;
+    }
+    if (g.weeks !== undefined) {
+      if (typeof g.weeks !== 'number' || !Number.isInteger(g.weeks) || g.weeks < 1 || g.weeks > MAX_WEEKS || (g.focus === undefined && g.sports === undefined)) return null;
+      goal.weeks = g.weeks;
     }
   }
   return { id, kind, text: body.text, sport: body.sport as RuleSport, ...(exerciseIds ? { exerciseIds } : {}), ...(goal ? { goal } : {}), state: body.state as RuleState, source: body.source as RuleSource, atMs: body.atMs };
@@ -148,11 +192,14 @@ export const wishLine = (texts: readonly string[]): string | null =>
  * What makes the coaches plan again: active or paused exclude and wish rules (id, state, exercises, text) and the goal record.
  * Proposals, declines and deleted rules are not in it, so they never trigger a replan. '' when there is nothing.
  */
-export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[], frameRecords: readonly TrackedRecord[] = []): string {
+export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[], frameRecords: readonly TrackedRecord[] = [], today?: string): string {
   const parts = rulesOf(ruleRecords)
     .filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal')
     .map((r) => `${r.id}:${r.state}:${(r.exerciseIds ?? []).join(',')}:${r.text}`);
   for (const g of goalRecords) parts.push(`goal:${g.id}:${g.updatedMs}:${g.deleted ? 1 : 0}`);
+  // A temporary focus that runs out changes the goal without a new record.
+  const until = today ? storedGoalOf(goalRecords).temporary?.until : undefined;
+  if (today && until) parts.push(`focus-active:${today <= until ? 1 : 0}`);
   // A new mode or time makes the plans fit again.
   for (const f of frameRecords) parts.push(`frame:${f.id}:${f.updatedMs}:${f.deleted ? 1 : 0}`);
   return parts.sort().join('|');

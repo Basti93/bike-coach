@@ -18,7 +18,22 @@ const REP_TYPES = ['weight_reps', 'reps_only', 'bodyweight_reps', 'bodyweight_we
 export const isRepBased = (t: ExerciseTemplate): boolean => REP_TYPES.includes(t.type);
 
 export type Availability = { templateId: string; title: string; lastMs: number; recent: boolean };
-export type Suggestion = { weightKg: number | null; reps: number; why: 'progress' | 'keep' | 'step-back' | 'none' };
+/** Which way the decision went; the key into REASONS. */
+type Path = 'none' | 'all-reps' | 'not-all-reps' | 'few-sessions' | 'zero-left' | 'plenty-left' | 'dropped' | 'long-break' | 'assisted';
+/** The words for each decision path, shown to the person as the reason of the next step. */
+export const REASONS: Record<Path, string> = {
+  none: '',
+  'all-reps': 'weil du alle Wiederholungen geschafft hast',
+  'not-all-reps': 'weil du noch nicht alle Wiederholungen geschafft hast',
+  'few-sessions': 'weil erst eine Einheit zum Vergleichen da ist',
+  'zero-left': 'weil noch 0 übrig waren und die Leistung hält',
+  'plenty-left': 'weil noch 3 oder mehr übrig waren',
+  dropped: 'weil die Leistung zweimal gesunken ist',
+  'long-break': 'weil die letzte Einheit lange her ist',
+  assisted: 'weil die Hilfe gleich bleibt',
+};
+export type Suggestion = { weightKg: number | null; reps: number; why: 'progress' | 'keep' | 'step-back' | 'none'; reason: string };
+const done = (weightKg: number | null, reps: number, why: Suggestion['why'], path: Path): Suggestion => ({ weightKg, reps, why, reason: REASONS[path] });
 
 /** Exercises ever done, newest first. Exercises without a template id are skipped. */
 export function availableExercises(workouts: StrengthWorkout[], nowMs: number): Availability[] {
@@ -101,7 +116,7 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   const sessions = templateId ? sessionsOf(templateId, workouts, nowMs, plan) : [];
   const range = repRangeOf({ primaryMuscle: ex?.primaryMuscle });
   const last = sessions[sessions.length - 1];
-  if (!last) return { weightKg: null, reps: range.min, why: 'none' };
+  if (!last) return done(null, range.min, 'none', 'none');
   // Weighted work stays in the rep range; bodyweight work has no upper limit, since reps are its only progression.
   const fit = (r: number): number => last.weightKg === null ? Math.max(1, r) : Math.min(range.max, Math.max(range.min, r));
   const reps = fit(last.minReps);
@@ -109,7 +124,7 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
   const ladder = ladderFor(templateId, ex, workouts, nowMs, plan);
   const stepBack = (kg: number): number => snapDown(kg * STEP_BACK, ladder);
   if (nowMs - last.ms > LONG_BREAK_DAYS * DAY_MS) {
-    return { weightKg: last.weightKg === null || assisted ? last.weightKg : stepBack(last.weightKg), reps, why: 'step-back' };
+    return done(last.weightKg === null || assisted ? last.weightKg : stepBack(last.weightKg), reps, 'step-back', 'long-break');
   }
   const comparable = sessions.filter((s) => nowMs - s.ms <= COMPARABLE_DAYS * DAY_MS);
   // Fewer reps against the session before at exactly the same weight, several times in a row: the weight is too much for now.
@@ -120,16 +135,17 @@ export function suggestNext(templateId: string, workouts: StrengthWorkout[], now
     if (cur.weightKg === null || cur.weightKg !== prev.weightKg || cur.minReps >= prev.minReps) break;
     drops++;
   }
-  if (drops >= DROP_STEP_BACK && last.weightKg !== null && !assisted) return { weightKg: stepBack(last.weightKg), reps, why: 'step-back' };
+  if (drops >= DROP_STEP_BACK && last.weightKg !== null && !assisted) return done(stepBack(last.weightKg), reps, 'step-back', 'dropped');
   if (last.effort !== 'plenty') {
-    if (comparable.length < MIN_COMPARABLE) return { weightKg: last.weightKg, reps, why: 'keep' };
+    if (comparable.length < MIN_COMPARABLE) return done(last.weightKg, reps, 'keep', 'few-sessions');
     const before = comparable[comparable.length - 2];
     const reached = (last.weightKg ?? 0) >= (before.weightKg ?? 0) && last.sets.every((r) => r >= before.minReps);
-    if (!reached) return { weightKg: last.weightKg, reps, why: 'keep' };
+    if (!reached) return done(last.weightKg, reps, 'keep', 'not-all-reps');
   }
-  if (last.weightKg === null || last.minReps < range.max) return { weightKg: last.weightKg, reps: fit(last.minReps + 1), why: 'progress' };
-  if (assisted) return { weightKg: last.weightKg, reps, why: 'keep' };
-  return { weightKg: nextUp(last.weightKg, ladder), reps: range.min, why: 'progress' };
+  const path: Path = last.effort === 'plenty' ? 'plenty-left' : last.effort === 'none' ? 'zero-left' : 'all-reps';
+  if (last.weightKg === null || last.minReps < range.max) return done(last.weightKg, fit(last.minReps + 1), 'progress', path);
+  if (assisted) return done(last.weightKg, reps, 'keep', 'assisted');
+  return done(nextUp(last.weightKg, ladder), range.min, 'progress', path);
 }
 
 /** True when quadriceps, hamstrings, glutes or calves were trained in the last 48 hours. */

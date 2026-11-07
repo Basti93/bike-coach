@@ -48,7 +48,8 @@ import { PlanSeen, adviceKey, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
 import { addDays, mondayOf, planFor } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
-import type { PublishedAdvice, StatsBody } from '../shared/stats';
+import { newestNotes, type ChangeNote } from '../shared/change-notes';
+import type { NextStep, PublishedAdvice, StatsBody } from '../shared/stats';
 import { todayAdvice } from '../shared/today';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -249,7 +250,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     try { ratings = ratingsOf(id, dates, run.runsFor(id)); } catch { /* no ratings: the advice goes by the plan */ }
     let readiness: TodayContext['readiness'];
     try { const data = garminData(id); if (data) readiness = { restingHrRaised: restingHrRaised(data.days) }; } catch { /* no body data */ }
-    return { ratings, goal: goalOfProfile(records, id), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
+    return { ratings, goal: goalOfProfile(records, id, dateKey(now)), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
   };
   /** What fits today for a profile, with the bike rides in the ratings; null when it cannot be told. */
   const adviceOf = (id: string): PublishedAdvice | null => {
@@ -267,19 +268,26 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     const content = statsContent({
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
-      ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id).strength,
+      ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id, dateKey(nowMs())).strength,
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
       ftp: coach.state(id).ftpHistory, weightKg: profiles().find((p) => p.id === id)?.weightKg ?? null,
     });
     // The advice with the bike rides in it, for the devices that cannot see them.
     const advice = content ? adviceOf(id) : null;
-    return content && advice ? { ...content, advice } : content;
+    // What the next gym workout will bring for each exercise of the last one, and why. Left out when there is none.
+    let next: NextStep[] = [];
+    try { next = content ? gym.nextSteps(id) : []; } catch { /* the rest of the stats still go out */ }
+    // What the coaches changed lately and why, the newest few across the three. Left out when there is none.
+    let changes: ChangeNote[] = [];
+    try { changes = content ? newestNotes([...coach.changeNotes(id), ...gym.changeNotes(id), ...run.changeNotes(id)]) : []; } catch { /* the rest of the stats still go out */ }
+    return content ? { ...content, ...(advice ? { advice } : {}), ...(next.length > 0 ? { next } : {}), ...(changes.length > 0 ? { changes } : {}) } : content;
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
-  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'));
+  const taskSeen = new PlanSeen(path.join(coachDir, 'chat', 'task-seen.json'));
+  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'), dateKey(nowMs()));
   // Today's advice changing (a new day, tired legs, a raised pulse) makes the coaches plan again, at most about once a day. The first sighting only counts.
   const adviceSeen = new PlanSeen(path.join(coachDir, 'chat', 'advice-seen.json'));
   // The week conversation and the evening suggestion, only when the rider switched them on.
@@ -320,7 +328,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     };
   };
   /** The shared task board: the week chat and the coaches give each other tasks; the coach in charge plans again at once. */
-  const tasks = new CoachTasks(path.join(coachDir, 'chat', 'tasks.json'));
+  const tasks = new CoachTasks(path.join(coachDir, 'chat', 'tasks.json'), records, nowMs);
   const giveTask = (id: string, from: TaskFrom, t: { to: CoachId; text: string; lasting: boolean }): void => {
     if (!tasks.add(id, { from, ...t }, nowMs()) || from !== 'chat') return;
     // Only the rider's task plans again at once; a coach's task waits for that coach's next plan. The run coach sees it in its plan key.
@@ -628,6 +636,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       for (const p of list) { try { if (personalSeen.changed(p.id, personalKey(p.id))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
+      // A task of the rider or a removal of any task (also from another Mac) makes the bike and gym coach plan again, like a rule change.
+      for (const p of list) { try { if (taskSeen.changed(p.id, `${tasks.version(p.id, 'bike')}|${tasks.version(p.id, 'gym')}`, true)) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       for (const p of list) { try { if ((adviceKey(adviceOf(p.id)) !== '' && adviceSeen.changed(p.id, adviceKey(adviceOf(p.id)), true))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       // Never with a ride open (a ride becomes an activity only once it is closed), and only while coaches may plan.
       if (runs) for (const p of list) {

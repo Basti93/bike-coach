@@ -10,6 +10,7 @@ import { dateLabel } from './labels';
 import { SetHead, SetRow } from './SetRow';
 import { setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
+import { readStats, STATS_ID, type NextStep } from '../../shared/stats';
 
 const best = (sets: TrackedSet[], timed: boolean): TrackedSet | null =>
   sets.filter((s) => s.doneMs !== null).reduce<TrackedSet | null>((b, s) => {
@@ -37,12 +38,18 @@ function Progress({ exerciseId, history }: { exerciseId: string; history: Logged
   );
 }
 
-function Detail({ port, store, history, onBack, onDeleted }: { port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; onBack: () => void; onDeleted: () => void }) {
+/** "Nächstes Mal: 62,5 kg × 8 – weil du alle Wiederholungen geschafft hast." */
+const nextLine = (n: NextStep): string => `Nächstes Mal: ${n.weightKg !== null ? `${formatDecimal(n.weightKg)} kg × ${n.reps}` : `${n.reps} Wiederholungen`} – ${n.reason}.`;
+
+function Detail({ port, store, history, onBack, onDeleted, latest, next }: { port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; onBack: () => void; onDeleted: () => void; latest: boolean; next: NextStep[] }) {
   const { workout: w, save } = useStoreView(store);
   useEffect(() => () => releaseStore(port, store), [port, store]);
   const [confirming, setConfirming] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
+  // Only the latest workout has a next step. The coach's steps count for it when they name it (by id or start).
+  const mine = latest ? next.filter((n) => n.forWorkoutId === w.id || n.atMs === w.startMs) : [];
+  const nextOf = (e: { exerciseId: string; title: string }) => mine.find((n) => n.exerciseId === e.exerciseId) ?? mine.find((n) => n.title === e.title);
   return (
     <div className="tk-screen">
       <div className="tk-row"><button type="button" className="ghost" onClick={onBack}>Zurück</button><h1 className="tk-title">{w.title}</h1></div>
@@ -54,6 +61,7 @@ function Detail({ port, store, history, onBack, onDeleted }: { port: TrackingPor
             <h2>{e.title}</h2><span className="spacer" />
             <button type="button" className="ghost" aria-label={`Verlauf ${e.title}`} onClick={() => setProgress(progress === e.exerciseId ? null : e.exerciseId)}>Verlauf</button>
           </div>
+          {latest && (nextOf(e) ? <p className="tk-sub">{nextLine(nextOf(e)!)}</p> : mine.length === 0 && <p className="muted tk-sub">Kommt nach der Auswertung</p>)}
           {progress === e.exerciseId && <Progress exerciseId={e.exerciseId} history={history} />}
           {e.sets.length > 0 && <SetHead timed={!!e.timed} />}
           {e.sets.map((s, si) => (
@@ -106,10 +114,16 @@ export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; no
   const history = dedupeSessions((records ?? []).map((r) => r.body as LoggedWorkout));
   const recOf = new Map((records ?? []).map((r) => [r.id, r] as [string, TrackedRecord]));
   const [store, setStore] = useState<WorkoutStore | null>(null);
+  const statsRecords = usePortRecords(port, 'stats').records;
+  const next = useMemo(() => {
+    const r = (statsRecords ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+    return (r && readStats(r.body)?.next) || [];
+  }, [statsRecords]);
   const [tab, setTab] = useState<'workouts' | 'exercises'>('workouts');
   const [exercise, setExercise] = useState<string | null>(null);
 
-  if (store) return <Detail port={port} store={store} history={history} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
+  const newest = history.reduce<LoggedWorkout | null>((a, w) => (!a || (w.endMs ?? w.startMs) > (a.endMs ?? a.startMs) ? w : a), null);
+  if (store) return <Detail port={port} store={store} history={history} latest={newest !== null && store.current().id === newest.id} next={next} onBack={() => setStore(null)} onDeleted={() => setStore(null)} />;
   const exercises = new Map<string, string>();
   for (const w of history) for (const e of w.exercises) if (e.sets.some((s) => s.doneMs !== null) && !exercises.has(e.exerciseId)) exercises.set(e.exerciseId, e.title);
   if (exercise !== null) return <ExerciseHistory exerciseId={exercise} title={exercises.get(exercise) ?? ''} history={history} catalog={catalog} onBack={() => setExercise(null)} />;

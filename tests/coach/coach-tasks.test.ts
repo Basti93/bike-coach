@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CoachTasks, readTasks } from '../../src/coach/coach-tasks';
+import { RecordStore } from '../../src/coach/tracking/store';
 
 const DAY = 86_400_000;
 const NOW = new Date(2026, 10, 5, 8).getTime();
@@ -9,20 +10,21 @@ let dir: string;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tasks-')); });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 const file = () => path.join(dir, 'chat', 'tasks.json');
+const board = () => new CoachTasks(file(), new RecordStore({ dir: path.join(dir, 'tracking') }), () => NOW);
 
 test('a task reaches only its coach, raises that coach version and is kept across a restart', () => {
-  const t = new CoachTasks(file());
+  const t = board();
   t.add('p', { from: 'chat', to: 'gym', text: 'Nur eine Trizepsübung', lasting: false }, NOW);
-  expect(t.version('p', 'gym')).toBe(1);
-  expect(t.version('p', 'bike')).toBe(0);
+  expect(t.version('p', 'gym')).not.toBe('0');
+  expect(t.version('p', 'bike')).toBe('0');
   expect(t.open('p', 'bike', NOW)).toEqual([]);
-  const again = new CoachTasks(file());
+  const again = board();
   expect(again.open('p', 'gym', NOW)).toEqual([{ from: 'chat', to: 'gym', text: 'Nur eine Trizepsübung', lasting: false, atMs: NOW }]);
-  expect(again.version('p', 'gym')).toBe(1);
+  expect(again.version('p', 'gym')).toBe(t.version('p', 'gym'));
 });
 
 test('a one-off task ends after a week, a lasting one after 60 days, at most 10 per coach, newest kept', () => {
-  const t = new CoachTasks(file());
+  const t = board();
   t.add('p', { from: 'chat', to: 'gym', text: 'einmal', lasting: false }, NOW);
   t.add('p', { from: 'bike', to: 'gym', text: 'dauerhaft', lasting: true }, NOW);
   expect(t.open('p', 'gym', NOW + 8 * DAY).map((x) => x.text)).toEqual(['dauerhaft']);
@@ -32,7 +34,7 @@ test('a one-off task ends after a week, a lasting one after 60 days, at most 10 
 });
 
 test('a coach never gets a task from itself, empty text is dropped, the hint shows the tasks as data', () => {
-  const t = new CoachTasks(file());
+  const t = board();
   t.add('p', { from: 'gym', to: 'gym', text: 'selbst', lasting: false }, NOW);
   t.add('p', { from: 'chat', to: 'gym', text: '   ', lasting: false }, NOW);
   expect(t.open('p', 'gym', NOW)).toEqual([]);
@@ -52,9 +54,9 @@ test('readTasks keeps only well-formed tasks for the three coaches', () => {
 });
 
 test('a task from a coach waits for the next plan: it raises no version, and the same task twice is taken once', () => {
-  const t = new CoachTasks(file());
+  const t = board();
   expect(t.add('p', { from: 'bike', to: 'gym', text: 'Beine schonen', lasting: false }, NOW)).toBe(true);
   expect(t.add('p', { from: 'bike', to: 'gym', text: 'Beine schonen', lasting: false }, NOW + 1)).toBe(false);
-  expect(t.version('p', 'gym')).toBe(0);
+  expect(t.version('p', 'gym')).toBe('0');
   expect(t.open('p', 'gym', NOW)).toHaveLength(1);
 });

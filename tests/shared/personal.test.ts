@@ -2,19 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { applyRecord, RECORD_KINDS, RECORD_KINDS_SIGNATURE, type TrackedRecord } from '../../src/shared/records';
 import { validBody } from '../../src/web/validate';
 import { activeRules, deleteRule, excludedIds, goalOf, goalRecord, migratedRuleId, moveRule, readGoal, readRule, ruleRecord, wishes } from '../../src/shared/personal';
+const TODAY = '2026-11-04';
 
 const rule = (id: string, kind: 'exclude' | 'wish', state: 'proposed' | 'active' | 'paused' | 'declined', over: { sport?: 'gym' | 'bike' | 'run' | 'all'; ids?: string[]; at?: number } = {}): TrackedRecord =>
   ruleRecord(id, { kind, text: `text ${id}`, sport: over.sport ?? 'gym', ...(kind === 'exclude' ? { exerciseIds: over.ids ?? ['ex-a'] } : {}) }, state, 'person', over.at ?? 10);
 
 describe('goal', () => {
   it('without a record it is today: muscle, no focus, no priorities', () => {
-    expect(goalOf([])).toEqual({ strength: 'muscle', focus: [], sports: {} });
-    expect(goalOf([{ kind: 'goal', id: 'goal', updatedMs: 1, deleted: false, body: { nonsense: true } }])).toEqual({ strength: 'muscle', focus: [], sports: {} });
+    expect(goalOf([], TODAY)).toEqual({ strength: 'muscle', focus: [], sports: {} });
+    expect(goalOf([{ kind: 'goal', id: 'goal', updatedMs: 1, deleted: false, body: { nonsense: true } }], TODAY)).toEqual({ strength: 'muscle', focus: [], sports: {} });
   });
   it('reads the written goal, ignores a deleted one', () => {
     const g = goalRecord({ strength: 'strength', focus: ['chest', 'back'], sports: { bike: 'keep' } }, 5);
-    expect(goalOf([g])).toEqual({ strength: 'strength', focus: ['chest', 'back'], sports: { bike: 'keep' } });
-    expect(goalOf([{ ...g, deleted: true }]).strength).toBe('muscle');
+    expect(goalOf([g], TODAY)).toEqual({ strength: 'strength', focus: ['chest', 'back'], sports: { bike: 'keep' } });
+    expect(goalOf([{ ...g, deleted: true }], TODAY).strength).toBe('muscle');
   });
   it('validates: at most three focus muscles, known values only', () => {
     const ok = { strength: 'fitness', focus: [], sports: { gym: 'equal' }, atMs: 1 };

@@ -702,7 +702,7 @@ describe('final review', () => {
     const ASSISTED = { type: 'bodyweight_assisted_reps', equipment: 'machine', primaryMuscle: 'lats' };
     const atTop = () => [wk(14, 'a', [{ t: 'as', kg: 20, reps: 12 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 12 }])];
     it('reaching the top of the range does not raise the assistance', () => {
-      expect(suggestNext('as', atTop(), NOW, ASSISTED)).toEqual({ weightKg: 20, reps: 12, why: 'keep' });
+      expect(suggestNext('as', atTop(), NOW, ASSISTED)).toMatchObject({ weightKg: 20, reps: 12, why: 'keep' });
       expect(suggestNext('as', atTop(), NOW, { primaryMuscle: 'lats' }).weightKg).toBeGreaterThan(20);
     });
     it('a long break does not lower the assistance', () => {
@@ -710,7 +710,7 @@ describe('final review', () => {
     });
     it('reps still progress below the top of the range', () => {
       const s = suggestNext('as', [wk(14, 'a', [{ t: 'as', kg: 20, reps: 8 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 8 }])], NOW, ASSISTED);
-      expect(s).toEqual({ weightKg: 20, reps: 9, why: 'progress' });
+      expect(s).toMatchObject({ weightKg: 20, reps: 9, why: 'progress' });
     });
     const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED.type, 'machine', 'lats')], nowMs: NOW });
     it('the rule workout and the check hold the weight', () => {
@@ -1075,5 +1075,86 @@ describe('changes taken for the next workout', () => {
     await coach.tick('p1');
     expect(coach.state('p1').next!.reason.match(/Berücksichtigt/g)).toHaveLength(1);
     expect(store.all('p1', 'change')).toEqual([rec]);
+  });
+});
+
+describe('next steps for the latest workout', () => {
+  it('lists one step per exercise of the latest workout, as the next plan would have it', async () => {
+    const h = harness();
+    expect(h.coach.nextSteps(ID)).toEqual([]); // before the first template list
+    await h.coach.templateList(ID);
+    const steps = h.coach.nextSteps(ID);
+    expect(steps.map((n) => n.exerciseId)).toEqual(['cp', 'lr']);
+    expect(steps[0]).toEqual({ exerciseId: 'cp', title: 'Title cp SENTINEL', weightKg: 40, reps: 9, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'w7', atMs: NOW - 7 * DAY });
+    await h.coach.tick(ID);
+    const planned = h.coach.state(ID).next!.workout.exercises.find((e) => e.templateId === 'cp')!.sets[0]!;
+    expect([steps[0]!.weightKg, steps[0]!.reps]).toEqual([planned.weightKg, planned.reps]);
+  });
+  it('only the latest workout counts, and a new one moves the list on', async () => {
+    const h = harness();
+    h.workouts = [...history(), wk(1, 'w1', [{ t: 'lp', kg: 100, reps: 8 }])];
+    await h.coach.templateList(ID);
+    expect(h.coach.nextSteps(ID).map((n) => [n.exerciseId, n.forWorkoutId, n.why])).toEqual([['lp', 'w1', 'keep']]);
+  });
+  it('the same state gives the same list, so the stats record is not rewritten', async () => {
+    const h = harness();
+    await h.coach.templateList(ID);
+    const a = JSON.stringify(h.coach.nextSteps(ID));
+    h.now += 60_000;
+    expect(JSON.stringify(h.coach.nextSteps(ID))).toBe(a);
+  });
+});
+
+describe('what the coach changed ("Zuletzt geändert")', () => {
+  const heavy = (): StrengthWorkout[] => [
+    wk(14, 'w14', [{ t: 'cp', kg: 40, reps: 12 }, { t: 'lr', kg: 50, reps: 8 }]),
+    wk(7, 'w7', [{ t: 'cp', kg: 40, reps: 12 }, { t: 'lr', kg: 50, reps: 8 }]),
+  ];
+  const plan = (cpKg: number) => answer({ workout: { name: 'Oberkörper', exercises: [ex('cp', [set(cpKg, 8), set(cpKg, 8)]), ex('lr', [set(50, 9), set(50, 9)])] } });
+  it('a weight increase gets one note with the reason, and replanning replaces it', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45), plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    const notes = h.coach.changeNotes(ID);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ coach: 'gym', text: 'Title cp SENTINEL: 40 → 45 kg', atMs: NOW });
+    expect(notes[0]!.reason).toMatch(/^weil /);
+    h.coach.taskAdded(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toHaveLength(1);
+  });
+  it('an unchanged weight gives no note, and a new plan with it removes the old note', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45), plan(40));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toHaveLength(1);
+    h.coach.taskAdded(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toEqual([]);
+  });
+  it('repeated ticks without a new plan leave the gym state files byte-identical', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    const first = h.coach.changeNotes(ID);
+    const dump = (): string => fs.readdirSync(dir, { recursive: true }).map(String).sort().map((f) => { const p = path.join(dir, f); return fs.statSync(p).isFile() ? `${f}:${fs.readFileSync(p, 'utf8')}` : f; }).join('\n');
+    const before = dump();
+    for (let i = 0; i < 3; i++) { h.now = NOW + (i + 1) * 3_600_000; await h.coach.tick(ID); }
+    expect(dump()).toBe(before);
+    expect(h.coach.changeNotes(ID)).toEqual(first);
+  });
+  it('the notes survive a restart', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    expect(h.make().changeNotes(ID)).toHaveLength(1);
   });
 });

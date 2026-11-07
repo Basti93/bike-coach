@@ -66,7 +66,7 @@ export function wellFormed(all: unknown[]): LoggedWorkout[] {
 }
 
 /** The numbers of the statistics page: minutes and hard days from the stats record, sets from the workouts. */
-export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], nowMs: number, catalog: Exercise[] = mergeCatalog(EXERCISES, FEDB_EXERCISES, []), strength: string | null | undefined = stats?.goal): StatsView {
+export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], nowMs: number, catalog: Exercise[] = mergeCatalog(EXERCISES, FEDB_EXERCISES, []), strength: string | null | undefined = stats?.goal, focus: readonly MuscleGroup[] = []): StatsView {
   const monday = mondayOf(nowMs);
   const starts = Array.from({ length: WEEKS }, (_, i) => isoDate(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (WEEKS - 1 - i))));
   const weeks: WeekStats[] = starts.map((weekStart) => ({
@@ -140,10 +140,10 @@ export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], no
   }
 
   const targets = {} as Record<MuscleGroup, { min: number; max: number }>;
-  for (const g of GROUPS) targets[g] = weeklySetRange(g, strength);
+  for (const g of GROUPS) targets[g] = weeklySetRange(g, strength, focus);
 
   return {
-    asOfMs: stats?.atMs ?? null, weeks, thisWeek: weeks[WEEKS - 1], targets, pairs, balance: muscleBalance(balanceItems, strength), verdicts, unknown: [...unknown],
+    asOfMs: stats?.atMs ?? null, weeks, thisWeek: weeks[WEEKS - 1], targets, pairs, balance: muscleBalance(balanceItems, strength, focus), verdicts, unknown: [...unknown],
     sports: SPORTS.filter((s) => weeks.some((w) => w.minutes[s] > 0)),
   };
 }

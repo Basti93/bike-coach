@@ -4,4 +4,4 @@ export const EQUIPMENT: Record<string, string> = { barbell: 'Langhantel', dumbbe
 export const TYPES: Record<string, string> = { weight_reps: 'Gewicht und Wiederholungen', reps_only: 'Nur Wiederholungen', duration: 'Zeit in Sekunden', bodyweight_weighted: 'Körpergewicht plus Zusatzgewicht' };
 export const muscleLabel = (m: string): string => MUSCLES[m] ?? m;
 export const clock = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-export const dateLabel = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+export { shortDate as dateLabel } from '../../shared/dates';

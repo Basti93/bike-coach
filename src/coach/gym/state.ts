@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { ClaudeErrorKind } from '../claude-client';
 import type { GymWorkout } from './types';
 import type { GymOutlook } from '../../shared/gym-outlook';
+import { readKeyedNotes, type KeyedNote } from '../../shared/change-notes';
 
 export type GymState = {
   profileId: string;
@@ -34,13 +35,15 @@ export type GymState = {
   localStart: boolean;
   /** Hevy template id to own exercise id, as last seen. Kept so history stays linked after Hevy is removed. */
   links: Record<string, string>;
+  /** What a new plan changed on an exercise and why ("Zuletzt geändert"): at most 20, none older than 60 days. */
+  changeNotes: KeyedNote[];
 };
 
 const file = (dir: string, profileId: string) => path.join(dir, `${encodeURIComponent(profileId)}.json`);
 
 export const initialGymState = (profileId: string): GymState => ({
   profileId, next: null, outlook: null, emptyReason: null, lastNote: null, notes: [], answers: [], seenWorkoutIds: [],
-  routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null, localStart: false, links: {},
+  routine: null, planned: false, complaintsFingerprint: '', gymAsked: false, dirty: false, attempts: 0, attemptKey: null, lastError: null, lastAttemptMs: null, templatesFailedMs: null, localStart: false, links: {}, changeNotes: [],
 });
 
 export const loadGymState = (dir: string, profileId: string): GymState => {
@@ -50,7 +53,7 @@ export const loadGymState = (dir: string, profileId: string): GymState => {
     const parsed = JSON.parse(fs.readFileSync(f, 'utf8')) as GymState;
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not a state');
     const { rules: _old, goal: _goal, ...rest } = parsed as GymState & { rules?: unknown; goal?: unknown };
-    return { ...initialGymState(profileId), ...rest, profileId };
+    return { ...initialGymState(profileId), ...rest, profileId, changeNotes: readKeyedNotes(rest.changeNotes) };
   } catch {
     try { fs.copyFileSync(f, `${f}.broken`); } catch { /* starting fresh matters more */ }
     return initialGymState(profileId);

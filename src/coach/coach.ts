@@ -20,7 +20,9 @@ import { complaintFromNote, type ComplaintStatus } from './motivation';
 import { adjustSession, ftpFromRamp, rampTest, ruleBasedSession } from './rules';
 import type { RecordStore } from './tracking/store';
 import { migrateRules, personalHint } from './tracking/personal';
+import { dateKey } from '../shared/day-rating';
 import { legacyBikeRules, loadState, MIN_COUNTED_S, saveState, type CoachState, type Rating } from './state';
+import { capNotes, type ChangeNote } from '../shared/change-notes';
 
 const RAISE_UNVERIFIED = 1.05;
 const LOWER_UNVERIFIED = 0.9;
@@ -415,7 +417,7 @@ export class Coach {
     this.update(profileId, (x) => { x.lastAttemptMs = this.deps.nowMs(); });
     const answeredNotes = s.notes.length;
     try {
-      const input = { prompt: `${this.buildPrompt(s)}${this.deps.planHint?.(s.profileId) ?? ''}${this.deps.store ? personalHint(this.deps.store, s.profileId, 'bike') : ''}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
+      const input = { prompt: `${this.buildPrompt(s)}${this.deps.planHint?.(s.profileId) ?? ''}${this.deps.store ? personalHint(this.deps.store, s.profileId, 'bike', dateKey(this.deps.nowMs())) : ''}${s.ftpHistory.some((h) => h.source === 'ramp') ? '' : '\nDie FTP ist ohne Test grob geschätzt (Fehler über 20 %). Plane vorsichtig und schlage einen Rampentest höchstens als Möglichkeit vor.'}`, systemPrompt: SYSTEM_PROMPT, schema: answerJsonSchema };
       let raw = await this.deps.ask(input);
       this.handOff(profileId, raw);
       const rejected = this.rejection(s, raw);
@@ -614,6 +616,15 @@ export class Coach {
     s.dirtySinceMs ??= this.deps.nowMs();
     const rerun = this.pendingRerun.get(s.profileId);
     if (rerun) rerun.requested = true;
+  }
+  /** The bike's own changes as notes: the FTP changes with their cause, anything else as it was said. */
+  changeNotes(profileId: string): ChangeNote[] {
+    const now = this.deps.nowMs();
+    return capNotes(this.state(profileId).changes.map((c): ChangeNote => {
+      const ftp = /(\d+) W/.exec(c.text);
+      const reason = c.text.startsWith('Rampentest:') ? 'nach dem Rampentest' : c.text.startsWith('Nach deiner Bewertung') ? 'nach deiner Bewertung' : c.text.startsWith('Du hast deine FTP') ? 'von dir gesetzt' : '';
+      return ftp && reason ? { atMs: c.atMs, coach: 'bike', text: `FTP: ${ftp[1]} W`, reason } : { atMs: c.atMs, coach: 'bike', text: c.text, reason: '' };
+    }), now);
   }
   private addChange(s: CoachState, text: string, atMs: number): void {
     s.changes.push({ atMs, text });

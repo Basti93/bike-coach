@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
 import { dayLabel, mondayOf, SPORT_LABEL, planOfWeek, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
+import { readStats, STATS_ID } from '../../shared/stats';
+import { newestNotes } from '../../shared/change-notes';
+import { dateLabel } from './labels';
+import { dayHeading, localDayKey, timeLabel } from '../../shared/dates';
 import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { PlanningLine } from './FrameControls';
@@ -17,6 +21,8 @@ import type { PlannedRun } from '../../shared/run';
 const localKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dayName = (date: string) => WEEKDAY_LABEL[(new Date(`${date}T12:00:00`).getDay() + 6) % 7]!;
 const dayText = (d: PlanDay) => dayLabel(d, (p, first) => `${first && d.long ? ', lang' : ''}${p.sport === 'gym' && d.legs ? ', mit Beinen' : ''}`);
+/** The chat shows this many of the newest messages, and this many more each time. */
+const CHAT_PAGE = 30;
 /** Waiting longer than this for an answer: say so calmly. */
 const SLOW_MS = 3 * 60_000;
 /** The coach no longer answers messages this old. */
@@ -95,6 +101,21 @@ function PrefsCard({ prefs, onChange }: { prefs: CoachPrefs; onChange: (p: Coach
   );
 }
 
+/** What the coaches changed lately and why, one line each: "Mo., 3. Nov. · Text – Grund". Nothing to show, no card. */
+function ChangedCard({ records }: { records: TrackedRecord[] | null }) {
+  const rec = (records ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+  const notes = newestNotes((rec && readStats(rec.body)?.changes) || [], 5);
+  if (notes.length === 0) return null;
+  return (
+    <section className="card" aria-label="Zuletzt geändert">
+      <h2>Zuletzt geändert</h2>
+      <ul className="tk-week">
+        {notes.map((n, i) => <li key={`${n.atMs}-${i}`}>{dateLabel(n.atMs)} · {n.text}{n.reason ? ` – ${n.reason}` : ''}</li>)}
+      </ul>
+    </section>
+  );
+}
+
 /** One chat with the coach for all sports, with the week plan on top. Proposals change nothing until the rider takes them. */
 export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const chat = usePortRecords(port, 'chat').all;
@@ -105,17 +126,30 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
   const prefRecords = usePortRecords(port, 'coachprefs').all;
+  const statsRecords = usePortRecords(port, 'stats').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(CHAT_PAGE);
+  const grew = useRef<{ top: number; height: number } | null>(null);
   const thread = chatThread(chat ?? []);
   const complaints = (complaintRecords ?? []).flatMap((r) => {
     const b = r.body as { text?: unknown; status?: unknown } | null;
     return !r.deleted && b && typeof b.text === 'string' && b.status !== 'over' ? [b.text] : [];
   });
   const waiting = waitingMessage(thread);
+  const visible = thread.filter((m) => !(m.takes || m.declines || m.undoes));
   const fr = useTodayAdvice(port, now());
+  // Only a new message scrolls to the end; loading older ones keeps what the person was looking at where it was.
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [thread.length]);
+  useLayoutEffect(() => {
+    const g = grew.current;
+    grew.current = null;
+    if (!g) return;
+    const delta = document.documentElement.scrollHeight - g.height;
+    if (delta !== 0) window.scrollTo?.(0, g.top + delta);
+  }, [shown]);
+  const older = () => { grew.current = { top: window.scrollY, height: document.documentElement.scrollHeight }; setShown((n) => n + CHAT_PAGE); };
 
   const today = localKey(now());
   const monday = mondayOf(today);
@@ -180,19 +214,24 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
           {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
         </section>
       )}
+      <ChangedCard records={statsRecords} />
       <RulesCard port={port} now={now} newId={newId} />
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
-        {thread.map((m) => (m.takes || m.declines || m.undoes ? null : (
-          <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
-            <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'}</p>
+        {visible.length > shown && <button type="button" className="ghost" onClick={older}>Ältere anzeigen</button>}
+        {visible.slice(-shown).map((m, i, list) => (
+          <Fragment key={m.id}>
+          {(i === 0 || localDayKey(list[i - 1]!.atMs) !== localDayKey(m.atMs)) && <p className="muted tk-day" role="separator">{dayHeading(m.atMs, now())}</p>}
+          <div className={`tk-msg tk-msg-${m.role}`}>
+            <p className="muted tk-sub">{m.role === 'rider' ? 'Du' : 'Coach'} <time>{timeLabel(m.atMs)}</time></p>
             <p>{m.text}</p>
             {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
             {m.rule && <RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} />}
             {m.proposal && <Proposal m={m as ChatEntry & { proposal: WeekProposal }} answer={weekAnswer(proposalAnswer(thread, m.id), thread.some((x) => x.undoes === m.id), storedWeek(plans ?? [], m.proposal!.weekStart), m.id)} undoWhy={weekUndoRefusal(storedWeek(plans ?? [], m.proposal!.weekStart), m.proposal!, m.id)} onUndo={() => void undo(m as ChatEntry & { proposal: WeekProposal })} past={m.proposal!.weekStart < monday} loading={plans === null} onTake={() => void take(m as ChatEntry & { proposal: WeekProposal })} onDecline={() => decline(m)} />}
           </div>
-        )))}
+          </Fragment>
+        ))}
         {waiting && <p role="status" className="muted">{now() - waiting.atMs > STALE_MS ? 'Darauf kam keine Antwort mehr. Schreib gern nochmal.' : now() - waiting.atMs > SLOW_MS ? 'Der Coach antwortet, sobald er wieder erreichbar ist.' : 'Der Coach denkt nach …'}</p>}
         <div ref={endRef} />
       </section>

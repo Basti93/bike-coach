@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { deleteRule, goalOf, goalRecord, moveRule, rulesOf, type GoalBody, type RuleState } from '../../shared/personal';
+import { applyGoalPatch, deleteRule, goalRecord, moveRule, rulesOf, storedGoalOf, type GoalBody, type RuleState } from '../../shared/personal';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
+import { dateKey } from '../../shared/day-rating';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 
 /**
@@ -12,7 +13,7 @@ import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
  */
 type Goal = Omit<GoalBody, 'atMs'>;
 const same = (a: Goal, b: Goal): boolean => {
-  const norm = (g: Goal) => JSON.stringify([g.strength, [...g.focus].sort(), Object.entries(g.sports).sort(([x], [y]) => (x < y ? -1 : 1))]);
+  const norm = (g: Goal) => JSON.stringify([g.strength, [...g.focus].sort(), Object.entries(g.sports).sort(([x], [y]) => (x < y ? -1 : 1)), g.temporary ?? null]);
   return norm(a) === norm(b);
 };
 const readGoalField = (body: unknown, key: 'prior' | 'applied'): Goal | null => {
@@ -36,8 +37,8 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       let stored = next;
       if (next && to === 'active' && rule.kind === 'goal' && rule.goal) {
         const goals = await port.list('goal');
-        const prior = goalOf(goals);
-        const applied = { ...prior, ...rule.goal };
+        const prior = storedGoalOf(goals);
+        const applied = applyGoalPatch(prior, rule.goal, dateKey(now()));
         await port.put(goalRecord(applied, now(), goals.find((g) => g.id === 'goal')));
         // The goal before and after are kept on the rule, so Rückgängig can restore it as long as nobody changed it since.
         stored = { ...next, body: { ...(next.body as object), prior, applied } };
@@ -52,7 +53,7 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       if (cur && rule.kind === 'goal') {
         const prior = readGoalField(cur.body, 'prior'), applied = readGoalField(cur.body, 'applied');
         const goals = await port.list('goal');
-        if (!prior || !applied || !same(goalOf(goals), applied)) { setBlocked(true); return; }
+        if (!prior || !applied || !same(storedGoalOf(goals), applied)) { setBlocked(true); return; }
         await port.put(goalRecord(prior, now(), goals.find((g) => g.id === 'goal')));
       }
       if (cur) await port.put(deleteRule(cur, now()));
