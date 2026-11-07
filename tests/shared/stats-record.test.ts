@@ -69,3 +69,15 @@ describe('published advice', () => {
     expect(readStats(valid())?.advice).toBeUndefined();
   });
 });
+
+describe('published next steps', () => {
+  const step = { exerciseId: 'cp', title: 'Bankdrücken', weightKg: 62.5, reps: 8, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'w7', atMs: 1000 };
+  it('round-trips, drops a broken entry and never the record', () => {
+    expect(readStats({ ...valid(), next: [step, { ...step, exerciseId: 'x', weightKg: null }] })?.next).toHaveLength(2);
+    const r = readStats({ ...valid(), next: [step, { ...step, why: 'jump' }, 'junk'] });
+    expect(r?.next).toEqual([step]);
+    expect(validBody('stats', { ...valid(), next: 'junk' })).toBe(true);
+    expect(readStats({ ...valid(), next: 'junk' })?.next).toBeUndefined();
+    expect(readStats(valid())?.next).toBeUndefined();
+  });
+});

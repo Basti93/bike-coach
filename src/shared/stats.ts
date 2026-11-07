@@ -11,8 +11,10 @@ export type StatsDay = { date: string; minutes: Record<Sport, number>; hardness:
  * its `date` and the plan `mode` it was made in.
  */
 export type PublishedAdvice = TodayAdvice & { date: string; mode: PlanMode };
+/** What the gym coach suggests for one exercise of the latest workout, and why. `atMs` is the start of that workout, so it stays the same until a new workout. */
+export type NextStep = { exerciseId: string; title: string; weightKg: number | null; reps: number; why: 'progress' | 'keep' | 'step-back'; reason: string; forWorkoutId: string; atMs: number };
 /** `ftp` and `weightKg` are optional: the bike coach's FTP history (last half year) and the profile weight, for the progress card. */
-export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string>; ftp?: { atMs: number; ftpW: number }[]; weightKg?: number | null; advice?: PublishedAdvice };
+export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string>; ftp?: { atMs: number; ftpW: number }[]; weightKg?: number | null; advice?: PublishedAdvice; next?: NextStep[] };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
@@ -46,6 +48,18 @@ export function readAdvice(x: unknown): PublishedAdvice | null {
   return { ...first, ...(also ? { also } : {}), label: x.label, reason: x.reason, line: x.line, fromPlan: x.fromPlan, ...(x.legs !== undefined ? { legs: x.legs } : {}), date: x.date, mode: x.mode };
 }
 
+const WHY = ['progress', 'keep', 'step-back'];
+/** The published next steps; an entry that is not whole is dropped, never the list. */
+export function readNext(x: unknown): NextStep[] {
+  if (!Array.isArray(x)) return [];
+  return x.slice(0, 30).flatMap((n): NextStep[] => {
+    if (!isObj(n) || !text(n.exerciseId) || !text(n.title) || !text(n.reason) || !text(n.forWorkoutId) || !WHY.includes(n.why as string)) return [];
+    if (typeof n.reps !== 'number' || !Number.isFinite(n.reps) || n.reps < 0 || n.reps > 1000 || typeof n.atMs !== 'number' || !Number.isFinite(n.atMs)) return [];
+    if (n.weightKg !== null && (typeof n.weightKg !== 'number' || !Number.isFinite(n.weightKg) || n.weightKg < 0 || n.weightKg > 1000)) return [];
+    return [{ exerciseId: n.exerciseId, title: n.title, weightKg: n.weightKg, reps: n.reps, why: n.why as NextStep['why'], reason: n.reason, forWorkoutId: n.forWorkoutId, atMs: n.atMs }];
+  });
+}
+
 /** The stats body, or null for anything that does not match. */
 export function readStats(body: unknown): StatsBody | null {
   if (!isObj(body) || body.type !== 'stats') return null;
@@ -69,6 +83,8 @@ export function readStats(body: unknown): StatsBody | null {
   if (Array.isArray(body.ftp)) out.ftp = body.ftp.slice(0, 50).flatMap((h) => (isObj(h) && typeof h.atMs === 'number' && Number.isFinite(h.atMs) && typeof h.ftpW === 'number' && h.ftpW > 0 && h.ftpW < 2000 ? [{ atMs: h.atMs, ftpW: h.ftpW }] : []));
   const advice = readAdvice(body.advice);
   if (advice) out.advice = advice;
+  const next = readNext(body.next);
+  if (next.length > 0) out.next = next;
   if (typeof body.weightKg === 'number' && body.weightKg > 20 && body.weightKg < 400) out.weightKg = body.weightKg;
   return out;
 }

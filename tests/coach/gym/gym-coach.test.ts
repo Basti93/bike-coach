@@ -702,7 +702,7 @@ describe('final review', () => {
     const ASSISTED = { type: 'bodyweight_assisted_reps', equipment: 'machine', primaryMuscle: 'lats' };
     const atTop = () => [wk(14, 'a', [{ t: 'as', kg: 20, reps: 12 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 12 }])];
     it('reaching the top of the range does not raise the assistance', () => {
-      expect(suggestNext('as', atTop(), NOW, ASSISTED)).toEqual({ weightKg: 20, reps: 12, why: 'keep' });
+      expect(suggestNext('as', atTop(), NOW, ASSISTED)).toMatchObject({ weightKg: 20, reps: 12, why: 'keep' });
       expect(suggestNext('as', atTop(), NOW, { primaryMuscle: 'lats' }).weightKg).toBeGreaterThan(20);
     });
     it('a long break does not lower the assistance', () => {
@@ -710,7 +710,7 @@ describe('final review', () => {
     });
     it('reps still progress below the top of the range', () => {
       const s = suggestNext('as', [wk(14, 'a', [{ t: 'as', kg: 20, reps: 8 }]), wk(7, 'b', [{ t: 'as', kg: 20, reps: 8 }])], NOW, ASSISTED);
-      expect(s).toEqual({ weightKg: 20, reps: 9, why: 'progress' });
+      expect(s).toMatchObject({ weightKg: 20, reps: 9, why: 'progress' });
     });
     const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED.type, 'machine', 'lats')], nowMs: NOW });
     it('the rule workout and the check hold the weight', () => {
@@ -1075,5 +1075,32 @@ describe('changes taken for the next workout', () => {
     await coach.tick('p1');
     expect(coach.state('p1').next!.reason.match(/Berücksichtigt/g)).toHaveLength(1);
     expect(store.all('p1', 'change')).toEqual([rec]);
+  });
+});
+
+describe('next steps for the latest workout', () => {
+  it('lists one step per exercise of the latest workout, as the next plan would have it', async () => {
+    const h = harness();
+    expect(h.coach.nextSteps(ID)).toEqual([]); // before the first template list
+    await h.coach.templateList(ID);
+    const steps = h.coach.nextSteps(ID);
+    expect(steps.map((n) => n.exerciseId)).toEqual(['cp', 'lr']);
+    expect(steps[0]).toEqual({ exerciseId: 'cp', title: 'Title cp SENTINEL', weightKg: 40, reps: 9, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'w7', atMs: NOW - 7 * DAY });
+    await h.coach.tick(ID);
+    const planned = h.coach.state(ID).next!.workout.exercises.find((e) => e.templateId === 'cp')!.sets[0]!;
+    expect([steps[0]!.weightKg, steps[0]!.reps]).toEqual([planned.weightKg, planned.reps]);
+  });
+  it('only the latest workout counts, and a new one moves the list on', async () => {
+    const h = harness();
+    h.workouts = [...history(), wk(1, 'w1', [{ t: 'lp', kg: 100, reps: 8 }])];
+    await h.coach.templateList(ID);
+    expect(h.coach.nextSteps(ID).map((n) => [n.exerciseId, n.forWorkoutId, n.why])).toEqual([['lp', 'w1', 'keep']]);
+  });
+  it('the same state gives the same list, so the stats record is not rewritten', async () => {
+    const h = harness();
+    await h.coach.templateList(ID);
+    const a = JSON.stringify(h.coach.nextSteps(ID));
+    h.now += 60_000;
+    expect(JSON.stringify(h.coach.nextSteps(ID))).toBe(a);
   });
 });

@@ -1,5 +1,7 @@
 import { ClaudeError } from '../claude-client';
 import type { StrengthWorkout } from '../hevy';
+import { suggestNext } from './history';
+import type { NextStep } from '../../shared/stats';
 import type { RideSummary } from '../metrics';
 import { complaintFromNote, type Complaint } from '../motivation';
 import { checkWorkout, reasonPhrase, WIDOWMAKER_REPS, type GymContext } from './guardrails';
@@ -262,10 +264,36 @@ export class GymCoach {
     const have = new Set(own.map((t) => t.id));
     const list = [...own, ...this.ownExercises(id).filter((t) => !have.has(t.id)), ...hevy.filter((t) => !linked.has(t.id))];
     // Remembered with the unlinked Hevy templates and the whole catalog, so any known id finds its muscle.
+    this.listed.set(id, new Map([...hevy, ...list].map((t) => [t.id, t] as const)));
     this.known.set(id, new Map([...catalog.map((e) => [e.id, e.primaryMuscle] as const), ...[...hevy, ...list].map((t) => [t.id, t.primaryMuscle] as const)]));
     return list;
   }
   private known = new Map<string, Map<string, string>>();
+  private listed = new Map<string, Map<string, ExerciseTemplate>>();
+  /**
+   * What the next plan would give for each exercise of the latest workout, with the words for why. It uses exactly what the plan uses
+   * (studio, weight steps, renames, the template of the last list), so "next time" and the next plan agree. Empty before the first template list.
+   */
+  nextSteps(id: string): NextStep[] {
+    const now = this.deps.nowMs();
+    const known = this.listed.get(id);
+    if (!known) return [];
+    const real = this.history(id).filter((w) => w.startMs <= now && hasSetDetails(w));
+    const latest = real.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
+    if (!latest) return [];
+    const plan = { studio: this.studio(id), overrides: this.loadSteps(id), renames: this.studios(id).renames };
+    const seen = new Set<string>();
+    const out: NextStep[] = [];
+    for (const e of latest.exercises) {
+      if (!e.templateId || seen.has(e.templateId)) continue;
+      seen.add(e.templateId);
+      const t = known.get(e.templateId);
+      const s = suggestNext(e.templateId, real, now, t, plan);
+      if (s.why === 'none') continue;
+      out.push({ exerciseId: e.templateId, title: t?.title ?? e.title, weightKg: s.weightKg, reps: s.reps, why: s.why, reason: s.reason, forWorkoutId: latest.id, atMs: latest.startMs });
+    }
+    return out.slice(0, 30);
+  }
   /** Whether a template list of this profile was made since the start. */
   knowsTemplates(id: string): boolean { return this.known.has(id); }
   /** The primary muscle of a template from the last template list of this profile; null before the first one or when unknown. */

@@ -48,7 +48,7 @@ import { PlanSeen, adviceKey, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
 import { addDays, mondayOf, planFor } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
-import type { PublishedAdvice, StatsBody } from '../shared/stats';
+import type { NextStep, PublishedAdvice, StatsBody } from '../shared/stats';
 import { todayAdvice } from '../shared/today';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -273,7 +273,10 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     });
     // The advice with the bike rides in it, for the devices that cannot see them.
     const advice = content ? adviceOf(id) : null;
-    return content && advice ? { ...content, advice } : content;
+    // What the next gym workout will bring for each exercise of the last one, and why. Left out when there is none.
+    let next: NextStep[] = [];
+    try { next = content ? gym.nextSteps(id) : []; } catch { /* the rest of the stats still go out */ }
+    return content ? { ...content, ...(advice ? { advice } : {}), ...(next.length > 0 ? { next } : {}) } : content;
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));

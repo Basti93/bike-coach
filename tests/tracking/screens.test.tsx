@@ -697,6 +697,15 @@ describe('effort question after an exercise', () => {
     expect(screen.queryByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).toBeNull();
     expect(screen.getByText('Noch möglich: 1–2')).toBeTruthy();
   });
+  it('thanks for the answer and says it goes into the next suggestion', async () => {
+    const { port } = fakePort([rec(planned())]);
+    render(<WorkoutScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    expect(screen.queryByText('Danke – das fließt in den nächsten Vorschlag ein.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
+    fireEvent.click(within(await screen.findByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).getByRole('button', { name: '1–2' }));
+    expect(await screen.findByText('Danke – das fließt in den nächsten Vorschlag ein.')).toBeTruthy();
+  });
   it('can be skipped, and switched off on this device', async () => {
     const { port, map } = fakePort([rec(planned())]);
     render(<WorkoutScreen port={port} {...ids} />);
@@ -732,4 +741,37 @@ test('the rest timer has +30 s, and the per-exercise Pause select sets the rest'
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.change(screen.getByLabelText('Pause Bankdrücken'), { target: { value: '180' } });
   await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
+});
+
+describe('next time, in the history of the latest workout', () => {
+  const stats = (next: object[]): TrackedRecord => ({ kind: 'stats', id: 'stats', updatedMs: 1, deleted: false, body: { type: 'stats', atMs: 1, goal: null, days: [], muscles: {}, next } });
+  const step = (over: object = {}) => ({ exerciseId: 'pf-squat', title: 'Kniebeuge', weightKg: 62.5, reps: 8, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'b', atMs: 8000, ...over });
+  it('shows one line per exercise with the reason', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000)), stats([step()])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
+    expect(await screen.findByText('Nächstes Mal: 62,5 kg × 8 – weil du alle Wiederholungen geschafft hast.')).toBeTruthy();
+    expect(screen.queryByText('Kommt nach der Auswertung')).toBeNull();
+  });
+  it('says it comes after the evaluation until the publish arrives', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
+    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
+  });
+  it('an older workout shows neither', async () => {
+    const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000)), stats([step()])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[1]);
+    await screen.findByText('Kniebeuge');
+    expect(screen.queryByText(/Nächstes Mal/)).toBeNull();
+    expect(screen.queryByText('Kommt nach der Auswertung')).toBeNull();
+  });
+  it('a step for another workout is not shown for this one', async () => {
+    const { port } = fakePort([rec(finished('b', 9000)), stats([step({ forWorkoutId: 'zzz', atMs: 1 })])]);
+    render(<HistoryScreen port={port} {...ids} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Beine/ }));
+    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
+    expect(screen.queryByText(/Nächstes Mal/)).toBeNull();
+  });
 });

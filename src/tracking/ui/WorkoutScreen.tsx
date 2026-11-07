@@ -286,7 +286,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
               <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
                 onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
             )}
-            {e.effort && e.effort !== 'skip' && <p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p>}
+            {e.effort && e.effort !== 'skip' && <><p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p><p className="muted tk-sub">Danke – das fließt in den nächsten Vorschlag ein.</p></>}
             <div className="tk-row">
               {needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0 && (
                 <button type="button" className="secondary" aria-label={`Aufwärmen hinzufügen ${e.title}`}
