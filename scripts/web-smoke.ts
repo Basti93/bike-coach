@@ -32,7 +32,7 @@ const login = async (page: Page) => {
   await page.getByLabel('Name').fill('smoke');
   await page.getByLabel('Passwort').fill(PASSWORD);
   await page.getByRole('button', { name: 'Anmelden' }).click();
-  await page.getByRole('heading', { name: 'Heute' }).waitFor();
+  await page.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
 };
 
 try {
