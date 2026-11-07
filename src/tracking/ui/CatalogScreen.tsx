@@ -8,11 +8,12 @@ import type { TrackingPort } from '../ports';
 import { matchesSearch } from '../similar';
 import { ExerciseInfo } from './ExerciseInfo';
 import { useCatalog, useExcluded, usePortRecords } from './hooks';
-import { equipmentSuffix, muscleLabel } from './labels';
+import { Row, RowList, Sheet } from './kit';
+import { CATALOG_GROUPS, catalogGroup } from './labels';
 
 /**
- * All exercises of the catalog to browse: search, then the muscle groups (collapsed, with a count), one light line per
- * exercise. A tap opens its description; from there the person rules it out (one or the whole family) or allows it again.
+ * All exercises of the catalog to browse: search, then about eight groups as an accordion (one open, no counts), one row
+ * per exercise. A tap opens its description; from there the person rules it out (one or the whole family) or allows it again.
  */
 export function CatalogScreen({ port, now = Date.now, newId = () => crypto.randomUUID() }: { port: TrackingPort; now?: () => number; newId?: () => string }) {
   const catalog = useCatalog(port);
@@ -21,14 +22,15 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
   const [q, setQ] = useState('');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [asking, setAsking] = useState<Exercise | null>(null);
   const [error, setError] = useState(false);
   const needle = q.trim().toLowerCase();
 
   const groups = useMemo(() => {
     const by = new Map<string, Exercise[]>();
-    for (const e of catalog) if (matchesSearch(e, needle)) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
+    for (const e of catalog) if (matchesSearch(e, needle)) { const g = catalogGroup(e.primaryMuscle); by.set(g, [...(by.get(g) ?? []), e]); }
     for (const list of by.values()) list.sort((a, b) => a.title.localeCompare(b.title, 'de'));
-    return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
+    return CATALOG_GROUPS.filter((g) => by.has(g.label)).map((g) => [g.label, by.get(g.label)!] as const);
   }, [catalog, needle]);
 
   const attempt = async (f: () => Promise<unknown>) => {
@@ -53,51 +55,52 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
     const fromChat = covering.filter((r) => r.source === 'chat');
     return (
       <ExerciseInfo title={e.title} description={descriptionOf(e)} images={exerciseImages(e.id)} video={videoSearchUrl(e)}>
-        {fam !== 'other' && <p className="muted tk-family">{familyLabel(fam)}</p>}
+        {fam !== 'other' && <p className="muted tk-family">Familie: {familyLabel(fam)}</p>}
         {isOut ? (
           <>
             {fromChat.length > 0 && <p className="muted tk-note">Ausgeschlossen durch die Regel „{fromChat[0].text}“. Du findest sie unter Woche.</p>}
-            {own.length > 0 && <div className="tk-row"><button type="button" className="secondary" onClick={() => void allow(e)}>Wieder erlauben</button></div>}
+            {own.length > 0 && <div className="tk-cat-actions"><button type="button" className="secondary" onClick={() => void allow(e)}>Wieder erlauben</button></div>}
           </>
         ) : (
-          <div className="tk-row">
-            <button type="button" className="ghost" onClick={() => void exclude(e)}>Ausschließen</button>
-            {fam !== 'other' && <button type="button" className="ghost" onClick={() => void exclude(e, fam)}>Alle Varianten ausschließen</button>}
+          <div className="tk-cat-actions">
+            <button type="button" className="link" onClick={() => (fam === 'other' ? void exclude(e) : setAsking(e))}>Nicht mehr vorschlagen{fam !== 'other' && ' ›'}</button>
           </div>
         )}
       </ExerciseInfo>
     );
   };
 
+  const askFam = asking ? familyOf(asking) : 'other';
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Übungen</h1>
       <input className="tk-search" aria-label="Übung suchen" placeholder="Übung oder Muskel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
       {error && <p role="alert" className="tk-note">Konnte nicht gespeichert werden. Versuch es gleich nochmal.</p>}
       {groups.length === 0 && <p className="muted">Nichts gefunden.</p>}
-      {groups.map(([muscle, list]) => {
-        const open = needle !== '' || openGroup === muscle;
-        return (
-          <section key={muscle} className="tk-cat-group">
-            <button type="button" className="ghost tk-cat-head" aria-expanded={open} onClick={() => setOpenGroup(openGroup === muscle ? null : muscle)}>
-              <span>{muscleLabel(muscle)}</span><span className="muted">{list.length}</span>
-            </button>
-            {open && (
-              <div className="tk-list">
+      <RowList label="Muskelgruppen">
+        {groups.map(([group, list]) => {
+          const open = needle !== '' || openGroup === group;
+          return (
+            <Row key={group} title={group} expanded={open} onClick={() => setOpenGroup(openGroup === group ? null : group)}>
+              <RowList label={group}>
                 {list.map((e) => (
-                  <div key={e.id} className="tk-pick-item">
-                    <button type="button" className="tk-pick tk-cat-line" aria-expanded={info === e.id} onClick={() => setInfo(info === e.id ? null : e.id)}>
-                      {e.title}{equipmentSuffix(e.title, e.equipment) && <small> · {equipmentSuffix(e.title, e.equipment)}</small>}
-                      {excluded.has(e.id) && <small className="tk-out"> · ausgeschlossen</small>}
-                    </button>
-                    {info === e.id && details(e)}
-                  </div>
+                  <Row key={e.id} title={e.title} value={excluded.has(e.id) ? 'ausgeschlossen' : undefined} expanded={info === e.id} onClick={() => setInfo(info === e.id ? null : e.id)}>
+                    {details(e)}
+                  </Row>
                 ))}
-              </div>
-            )}
-          </section>
-        );
-      })}
+              </RowList>
+            </Row>
+          );
+        })}
+      </RowList>
+      {asking && (
+        <Sheet title="Nicht mehr vorschlagen" onClose={() => setAsking(null)}>
+          <RowList>
+            <Row title="Nur diese Übung" onClick={() => { const e = asking; setAsking(null); void exclude(e); }} />
+            <Row title={`Alle Varianten (${familyLabel(askFam)})`} onClick={() => { const e = asking; setAsking(null); void exclude(e, askFam); }} />
+          </RowList>
+        </Sheet>
+      )}
     </div>
   );
 }

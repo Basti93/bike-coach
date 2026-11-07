@@ -96,10 +96,14 @@
 .tk-sheet button.tk-info-toggle[aria-expanded="true"] { color: var(--text, #f6eedd); }
 /* Pictures (line drawings on white), the video link and the muscle icon. */
 .tk-info-pic { margin: 0; display: flex; flex-direction: column; gap: .2rem; }
-.tk-info-pic img { display: block; width: 100%; max-height: 240px; object-fit: contain; background: #fff; border-radius: .6rem; }
+.tk-info-pics { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .5rem; }
+.tk-info-pic img { display: block; width: 100%; height: 9rem; object-fit: cover; background: var(--card, #1c2f26); border-radius: .6rem; }
+.tk-info button.link { padding-left: 0; padding-right: 0; align-self: flex-start; }
+.tk-desc { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.tk-desc p.tk-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tk-info-pic a, .tk-info .tk-credit a { color: inherit; }
 .tk-info-empty { display: flex; align-items: center; gap: .5rem; }
-.tk-info a.tk-video { align-self: flex-start; min-height: 40px; display: inline-flex; align-items: center; padding: .3rem .9rem; border: 1px solid var(--line, #33493c); border-radius: .7rem; color: var(--tk-accent); text-decoration: none; font-weight: 600; }
+.tk-info a.tk-video { align-self: flex-start; min-height: 40px; display: inline-flex; align-items: center; color: var(--tk-accent); text-decoration: underline; font-weight: 600; }
 .tk-info a.tk-video::after { content: ' ↗'; white-space: pre; }
 .tk-muscle-icon { display: block; flex: none; }
 .tk-ex-icon { flex: none; padding-top: .65rem; }
@@ -139,12 +143,8 @@
 .tk-sport-run { background: var(--tk-sport-run); }
 .tk-sport-mobility { background: var(--tk-sport-mobility); }
 .tk-sport-other { background: var(--tk-sport-other); }
-.tk-muscle-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.tk-screen .tk-muscle-row { all: unset; box-sizing: border-box; width: 100%; background: none; color: inherit; font: inherit; border-radius: 0; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: .5rem; align-items: center; padding: .45rem 0; cursor: pointer; }
-.tk-screen .tk-muscle-row:focus-visible { outline: 2px solid var(--tk-accent); outline-offset: 2px; border-radius: 6px; }
-.tk-muscle-name { display: flex; flex-direction: column; }
-.tk-muscle-name small { font-size: .8rem; }
-.tk-screen .card p.tk-muscle-detail { margin: 0 0 .4rem 30px; }
+.tk-muscle-title { display: inline-flex; align-items: center; gap: .5rem; }
+.tk-week-line { font-weight: 600; }
 .tk-state { display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem; }
 .tk-state-dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--tk-muted); }
 .tk-state-low .tk-state-dot { background: var(--tk-accent); }
@@ -160,15 +160,8 @@
 .tk-stack { width: 100%; max-width: 2.6rem; height: 8rem; display: flex; flex-direction: column-reverse; gap: 2px; border-bottom: 1px solid var(--tk-line); }
 .tk-stack > span { display: block; width: 100%; min-height: 2px; }
 .tk-stack > span:last-child { border-radius: 4px 4px 0 0; }
-.tk-stack-total { font-size: .8rem; color: var(--tk-muted); }
 .tk-stack-date { font-size: .7rem; color: var(--tk-muted); }
-.tk-stack-hard { font-size: .85rem; font-weight: 700; }
 .tk-small { font-size: .8rem; }
-.tk-table-wrap { overflow-x: auto; }
-.tk-sets-table { border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; width: 100%; }
-.tk-sets-table caption { text-align: left; font-weight: 700; padding-bottom: .3rem; }
-.tk-sets-table th, .tk-sets-table td { padding: .2rem .35rem; border-bottom: 1px solid var(--tk-line); text-align: right; white-space: nowrap; }
-.tk-sets-table th[scope="row"], .tk-sets-table thead th:first-child { text-align: left; font-weight: 400; color: var(--tk-muted); }
 .tk-pairs { margin: 0; padding-left: 1.2rem; }
 .tk-week { list-style: none; margin: .4rem 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; }
 .tk-week li { padding: .3rem .5rem; border-radius: .5rem; }
@@ -189,9 +182,6 @@
 .tk-prefs label { gap: .5rem; }
 /* The chat input stays at hand above the tab bar, like a messenger. */
 .tk-chat-input { position: sticky; bottom: calc(var(--web-nav-h, 0px) + env(safe-area-inset-bottom, 0px)); z-index: 3; background: var(--bg, #12201a); padding: .5rem 0; }
-/* Long muscle names wrap so four weeks fit a phone without scrolling sideways. */
-.tk-sets-table th[scope="row"] { white-space: normal; }
-.tk-sets-table td, .tk-sets-table thead th { padding: .2rem .25rem; }
 /* The plan of the day before starting: what is coming, then one button. */
 .tk-plan-preview ul { margin: .2rem 0 .8rem; padding-left: 1.1rem; }
 .tk-plan-preview li { margin: .15rem 0; }
@@ -224,13 +214,9 @@
 .tk-today-only { display: block; margin-top: .5rem; font-size: .9rem; }
 .tk-day { text-align: center; font-size: 0.85em; margin: 0.6em 0 0.2em; }
 
-/* Exercise catalog page: one light line per exercise, groups collapsed. */
-.tk-cat-group { margin-top: .4rem; }
-.tk-screen button.tk-cat-head { width: 100%; display: flex; justify-content: space-between; align-items: center; text-align: left; margin-bottom: .3rem; }
-.tk-cat-line small { color: var(--tk-muted, #aebba9); }
-.tk-cat-line small.tk-out { color: var(--warn, #e0b46a); }
-.tk-family { margin: .2rem 0; }
-.tk-cat-group .tk-info-pic img { max-height: 9rem; width: 100%; object-fit: contain; }
+/* Exercise catalog page: groups as an accordion of rows. */
+.tk-family { margin: 0; }
+.tk-cat-actions { display: flex; flex-wrap: wrap; gap: .25rem 1rem; align-items: center; }
 
 /* ---- Calm UI kit: rows, switch, sheet (components in kit/). ---- */
 .tk-section { font-size: .8rem; font-weight: 600; color: var(--tk-muted, #aebba9); text-transform: uppercase; letter-spacing: .05em; margin: 1rem 0 0; }

@@ -404,7 +404,7 @@ async function main() {
   });
   await fresh('Kraft'); await seg('Übungen');
   await shot('kraft-uebungen-katalog');
-  await step('kraft-uebungen-group', async () => { await page.locator('.tk-cat-head').first().click(); await shot('kraft-uebungen-gruppe-offen'); await page.locator('.tk-cat-line').first().click(); await shot('kraft-uebungen-info-offen'); });
+  await step('kraft-uebungen-group', async () => { await page.getByRole('button', { name: 'Brust', exact: true }).click(); await shot('kraft-uebungen-gruppe-offen'); await page.getByLabel('Übung suchen').fill('Kniebeuge mit Kurzhanteln'); await page.locator('.tk-row-more .tk-rowbtn').first().click(); await shot('kraft-uebungen-info-offen'); await page.getByRole('button', { name: /^Nicht mehr vorschlagen/ }).click(); await shot('kraft-uebungen-nicht-mehr-vorschlagen'); await page.keyboard.press('Escape'); });
 
   // Essen, Laufen, Statistik, Profil.
   await fresh('Essen');
@@ -418,7 +418,7 @@ async function main() {
   await nav('Statistik');
   await page.waitForTimeout(500);
   await shot('statistik');
-  await step('statistik-muscle', async () => { await page.locator('.tk-muscle-row').first().click(); await shot('statistik-muskel-offen'); });
+  await step('statistik-muscle', async () => { await page.locator('.tk-rowbtn').first().click(); await shot('statistik-muskel-offen'); await page.getByRole('button', { name: 'Details' }).click(); await shot('statistik-details'); await page.keyboard.press('Escape'); });
   await page.getByRole('button', { name: 'Profil', exact: true }).click();
   await page.waitForTimeout(500);
   await shot('profil');
