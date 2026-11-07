@@ -20,6 +20,7 @@
     "live:mark": "tsx scripts/live-mark.ts",
     "live:undo": "tsx scripts/live-undo.ts",
     "build:web": "vite build --config vite.web.config.ts",
+    "ui:web-shots": "npm run build:web && tsx scripts/web-shots.ts",
     "test:web-smoke": "npm run build:web && tsx scripts/web-smoke.ts",
     "dev:web": "vite --config vite.web.config.ts",
     "media:fedb": "tsx scripts/fedb-media.ts",
