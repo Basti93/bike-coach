@@ -1,4 +1,4 @@
-import type { ReactNode, SyntheticEvent } from 'react';
+import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { descriptionCredit, type ExerciseDescription } from '../../shared/exercise-descriptions';
 import type { ExerciseImage } from '../../shared/exercise-images';
 import { ruleNumbers } from '../../shared/training-policy';
@@ -15,6 +15,21 @@ const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
  */
 /** A picture that is not there (generated media missing) takes its frame with it. */
 const hideFigure = (e: SyntheticEvent<HTMLImageElement>) => { const f = e.currentTarget.closest('figure'); if (f) f.hidden = true; };
+
+const WORD_CAP = 90;
+
+/** A long text shows its first ~90 words with a "mehr" toggle; the stored text is never shortened. */
+function DescriptionText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= WORD_CAP) return <p>{text}</p>;
+  return (
+    <p>
+      {open ? text : `${words.slice(0, WORD_CAP).join(' ')} …`}{' '}
+      <button type="button" className="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'weniger' : 'mehr'}</button>
+    </p>
+  );
+}
 
 export function ExerciseInfo({ title, description, images = [], video, icon, children }: {
   title: string; description: ExerciseDescription | null; images?: ExerciseImage[]; video: string;
@@ -35,7 +50,7 @@ export function ExerciseInfo({ title, description, images = [], video, icon, chi
       ))}
       {description ? (
         <>
-          <p>{description.text}</p>
+          <DescriptionText text={description.text} />
           {credit && <small className="muted tk-credit">{credit}</small>}
         </>
       ) : (
