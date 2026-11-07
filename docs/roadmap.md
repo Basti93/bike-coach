@@ -34,7 +34,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
 | ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 | ✅ | **I Alltag glätten** | Gewichte passen zum gewählten Studio, Zusammenfassung nach dem Training, Übernommenes wirkt sofort, Studios verwalten, „Heute erledigt“, Rückfrage nach dem Lauf. | Parkplatz C, D, F, G, H |
-| | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
+| ✅ | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
 | | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
 | | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
 | | **M Wochenübersicht per E-Mail** | Jede Person bekommt ihre Wochenübersicht per E-Mail an die Adresse aus ihrem Profil (selbst änderbar). | Wunsch 07.11.2026 |
@@ -218,7 +218,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Plan merkt sich sein Studio; ein abweichendes Studio nimmt eigene Werte, sonst den Plan auf seine Stufen abgerundet. Ausblenden statt Löschen, sobald Trainings dranhängen. „Heute erledigt“ ab 18 Uhr (Regelregister). „In letzter Zeit“ = 90 Tage.
 
-## Meilenstein J — Brief (07.11.2026)
+## Meilenstein J — Brief (umgesetzt 07.11.2026)
 
 **Ziel:** Der Coach kennt jede Übung, die die App kennt: Tauschen und Ausschließen klappen aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, und man kann die Übungen mit Bild in Ruhe ansehen.
 
@@ -287,3 +287,8 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Aus Meilenstein I:
   - Ausblenden/Entfernen eines Studios nur auf dem Startbildschirm, nicht im laufenden Training.
   - Eine schwere Laufwoche hält nur, wenn es eine Basis gibt; ohne Läufe der letzten Wochen wirkt sie nicht.
+- Aus Meilenstein J:
+  - Bilder der Übungsbasis machen App und Server-Paket ~50 MB größer; ggf. kleiner rechnen.
+  - „Wieder erlauben“ pausiert eine Regel ganz, auch wenn sie mehrere Übungen betrifft; der Knopf sagt das nicht.
+  - Titel-Auflösung beim Tausch per Chat unterscheidet Groß-/Kleinschreibung.
+  - Einordnung einzelner Basis-Übungen (enges Bankdrücken bei Bankdrücken, Hyperextensions bei Sonstige).
