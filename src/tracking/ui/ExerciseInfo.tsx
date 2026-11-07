@@ -34,6 +34,11 @@ function DescriptionText({ text }: { text: string }) {
 function Credits({ images, text }: { images: ExerciseImage[]; text: string | null }) {
   const pics = images.filter((img, i) => images.findIndex((o) => o.sourceUrl === img.sourceUrl && o.author === img.author && o.licence === img.licence) === i);
   if (pics.length === 0 && !text) return null;
+  // Picture and text from the same public-domain source: one credit.
+  const fedb = (a: string) => a.startsWith('free-exercise-db');
+  if (pics.length > 0 && pics.every((p) => fedb(p.author)) && text && fedb(text.replace(/^Quelle: /, ''))) {
+    return <small className="muted tk-credit">Bild und Text: free-exercise-db, gemeinfrei</small>;
+  }
   return (
     <small className="muted tk-credit">
       {pics.map((img, i) => (

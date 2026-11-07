@@ -7,9 +7,9 @@ import { exerciseImages, videoSearchUrl } from '../media';
 import type { TrackingPort } from '../ports';
 import { matchesSearch } from '../similar';
 import { ExerciseInfo } from './ExerciseInfo';
-import { useCatalog, useExcluded, usePortRecords } from './hooks';
+import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
+import { ExerciseGroups } from './ExerciseGroups';
 import { Row, RowList, Sheet } from './kit';
-import { CATALOG_GROUPS, catalogGroup } from './labels';
 
 /**
  * All exercises of the catalog to browse: search, then about eight groups as an accordion (one open, no counts), one row
@@ -20,18 +20,14 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
   const excluded = useExcluded(port);
   const rules = usePortRecords(port, 'rule').all;
   const [q, setQ] = useState('');
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [asking, setAsking] = useState<Exercise | null>(null);
   const [error, setError] = useState(false);
   const needle = q.trim().toLowerCase();
 
-  const groups = useMemo(() => {
-    const by = new Map<string, Exercise[]>();
-    for (const e of catalog) if (matchesSearch(e, needle)) { const g = catalogGroup(e.primaryMuscle); by.set(g, [...(by.get(g) ?? []), e]); }
-    for (const list of by.values()) list.sort((a, b) => a.title.localeCompare(b.title, 'de'));
-    return CATALOG_GROUPS.filter((g) => by.has(g.label)).map((g) => [g.label, by.get(g.label)!] as const);
-  }, [catalog, needle]);
+  const hits = useMemo(() => catalog.filter((e) => matchesSearch(e, needle)), [catalog, needle]);
+  const workouts = usePortRecords(port, 'workout').records;
+  const used = useMemo(() => new Set(finishedWorkouts(workouts).flatMap((w) => w.exercises.map((x) => x.exerciseId))), [workouts]);
 
   const attempt = async (f: () => Promise<unknown>) => {
     try { await f(); setError(false); } catch { setError(true); }
@@ -76,23 +72,12 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
       <h1 className="tk-title">Übungen</h1>
       <input className="tk-search" aria-label="Übung suchen" placeholder="Übung oder Muskel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
       {error && <p role="alert" className="tk-note">Konnte nicht gespeichert werden. Versuch es gleich nochmal.</p>}
-      {groups.length === 0 && <p className="muted">Nichts gefunden.</p>}
-      <RowList label="Muskelgruppen">
-        {groups.map(([group, list]) => {
-          const open = needle !== '' || openGroup === group;
-          return (
-            <Row key={group} title={group} expanded={open} onClick={() => setOpenGroup(openGroup === group ? null : group)}>
-              <RowList label={group}>
-                {list.map((e) => (
-                  <Row key={e.id} title={e.title} value={excluded.has(e.id) ? 'ausgeschlossen' : undefined} expanded={info === e.id} onClick={() => setInfo(info === e.id ? null : e.id)}>
-                    {details(e)}
-                  </Row>
-                ))}
-              </RowList>
-            </Row>
-          );
-        })}
-      </RowList>
+      {hits.length === 0 && <p className="muted">Nichts gefunden.</p>}
+      <ExerciseGroups exercises={hits} used={used} searching={needle !== ''} item={(e) => (
+        <Row key={e.id} title={e.title} value={excluded.has(e.id) ? 'ausgeschlossen' : undefined} expanded={info === e.id} onClick={() => setInfo(info === e.id ? null : e.id)}>
+          {details(e)}
+        </Row>
+      )} />
       {asking && (
         <Sheet size="small" title="Nicht mehr vorschlagen" onClose={() => setAsking(null)}>
           <RowList>

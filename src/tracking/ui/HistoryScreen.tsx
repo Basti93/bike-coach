@@ -93,9 +93,9 @@ function Detail({ port, store, history, onBack, onDeleted, latest, next }: { por
           <section key={e.rid} className="tk-ex" aria-label={e.title}>
             <h2>{e.title}</h2>
             {latest && nextOf(e) && <p className="tk-sub">{nextLine(nextOf(e)!)}</p>}
-            {e.sets.length > 0 && <SetHead timed={!!e.timed} />}
+            {e.sets.length > 0 && <SetHead timed={!!e.timed} editing />}
             {e.sets.map((s, si) => (
-              <SetRow key={s.rid} index={si} set={s} timed={!!e.timed} label={setLabels(e.sets)[si]}
+              <SetRow key={s.rid} index={si} set={s} timed={!!e.timed} label={setLabels(e.sets)[si]} editing
                 confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                 onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))} onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
@@ -169,7 +169,7 @@ export function HistoryScreen({ port, now = Date.now }: { port: TrackingPort; no
       {q.failed && <p role="status" className="tk-note">Der Verlauf konnte gerade nicht gelesen werden. <button type="button" onClick={q.retry}>Nochmal versuchen</button></p>}
       <div className="tk-textseg" role="group" aria-label="Ansicht">
         <button type="button" className="link" aria-pressed={tab === 'workouts'} onClick={() => setTab('workouts')}>Trainings</button>
-        <button type="button" className="link" aria-pressed={tab === 'exercises'} onClick={() => setTab('exercises')}>Übungen</button>
+        <button type="button" className="link" aria-pressed={tab === 'exercises'} onClick={() => setTab('exercises')}>Je Übung</button>
       </div>
       {records !== null && history.length === 0 && <p className="muted">Hier erscheinen deine abgeschlossenen Trainings.</p>}
       {tab === 'workouts' ? (

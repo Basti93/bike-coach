@@ -6,10 +6,11 @@ import { exerciseImages, videoSearchUrl } from '../media';
 import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
 import { MuscleIcon } from './MuscleIcon';
-import { ChoiceRow, Row, RowList, Sheet } from './kit';
+import { ChoiceRow, RowList, Sheet } from './kit';
+import { ExerciseGroups } from './ExerciseGroups';
 import { matchesSearch, similarExercises } from '../similar';
 import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
-import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
+import { EQUIPMENT, MUSCLES, TYPES } from './labels';
 
 /** `like` is the exercise being swapped; similar ones then come first. */
 export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, newId = () => crypto.randomUUID() }: {
@@ -20,16 +21,15 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   const workouts = usePortRecords(port, 'workout').records;
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({ name: '', muscle: '', equipment: '', type: '' });
+  // Equipment and type start with the usual choice, so a new exercise needs only a name and a muscle.
+  const [draft, setDraft] = useState({ name: '', muscle: '', equipment: 'dumbbell', type: 'weight_reps' });
   const [error, setError] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
-  const [more, setMore] = useState(false);
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const excluded = useExcluded(port);
   const done = useMemo(() => new Set(finishedWorkouts(workouts).flatMap((w) => w.exercises.map((x) => x.exerciseId))), [workouts]);
 
   const needle = q.trim().toLowerCase();
-  const hit = useMemo(() => catalog.filter((e) => matchesSearch(e, needle) && (needle !== '' || more || e.source !== 'fedb')), [catalog, needle, more]);
+  const hit = useMemo(() => catalog.filter((e) => matchesSearch(e, needle)), [catalog, needle]);
   const found = useMemo(() => [...hit].sort((a, b) => a.title.localeCompare(b.title, 'de')), [hit]);
   // The last exercises from finished workouts, newest first.
   const recent = useMemo(() => {
@@ -38,11 +38,6 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
     for (const w of finishedWorkouts(workouts)) for (const x of w.exercises) ids.add(x.exerciseId);
     return [...ids].map((id) => byId.get(id)).filter((e): e is Exercise => !!e && !excluded.has(e.id)).slice(0, 6);
   }, [catalog, workouts, excluded]);
-  const groups = useMemo(() => {
-    const by = new Map<string, Exercise[]>();
-    for (const e of found) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
-    return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
-  }, [found]);
   const similar = useMemo(() => (like && !needle ? similarExercises(like, catalog, done, excluded).slice(0, 8) : []), [like, catalog, needle, done, excluded]);
 
   const choose = (e: Exercise) => onPick(e);
@@ -86,7 +81,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
           <ChoiceRow label="Muskelgruppe" placeholder="Wählen" value={draft.muscle} options={options(MUSCLES)} onChange={(muscle) => setDraft({ ...draft, muscle })} />
           <ChoiceRow label="Equipment" placeholder="Wählen" value={draft.equipment} options={options(EQUIPMENT)} onChange={(equipment) => setDraft({ ...draft, equipment })} />
           <ChoiceRow label="Art" placeholder="Wählen" value={draft.type} options={options(TYPES)} onChange={(type) => setDraft({ ...draft, type })} />
-          {!valid && <p className="muted">Name, Muskelgruppe, Equipment und Art fehlen noch.</p>}
+          {!valid && <p className="muted">Name und Muskelgruppe fehlen noch.</p>}
           {error && <p role="status" className="tk-note">Konnte gerade nicht gespeichert werden. Versuch es gleich nochmal.</p>}
         </form>
       </Sheet>
@@ -114,14 +109,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
             </section>
           )}
           <h3 className="tk-section">Muskelgruppen</h3>
-          <RowList label="Muskelgruppen">
-            {groups.map(([muscle, list]) => (
-              <Row key={muscle} title={muscleLabel(muscle)} expanded={openGroup === muscle} onClick={() => setOpenGroup(openGroup === muscle ? null : muscle)}>
-                <RowList>{list.map(item)}</RowList>
-              </Row>
-            ))}
-          </RowList>
-          {!more && <button type="button" className="link" onClick={() => setMore(true)}>Mehr Übungen</button>}
+          <ExerciseGroups exercises={found} used={done} searching={false} item={item} />
         </>
       )}
       {own}

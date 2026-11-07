@@ -107,3 +107,15 @@ describe('catalog page', () => {
     expect(rules(f)[0].c.state).toBe('active');
   });
 });
+
+describe('catalog groups: built-in and used exercises first', () => {
+  test('an open group lists the own entries; the base entries follow behind "Alle N anzeigen"', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Brust' }));
+    const all = screen.getByRole('button', { name: /^Alle \d+ anzeigen$/ });
+    const before = screen.getAllByRole('listitem').length;
+    fireEvent.click(all);
+    expect(screen.getAllByRole('listitem').length).toBeGreaterThan(before);
+    expect(screen.queryByRole('button', { name: /^Alle \d+ anzeigen$/ })).toBeNull();
+  });
+});
