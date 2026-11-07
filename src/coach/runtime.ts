@@ -48,6 +48,7 @@ import { PlanSeen, adviceKey, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
 import { addDays, mondayOf, planFor } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
+import { newestNotes, type ChangeNote } from '../shared/change-notes';
 import type { NextStep, PublishedAdvice, StatsBody } from '../shared/stats';
 import { todayAdvice } from '../shared/today';
 import type { RecordLinks } from './tracking/link';
@@ -276,7 +277,10 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     // What the next gym workout will bring for each exercise of the last one, and why. Left out when there is none.
     let next: NextStep[] = [];
     try { next = content ? gym.nextSteps(id) : []; } catch { /* the rest of the stats still go out */ }
-    return content ? { ...content, ...(advice ? { advice } : {}), ...(next.length > 0 ? { next } : {}) } : content;
+    // What the coaches changed lately and why, the newest few across the three. Left out when there is none.
+    let changes: ChangeNote[] = [];
+    try { changes = content ? newestNotes([...coach.changeNotes(id), ...gym.changeNotes(id), ...run.changeNotes(id)]) : []; } catch { /* the rest of the stats still go out */ }
+    return content ? { ...content, ...(advice ? { advice } : {}), ...(next.length > 0 ? { next } : {}), ...(changes.length > 0 ? { changes } : {}) } : content;
   };
   // A newly taken week plan makes the bike and gym coach plan again (the run coach sees it in its own key).
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));

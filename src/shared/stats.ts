@@ -1,4 +1,5 @@
 import type { PlanMode } from './frame';
+import { readNotes, type ChangeNote } from './change-notes';
 import type { TodayAdvice } from './today';
 import { SPORTS as PLAN_SPORTS } from './week-plan';
 
@@ -14,7 +15,7 @@ export type PublishedAdvice = TodayAdvice & { date: string; mode: PlanMode };
 /** What the gym coach suggests for one exercise of the latest workout, and why. `atMs` is the start of that workout, so it stays the same until a new workout. */
 export type NextStep = { exerciseId: string; title: string; weightKg: number | null; reps: number; why: 'progress' | 'keep' | 'step-back'; reason: string; forWorkoutId: string; atMs: number };
 /** `ftp` and `weightKg` are optional: the bike coach's FTP history (last half year) and the profile weight, for the progress card. */
-export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string>; ftp?: { atMs: number; ftpW: number }[]; weightKg?: number | null; advice?: PublishedAdvice; next?: NextStep[] };
+export type StatsBody = { type: 'stats'; atMs: number; goal: string | null; days: StatsDay[]; muscles: Record<string, string>; ftp?: { atMs: number; ftpW: number }[]; weightKg?: number | null; advice?: PublishedAdvice; next?: NextStep[]; changes?: ChangeNote[] };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
@@ -85,6 +86,8 @@ export function readStats(body: unknown): StatsBody | null {
   if (advice) out.advice = advice;
   const next = readNext(body.next);
   if (next.length > 0) out.next = next;
+  const changes = readNotes(body.changes);
+  if (changes.length > 0) out.changes = changes.slice(0, 8);
   if (typeof body.weightKg === 'number' && body.weightKg > 20 && body.weightKg < 400) out.weightKg = body.weightKg;
   return out;
 }

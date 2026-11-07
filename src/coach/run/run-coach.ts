@@ -20,6 +20,7 @@ import { TEST_EVERY_DAYS, TEST_MAIN_MIN, TEST_WARM_MIN } from './limits';
 import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from './numbers';
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
 import { personalHint } from '../tracking/personal';
+import { addNote, type ChangeNote } from '../../shared/change-notes';
 import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
 import { manualRuns, mergeRuns } from './runs';
 import { loadRunCache, saveRunCache, type RunCache } from './state';
@@ -287,6 +288,7 @@ export class RunCoach {
       lastTestMs: this.lastTestMs(ctx, t.fromDate), dueAtMs: Math.max(now, startMsOf(t.fromDate)), phase: phaseOf(ctx.runs, this.complaintWeeks(ctx), now), restartSince: this.restartSince(ctx),
       longDates: this.longDatesBefore(ctx, t.fromDate),
     });
+    this.noteChanges(id, t.week, rule, now);
     const save = (planned: PlannedRun[], source: 'rules' | 'claude', reason: string, note: string | null): void => {
       const body = this.weekBody(ctx, t, existing, rule, planned, source, reason, note);
       this.write(id, runWeekId(t.week), body, now);
@@ -341,6 +343,25 @@ export class RunCoach {
       this.saveCache(id);
     }
   }
+
+  /** A phase change, a light week or a test week gets one note, replaced when the same week is planned again. */
+  private noteChanges(id: string, week: string, rule: RuleWeek, now: number): void {
+    try {
+      const cache = this.cache(id);
+      const before = JSON.stringify(cache.changeNotes);
+      const was = cache.lastPhase;
+      const put = (key: string, text: string, reason: string): void => { cache.changeNotes = addNote(cache.changeNotes, { atMs: now, coach: 'run', text, reason, key }, now); };
+      if (cache.lastPhase !== null && cache.lastPhase !== rule.phase) {
+        put(`phase:${rule.phase}`, `Lauf: Phase ${rule.phase}`, rule.phase === 2 ? 'drei Läufe pro Woche in 4 von 5 Wochen' : 'nach einer Pause oder mit Beschwerden zurück zu ruhigen Läufen');
+      }
+      cache.lastPhase = rule.phase;
+      if (rule.light && rule.runs.length > 0) put(`light:${week}`, 'Lauf: leichtere Woche', 'damit Erholung Platz hat');
+      if (rule.testDate !== null) put(`test:${week}`, 'Lauf: Testlauf in dieser Woche', 'als Messpunkt für deinen Fortschritt');
+      if (JSON.stringify(cache.changeNotes) !== before || was !== rule.phase) this.saveCache(id);
+    } catch { /* a note is a bonus */ }
+  }
+  /** What the run coach changed, newest last. */
+  changeNotes(id: string): ChangeNote[] { return this.cache(id).changeNotes.map(({ key: _k, ...n }) => n); }
 
   private weekBody(ctx: Ctx, t: Target, existing: RunWeekBody | null, rule: RuleWeek, planned: PlannedRun[], source: 'rules' | 'claude', reason: string, note: string | null): RunWeekBody {
     // Past dates stay as they were; only the open days take the new plan.

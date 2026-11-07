@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
 import { dayLabel, mondayOf, SPORT_LABEL, planOfWeek, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
+import { readStats, STATS_ID } from '../../shared/stats';
+import { newestNotes } from '../../shared/change-notes';
+import { dateLabel } from './labels';
 import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { PlanningLine } from './FrameControls';
@@ -95,6 +98,21 @@ function PrefsCard({ prefs, onChange }: { prefs: CoachPrefs; onChange: (p: Coach
   );
 }
 
+/** What the coaches changed lately and why, one line each: "Mo., 3. Nov. · Text – Grund". Nothing to show, no card. */
+function ChangedCard({ records }: { records: TrackedRecord[] | null }) {
+  const rec = (records ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+  const notes = newestNotes((rec && readStats(rec.body)?.changes) || [], 5);
+  if (notes.length === 0) return null;
+  return (
+    <section className="card" aria-label="Zuletzt geändert">
+      <h2>Zuletzt geändert</h2>
+      <ul className="tk-week">
+        {notes.map((n, i) => <li key={`${n.atMs}-${i}`}>{dateLabel(n.atMs)} · {n.text}{n.reason ? ` – ${n.reason}` : ''}</li>)}
+      </ul>
+    </section>
+  );
+}
+
 /** One chat with the coach for all sports, with the week plan on top. Proposals change nothing until the rider takes them. */
 export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
   const chat = usePortRecords(port, 'chat').all;
@@ -105,6 +123,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
   const prefRecords = usePortRecords(port, 'coachprefs').all;
+  const statsRecords = usePortRecords(port, 'stats').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -180,6 +199,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
           {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
         </section>
       )}
+      <ChangedCard records={statsRecords} />
       <RulesCard port={port} now={now} newId={newId} />
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">

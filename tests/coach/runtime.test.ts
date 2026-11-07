@@ -371,6 +371,18 @@ describe('the stats record on the scan', () => {
     expect(mobilityMinutes(runtime)).toBe(40);
   });
 
+  test('publishes what the bike coach changed, with its reason, and only when it changed', () => {
+    const { runtime } = make();
+    addMobility(runtime, 'm1', Date.now() - 60_000, 15);
+    runtime.handle({ type: 'set-ftp', profileId: 'pa', ftpW: 211 }, () => {});
+    runtime.scan();
+    const body = () => runtime.records.all('pa', 'stats').find((r) => r.id === 'stats');
+    const first = body()!;
+    expect((first.body as { changes?: unknown }).changes).toContainEqual({ atMs: expect.any(Number), coach: 'bike', text: 'FTP: 211 W', reason: 'von dir gesetzt' });
+    runtime.scan();
+    expect(body()!.updatedMs).toBe(first.updatedMs);
+  });
+
   test('with a ride open nothing is written', () => {
     const { runtime } = make({ noOpenRide: () => false });
     addMobility(runtime, 'm1', Date.now() - 60_000, 15);

@@ -1104,3 +1104,44 @@ describe('next steps for the latest workout', () => {
     expect(JSON.stringify(h.coach.nextSteps(ID))).toBe(a);
   });
 });
+
+describe('what the coach changed ("Zuletzt geändert")', () => {
+  const heavy = (): StrengthWorkout[] => [
+    wk(14, 'w14', [{ t: 'cp', kg: 40, reps: 12 }, { t: 'lr', kg: 50, reps: 8 }]),
+    wk(7, 'w7', [{ t: 'cp', kg: 40, reps: 12 }, { t: 'lr', kg: 50, reps: 8 }]),
+  ];
+  const plan = (cpKg: number) => answer({ workout: { name: 'Oberkörper', exercises: [ex('cp', [set(cpKg, 8), set(cpKg, 8)]), ex('lr', [set(50, 9), set(50, 9)])] } });
+  it('a weight increase gets one note with the reason, and replanning replaces it', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45), plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    const notes = h.coach.changeNotes(ID);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ coach: 'gym', text: 'Title cp SENTINEL: 40 → 45 kg', atMs: NOW });
+    expect(notes[0]!.reason).toMatch(/^weil /);
+    h.coach.taskAdded(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toHaveLength(1);
+  });
+  it('an unchanged weight gives no note, and a new plan with it removes the old note', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45), plan(40));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toHaveLength(1);
+    h.coach.taskAdded(ID);
+    await h.coach.tick(ID);
+    expect(h.coach.changeNotes(ID)).toEqual([]);
+  });
+  it('the notes survive a restart', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    expect(h.make().changeNotes(ID)).toHaveLength(1);
+  });
+});
