@@ -1,9 +1,10 @@
+import { ruleNumber } from '../../shared/training-policy';
 import type { RunFeel as Feel } from '../../shared/run';
 import { dayText } from './run-view';
 
 const DAY = 86_400_000;
 /** The question is asked for the newest run of the last 3 days (register: run.feel-ask-days). */
-export const FEEL_ASK_DAYS = 3;
+export const FEEL_ASK_DAYS = ruleNumber('run.feel-ask-days');
 const LABEL: Record<Feel, string> = { easy: 'leicht', right: 'passend', hard: 'schwer' };
 
 /** True while the card's run is recent enough and has no feel record (an answer or a skip). */
