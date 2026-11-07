@@ -30,7 +30,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **C Gewichte passen zum Gerät** | Vorschläge sind am eigenen Gerät erreichbar; Progression pro Übung statt globaler 6–12/2,5 kg; RIR 0 wird nicht bestraft. | Auftrag 3–4 |
 | ✅ | **D Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | ✅ | **E Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
-| **F** | **Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
+| ✅ | **F Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
 | **G** | **Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
 | **H** | **Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 
@@ -143,6 +143,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Prüfbare Regel = Liste konkreter Übungen (der Coach schlägt alle passenden Varianten aus dem Katalog vor, du siehst sie vor dem Übernehmen); alles andere ist ein Wunsch. Regeln immer erst als Vorschlag, auch bei klarer Aussage. Selbst hinzugefügte Übungen werden nicht blockiert (deine eigene Wahl).
 
+## Meilenstein F — Brief (umgesetzt 07.11.2026)
+
+**Ziel:** Ob du eine feste Woche planst oder spontan trainierst, die App sagt dir jeden Tag in einem Satz, was heute passt und warum – und Pläne passen in die Zeit, die du hast.
+
+**Abnahme:**
+1. Du wählst „Feste Woche“ oder „Spontan“. Spontan gibt es keinen Wochenplan-Zwang: Start- und Wochenseite zeigen „Heute: … – weil …“ aus Belastung der letzten Tage, Zielen und Regeln.
+2. Mit Wochenplan zeigt „Heute“ den Plantag; weicht die Empfehlung ab (z. B. harte Beine gestern), steht der Grund in einem Satz daneben. Ein nicht gemachtes Training zählt nicht als gemacht und wird nicht nachgeholt.
+3. Ein Tag kann zwei Einheiten tragen (z. B. Kraft + lockeres Rad), nur wenn du es willst; Dauer und Belastung zählen zusammen.
+4. Du gibst eine übliche Zeit pro Einheit an und kannst sie für heute ändern („heute nur 30 Min“). Der Kraftplan passt mit Aufwärmen und Pausen hinein und zeigt „ca. N Min“; ohne Angabe gilt ein sinnvoller Umfang mit Schätzung.
+5. Der einfache Ersatzplan des Coaches wird genauso geprüft wie sein normaler Plan (Grenzen, Regeln, Zeit).
+
+**Fällt weg:** die fest eingebauten 45 Minuten pro Krafttraining in der Tagesbelastung; der ungeprüfte Ersatzplan.
+
+**Nicht dabei:** Kalender-Anbindung, Uhrzeiten, Wochentag-Regeln, mehrere Studios pro Woche planen.
+
+**Von Claude entschieden (07.11.2026):** Rahmen als eigener Datensatz (Modus, übliche Minuten, Minuten nur für heute); „Was geht heute“ ist eine feste, erklärbare Regel ohne KI-Aufruf; Kombination nur mit höchstens einem harten Teil; Zeitschätzung Kraft = Aufwärmen + Sätze × (Arbeit + Pause) + Wechsel.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
@@ -180,3 +197,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Ausschluss ganzer Bewegungsfamilien ohne Übungsliste (heute: Liste konkreter Varianten).
   - Sportarten in der Zielkarte immer alle drei; später nur die genutzten zeigen.
   - Schwerpunkt-Muskeln wirken im Coach-Prompt, noch nicht in der Bilanz-Anzeige.
+- Aus Meilenstein F:
+  - Die Handy-App kennt keine Radfahrten; ohne veröffentlichte Empfehlung des Coaches rechnet sie nur mit Kraft und Laufen.
+  - Ein Plantag kann nicht „nur Beine“ markieren; nach harten Beinen wird Kraft immer zu „Kraft ohne Beine“.
+  - Die Empfehlung kennt keine Uhrzeit; abends gilt noch die Empfehlung des Tages.

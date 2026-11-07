@@ -57,3 +57,15 @@ describe('stats kind', () => {
     expect(validBody('stats', {})).toBe(false);
   });
 });
+
+describe('published advice', () => {
+  const advice = { date: '2026-11-07', mode: 'week', sport: 'gym', hardness: 'hard', legs: false, label: 'Kraft ohne Beine', reason: 'weil deine Beine gestern hart gearbeitet haben', line: 'Kraft ohne Beine – weil deine Beine gestern hart gearbeitet haben', fromPlan: false };
+  it('is read when whole, validated, and dropped alone when broken', () => {
+    expect(readStats({ ...valid(), advice })?.advice).toEqual(advice);
+    expect(validBody('stats', { ...valid(), advice })).toBe(true);
+    const broken = readStats({ ...valid(), advice: { ...advice, sport: 'swim' } });
+    expect(broken).not.toBeNull();
+    expect(broken?.advice).toBeUndefined();
+    expect(readStats(valid())?.advice).toBeUndefined();
+  });
+});

@@ -33,6 +33,17 @@ export const RULES: PolicyRule[] = [
   r('gym.max-widowmakers', 'gym', 'product', 'checked', 'Höchstens ein Widowmaker pro Training.', 'Anstrengung', active, { value: 1, where: GYM }),
   r('muscle.weekly-set-targets', 'muscle', 'product', 'weighed', 'Feste wöchentliche Satzbereiche je Muskelgruppe, gleichzeitig für alle Gruppen.', 'Umfangsverteilung', replace(2, 'Gemeinsam verfügbaren Umfang verteilen statt gleichzeitiger Mindestquoten; indirekte Arbeit kenntlich machen.'), { sourceIds: ['S03'], where: ['src/shared/muscle-targets.ts', 'src/coach/gym/muscle-volume.ts'], scenarioIds: ['F04'] }),
 
+  // Time frame and duration estimate (src/shared/frame.ts, src/shared/duration.ts): own product choices.
+  r('frame.minute-choices', 'planner', 'product', 'checked', 'Die übliche Zeit pro Einheit kann man auf 20, 30, 45, 60, 75, 90 oder 120 Minuten setzen.', 'Zeitrahmen', active, { numbers: [20, 30, 45, 60, 75, 90, 120], unit: 'Min', where: ['src/shared/frame.ts'] }),
+  r('duration.gym-warmup-min', 'gym', 'product', 'checked', 'Aufwärmen vor dem Krafttraining zählt mit 8 Minuten.', 'Dauerschätzung', active, { value: 8, unit: 'Min', where: ['src/shared/duration.ts'] }),
+  r('duration.set-work-s', 'gym', 'product', 'checked', 'Ein Satz dauert 40 Sekunden Arbeit, dazu kommt die Pause der Übung.', 'Dauerschätzung', active, { value: 40, unit: 's', where: ['src/shared/duration.ts'] }),
+  r('duration.change-s', 'gym', 'product', 'checked', 'Ein Wechsel zur nächsten Übung kostet 60 Sekunden.', 'Dauerschätzung', active, { value: 60, unit: 's', where: ['src/shared/duration.ts'] }),
+  r('duration.slack-pct', 'gym', 'product', 'checked', 'Ein Krafttraining darf die angegebene Zeit um 10 % überschreiten, danach ist es zu lang.', 'Zeitrahmen', active, { value: 10, unit: '%', where: ['src/coach/gym/guardrails.ts'] }),
+
+  // What fits today (src/shared/today.ts): own product choices.
+  r('today.hard-days-in-row', 'planner', 'product', 'checked', 'Nach zwei harten Tagen hintereinander ist der nächste Tag locker.', 'Heutiger Vorschlag', active, { value: 2, unit: 'Tage', where: ['src/shared/today.ts'] }),
+  r('today.rest-after-days', 'planner', 'product', 'checked', 'Nach 6 Tagen ohne Pause ist heute ein Ruhetag.', 'Heutiger Vorschlag', active, { value: 6, unit: 'Tage', where: ['src/shared/today.ts'] }),
+
   // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
   r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
   r('load.step-choices', 'gym', 'product', 'checked', 'Den Lastschritt einer Übung kann man auf 0,5, 1, 1,25, 2, 2,5, 4, 5, 7 oder 10 kg setzen.', 'Lastschritt', active, { numbers: [0.5, 1, 1.25, 2, 2.5, 4, 5, 7, 10], unit: 'kg', where: ['src/shared/loads.ts'] }),

@@ -1,6 +1,7 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
+import { durationNote } from '../shared/duration';
 import { openStoreCount } from '../tracking/registry';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
@@ -126,6 +127,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
       <p className="muted">{planDateText(p.atMs)}</p>
       {planIsStale(p.atMs, now) && <p className="muted">Der Plan ist schon etwas älter. Der Coach macht einen neuen, sobald er dazu kommt.</p>}
       {p.workout && <h2>{p.workout.name}</h2>}
+      {p.workout && p.workout.exercises.length > 0 && <p className="muted">{durationNote(p.workout)}</p>}
       {p.reason && <p>{p.reason}</p>}
       {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
       {p.note && <p>{p.note}</p>}
@@ -145,8 +147,9 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
     <div className="tk-screen">
       <h1 className="tk-title">Heute</h1>
       {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
-      {today ? <TodayCard weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} /> : (
+      {today ? <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} /> : (
         <>
+          <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} />
           <section className="card">{gym}</section>
           <section className="card">
             <p className="muted">Noch kein Wochenplan für heute. Mit dem Coach plant ihr die Woche über alle Sportarten.</p>

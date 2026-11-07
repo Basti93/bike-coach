@@ -77,6 +77,10 @@ export type PromptInput = {
   studio?: string; overrides?: LoadStepOverrides; renames?: Renames;
   /** The person's goal, the template ids their exclude rules rule out (own ids and linked Hevy ids) and their active wishes for strength. */
   goal?: Omit<GoalBody, 'atMs'>; excluded?: ReadonlySet<string>; wishes?: readonly string[];
+  /** The time the person has for this session, if they said. */
+  budgetMinutes?: number;
+  /** No leg exercises today (open leg complaint or today's advice). */
+  avoidLegs?: boolean;
 };
 
 const STRENGTH_WORDS = { muscle: 'Muskelaufbau', strength: 'Kraft', fitness: 'Fitness' } as const;
@@ -136,6 +140,8 @@ export function buildGymPrompt(i: PromptInput): string {
     names.length ? `Ausgeschlossen (Regel der Person): ${[...new Set(names)].join(', ')}. Plane sie nie.` : null,
     priorityLine(goal),
     wishLine(i.wishes ?? []),
+    i.budgetMinutes !== undefined ? `Zeit: höchstens ${i.budgetMinutes} Min einschließlich Aufwärmen und Pausen.` : null,
+    i.avoidLegs ? 'Heute keine Beinübungen.' : null,
     i.rejection ? 'Dein letzter Vorschlag wurde abgelehnt, der Grund steht im Block ablehnung-nur-daten. Korrigiere ihn.' : null,
     i.mobility ? 'Beweglichkeit (Dehnen) bietet die App selbst an, der Block beweglichkeit-nur-daten zeigt sie. Plane sie nicht und verspreche dazu weder Erholung noch Verletzungsschutz.' : null,
     'Plane jetzt das nächste Training.',

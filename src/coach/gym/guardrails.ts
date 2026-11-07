@@ -1,12 +1,13 @@
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_WIDOWMAKERS } from './limits';
-import { availableExercises, isAssisted, isRepBased, ladderFor, suggestNext } from './history';
+import { availableExercises, isAssisted, LEG_MUSCLES, isRepBased, ladderFor, suggestNext } from './history';
 import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
 import type { Renames } from '../../shared/studio';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { isExcluded } from '../../shared/excluded';
 import type { Exercise } from '../../shared/exercises';
+import { gymLimit, gymMinutes } from '../../shared/duration';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
   /** The studio the plan is for (undefined: the main one) and the person's weight-step overrides. */
@@ -14,7 +15,9 @@ export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTempl
   /** Template ids the person's active exclude rules rule out (own ids and the Hevy ids linked to them). */
   excluded?: Set<string>;
   /** The catalog and Hevy links the exclusion is resolved with (exact id or exact known title, never fuzzy). */
-  catalog?: readonly Exercise[]; links?: Readonly<Record<string, string>> };
+  catalog?: readonly Exercise[]; links?: Readonly<Record<string, string>>;
+  /** The most minutes the person has for this session, warm-up and rests included. Without it, no time check. */
+  budgetMinutes?: number };
 export type CheckResult = { ok: true; workout: GymWorkout } | { ok: false; reason: string };
 
 export const WIDOWMAKER_REPS = 20;
@@ -120,6 +123,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const parsed = raw.exercises.map((e, i) => parseExercise(e, i, byId));
     const exercises = parsed.map((p) => p.ex);
     if (exercises.some((e) => isExcluded(e, ctx.excluded, ctx.catalog ?? [], ctx.links))) return no('Übung ausgeschlossen (Regel der Person)');
+    if (ctx.avoidLegs === true && parsed.some((p) => LEG_MUSCLES.includes(p.template.primaryMuscle))) return no('Beine heute nicht');
     const all = exercises.flatMap((e) => e.sets);
     if (all.length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
     if (all.filter((s) => s.type === 'failure').length > MAX_FAILURE_SETS) return no(`mehr als ${MAX_FAILURE_SETS} Sätze bis zum Versagen`);
@@ -130,7 +134,9 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const known = new Set(avail.map((a) => a.templateId));
     const recentEquipment = new Set(avail.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
     parsed.forEach((p) => checkExercise(p.ex, p.template, ctx, recentEquipment, known));
-    return { ok: true, workout: { name: raw.name.trim(), exercises } };
+    const workout = { name: raw.name.trim(), exercises };
+    if (ctx.budgetMinutes !== undefined && gymMinutes(workout) > gymLimit(ctx.budgetMinutes)) return no(`zu lang für deine Zeit: ca. ${gymMinutes(workout)} Min bei höchstens ${ctx.budgetMinutes}`);
+    return { ok: true, workout };
   } catch (e) {
     if (e instanceof Refuse) return { ok: false, reason: e.message };
     throw e;
@@ -143,6 +149,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
  */
 const REASON_PHRASES: [RegExp, string][] = [
   [/Schema/, 'die Antwort war nicht lesbar'],
+  [/Beine heute nicht/, 'Beinübungen, obwohl die Beine heute pausieren'],
   [/ausgeschlossen/, 'eine Übung, die du ausgeschlossen hast'],
   [/mehr als \d+ Übungen/, 'zu viele Übungen'],
   [/mehr als \d+ Sätze bis zum Versagen/, 'zu viele Sätze bis zum Versagen'],
@@ -150,6 +157,7 @@ const REASON_PHRASES: [RegExp, string][] = [
   [/Widowmaker/, 'ein Widowmaker, der nicht passt'],
   [/Muskelversagen/, 'Muskelversagen an der Langhantel'],
   [/Gewicht zu hoch|Gewicht ohne Verlauf|Unterstützung/, 'ein Gewicht, das noch nicht dran ist'],
+  [/zu lang für deine Zeit/, 'zu lang für deine Zeit'],
   [/Wiederholungen außerhalb/, 'Wiederholungen außerhalb des Rahmens'],
   [/Gerät in den letzten Monaten/, 'ein Gerät, das du länger nicht benutzt hast'],
   [/unbekannte Übungsvorlage|nur Übungen mit Wiederholungen/, 'eine Übung, die ich nicht einplanen kann'],

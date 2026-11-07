@@ -129,7 +129,7 @@ describe('planning', () => {
     expect(h2.coach.state(ID).next?.source).toBe('rules');
     expect(h2.coach.state(ID).lastError).toBe('invalid');
     const why = h2.coach.state(ID).next!.reason;
-    expect(why).toMatch(/^Mein Plan passte nicht zu deinen Grenzen \(.+\), deshalb heute ein einfacher Plan\.$/);
+    expect(why).toMatch(/^Mein Plan passte nicht zu deinen Grenzen \(.+\), deshalb heute ein einfacher Plan\. Dauer ca\. \d+ Min\.$/);
     expect(why).not.toBe('Das passt zu deinem aktuellen Stand.');
     expect(why).not.toMatch(/Übung \d|Satz \d/);
     expect(h2.coach.state(ID).dirty).toBe(false);

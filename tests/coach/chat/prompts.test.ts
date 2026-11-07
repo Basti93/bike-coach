@@ -37,3 +37,8 @@ test('the evening suggestion names tomorrow, once a day, and never before a rest
   expect(duePrompts({ id: 'p', records: r, nowMs: at(5, 19), sent: s, detail }).evening).toBeNull();
   expect(eveningText(null, null)).toBeNull();
 });
+
+test('the evening message names both sessions of a combination day', () => {
+  expect(eveningText({ date: '2026-11-05', sport: 'gym', hardness: 'moderate', fixed: false, also: { sport: 'bike', hardness: 'easy' } }, null))
+    .toBe('Morgen: Kraft, mittel + Rad, locker. Passt das, oder lieber etwas anderes?');
+});

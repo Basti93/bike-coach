@@ -44,6 +44,9 @@ const pulseReason = (days: GarminDay[]): string | null => {
     ? `Ruhepuls seit 2 Tagen erhöht (${last.restingHrBpm} statt um ${Math.round(baseline)} bpm)` : null;
 };
 
+/** Whether the resting pulse has been raised for two days. */
+export const restingHrRaised = (days: GarminDay[]): boolean => pulseReason(days) !== null;
+
 const loadReason = (external: ExternalLoad[], today: string): string | null => {
   const end = Date.parse(`${today}T23:59:59Z`);
   const sumBetween = (fromDaysBack: number, toDaysBack: number): number => external

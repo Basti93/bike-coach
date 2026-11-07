@@ -218,3 +218,7 @@
 .tk-rule { display: flex; gap: .4rem; align-items: center; flex-wrap: nowrap; }
 .tk-rule-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .tk-rules .tk-small { padding: .15rem .5rem; font-size: .8rem; white-space: nowrap; flex: none; }
+
+.tk-frame-line { font-size: .9rem; }
+.tk-frame-line select, .tk-today-only select { font-size: inherit; width: auto; display: inline-block; margin: 0 .25rem; padding: .2rem .5rem; }
+.tk-today-only { display: block; margin-top: .5rem; font-size: .9rem; }

@@ -27,6 +27,9 @@ import { studiosOf } from '../tracking/studios';
 import { loadStepsOf } from '../tracking/load-steps';
 import { takenChangesOf } from '../tracking/changes';
 import { excludedOf, goalOfProfile, migrateRules, wishesOf } from '../tracking/personal';
+import { gymBudgetOf } from '../tracking/frame';
+import { dateKey } from '../day-load';
+import { durationNote } from '../../shared/duration';
 import { considered } from '../../shared/changes';
 
 const DAY_MS = 86_400_000;
@@ -55,6 +58,8 @@ type Deps = {
   complaint: (id: string, text: string) => void;
   /** Recent mobility for the prompt, as data. */
   mobility?: (id: string) => unknown;
+  /** Today's advice asks for strength without leg exercises (tired legs): plan without them. */
+  avoidLegsToday?: (id: string) => boolean;
   /** The accepted week plan as prompt text, or ''. */
   planHint?: (id: string) => string;
   /** Hands a task from this coach to another one. */
@@ -359,8 +364,11 @@ export class GymCoach {
       const studio = this.studio(id);
       const overrides = this.loadSteps(id);
       const excluded = this.excluded(id);
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) ? { avoidLegs: true } : {}) };
+      const budget = this.deps.store ? gymBudgetOf(this.deps.store, id, dateKey(now)) : null;
+      const avoidLegs = open.some((c) => LEG_COMPLAINT.test(c.text)) || this.deps.avoidLegsToday?.(id) === true;
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(avoidLegs ? { avoidLegs: true } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) };
       const rule = ruleWorkout(ctx);
+      if (rule.guard) console.warn(`Regel-Training: erster Plan verworfen (${rule.guard})`);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
       const hasRule = rule.workout.exercises.length > 0;
       if (real.length === 0) {
@@ -378,7 +386,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(avoidLegs ? { avoidLegs: true } : {}), ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();
@@ -396,7 +404,7 @@ export class GymCoach {
           x.lastError = 'invalid';
           // The rules take over; say so in words instead of the neutral sentence.
           const why = parsed.success ? (checked && !checked.ok ? checked.reason : '') : 'Schema';
-          if (x.next?.source === 'rules') x.next = { ...x.next, reason: this.withTaken(id, `Mein Plan passte nicht zu deinen Grenzen (${reasonPhrase(why)}), deshalb heute ein einfacher Plan.`) };
+          if (x.next?.source === 'rules') x.next = { ...x.next, reason: this.withTaken(id, `Mein Plan passte nicht zu deinen Grenzen (${reasonPhrase(why)}), deshalb heute ein einfacher Plan. Dauer ${durationNote(x.next.workout)}.`) };
         }
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
@@ -432,7 +440,7 @@ export class GymCoach {
     const honest = (text: string) => honestFigures(text, figures(real, workout));
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
-    s.next = { workout, reason: this.withTaken(id, (reason && honest(reason)) || fallback), source: 'claude' };
+    s.next = { workout, reason: this.withTaken(id, `${((reason && honest(reason)) || fallback).replace(/\s*Dauer ca\. \d+ Min\./, '')} Dauer ${durationNote(workout)}.`), source: 'claude' };
     // A sketch without weights; an answer without one keeps the last sketch rather than none.
     const outlook = readOutlook(a.outlook);
     s.outlook = outlook ? this.withoutExcluded(id, outlook) : s.outlook;

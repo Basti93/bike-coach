@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
-import { HARDNESS_LABEL, mondayOf, planOfWeek, SPORT_LABEL, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
+import { dayLabel, mondayOf, SPORT_LABEL, planOfWeek, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
 import { takeWeekPlan, undoWeekPlan, weekTaken, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
+import { PlanningLine } from './FrameControls';
+import { useTodayAdvice } from './frame-hooks';
 import { NextChangeCard } from './NextChangeCard';
 import { RuleCard } from './RuleCard';
 import { RulesCard } from './RulesCard';
@@ -14,7 +16,7 @@ import type { PlannedRun } from '../../shared/run';
 
 const localKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dayName = (date: string) => WEEKDAY_LABEL[(new Date(`${date}T12:00:00`).getDay() + 6) % 7]!;
-const dayText = (d: PlanDay) => (d.sport === 'rest' ? 'Ruhetag' : `${SPORT_LABEL[d.sport]}, ${HARDNESS_LABEL[d.hardness]}${d.long ? ', lang' : ''}${d.sport === 'gym' && d.legs ? ', mit Beinen' : ''}`);
+const dayText = (d: PlanDay) => dayLabel(d, (p, first) => `${first && d.long ? ', lang' : ''}${p.sport === 'gym' && d.legs ? ', mit Beinen' : ''}`);
 /** Waiting longer than this for an answer: say so calmly. */
 const SLOW_MS = 3 * 60_000;
 /** The coach no longer answers messages this old. */
@@ -112,6 +114,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
     return !r.deleted && b && typeof b.text === 'string' && b.status !== 'over' ? [b.text] : [];
   });
   const waiting = waitingMessage(thread);
+  const fr = useTodayAdvice(port, now());
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [thread.length]);
 
   const today = localKey(now());
@@ -121,6 +124,9 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   // The run coach's runs sit on their days; without a week plan they are listed on their own.
   const runWeek = runView(runRecords ?? [], now()).week;
   const runs = runWeek?.runs ?? [];
+
+  const recent = Object.values(fr.ratings).filter((r) => r.sports?.length).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 4)
+    .map((r) => `${dayName(r.date).slice(0, 2)} ${r.sports!.map((k) => SPORT_LABEL[k]).join(' + ')}`).join(' · ');
 
   const write = async (m: ChatMessage) => {
     setError(null);
@@ -156,16 +162,24 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
     <div className="tk-screen tk-coach">
       <h1 className="tk-title">Woche</h1>
       {complaints.length > 0 && <p className="muted">Der Coach nimmt Rücksicht auf: {complaints.join(', ')}. Schreib ihm, wenn es wieder gut ist.</p>}
-      <section className="card" aria-label="Wochenplan">
-        <h2>Diese Woche</h2>
-        {current ? <Week days={current.days} label="Wochenplan diese Woche" today={today} runs={runs} /> : <p className="muted">Noch kein Wochenplan. Schreib dem Coach, wie deine Woche aussehen soll, oder lass dir einen vorschlagen.</p>}
-        {!current && runs.length > 0 && (
-          <ul className="tk-week" aria-label="Läufe diese Woche">
-            {runs.map((r) => <li key={r.date + r.kind}><b>{runDay(r.date)}</b> <span>{runText(r)}</span></li>)}
-          </ul>
-        )}
-        {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
-      </section>
+      <PlanningLine frame={fr.frame} onMode={(m) => void fr.setMode(m).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'))} onMinutes={(m) => void fr.setMinutes(m).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'))} />
+      {fr.frame.mode === 'spontaneous' ? (
+        <section className="card" aria-label="Heute">
+          <h2>Heute: {fr.advice.line}</h2>
+          <p className="muted">Zuletzt: {recent || 'noch nichts'}</p>
+        </section>
+      ) : (
+        <section className="card" aria-label="Wochenplan">
+          <h2>Diese Woche</h2>
+          {current ? <Week days={current.days} label="Wochenplan diese Woche" today={today} runs={runs} /> : <p className="muted">Noch kein Wochenplan. Schreib dem Coach, wie deine Woche aussehen soll, oder lass dir einen vorschlagen.</p>}
+          {!current && runs.length > 0 && (
+            <ul className="tk-week" aria-label="Läufe diese Woche">
+              {runs.map((r) => <li key={r.date + r.kind}><b>{runDay(r.date)}</b> <span>{runText(r)}</span></li>)}
+            </ul>
+          )}
+          {next && <><h2>Nächste Woche</h2><Week days={next.days} label="Wochenplan nächste Woche" runs={runs} /></>}
+        </section>
+      )}
       <RulesCard port={port} now={now} newId={newId} />
       <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">

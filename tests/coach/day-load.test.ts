@@ -47,9 +47,16 @@ test('a gym day with squats is hard with legs; an upper-body day is moderate wit
   expect(trainsLegs([{ templateId: 'a', title: 'Bench Press' }, { templateId: 'b', title: 'Unknown' }], muscleOf)).toBe(false);
 });
 
-test('the planned gym workout lands on the next usual gym day', () => {
-  const r = dayRatings(input({ gymNext: { name: 'Beine', exercises: [{ templateId: 'a', title: 'Back Squat', restS: null, supersetId: null, notes: '', sets: [] }] }, gymDays: [3] }), DATES);
-  expect(r['2027-06-17']).toMatchObject({ hardness: 'hard', legs: true, minutes: 45 });
+test('the planned gym workout lands on the next usual gym day and counts its estimated minutes', () => {
+  const sets = Array.from({ length: 3 }, () => ({ type: 'normal' as const, weightKg: 60, reps: 8 }));
+  const exercises = ['Back Squat', 'Bench Press', 'Row'].map((title, i) => ({ templateId: `t${i}`, title, restS: 90, supersetId: null, notes: '', sets }));
+  const r = dayRatings(input({ gymNext: { name: 'Beine', exercises }, gymDays: [3] }), DATES);
+  expect(r['2027-06-17']).toMatchObject({ hardness: 'hard', legs: true, minutes: 30 });
+});
+
+test('a planned gym workout without exercises counts the fallback minutes', () => {
+  const r = dayRatings(input({ gymNext: { name: 'x', exercises: [] }, gymDays: [3] }), DATES);
+  expect(r['2027-06-17'].minutes).toBe(45);
 });
 
 test('a planned session skips a day that already has a finished one of the same source', () => {
@@ -122,4 +129,14 @@ test('rateRun: test is hard, long or 75 minutes and more is moderate, else easy'
   expect(rateRun({ durationS: 1200, planned: 'long' })).toBe('moderate');
   expect(rateRun({ durationS: 75 * 60, planned: null })).toBe('moderate');
   expect(rateRun({ durationS: 74 * 60, planned: 'easy' })).toBe('easy');
+});
+
+test('a bike and a gym session on the same day sum their minutes and take the harder rating and the legs', () => {
+  const sets = Array.from({ length: 3 }, () => ({ type: 'normal' as const, weightKg: 60, reps: 8 }));
+  const exercises = ['Back Squat', 'Bench Press', 'Row'].map((title, i) => ({ templateId: `t${i}`, title, restS: 90, supersetId: null, notes: '', sets }));
+  const gym = dayRatings(input({ gymNext: { name: 'Beine', exercises }, gymDays: [0] }), DATES)['2027-06-14'];
+  const bike = dayRatings(input({ bikeNext: session([0.5, 0.5, 0.5]), bikeDays: [0] }), DATES)['2027-06-14'];
+  const both = dayRatings(input({ bikeNext: session([0.5, 0.5, 0.5]), bikeDays: [0], gymNext: { name: 'Beine', exercises }, gymDays: [0] }), DATES)['2027-06-14'];
+  expect(bike.minutes).toBeGreaterThan(0);
+  expect(both).toMatchObject({ hardness: 'hard', legs: true, minutes: gym.minutes + bike.minutes });
 });

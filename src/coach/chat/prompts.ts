@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { prefsOf, type ChatMessage } from '../../shared/chat';
 import type { TrackedRecord } from '../../shared/records';
-import { addDays, HARDNESS_LABEL, mondayOf, planFor, SPORT_LABEL, type PlanDay } from '../../shared/week-plan';
+import { addDays, dayLabel, mondayOf, planFor, type PlanDay } from '../../shared/week-plan';
 import { dateKey } from '../day-load';
 
 type Sent = Record<string, { week?: string; evening?: string }>;
@@ -27,7 +27,7 @@ export class SentPrompts {
 /** The evening message for tomorrow's planned day, or null on a rest day or without a plan. No Claude: plain words from the plan. */
 export function eveningText(day: PlanDay | null, detail: string | null): string | null {
   if (!day || day.sport === 'rest') return null;
-  const what = `${SPORT_LABEL[day.sport]}, ${HARDNESS_LABEL[day.hardness]}${day.long ? ', lang' : ''}`;
+  const what = dayLabel(day, (_, first) => (first && day.long ? ', lang' : ''));
   return `Morgen: ${what}${detail ? ` (${detail})` : ''}${day.note ? `. ${day.note}` : ''}. Passt das, oder lieber etwas anderes?`;
 }
 
@@ -48,7 +48,7 @@ export function duePrompts(o: {
   let evening: ChatMessage | null = null;
   if (prefs.evening.on && d.getHours() >= prefs.evening.hour && had.evening !== today) {
     const tomorrow = planFor(o.records.weekplan, addDays(today, 1));
-    const text = eveningText(tomorrow, tomorrow ? o.detail(tomorrow.sport) : null);
+    const text = eveningText(tomorrow, tomorrow ? [...new Set([tomorrow.sport, tomorrow.also?.sport])].flatMap((x) => (x ? [o.detail(x)] : [])).filter(Boolean).join('; ') || null : null);
     o.sent.mark(o.id, 'evening', today);
     if (text) evening = { role: 'coach', text, atMs: o.nowMs, push: true };
   }
