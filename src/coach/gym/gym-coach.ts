@@ -139,7 +139,7 @@ export class GymCoach {
   /** The exercises the person's active exclude rules rule out, as own ids plus the Hevy template ids linked to them. */
   private excluded(id: string): Set<string> {
     if (!this.deps.store) return new Set();
-    const own = excludedOf(this.deps.store, id);
+    const own = excludedOf(this.deps.store, id, this.catalog(id));
     const out = new Set(own);
     for (const [hevyId, ownId] of Object.entries(this.state(id).links)) if (own.has(ownId)) out.add(hevyId);
     return out;
@@ -498,7 +498,7 @@ export class GymCoach {
 
   /** The sketch without exercises the person's rules rule out (matched by title, the sketch has no ids). */
   private withoutExcluded(id: string, o: GymOutlook): GymOutlook {
-    const own = this.deps.store ? excludedOf(this.deps.store, id) : new Set<string>();
+    const own = this.deps.store ? excludedOf(this.deps.store, id, this.catalog(id)) : new Set<string>();
     if (own.size === 0) return o;
     const catalog = this.catalog(id);
     return { ...o, sessions: o.sessions.map((x) => ({ ...x, exercises: x.exercises.filter((e) => !isExcluded({ title: e.title }, own, catalog)) })).filter((x) => x.exercises.length > 0) };

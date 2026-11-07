@@ -1,6 +1,7 @@
 import type { Exercise } from './exercises';
 import { MUSCLES } from '../tracking/ui/labels';
 import type { TrackedRecord } from './records';
+import { isFamily } from './families';
 import { isObj, linkOf, str, strings } from './exercise-links';
 
 /**
@@ -34,6 +35,7 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
       if (secondary.length > 0) e.secondaryMuscles = secondary;
       if (str(b.description)) e.description = b.description;
       if (str(b.hevyTitle)) e.hevyTitle = b.hevyTitle;
+      if (isFamily(b.family) && b.family !== 'other') e.family = b.family;
       if (b.source === 'user' || b.source === 'ai') e.source = b.source;
       out.push(e);
     }

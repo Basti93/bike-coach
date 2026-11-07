@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { applyGoalPatch, deleteRule, goalRecord, moveRule, rulesOf, storedGoalOf, type GoalBody, type RuleState } from '../../shared/personal';
 import type { Exercise } from '../../shared/exercises';
+import { familyLine } from '../../shared/families';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { dateKey } from '../../shared/day-rating';
@@ -61,7 +62,7 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       setFailed(false);
     } catch { setFailed(true); }
   };
-  const titles = (rule.exerciseIds ?? []).map((id) => catalog.find((e) => e.id === id)?.title ?? id);
+  const titles = [...(rule.exerciseIds ?? []).map((id) => catalog.find((e) => e.id === id)?.title ?? id), ...(familyLine(rule) ? [familyLine(rule)] : [])];
   return (
     <div className="tk-nextchange">
       <p>{rule.state === 'proposed' ? (rule.kind === 'goal' ? `Neues Ziel: ${rule.text}` : `Neue Regel: ${rule.text}`) : rule.text}</p>

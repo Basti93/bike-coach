@@ -46,7 +46,8 @@ export function useCatalog(port: TrackingPort): Exercise[] {
 /** The exercise ids the person's active exclude rules rule out. */
 export function useExcluded(port: TrackingPort): ReadonlySet<string> {
   const rules = usePortRecords(port, 'rule').records;
-  return useMemo(() => excludedIds(rules ?? []), [rules]);
+  const catalog = useCatalog(port);
+  return useMemo(() => excludedIds(rules ?? [], catalog), [rules, catalog]);
 }
 
 /** The person's goal (today's default without a record). */

@@ -12,9 +12,12 @@ import { dateKey } from '../day-load';
 import { dataBlock } from '../meals/prompt';
 import type { RecordStore } from '../tracking/store';
 import { excludedOf, goalOfProfile, wishesOf } from '../tracking/personal';
+import { FAMILY_IDS, isExcludableFamily, MAX_FAMILIES } from '../../shared/families';
 import { FOCUS_GROUPS, MAX_EXCLUDED, readRule, ruleId, ruleRecord, RULE_TEXT_MAX, wishLine, type RuleDraft, type RuleKind, type RuleSport, type SportKey } from '../../shared/personal';
 import { LONG_TERM_GUIDE, weekHistory } from './long-term';
 import { readTasks, tasksJsonSchema, type CoachId } from '../coach-tasks';
+
+const EXCLUDABLE = FAMILY_IDS.filter((f) => f !== 'other');
 
 type Draft = { ops: NextOp[]; reason: string; refused?: string[] };
 /** A rule or goal change the coach proposes: valid, and `note` when it had to be weakened to a wish. */
@@ -49,7 +52,7 @@ Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart
 Die einzelnen Einheiten (Übungen, Sätze, Watt, Laufminuten) planen der Rad-Coach (bike), der Kraft-Coach (gym) und der Lauf-Coach (run); was sie als Nächstes geplant haben, steht in einheiten. Fragen dazu beantwortest du selbst, fachlich und sportwissenschaftlich begründet. Verweise die Person nie an einen anderen Coach oder ins Training.
 Will die Person an einer Einheit etwas ändern (etwa "nur eine Trizepsübung", "mehr Beine", "Samstag kürzer"), gib dem zuständigen Coach in tasks einen Auftrag: coach, text als klare Anweisung in ihren Worten, lasting true, wenn es ein Wunsch für länger ist, sonst false. Der Coach plant dann sofort neu. Sag in text kurz, was du weitergegeben hast. Ohne Änderungswunsch ist tasks leer.
 Will die Person etwas fürs nächste Training ändern (etwa "nächstes Mal ohne Kniebeugen"), setze nextChange: ops mit exerciseId aus einheiten, und reason als ein Satz, warum. Für Tausch fürs nächste Training: nenne toId aus katalog oder toTitle; kennst du die id nicht, nenne toTitle. Ohne so einen Wunsch ist nextChange null. Es gilt erst, wenn die Person es übernimmt.
-Sagt die Person "künftig", "immer" oder "nie" ("künftig keine Kniebeugen", "ich will lieber kurze Pausen"), ist das keine einmalige Änderung, sondern eine Regel: setze ruleDraft mit kind exclude (bestimmte Übungen fallen dauerhaft weg; exerciseIds aus katalog, alle Varianten dieser Übung), wish (ein allgemeiner Wunsch) oder goal (das Trainingsziel ändert sich: goal mit strength muscle, strength oder fitness, focus bis zu drei Muskelgruppen, sports mit gym, bike, run als focus, equal oder keep, nur was sich ändert; weeks von 1 bis 12 nur, wenn Schwerpunkt oder Sportarten bloß für einige Wochen gelten sollen), text als kurzer Satz in der Sicht der Person, sport gym, bike, run oder all. Sonst ist ruleDraft null. Bei einer Regel bleiben nextChange null und tasks ohne lasting-Auftrag dafür. Es gilt erst, wenn die Person es übernimmt.
+Sagt die Person "künftig", "immer" oder "nie" ("künftig keine Kniebeugen", "ich will lieber kurze Pausen"), ist das keine einmalige Änderung, sondern eine Regel: setze ruleDraft mit kind exclude (bestimmte Übungen fallen dauerhaft weg; exerciseIds aus katalog, alle Varianten dieser Übung. Will die Person eine Bewegung ganz meiden ("keine Kniebeugen"), nenne families (${EXCLUDABLE.join(', ')}); sonst exerciseIds), wish (ein allgemeiner Wunsch) oder goal (das Trainingsziel ändert sich: goal mit strength muscle, strength oder fitness, focus bis zu drei Muskelgruppen, sports mit gym, bike, run als focus, equal oder keep, nur was sich ändert; weeks von 1 bis 12 nur, wenn Schwerpunkt oder Sportarten bloß für einige Wochen gelten sollen), text als kurzer Satz in der Sicht der Person, sport gym, bike, run oder all. Sonst ist ruleDraft null. Bei einer Regel bleiben nextChange null und tasks ohne lasting-Auftrag dafür. Es gilt erst, wenn die Person es übernimmt.
 Die Person kann Mengen nennen ("2× Kraft, 3× Rad"), feste Tage ("Freitag Studio") oder dich vorschlagen lassen; oft eine Mischung. Feste Wünsche der Person markierst du mit fixed true.
 Stelle höchstens eine Frage auf einmal und nur, wenn die Antwort den Plan ändert. Wenn du genug weißt, mach einen Vorschlag.
 Ein Vorschlag (proposal) ist immer eine ganze Woche von Montag bis Sonntag (sieben Tage, date im Format JJJJ-MM-TT, aus wocheJetzt oder wocheNaechste) mit sport bike, gym, run, mobility oder rest und hardness easy, moderate oder hard. Bei Krafttagen sagt legs, ob Beine trainiert werden; long markiert die lange Rad- oder Laufeinheit. note ist optional und kurz. Zwei Einheiten an einem Tag (also mit sport und hardness) setzt du nur, wenn die Person eine Kombination ausdrücklich will, und höchstens eine davon ist hart; sonst ist ein Tag eine Einheit. Ohne Vorschlag ist proposal null. Du änderst nie etwas still: Ein Vorschlag gilt erst, wenn die Person ihn übernimmt.
@@ -80,6 +83,7 @@ const ruleDraftSchema = { anyOf: [{ type: 'null' }, {
   properties: {
     kind: { enum: ['exclude', 'wish', 'goal'] }, text: { type: 'string' }, sport: { enum: ['gym', 'bike', 'run', 'all'] },
     exerciseIds: { type: 'array', items: { type: 'string' } },
+    families: { type: 'array', items: { enum: EXCLUDABLE } },
     goal: { type: 'object', additionalProperties: false, properties: {
       strength: { enum: ['muscle', 'strength', 'fitness'] }, focus: { type: 'array', items: { enum: FOCUS_GROUPS } },
       sports: { type: 'object', additionalProperties: false, properties: { gym: prio, bike: prio, run: prio } },
@@ -248,7 +252,7 @@ export class ChatCoach {
     }
     this.addRule(msg, id, raw.ruleDraft);
     const change = isObj(raw.change) ? readWorkoutChange({ workoutId: w.id, ops: raw.change.ops }) : null;
-    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES, excludedOf(this.deps.store, id)) : { ops: [], reasons: [] };
+    const { ops, reasons } = change ? checkOps(change, w, this.deps.catalog?.(id) ?? EXERCISES, excludedOf(this.deps.store, id, this.catalogOf(id))) : { ops: [], reasons: [] };
     if (ops.length > 0) msg.workoutChange = { workoutId: w.id, ops };
     const line = gehtNicht(reasons);
     if (line) msg.text = `${msg.text}\n${line}`;
@@ -259,13 +263,13 @@ export class ChatCoach {
 
   /** The compact catalog the coach gets when it has to name an exercise: id, title and muscle (and the equipment when asked), without the excluded ones. */
   private catalogBlock(id: string, withEquipment = false): string {
-    const out = excludedOf(this.deps.store, id);
+    const out = excludedOf(this.deps.store, id, this.catalogOf(id));
     return dataBlock('katalog', this.catalogOf(id).filter((e) => !out.has(e.id)).map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, ...(withEquipment ? { geraet: e.equipment } : {}) })));
   }
 
   /** An exclude rule that names no exercise the catalog knows, or a swap whose target is not in the catalog. */
   private needsCatalog(id: string, rule: unknown, next: unknown): boolean {
-    return (isObj(rule) && rule.kind === 'exclude' && this.validIds(rule.exerciseIds, this.catalogOf(id)).length === 0) || this.splitOps(id, next).unknown > 0;
+    return (isObj(rule) && rule.kind === 'exclude' && this.validIds(rule.exerciseIds, this.catalogOf(id)).length === 0 && this.validFamilies(rule.families).length === 0) || this.splitOps(id, next).unknown > 0;
   }
 
   /** The ops of a next-change draft with every swap target resolved (by id, else by an exact title); `unknown` counts the swaps still without a catalog target (those are left out of `ops`). */
@@ -285,6 +289,10 @@ export class ChatCoach {
     return { ops, unknown };
   }
 
+  private validFamilies(x: unknown): string[] {
+    return Array.isArray(x) ? [...new Set(x.filter(isExcludableFamily))].slice(0, MAX_FAMILIES) : [];
+  }
+
   private validIds(x: unknown, catalog: readonly Exercise[]): string[] {
     return Array.isArray(x) ? [...new Set(x.filter((i): i is string => typeof i === 'string' && catalog.some((e) => e.id === i)))].slice(0, MAX_EXCLUDED) : [];
   }
@@ -298,12 +306,15 @@ export class ChatCoach {
     const sport: RuleSport = kind === 'goal' ? 'all' : (['gym', 'bike', 'run', 'all'].includes(x.sport as string) ? x.sport as RuleSport : 'all');
     let note: string | undefined;
     let exerciseIds: string[] | undefined;
+    let families: string[] | undefined;
     if (kind === 'exclude') {
       const ids = this.validIds(x.exerciseIds, this.catalogOf(id));
+      const fams = this.validFamilies(x.families);
       if (ids.length) exerciseIds = ids;
-      else { kind = 'wish'; note = 'Ich konnte keine bestimmte Übung zuordnen, deshalb ist es nur ein Wunsch an die Coaches.'; }
+      if (fams.length) families = fams;
+      if (!exerciseIds && !families) { kind = 'wish'; note = 'Ich konnte keine bestimmte Übung zuordnen, deshalb ist es nur ein Wunsch an die Coaches.'; }
     }
-    const draft: RuleDraft = { kind, text, sport, ...(exerciseIds ? { exerciseIds } : {}), ...(kind === 'goal' && isObj(x.goal) ? { goal: x.goal as RuleDraft['goal'] } : {}) };
+    const draft: RuleDraft = { kind, text, sport, ...(exerciseIds ? { exerciseIds } : {}), ...(families ? { families } : {}), ...(kind === 'goal' && isObj(x.goal) ? { goal: x.goal as RuleDraft['goal'] } : {}) };
     // The same reader the app uses decides whether the draft is well formed (a goal needs a readable partial).
     const read = readRule('x', ruleRecord('x', draft, 'proposed', 'chat', 0).body);
     if (!read || (kind === 'goal' && Object.keys(read.goal ?? {}).length === 0)) return null;
@@ -331,7 +342,7 @@ export class ChatCoach {
     const reason = typeof x.reason === 'string' ? x.reason.trim().slice(0, 200) : '';
     if (!read || !reason) return null;
     // A swap into an excluded exercise is refused whole; the others stay. `refused` carries the reasons to the message.
-    const excluded = excludedOf(this.deps.store, id);
+    const excluded = excludedOf(this.deps.store, id, this.catalogOf(id));
     const catalog = this.deps.catalog?.(id) ?? EXERCISES;
     const refused = [
       ...read.flatMap((o) => (o.op === 'swap' && excluded.has(o.toId) ? [`du ${catalog.find((e) => e.id === o.toId)?.title ?? 'die Übung'} ausgeschlossen hast`] : [])),
@@ -352,7 +363,7 @@ export class ChatCoach {
   private nextExercises(id: string): { exerciseId: string; titel: string }[] | null {
     const body = this.deps.store.all(id, 'plan').find((r) => r.id === 'current' && !r.deleted)?.body;
     const ex = isObj(body) && isObj(body.workout) && Array.isArray(body.workout.exercises) ? body.workout.exercises : null;
-    const out = excludedOf(this.deps.store, id);
+    const out = excludedOf(this.deps.store, id, this.catalogOf(id));
     return ex ? ex.flatMap((e) => (isObj(e) && typeof e.templateId === 'string' && !out.has(e.templateId) ? [{ exerciseId: e.templateId, titel: String(e.title ?? '') }] : [])) : null;
   }
 

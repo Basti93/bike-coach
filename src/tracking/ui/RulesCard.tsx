@@ -7,6 +7,8 @@ import { shortDateOfKey as dayLabel, shortDate } from '../../shared/dates';
 import { COACH_LABEL, deleteTask, ONE_OFF_MS, openTasks } from '../../shared/tasks';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
+import { familyLabel, familyLine, familyOf } from '../../shared/families';
+import type { Exercise } from '../../shared/exercises';
 import { ExercisePicker } from './ExercisePicker';
 import { finishedWorkouts, useCatalog, useGoal, usePortRecords } from './hooks';
 import { usedSports } from './used-sports';
@@ -23,10 +25,10 @@ const WEEK_CHOICES = [0, 2, 4, 6, 8];
 const focusLabel = (focus: readonly string[]): string => focus.map((g) => MUSCLE_TARGETS[g as (typeof FOCUS_GROUPS)[number]]?.label ?? g).join(', ');
 
 /** The exercise titles of an exclude rule that its text does not already name; '' when there is nothing to add. */
-const excludedTitles = (r: { text: string; exerciseIds?: string[] }, catalog: readonly { id: string; title: string }[]): string => {
+const excludedTitles = (r: { text: string; exerciseIds?: string[]; families?: string[] }, catalog: readonly { id: string; title: string }[]): string => {
   const titles = (r.exerciseIds ?? []).flatMap((id) => { const t = catalog.find((e) => e.id === id)?.title; return t ? [t] : []; });
   const text = r.text.toLowerCase();
-  return titles.filter((t) => !text.includes(t.toLowerCase())).join(', ');
+  return [...titles.filter((t) => !text.includes(t.toLowerCase())), ...(familyLine(r) ? [familyLine(r)] : [])].join(', ');
 };
 
 /** "Meine Regeln und Ziele": the goal, the rules the person keeps, and a way to add one. Every write is stamped above what is stored. */
@@ -49,6 +51,7 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const [changingFocus, setChangingFocus] = useState(false);
   const [text, setText] = useState('');
   const [picking, setPicking] = useState(false);
+  const [chosen, setChosen] = useState<Exercise | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const attempt = async (f: () => Promise<unknown>) => {
@@ -77,9 +80,11 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
     if (!t) return;
     void attempt(async () => { await port.put(ruleRecord(ruleId(newId()), { kind: 'wish', text: t, sport: 'all' }, 'active', 'person', now())); setText(''); });
   };
-  const exclude = (e: { id: string; title: string }) => {
-    setPicking(false);
-    void attempt(() => port.put(ruleRecord(ruleId(newId()), { kind: 'exclude', text: `Ohne ${e.title}`.slice(0, RULE_TEXT_MAX), sport: 'gym', exerciseIds: [e.id] }, 'active', 'person', now())));
+  const pick = (e: Exercise) => { setPicking(false); setChosen(catalog.find((c) => c.id === e.id) ?? e); };
+  const exclude = (e: { id: string; title: string }, wholeFamily?: string) => {
+    setChosen(null);
+    const text = wholeFamily ? `Ohne alle Varianten: ${familyLabel(wholeFamily)}` : `Ohne ${e.title}`;
+    void attempt(() => port.put(ruleRecord(ruleId(newId()), { kind: 'exclude', text: text.slice(0, RULE_TEXT_MAX), sport: 'gym', ...(wholeFamily ? { families: [wholeFamily] } : { exerciseIds: [e.id] }) }, 'active', 'person', now())));
   };
   const toggleFocus = (g: (typeof FOCUS_GROUPS)[number]) => {
     const on = goal.focus.includes(g);
@@ -204,7 +209,14 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
         <button type="button" className="ghost" onClick={() => setPicking(true)}>Übung ausschließen</button>
       </form>
       {error && <p role="alert" className="tk-note">{error}</p>}
-      {picking && <ExercisePicker port={port} onPick={exclude} onClose={() => setPicking(false)} now={now} newId={newId} />}
+      {picking && <ExercisePicker port={port} onPick={pick} onClose={() => setPicking(false)} now={now} newId={newId} />}
+      {chosen && (
+        <div className="tk-row" role="group" aria-label={`${chosen.title} ausschließen`}>
+          <button type="button" onClick={() => exclude(chosen)}>Nur diese Übung</button>
+          {familyOf(chosen) !== 'other' && <button type="button" onClick={() => exclude(chosen, familyOf(chosen))}>Alle Varianten ({familyLabel(familyOf(chosen))})</button>}
+          <button type="button" className="ghost" onClick={() => setChosen(null)}>Abbrechen</button>
+        </div>
+      )}
     </section>
   );
 }

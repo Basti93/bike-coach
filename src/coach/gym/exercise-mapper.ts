@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isFamily } from '../../shared/families';
 import { exerciseTitles, type Exercise, type ExerciseProposal } from '../../shared/exercises';
 import { isLinkRecord, isObj, linkId, linkOf, linkRecord, proposalId } from '../../shared/exercise-links';
 import { readStats, STATS_ID } from '../../shared/stats';
@@ -193,7 +194,7 @@ export class ExerciseMapper {
         const proposal: ExerciseProposal = { forTitle: it.title, kind: 'new', reason: it.reason, atMs: now };
         records.push(this.proposal(it.title, proposal, {
           title: it.name, type: it.type, primaryMuscle: it.primaryMuscle, equipment: it.equipment, secondaryMuscles: it.secondaryMuscles.filter((m) => m !== it.primaryMuscle),
-          description: it.description, source: 'ai',
+          ...(isFamily(it.family) && it.family !== 'other' ? { family: it.family } : {}), description: it.description, source: 'ai',
         }, now));
       }
     }

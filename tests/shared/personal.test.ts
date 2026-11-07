@@ -94,8 +94,8 @@ describe('helpers', () => {
     rule('j', 'wish', 'paused', { sport: 'gym', at: 10 }),
   ];
   it('excludedIds covers only active exclude rules', () => {
-    expect([...excludedIds(records)].sort()).toEqual(['e1', 'e2', 'e7']);
-    expect(excludedIds([])).toEqual(new Set());
+    expect([...excludedIds(records, [])].sort()).toEqual(['e1', 'e2', 'e7']);
+    expect(excludedIds([], [])).toEqual(new Set());
   });
   it('activeRules and wishes follow the sport; "all" counts everywhere', () => {
     expect(wishes(records, 'gym')).toEqual(['text g', 'text h']);

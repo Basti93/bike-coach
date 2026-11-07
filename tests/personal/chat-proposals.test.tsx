@@ -31,7 +31,7 @@ test('a rider message becomes a proposed exclude rule with valid ids; taking it 
   await coach.tick('p');
   expect(recs.get('chat:m1')!.body).toMatchObject({ rule: 'rule-m1' });
   expect(recs.get('rule:rule-m1')!.body).toMatchObject({ kind: 'exclude', state: 'proposed', source: 'chat', exerciseIds: ['pf-squat', 'pf-front-squat'] });
-  expect(excludedOf(store as never, 'p').size).toBe(0);
+  expect(excludedOf(store as never, 'p', EXERCISES).size).toBe(0);
 
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
@@ -39,7 +39,7 @@ test('a rider message becomes a proposed exclude rule with valid ids; taking it 
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
   expect(await screen.findByText('Gilt ab jetzt.')).toBeTruthy();
-  const excluded = excludedOf({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p');
+  const excluded = excludedOf({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p', EXERCISES);
   expect([...excluded].sort()).toEqual(['pf-front-squat', 'pf-squat']);
   // Task 2 enforcement: a swap into it is refused
   const w = { id: 'w', title: 'T', startMs: 0, endMs: null, exercises: [{ rid: 'a', exerciseId: 'pf-bench-press', title: 'B', sets: [{ type: 'normal', weightKg: 1, reps: 1, doneMs: null }] }] } as never;
