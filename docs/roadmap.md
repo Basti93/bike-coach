@@ -245,7 +245,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 4. Formulare, Auswahllisten und Chats öffnen als Blatt; Löschen ist immer ein roter Textlink mit Rückfrage.
 5. Nichts geht verloren: jede Funktion bleibt erreichbar, gespeichert wird wie bisher.
 
-**Nicht dabei:** neue Funktionen, Symbole in der Tableiste, Gesten.
+**Nicht dabei:** neue Funktionen (Ausnahme auf Wunsch: eigene Produkte auf der Einkaufsliste), Symbole in der Tableiste, Gesten.
 
 **Von Claude entschieden (07.11.2026):** sechs Tabs bleiben (größer), keine Langdruck-Gesten, „Wie oft pro Woche“ beim Laufen bleibt; Begriffe: Verlauf = vergangene Trainings, Entwicklung = eine Übung über Zeit, Übungen = Katalog.
 

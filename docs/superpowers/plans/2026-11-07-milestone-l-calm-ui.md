@@ -273,6 +273,11 @@ Commit: `feat(ui): exercises and statistics show numbers only on demand`.
     - "schon da" moves into a row action (tap the amount area → "Haben wir"), so there is no link per row;
     - bought items sink to the end;
     - the "11 von 11" line is gone.
+    - **Own items (wish of the person, 07.11.2026):** one input row at the end, "Etwas dazuschreiben …" + Hinzufügen. It adds a free item (e.g. "Kaffee", optional amount) to the same week list, not a new list.
+      - Own items are synced records per profile and week (or household, if the shopping list is shared – follow how the list is stored), are checked off like the others, can be removed (danger link), and survive a new meal plan for the same week.
+      - They show under a small heading "Eigenes".
+      - The meal coach does not touch them.
+      - Tests: add, check, remove, and that they survive a regenerated list and sync.
 - **Tests:** the existing behaviour tests are moved; add the run entry sheet defaults, the feel question placement, and meal row expansion.
 
 Commit: `feat(ui): running and meals put today first`.
