@@ -176,6 +176,23 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Verschieben mit „Nach oben/unten“ im Übungsmenü statt Ziehen (leicht, sicher auf dem Handy); Bewegungsblock = Muskelgruppe der Übung (B-Gruppen); Aufwärmen in der App nur als Angebot, im einfachen Coach-Plan automatisch; Steigerung 40 %×5, 60 %×3, 80 %×2, bei Langhantel zuerst die leere Stange (Werte im Regelregister).
 
+## Meilenstein H — Brief
+
+**Ziel:** Über Wochen bleibt nachvollziehbar, was der Coach tut und warum: Schwerpunkte haben ein Ende, deine Rückmeldung zeigt sichtbar Wirkung, und der Chat ist ein Verlauf mit Datum und Uhrzeit.
+
+**Abnahme:**
+1. Ein Schwerpunkt (Muskeln oder Sportart) kann befristet sein („4 Wochen Rücken“). Solange er gilt, plant der Coach mehr dafür und die Muskelbilanz rechnet mit höherem Ziel; danach gilt wieder dein Grundziel, und die App sagt einmal sichtbar, dass er ausgelaufen ist.
+2. Nach dem Training sieht man pro Übung in einem Satz, was beim nächsten Mal passiert und warum („Nächstes Mal 62,5 kg – weil du alle Wiederholungen geschafft hast“; „Gewicht bleibt – weil noch 0 übrig war“).
+3. Auf der Wochenseite steht „Zuletzt geändert“: die letzten Änderungen aller Coaches mit Datum und Grund (z. B. FTP angepasst, Lauf-Phase gewechselt, Gewicht gesteigert).
+4. Der Chat zeigt Tagestrenner und Uhrzeiten; ältere Nachrichten lassen sich schrittweise laden.
+5. Was der Chat-Coach an andere Coaches weitergibt, steht sichtbar unter „Meine Regeln und Ziele“ und lässt sich entfernen; es ist synchronisiert.
+
+**Fällt weg:** die nur auf dem Mac gespeicherte Auftragsliste der Coaches; unbefristete Schwerpunkte als einzige Möglichkeit.
+
+**Nicht dabei:** neue Lösch-Regeln für den Chat (90 Tage bleiben), automatische Volumenanpassung über Wochen ohne Bestätigung, Rückfrage nach jedem Lauf.
+
+**Von Claude entschieden (07.11.2026):** Befristung als optionaler Zeitraum im Ziel (Grundziel bleibt gespeichert); Schwerpunkt-Muskeln erhöhen das Wochenziel um einen Faktor aus dem Regelregister; Begründungen der Steigerung kommen vom Coach mit dem Plan; Aufträge werden eigene Datensätze statt Mac-Datei.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
