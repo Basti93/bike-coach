@@ -31,7 +31,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **D Coach-Änderungen sind sicher** | Vorschläge mit Grund, Bestätigen, Rückgängig; überlebt Schließen und Neustart; Coach sagt „geht nicht, weil …“ statt zu raten. | Auftrag 8, Teile 11 |
 | ✅ | **E Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | ✅ | **F Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
-| **G** | **Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
+| ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
 | **H** | **Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 
 Die Reihenfolge folgt dem Nutzen: A–C machen die Kraftdaten verlässlich, D ist die Voraussetzung dafür, dass E–H dem Coach mehr erlauben.
@@ -160,7 +160,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Rahmen als eigener Datensatz (Modus, übliche Minuten, Minuten nur für heute); „Was geht heute“ ist eine feste, erklärbare Regel ohne KI-Aufruf; Kombination nur mit höchstens einem harten Teil; Zeitschätzung Kraft = Aufwärmen + Sätze × (Arbeit + Pause) + Wechsel.
 
-## Meilenstein G — Brief
+## Meilenstein G — Brief (umgesetzt 07.11.2026)
 
 **Ziel:** Das laufende Training passt sich dem Studio an: Reihenfolge umstellen, beliebige Übungen zum Supersatz verbinden, Aufwärmen dort, wo eine neue Bewegung beginnt, und Pausen, die überall gleich gerechnet werden.
 
@@ -217,3 +217,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Die Handy-App kennt keine Radfahrten; ohne veröffentlichte Empfehlung des Coaches rechnet sie nur mit Kraft und Laufen.
   - Ein Plantag kann nicht „nur Beine“ markieren; nach harten Beinen wird Kraft immer zu „Kraft ohne Beine“.
   - Die Empfehlung kennt keine Uhrzeit; abends gilt noch die Empfehlung des Tages.
+- Aus Meilenstein G:
+  - Pausen pro einzelnem Satz und Aufwärmen nach Erfahrung der Person.
+  - Verschieben per Ziehen statt über das Menü.
+  - Eigene Pausen-Einstellung geht beim Tauschen einer Übung verloren (die neue Übung bekommt ihre eigene Pause).
