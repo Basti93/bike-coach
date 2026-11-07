@@ -350,7 +350,13 @@ export class GymCoach {
   /** Own ids become Hevy ids for the export. An own exercise with no Hevy id is left out, by title. */
   private toHevy(id: string, w: GymWorkout): { workout: GymWorkout; leftOut: string[] } {
     const reverse = new Map<string, string>();
-    for (const [hevyId, ownId] of Object.entries(this.state(id).links)) if (!reverse.has(ownId)) reverse.set(ownId, hevyId);
+    // With several Hevy templates linked to one exercise, the most recently used one wins; without use, the first listed.
+    const lastUsed = new Map<string, number>();
+    try { for (const w of this.deps.workouts(id)) for (const e of w.exercises ?? []) lastUsed.set(e.templateId, Math.max(lastUsed.get(e.templateId) ?? 0, w.startMs)); } catch { /* no usage data: first listed */ }
+    for (const [hevyId, ownId] of Object.entries(this.state(id).links)) {
+      const have = reverse.get(ownId);
+      if (have === undefined || (lastUsed.get(hevyId) ?? 0) > (lastUsed.get(have) ?? 0)) reverse.set(ownId, hevyId);
+    }
     const ownIds = new Set([...this.catalog(id).map((e) => e.id), ...this.ownExercises(id).map((t) => t.id)]);
     const leftOut: string[] = [];
     const exercises: GymExercise[] = [];
