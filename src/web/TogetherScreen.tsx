@@ -32,12 +32,12 @@ export function TogetherCard({ t, now, onOpen }: { t: TogetherBody; now: number;
       <span className="gm-label">{weekTitle(t, now)}</span>
       <span className="gm-people">
         {ordered(t).map((p) => (
-          <span key={p.profileId} className="gm-person"><b>{p.name}</b><span>{p.ridesThisWeek === 0 ? 'noch frei' : `${rides(p.ridesThisWeek)}, ${p.minutesThisWeek} Min.`}</span></span>
+          <span key={p.profileId} className="gm-person"><b>{p.name}</b><span>{p.ridesThisWeek === 0 ? 'noch frei' : `${rides(p.ridesThisWeek)}, ${p.minutesThisWeek} Min`}</span></span>
         ))}
       </span>
       {t.recent.length > 0 && (
         <span className="gm-recent">
-          {t.recent.slice(0, 2).map((r, i) => <span key={i}>{shortDate(r.startedAtMs)}: {r.name}, {r.sessionName ?? 'Fahrt'}, {r.minutes} Min.</span>)}
+          {t.recent.slice(0, 2).map((r, i) => <span key={i}>{shortDate(r.startedAtMs)}: {r.name}, {r.sessionName ?? 'Fahrt'}, {r.minutes} Min</span>)}
         </span>
       )}
       <span className="gm-peak">Auf dem Weg zum <b>{t.peak.name}</b>: {t.peak.done} von {t.peak.total} Hm</span>
@@ -63,7 +63,7 @@ export function TogetherPage({ t, now, onBack }: { t: TogetherBody; now: number;
         <h3 className="gm-label">{weekTitle(t, now)}</h3>
         <ul className="gm-list">
           {people.map((p) => (
-            <li key={p.profileId}><b>{p.name}</b><span>{rides(p.ridesThisWeek)}, {p.minutesThisWeek} Min.{p.wordsLearned > 0 ? `, ${p.wordsLearned} Wörter` : ''}</span></li>
+            <li key={p.profileId}><b>{p.name}</b><span>{rides(p.ridesThisWeek)}, {p.minutesThisWeek} Min{p.wordsLearned > 0 ? `, ${p.wordsLearned} Wörter` : ''}</span></li>
           ))}
         </ul>
       </section>
@@ -113,7 +113,7 @@ export function TogetherPage({ t, now, onBack }: { t: TogetherBody; now: number;
         <h2>Zuletzt gefahren</h2>
         {t.recent.length === 0 && <p className="muted">Noch keine Fahrt.</p>}
         <ul className="gm-list">
-          {t.recent.map((r, i) => <li key={i}><b>{r.name}</b><span>{shortDate(r.startedAtMs)}, {r.sessionName ?? 'Fahrt'}, {r.minutes} Min.</span></li>)}
+          {t.recent.map((r, i) => <li key={i}><b>{r.name}</b><span>{shortDate(r.startedAtMs)}, {r.sessionName ?? 'Fahrt'}, {r.minutes} Min</span></li>)}
         </ul>
       </section>
     </div>

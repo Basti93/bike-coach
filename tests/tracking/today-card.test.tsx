@@ -18,20 +18,21 @@ test('nothing without a plan for today', () => {
   const { container } = render(<TodayCard weekplans={[]} runs={[]} nowMs={NOW} gym={<p>Gym</p>} />);
   expect(container.textContent).toBe('');
 });
-test('a strength day shows the strength plan, and tomorrow in a line', () => {
+test('a strength day shows the strength plan', () => {
   render(<TodayCard weekplans={[plan(['rest', 'rest', 'gym', 'bike'])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
-  expect(screen.getByRole('heading').textContent).toBe('Heute: Kraft, mittel');
+  expect(screen.getByRole('heading').textContent).toBe('Kraft, mittel');
   expect(screen.getByText('Oberkörper A')).toBeTruthy();
-  expect(screen.getByText('Morgen: Rad, mittel')).toBeTruthy();
+  expect(screen.queryByText(/Morgen/)).toBeNull();
 });
 test('a rest day hides the strength plan', () => {
   render(<TodayCard weekplans={[plan([])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
-  expect(screen.getByRole('heading').textContent).toBe('Heute: Ruhetag');
+  expect(screen.getByRole('heading').textContent).toBe('Ruhetag');
   expect(screen.queryByText('Oberkörper A')).toBeNull();
 });
-test('a run day names the planned run when the run coach has one', () => {
+test('a run day is one line, "Laufen, 35 Min", with the button', () => {
   render(<TodayCard weekplans={[plan(['rest', 'rest', 'run'])]} runs={[runWeek]} nowMs={NOW} gym={null} onRun={() => {}} />);
-  expect(screen.getByText("Lauf: 35 Minuten locker")).toBeTruthy();
+  expect(screen.getByRole('heading').textContent).toBe('Laufen, 35 Min');
+  expect(screen.queryByText(/^Lauf:/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Zum Laufen' })).toBeTruthy();
 });
 
@@ -42,4 +43,11 @@ test('trained today, in the evening: one line, done', async () => {
   const { port } = fakePort([w]);
   render(<TodayCard port={port} weekplans={[plan(['rest', 'rest', 'bike'])]} runs={[]} nowMs={at} gym={<p>Gym</p>} />);
   expect((await screen.findByRole('heading')).textContent).toBe('Heute erledigt – gut gemacht.');
+});
+
+test('while a workout is open, today shows as one row, not as a second card', () => {
+  const { container } = render(<TodayCard weekplans={[plan(['rest', 'rest', 'gym'])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} quiet />);
+  expect(container.querySelector('.card')).toBeNull();
+  expect(screen.queryByText('Oberkörper A')).toBeNull();
+  expect(screen.getByText('Kraft, mittel')).toBeTruthy();
 });

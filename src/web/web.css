@@ -1,24 +1,26 @@
 /* Only the shell. Everything else comes from the tracking screens' own tracking.css and its variables. */
-:root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; color-scheme: dark light; }
+:root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; --danger: #d9806f; color-scheme: dark light; }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; }
-  .tk-screen button.secondary, .tk-picker button.secondary, .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
+  :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; --danger: #a8372a; }
+  .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
   .tk-chip-warm { color: #9a6a00; } .tk-chip-fail { color: #b23a2a; } .tk-chip-drop { color: #2a6aa0; }
 }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 /* The tab bar sits at the bottom, inside the safe area. The page keeps room for it, so it never covers the finish button. */
 :root { --web-nav-h: 3.6rem; }
-.web-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); gap: .2rem; padding: .3rem calc(.4rem + env(safe-area-inset-right)) calc(.3rem + env(safe-area-inset-bottom)) calc(.4rem + env(safe-area-inset-left)); background: var(--bg); border-top: 1px solid var(--line); }
+.web-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); gap: .1rem; padding: .3rem calc(.5rem + env(safe-area-inset-right)) calc(.3rem + env(safe-area-inset-bottom)) calc(.5rem + env(safe-area-inset-left)); background: var(--bg); border-top: 1px solid var(--line); }
 .web-nav button { font: inherit; font-size: .95rem; font-weight: 600; min-height: 48px; padding: .3rem .2rem; border-radius: .9rem; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 /* Up to eight tabs on a narrow phone: the label shrinks a little and never wraps. */
-.web-nav button { font-size: min(.95rem, 2.6vw); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: .1rem; padding-right: .1rem; }
+.web-nav button { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: .1rem; padding-right: .1rem; }
 @media (min-width: 560px) { .web-nav button { font-size: .95rem; } }
 .web-nav button[aria-current='page'] { background: var(--card); color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
 /* While a field has focus the keyboard is up: the bar steps aside instead of riding on top of it. */
 .web-nav-away { display: none; }
 .web-main { padding-top: env(safe-area-inset-top); padding-bottom: calc(var(--web-nav-h) + env(safe-area-inset-bottom) + 1.5rem); }
 .web-login label { display: flex; flex-direction: column; gap: .3rem; }
+.web-login { padding-top: calc(28vh + env(safe-area-inset-top)); gap: .75rem; }
+.web-login button[type='submit'] { margin-top: .25rem; }
 /* Sticky pieces sit below the notch; the tab bar is at the bottom now. */
 .tk-rest { top: calc(env(safe-area-inset-top) + .4rem) !important; }
 .tk-picker { padding-top: calc(1rem + env(safe-area-inset-top)); padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
@@ -67,15 +69,24 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .pm-keeps { font-size: .85rem; margin: 0; }
 .pm-summary { margin: 0; color: var(--muted); }
 .pm-summary b { color: var(--text); font-size: 1.2rem; }
-.tk-screen .pm-shop { gap: 0; padding: .8rem 1rem; }
-.pm-shop h3 { margin: 0 0 .3rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.pm-shop ul { list-style: none; margin: 0; padding: 0; }
-.pm-item { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; padding: .15rem 0; border-top: 1px solid var(--line); }
+.pm-group { display: flex; flex-direction: column; gap: .25rem; }
+.pm-group ul { list-style: none; margin: 0; padding: 0; }
+.pm-item { border-top: 1px solid var(--line); }
 .pm-item:first-child { border-top: 0; }
+.pm-itemline { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; min-height: 52px; }
+.tk-screen button.pm-have, .pm-itemline .danger-link { min-height: 44px; padding: 0 0 0 .5rem; white-space: nowrap; }
+.pm-itemline .tk-confirm { flex-wrap: wrap; justify-content: flex-end; }
+.pm-name small { display: block; font-weight: 400; font-size: .85rem; }
+.tk-screen .pm-add button:disabled { opacity: .75; }
+.pm-add { display: flex; flex-direction: column; gap: .5rem; margin-top: 1rem; }
+.pm-addline { display: grid; grid-template-columns: 1fr 6rem; gap: .5rem; }
+.pm-addline input { min-width: 0; }
+.pm-rowtitle { display: block; }
+.pm-dev { display: block; color: var(--accent); font-size: .85rem; }
+.pm-people[role="group"] { margin: .25rem 0; }
 .tk-screen button.pm-check { width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: .7rem; background: transparent; border: 2px solid var(--muted); color: var(--ink); font-size: 1.2rem; }
 .pm-item.gekauft button.pm-check { background: var(--good); border-color: var(--good); }
-.pm-name { display: flex; flex-direction: column; font-weight: 600; }
-.pm-name small { font-weight: 400; color: var(--muted); font-size: .85rem; }
+.pm-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pm-item.gekauft .pm-name, .pm-item.da .pm-name { text-decoration: line-through; color: var(--muted); }
 .tk-screen button.pm-have { background: transparent; color: var(--muted); font-weight: 500; font-size: .8rem; padding: .3rem .5rem; min-width: 0; }
 .pm-have-list { opacity: .75; }
@@ -125,3 +136,9 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .tk-seg { display: flex; background: var(--card); border-radius: 999px; padding: 3px; margin-right: 3.4rem; }
 .tk-screen .tk-seg button { flex: 1; background: transparent; color: var(--muted); border: 0; min-height: 40px; padding: .3rem .5rem; box-shadow: none; }
 .tk-screen .tk-seg button[aria-pressed='true'] { background: var(--bg); color: var(--text); font-weight: 700; }
+/* The live workout header leaves room for the round profile button at the top right. */
+.web-main .tk-live-head { padding-right: 3.2rem; }
+/* A sheet covers everything: the round profile button steps aside while one is open. */
+body:has(.tk-sheet) .web-profile, body:has(.tk-live) .web-profile { display: none; }
+/* The title block leaves room for the round profile button at the top right. */
+.web-main .tk-pagehead, .web-main > .tk-screen > .tk-title { padding-right: 3.4rem; }

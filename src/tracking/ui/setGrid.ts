@@ -46,3 +46,15 @@ export function setHint(set: { type?: SetType; repRange?: { start: number; end: 
 /** True when the plan left every weight open: the screen then says "Gewicht nach Gefühl" once, under the title. */
 export const exerciseHasNoWeight = (e: { timed?: boolean; sets: { weightKg: number | null }[] }): boolean =>
   !e.timed && e.sets.length > 0 && e.sets.every((x) => x.weightKg === null);
+
+/** The line under the next open set: only what you did last time ("zuletzt 57,5 kg × 8"). Null when there is none. */
+export const setLastHint = (previous: LoggedSet | null, timed: boolean): string | null => {
+  const last = previous ? lastText(previous, timed) : null;
+  return last ? `zuletzt ${last}` : null;
+};
+
+/** The target range ("Ziel 8–12"), shown when the last-time line is tapped. The plan's range wins; else the exercise's own, on working sets only. */
+export function setTargetHint(set: { type?: SetType; repRange?: { start: number; end: number } }, timed: boolean, range?: { min: number; max: number }): string | null {
+  const target = set.repRange ?? (range && set.type !== 'warmup' ? { start: range.min, end: range.max } : undefined);
+  return target && !timed ? `Ziel ${target.start}–${target.end}` : null;
+}

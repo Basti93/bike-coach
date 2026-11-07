@@ -1,9 +1,8 @@
-import type { MuscleGroup } from '../shared/muscle-targets';
 import type { LoggedSet, LoggedWorkout } from '../shared/records';
 import { paceText } from '../shared/run';
 
-/** One line of the progress card: what, where it stands, and how it moved. */
-export type ProgressRow = { label: string; value: string; change?: string };
+/** One sentence of the progress list: what, where it stands, and how it moved, in plain words. */
+export type ProgressRow = { text: string };
 
 const DAY = 86_400_000;
 /** The comparison point for FTP: the newest value at least this old. */
@@ -13,7 +12,6 @@ const BEFORE_DAYS = 84;
 const MAX_LIFTS = 3;
 const MAX_REPS = 12;
 const comma = (n: number, digits = 1) => (Math.round(n * 10 ** digits) / 10 ** digits).toFixed(digits).replace('.', ',');
-const signed = (n: number) => (Math.abs(n) < 0.05 ? '±0' : `${n > 0 ? '+' : '−'}${comma(Math.abs(n))}`);
 
 /** Estimated one-rep max (Epley) of the best working set with 1 to 12 reps and a weight; null without one. */
 export function estimatedMax(sets: LoggedSet[]): number | null {
@@ -32,12 +30,18 @@ type Input = {
   weightKg: number | null;
   runPace: { now: number | null; weeks4: number | null; weeks12: number | null } | null;
   workouts: LoggedWorkout[];
-  /** The stats page's weeks (effective sets per group, the unit of the targets), oldest first, the current week last. */
-  weeks: { sets: Partial<Record<MuscleGroup, number>> }[];
-  targets: Record<MuscleGroup, { min: number; max: number }>;
 };
 
-/** At most one line per area, only where there is something to say. Plain words, no score. */
+/** How a lift moved between the eight weeks before and the last four, in words; empty without an earlier value. */
+function liftChange(recent: number, before: number | null): string {
+  if (before === null) return '';
+  const d = recent - before;
+  if (Math.abs(d) < 1) return ', gleich geblieben';
+  const big = Math.abs(d) / before >= 0.05;
+  return d > 0 ? `, ${big ? 'deutlich' : 'leicht'} gestiegen` : `, ${big ? 'deutlich' : 'etwas'} gesunken`;
+}
+
+/** At most one sentence per area or lift, only where there is something to say. Plain words, no score. */
 export function progressRows(i: Input): ProgressRow[] {
   const rows: ProgressRow[] = [];
 
@@ -45,24 +49,25 @@ export function progressRows(i: Input): ProgressRow[] {
   const latest = ftp[ftp.length - 1];
   if (latest) {
     const back = [...ftp].reverse().find((h) => i.nowMs - h.atMs >= FTP_BACK_DAYS * DAY) ?? (ftp[0] && i.nowMs - ftp[0].atMs >= 14 * DAY ? ftp[0] : undefined);
-    const wkg = i.weightKg ? ` · ${comma(latest.ftpW / i.weightKg)} W/kg` : '';
-    const row: ProgressRow = { label: 'Fitter (Rad)', value: `FTP ${Math.round(latest.ftpW)} W${wkg}` };
+    const wkg = i.weightKg ? ` (${comma(latest.ftpW / i.weightKg)} W/kg)` : '';
+    let change = '';
     if (back && back !== latest) {
       const d = Math.round(latest.ftpW - back.ftpW);
-      row.change = `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)} W seit ${Math.max(1, Math.round((i.nowMs - back.atMs) / (7 * DAY)))} Wochen`;
+      const weeks = Math.max(1, Math.round((i.nowMs - back.atMs) / (7 * DAY)));
+      change = d === 0 ? `, gleich wie vor ${weeks} Wochen` : `, ${Math.abs(d)} W ${d > 0 ? 'mehr' : 'weniger'} als vor ${weeks} Wochen`;
     }
-    rows.push(row);
+    rows.push({ text: `Rad: FTP ${Math.round(latest.ftpW)} W${wkg}${change}` });
   }
 
   const pace = i.runPace;
   if (pace?.now != null) {
-    const row: ProgressRow = { label: 'Schneller (Laufen)', value: `Lockeres Tempo ${paceText(pace.now)}` };
     const [then, weeks] = pace.weeks12 != null ? [pace.weeks12, 12] : pace.weeks4 != null ? [pace.weeks4, 4] : [null, 0];
+    let change = '';
     if (then !== null) {
       const d = Math.round(pace.now - then);
-      row.change = d === 0 ? `gleich wie vor ${weeks} Wochen` : `${Math.abs(d)} s ${d < 0 ? 'schneller' : 'langsamer'} als vor ${weeks} Wochen`;
+      change = d === 0 ? `, gleich wie vor ${weeks} Wochen` : `, ${Math.abs(d)} s ${d < 0 ? 'schneller' : 'langsamer'} als vor ${weeks} Wochen`;
     }
-    rows.push(row);
+    rows.push({ text: `Laufen: lockeres Tempo ${paceText(pace.now)}${change}` });
   }
 
   // Strength: the most trained lifts of the last twelve weeks, the last four weeks against the eight before.
@@ -81,20 +86,6 @@ export function progressRows(i: Input): ProgressRow[] {
     }
   }
   const top = [...lifts.values()].filter((l) => l.recent !== null).sort((a, b) => b.sessions - a.sessions || b.recent! - a.recent!).slice(0, MAX_LIFTS);
-  if (top.length > 0) {
-    rows.push({ label: 'Stärker (Kraft)', value: top.map((l) => `${l.title} ~${Math.round(l.recent!)} kg${l.before !== null ? ` (${signed(l.recent! - l.before)})` : ''}`).join(' · ') });
-  }
-
-  // Muscle: groups with a target, on average over the last four weeks in their band.
-  const last4 = i.weeks.slice(-4);
-  const groups = (Object.keys(i.targets) as MuscleGroup[]).filter((g) => i.targets[g].max > 0);
-  const trained = last4.some((w) => Object.values(w.sets).some((n) => (n ?? 0) > 0));
-  if (groups.length > 0 && trained && last4.length > 0) {
-    const inBand = groups.filter((g) => {
-      const avg = last4.reduce((a, w) => a + (w.sets[g] ?? 0), 0) / last4.length;
-      return avg >= i.targets[g].min && avg <= i.targets[g].max;
-    }).length;
-    rows.push({ label: 'Muskelaufbau', value: `${inBand} von ${groups.length} Muskelgruppen im Zielbereich`, change: `Schnitt der letzten ${last4.length} Wochen` });
-  }
+  for (const l of top) rows.push({ text: `${l.title}: etwa ${Math.round(l.recent!)} kg${liftChange(l.recent!, l.before)}` });
   return rows;
 }

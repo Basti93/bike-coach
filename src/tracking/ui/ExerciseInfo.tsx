@@ -16,18 +16,40 @@ const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
 /** A picture that is not there (generated media missing) takes its frame with it. */
 const hideFigure = (e: SyntheticEvent<HTMLImageElement>) => { const f = e.currentTarget.closest('figure'); if (f) f.hidden = true; };
 
-const WORD_CAP = 90;
+const LONG = 36;
 
-/** A long text shows its first ~90 words with a "mehr" toggle; the stored text is never shortened. */
+/** Up to three lines of the text; a longer one has a "mehr" toggle. The stored text is never shortened, only clamped. */
 function DescriptionText({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length <= WORD_CAP) return <p>{text}</p>;
+  const long = text.split(/\s+/).filter(Boolean).length > LONG;
   return (
-    <p>
-      {open ? text : `${words.slice(0, WORD_CAP).join(' ')} …`}{' '}
-      <button type="button" className="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'weniger' : 'mehr'}</button>
-    </p>
+    <div className="tk-desc">
+      <p className={long && !open ? 'tk-clamp' : undefined}>{text}</p>
+      {long && <button type="button" className="link" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'weniger' : 'mehr'}</button>}
+    </div>
+  );
+}
+
+/** Picture and text credits as one small muted line at the end. */
+function Credits({ images, text }: { images: ExerciseImage[]; text: string | null }) {
+  const pics = images.filter((img, i) => images.findIndex((o) => o.sourceUrl === img.sourceUrl && o.author === img.author && o.licence === img.licence) === i);
+  if (pics.length === 0 && !text) return null;
+  // Picture and text from the same public-domain source: one credit.
+  const fedb = (a: string) => a.startsWith('free-exercise-db');
+  if (pics.length > 0 && pics.every((p) => fedb(p.author)) && text && fedb(text.replace(/^Quelle: /, ''))) {
+    return <small className="muted tk-credit">Bild und Text: free-exercise-db, gemeinfrei</small>;
+  }
+  return (
+    <small className="muted tk-credit">
+      {pics.map((img, i) => (
+        <span key={img.file}>{i > 0 && ' · '}
+          {img.sourceUrl.includes('wger.de')
+            ? <>Bild: <a href={img.sourceUrl} {...external}>wger.de</a>{img.author === 'wger.de' ? '' : `, ${img.author}`}, {img.licence}</>
+            : <>Bild: <a href={img.sourceUrl} {...external}>{img.author}</a></>}
+        </span>
+      ))}
+      {pics.length > 0 && text && ' · '}{text}
+    </small>
   );
 }
 
@@ -38,26 +60,19 @@ export function ExerciseInfo({ title, description, images = [], video, icon, chi
   const credit = description && descriptionCredit(description);
   return (
     <div className="tk-info" role="note" aria-label={`Ausführung ${title}`}>
-      {images.map((img) => (
-        <figure key={img.file} className="tk-info-pic">
-          <img src={imageSrc(img.file)} alt={`${title}, Ausführung`} loading="lazy" decoding="async" onError={hideFigure} />
-          <figcaption className="muted tk-credit">
-            {img.sourceUrl.includes('wger.de')
-              ? <>Bild: <a href={img.sourceUrl} {...external}>wger.de</a>{img.author === 'wger.de' ? '' : `, ${img.author}`}, {img.licence}</>
-              : <>Bild: <a href={img.sourceUrl} {...external}>{img.author}</a></>}
-          </figcaption>
-        </figure>
-      ))}
-      {description ? (
-        <>
-          <DescriptionText text={description.text} />
-          {credit && <small className="muted tk-credit">{credit}</small>}
-        </>
-      ) : (
-        <p className="tk-info-empty">{icon}<span className="muted">Noch keine Beschreibung.</span></p>
+      {images.length > 0 && (
+        <div className="tk-info-pics">
+          {images.map((img) => (
+            <figure key={img.file} className="tk-info-pic">
+              <img src={imageSrc(img.file)} alt={`${title}, Ausführung`} loading="lazy" decoding="async" onError={hideFigure} />
+            </figure>
+          ))}
+        </div>
       )}
+      {description ? <DescriptionText text={description.text} /> : <p className="tk-info-empty">{icon}<span className="muted">Noch keine Beschreibung.</span></p>}
       <a className="tk-video" href={video} {...external}>Video ansehen</a>
       {children}
+      <Credits images={images} text={credit} />
     </div>
   );
 }

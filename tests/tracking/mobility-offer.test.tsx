@@ -30,36 +30,40 @@ const offer = (storage = memory(), now = DAY) => {
   return { onDone, storage };
 };
 
-test('collapsed to one line by default, the exercises on request as a numbered list', () => {
+test('one row with the minutes; the exercises, Gemacht and "Heute nicht" are in a sheet', () => {
   offer();
-  expect(screen.getByText(/etwa 8 Minuten, 2 Übungen/)).toBeTruthy();
+  expect(screen.getByText('8 Min')).toBeTruthy();
   expect(screen.queryByText('Waden an der Wand')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
   expect(screen.getByText('Waden an der Wand').closest('ol')).toBeTruthy();
   expect(screen.getByText('Hände an die Wand.')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Zuklappen' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
   expect(screen.queryByText('Waden an der Wand')).toBeNull();
 });
-test('Gemacht reports done', () => {
+test('Gemacht reports done and closes the sheet', () => {
   const { onDone } = offer();
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Gemacht' }));
   expect(onDone).toHaveBeenCalled();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
+const hideIt = () => { fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ })); fireEvent.click(screen.getByRole('button', { name: 'Heute nicht' })); };
 test('"Heute nicht" only hides it for today, on this device, and asks nothing', () => {
   const { onDone, storage } = offer();
-  fireEvent.click(screen.getByRole('button', { name: 'Heute nicht' }));
-  expect(screen.queryByText(/Beweglichkeit/)).toBeNull();
+  hideIt();
+  expect(screen.queryByRole('button', { name: /^Beweglichkeit/ })).toBeNull();
   expect(screen.queryByRole('textbox')).toBeNull();
   expect(onDone).not.toHaveBeenCalled();
   cleanup();
   offer(storage, DAY + 3600_000);
-  expect(screen.queryByText(/Beweglichkeit/)).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Beweglichkeit/ })).toBeNull();
   cleanup();
   offer(storage, DAY + 86_400_000);
-  expect(screen.getByText(/Beweglichkeit/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Beweglichkeit/ })).toBeTruthy();
 });
 test('no pressure: no streaks, no guilt', () => {
   offer();
-  fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
   expect(document.body.textContent).not.toMatch(/musst|verpasst|Serie|streak|schade/i);
 });

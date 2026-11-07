@@ -141,6 +141,12 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
       ...(p.reps !== null && p.reps !== undefined ? { plannedReps: p.reps } : {}),
     };
   });
+  // An open set without reps takes them from the set before it of the same kind, so no open set shows "–" while its neighbours show a number.
+  const carry = { warmup: null as number | null, work: null as number | null };
+  if (!timed) for (const s of sets) {
+    const k = s.type === 'warmup' ? 'warmup' : 'work';
+    if (s.reps === null) s.reps = carry[k]; else carry[k] = s.reps;
+  }
   const ex: TrackedExercise = { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
   // Another studio than the plan's: the weights come from there. The same studio keeps the weights as they are.
   const kg = otherStudio(fit.planStudio, hereKey({ studio }, history, studios), studios) ? prefillWeights(ex, hereKey({ studio }, history, studios), history, catalog, studios, fit) : null;

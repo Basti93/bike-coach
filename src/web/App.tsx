@@ -3,7 +3,10 @@ import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { durationNote } from '../shared/duration';
 import { openStoreCount } from '../tracking/registry';
-import { CatalogScreen, HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { PageHead, Row, RowList, Switch } from '../tracking/ui/kit';
+import { CoachPrefs } from '../tracking/ui/CoachPrefs';
+import { localDayKey, shortDate, timeLabel } from '../shared/dates';
+import { CatalogScreen, HistoryScreen, RoutinesScreen, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { TodayCard, todayPlan } from '../tracking/ui/TodayCard';
@@ -62,7 +65,10 @@ function LoginForm({ env, onDone, note, before, failed }: { env: Env; onDone: (n
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const passRef = useRef<HTMLInputElement>(null);
   const submit = async () => {
+    if (!name.trim() || !password) { setMsg('Bitte Name und Passwort eingeben'); (name.trim() ? passRef : nameRef).current?.focus(); return; }
     setBusy(true); setMsg(null);
     try {
       await before?.(); // no sync may run while the login changes under it
@@ -79,10 +85,10 @@ function LoginForm({ env, onDone, note, before, failed }: { env: Env; onDone: (n
     <form className="web-login tk-screen" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <h1 className="tk-title">Pandafit</h1>
       {note && <p role="status" className="tk-note">{note}</p>}
-      <label>Name<input aria-label="Name" autoComplete="username" autoCapitalize="none" value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label>Passwort<input aria-label="Passwort" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+      <label>Name<input ref={nameRef} aria-label="Name" autoComplete="username" autoCapitalize="none" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label>Passwort<input ref={passRef} aria-label="Passwort" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
       {msg && <p role="status" className="tk-note">{msg}</p>}
-      <button type="submit" disabled={busy || !name.trim() || !password}>Anmelden</button>
+      <button type="submit" className="primary" disabled={busy}>Anmelden</button>
     </form>
   );
 }
@@ -102,7 +108,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onTraining: 
   }
 }
 
-function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: () => void; goRun?: () => void; goCoach: () => void }) {
+/** "Samstag, 7. November" */
+const todayTitle = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+/** "14:05", or with the day when it was not today. */
+const sinceText = (ms: number, now: number): string => (localDayKey(ms) === localDayKey(now) ? timeLabel(ms) : `${shortDate(ms)} ${timeLabel(ms)}`);
+
+function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: (resume?: boolean) => void; goRun?: () => void; goCoach: () => void }) {
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
   const weekplans = usePortRecords(port, 'weekplan').records;
@@ -115,6 +126,9 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   const now = env.now();
   const session = useMemo(() => mobilityToShow(plan, mobility ?? [], now), [plan, mobility, now]);
   const today = todayPlan(weekplans, now);
+  // A workout still open (here or on another device) is the next thing to do: the newest one.
+  const workouts = usePortRecords(port, 'workout').records;
+  const open = (workouts ?? []).filter((r) => (r.body as LoggedWorkout).endMs === null).sort((x, y) => (y.body as LoggedWorkout).startMs - (x.body as LoggedWorkout).startMs)[0];
 
   const markDone = async () => {
     if (!session) return;
@@ -122,34 +136,45 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   };
 
   // The strength plan: on a strength day inside the week plan's card, without a week plan as its own card.
+  // Name and time in one line, the exercises in two; the reason, the sets and the outlook behind "Details".
+  const toTraining = <button type="button" className={open ? 'secondary' : undefined} onClick={() => goTraining()}>Zum Krafttraining</button>;
   const gym = p ? (
     <>
-      <p className="muted">{planDateText(p.atMs)}</p>
+      {p.workout && <p className="muted"><span>{p.workout.name}</span>{p.workout.exercises.length > 0 ? ` · ${durationNote(p.workout)}` : ''}</p>}
+      {p.workout && p.workout.exercises.length > 0 && <p className="muted tk-clamp">{p.workout.exercises.map((e) => e.title).join(', ')}</p>}
       {planIsStale(p.atMs, now) && <p className="muted">Der Plan ist schon etwas älter. Der Coach macht einen neuen, sobald er dazu kommt.</p>}
-      {p.workout && <h2>{p.workout.name}</h2>}
-      {p.workout && p.workout.exercises.length > 0 && <p className="muted">{durationNote(p.workout)}</p>}
-      {p.reason && <p>{p.reason}</p>}
-      {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
-      {p.note && <p>{p.note}</p>}
       {p.questions.length > 0 && <ul>{p.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>}
-      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
-      <GymOutlook outlook={p.outlook} />
+      {toTraining}
+      <details className="tk-details">
+        <summary>Details</summary>
+        <p className="muted">{planDateText(p.atMs)}</p>
+        {p.reason && <p>{p.reason}</p>}
+        {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
+        {p.note && <p>{p.note}</p>}
+        <GymOutlook outlook={p.outlook} />
+      </details>
     </>
   ) : (
     <>
-      <p>Noch kein Krafttraining geplant. Du kannst trotzdem jederzeit trainieren.</p>
-      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
+      <p className="muted">Noch kein Krafttraining geplant. Du kannst trotzdem jederzeit trainieren.</p>
+      {toTraining}
     </>
   );
 
   if (together && showTogether) return <TogetherPage t={together} now={now} onBack={() => setShowTogether(false)} />;
   return (
     <div className="tk-screen">
-      <h1 className="tk-title">Heute</h1>
+      <PageHead title={todayTitle(now)} />
+      {open && (
+        <section className="card" aria-label="Training läuft noch">
+          <h2>{(open.body as LoggedWorkout).title} läuft noch – seit {sinceText((open.body as LoggedWorkout).startMs, now)}</h2>
+          <button type="button" onClick={() => goTraining(true)}>Weitermachen</button>
+        </section>
+      )}
       {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
-      {today ? <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} /> : (
+      {today ? <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} quiet={!!open} /> : (
         <>
-          <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} />
+          <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} quiet={!!open} />
           <section className="card">{gym}</section>
           <section className="card">
             <p className="muted">Noch kein Wochenplan für heute. Mit dem Coach plant ihr die Woche über alle Sportarten.</p>
@@ -162,20 +187,22 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   );
 }
 
-function Training({ port, env }: { port: WebPort; env: Env }) {
+function Training({ port, env, resume }: { port: WebPort; env: Env; resume: boolean }) {
+  const [running, setRunning] = useState(false);
   const plans = usePortRecords(port, 'plan').records;
   const [screen, setScreen] = useState<'workout' | 'routines' | 'history' | 'catalog'>('workout');
   const [routine, setRoutine] = useState<GymWorkout | null>(null);
   const plan = readPlan((plans ?? []).find((r) => r.id === 'current'));
   return (
     <>
-      <div className="tk-screen"><div className="tk-seg" role="group" aria-label="Kraft">
+      {/* A running workout has the whole screen: no sub-navigation until it is done. */}
+      {!(running && screen === 'workout') && <div className="tk-screen"><div className="tk-seg" role="group" aria-label="Kraft">
         <button type="button" aria-pressed={screen === 'workout'} onClick={() => { setRoutine(null); setScreen('workout'); }}>Training</button>
         <button type="button" aria-pressed={screen === 'routines'} onClick={() => setScreen('routines')}>Routinen</button>
         <button type="button" aria-pressed={screen === 'history'} onClick={() => setScreen('history')}>Verlauf</button>
         <button type="button" aria-pressed={screen === 'catalog'} onClick={() => setScreen('catalog')}>Übungen</button>
-      </div></div>
-      {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
+      </div></div>}
+      {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} resume={resume} onActive={setRunning} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
       {screen === 'history' && <HistoryScreen port={port} now={env.now} />}
       {screen === 'catalog' && <CatalogScreen port={port} now={env.now} newId={env.newId} />}
       {screen === 'routines' && <RoutinesScreen port={port} now={env.now} newId={env.newId} onStart={(r) => { setRoutine(r); setScreen('workout'); }} />}
@@ -269,22 +296,17 @@ function PushSettings({ push }: { push: PushState }) {
   const p = push.env;
   const granted = p.support === 'ok' && p.permission() === 'granted';
   return (
-    <section className="card">
-      <h2>Benachrichtigungen</h2>
-      {p.support === 'install' && <p>{PUSH_INSTALL}</p>}
+    <>
+      {p.support === 'install' && <p className="muted">{PUSH_INSTALL}</p>}
       {p.support === 'none' && <p className="muted">In diesem Browser gibt es keine Benachrichtigungen.</p>}
       {p.support === 'ok' && (
         <>
-          <p className="muted">Nur wenige: wenn eine neue Version da ist, wenn dein Essensplan oder Laufplan für die Woche kommt und wenn der Coach dir schreibt.</p>
-          <label className="tk-row">
-            <input type="checkbox" role="switch" checked={push.on && granted} disabled={push.busy}
-              onChange={(e) => void (e.target.checked ? push.enable() : push.disable())} />
-            Benachrichtigungen
-          </label>
+          <Switch label="Benachrichtigungen" hint="Neue Version, Essens- und Laufplan, Antworten vom Coach." checked={push.on && granted} disabled={push.busy}
+            onChange={(on) => void (on ? push.enable() : push.disable())} />
           {push.on && !granted && <p className="muted">{PUSH_DENIED}</p>}
         </>
       )}
-    </section>
+    </>
   );
 }
 
@@ -292,44 +314,52 @@ type Tab = 'heute' | 'coach' | 'training' | 'essen' | 'laufen' | 'statistik' | '
 // At most six tabs: Verlauf lives in Kraft, the profile is the round button at the top right.
 const TABS: [Tab, string][] = [['heute', 'Heute'], ['coach', 'Woche'], ['training', 'Kraft'], ['essen', 'Essen'], ['laufen', 'Laufen'], ['statistik', 'Statistik']];
 
+/** The sync state in a few words: the value of the account row, or a short sentence when something needs saying. */
 const syncText = (status: 'ok' | 'login' | 'offline', c: { pending: number; lastOkMs: number | null; refused?: number }): string => {
-  if (status === 'login') return 'Bitte melde dich neu an, dann wird wieder abgeglichen. Bis dahin bleibt alles auf diesem Gerät.';
-  if (status === 'offline') return 'Gerade keine Verbindung. Alles bleibt auf diesem Gerät und geht raus, sobald es wieder geht.';
-  if ((c.refused ?? 0) > 0) return 'Ein Eintrag wurde vom Server nicht angenommen. Er bleibt sicher auf diesem Gerät gespeichert.';
-  if (c.pending > 0) return c.pending === 1 ? 'Ein Eintrag wartet noch aufs Senden. Er ist sicher auf diesem Gerät.' : `${c.pending} Einträge warten noch aufs Senden. Sie sind sicher auf diesem Gerät.`;
+  if (status === 'login') return 'Bitte melde dich neu an. Bis dahin bleibt alles auf diesem Gerät.';
+  if (status === 'offline') return 'Gerade keine Verbindung. Alles bleibt auf diesem Gerät.';
+  if ((c.refused ?? 0) > 0) return 'Ein Eintrag wurde nicht angenommen. Er bleibt auf diesem Gerät.';
+  if (c.pending > 0) return c.pending === 1 ? 'Ein Eintrag wartet aufs Senden.' : `${c.pending} Einträge warten aufs Senden.`;
   if (c.lastOkMs === null) return 'Der erste Abgleich folgt gleich.';
-  const at = new Date(c.lastOkMs);
-  return `Alles abgeglichen, zuletzt ${at.toLocaleDateString('de-DE')} um ${at.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.`;
+  return `Alles gesichert · ${localDayKey(c.lastOkMs) === localDayKey(Date.now()) ? '' : `${shortDate(c.lastOkMs)} `}${timeLabel(c.lastOkMs)}`;
 };
 
-/** The account on this device: who is signed in, how the sync stands, and the way out. */
-function Profil({ account, port, now, status, onLogout, push }: { account: string; port: WebPort; now: () => number; status: 'ok' | 'login' | 'offline'; onLogout: () => void; push: PushState | null }) {
+/** The account on this device, a few switches, the coach's timing, and the way out. Rows, not cards. */
+function Profil({ account, port, now, status, onLogout, onBack, push, persistRefused }: { account: string; port: WebPort; now: () => number; status: 'ok' | 'login' | 'offline'; onLogout: () => void; onBack: () => void; push: PushState | null; persistRefused: boolean }) {
   const [confirming, setConfirming] = useState(false);
   usePortRecords(port, 'workout'); // re-renders when the port changes
   const c = port.syncState();
   const tryLogout = () => { if (c.pending > 0 || (c.refused ?? 0) > 0) setConfirming(true); else onLogout(); };
+  const sync = syncText(status, c);
+  const quiet = sync.startsWith('Alles gesichert');
   return (
     <div className="tk-screen">
-      <h1 className="tk-title">Profil</h1>
-      <section className="card">
-        <p className="muted">Angemeldet als</p>
-        <h2>{account}</h2>
-        <p role="status">{syncText(status, c)}</p>
-      </section>
-      {push && <PushSettings push={push} />}
+      <button type="button" className="link tk-back" onClick={onBack}>‹ Zurück</button>
+      <PageHead title="Profil" />
+      <RowList>
+        <Row title={`Angemeldet als ${account}`} value={quiet ? sync : undefined} />
+      </RowList>
+      {!quiet && <p role="status" className="muted">{sync}</p>}
       <RunSettingsCard port={port} now={now} />
+      {push && <PushSettings push={push} />}
+      {/* The coach's timing is about notifications: it shows under them once they are on (always where the shell has no push at all). */}
+      {(!push || push.on) && <CoachPrefs port={port} now={now} nested />}
+      {persistRefused && <p role="status" className="muted">Dein Browser kann Daten löschen – sie sind aber auf dem Server gesichert.</p>}
       {confirming ? (
         <p role="status" className="tk-note">
           Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.
-          <button type="button" onClick={onLogout}>Trotzdem abmelden</button>
-          <button type="button" className="ghost" onClick={() => setConfirming(false)}>Doch nicht</button>
+          <button type="button" className="secondary" onClick={onLogout}>Trotzdem abmelden</button>
+          <button type="button" className="link" onClick={() => setConfirming(false)}>Doch nicht</button>
         </p>
-      ) : <button type="button" className="ghost" onClick={tryLogout}>Abmelden</button>}
+      ) : <button type="button" className="link tk-logout" onClick={tryLogout}>Abmelden</button>}
     </div>
   );
 }
 
 function Shell({ account, env, port, onLogout, onRelogin }: { account: string; env: Env; port: WebPort; onLogout: () => void; onRelogin: (name: string) => void }) {
+  const [back, setBack] = useState<Tab>('heute');
+  // "Weitermachen" on Heute opens the open workout itself, once; every other way into Kraft shows the start screen.
+  const [resume, setResume] = useState(false);
   const [tab, setTab] = useState<Tab>(env.startTab === 'essen' ? 'essen' : env.startTab === 'laufen' ? 'laufen' : env.startTab === 'coach' ? 'coach' : 'heute');
   const push = usePush(env, account);
   useEffect(() => env.onOpenTab?.((t) => { if (t === 'essen') setTab('essen'); else if (t === 'laufen') setTab('laufen'); else if (t === 'coach') setTab('coach'); }), [env]);
@@ -385,7 +415,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
   return (
     <>
       <main className="web-main" onClick={() => setTimeout(() => tick((n) => n + 1), 50)}>
-        <button type="button" className="web-profile" aria-label="Profil" aria-current={tab === 'profil' ? 'page' : undefined} onClick={() => setTab('profil')}>
+        <button type="button" className="web-profile" aria-label="Profil" aria-current={tab === 'profil' ? 'page' : undefined} onClick={() => { if (tab !== 'profil') setBack(tab); setTab('profil'); }}>
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         </button>
         {status === 'login' && (
@@ -400,19 +430,18 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         {push.msg && <div className="tk-screen"><p role="status" className="tk-note">{push.msg}</p></div>}
         {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
-          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
-          {tab === 'training' && <Training port={port} env={env} />}
+          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={(r) => { setResume(!!r); setTab('training'); }} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
+          {tab === 'training' && <Training port={port} env={env} resume={resume} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
-          {tab === 'laufen' && hasRun && <><RunScreen port={port} now={env.now} newId={env.newId} /><RunLookBack port={port} now={env.now} /></>}
-          {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} />}
+          {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
+          {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} showPrefs={false} />}
           {tab === 'statistik' && hasStats && <StatsScreen port={port} now={env.now} />}
-          {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} push={push.state} />}
+          {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} onBack={() => setTab(back)} push={push.state} persistRefused={persistRefused} />}
         </ErrorBoundary>
-        {persistRefused && tab === 'profil' && <div className="tk-screen"><p role="status" className="muted">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge liegen trotzdem auf dem Gerät und gehen raus, sobald es geht.</p></div>}
       </main>
       <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map(([t, label]) => (
-          <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => setTab(t)}>{label}</button>
+          <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => { setResume(false); setTab(t); }}>{label}</button>
         ))}
       </nav>
     </>

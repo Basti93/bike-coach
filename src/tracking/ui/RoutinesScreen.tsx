@@ -3,6 +3,7 @@ import type { GymExercise, GymWorkout } from '../../coach/gym/types';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
+import { ConfirmLink, Row, RowList, Sheet } from './kit';
 import { usePortRecords } from './hooks';
 
 type Draft = { id: string; isNew: boolean; name: string; exercises: GymExercise[]; updatedMs: number };
@@ -19,73 +20,90 @@ export function RoutinesScreen({ port, onStart, now = Date.now, newId = () => cr
   const [picking, setPicking] = useState(false);
   const [failed, setFailed] = useState(false);
   const saving = useRef(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
   const write = async (r: TrackedRecord): Promise<boolean> => { try { await port.put(r); setFailed(false); return true; } catch { setFailed(true); return false; } };
 
-  if (draft) {
-    const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
-    const setEx = (i: number, f: (e: GymExercise) => GymExercise | null) =>
-      set({ exercises: draft.exercises.flatMap((e, k) => (k === i ? (f(e) ? [f(e)!] : []) : [e])) });
+  const names = (b: GymWorkout) => b.exercises.map((e) => e.title).join(', ');
+  const openRecord = (records ?? []).find((r) => r.id === open);
+  const note = failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>;
+
+  const closeAll = () => { setDraft(null); setOpen(null); setFailed(false); };
+  // One sheet for a routine: it reads first and turns into the editor, so Back and × always close the whole thing.
+  const sheet = (() => {
+    if (draft) {
+      const set = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
+      const setEx = (i: number, f: (e: GymExercise) => GymExercise | null) =>
+        set({ exercises: draft.exercises.flatMap((e, k) => (k === i ? (f(e) ? [f(e)!] : []) : [e])) });
+      const valid = draft.name.trim() !== '' && draft.exercises.length > 0;
+      return (
+        <Sheet title={draft.isNew ? 'Neue Routine' : 'Routine bearbeiten'} onClose={closeAll}
+          actions={<>
+            {!valid && <p className="muted tk-oneline">Name und mindestens eine Übung</p>}
+            <button type="button" disabled={!valid} onClick={async () => {
+              if (saving.current) return; // a double tap saves once
+              saving.current = true;
+              try {
+                const body: GymWorkout = { name: draft.name.trim(), exercises: draft.exercises };
+                if (await write({ kind: 'routine', id: draft.id, updatedMs: after(now, draft.updatedMs), deleted: false, body })) closeAll();
+              } finally { saving.current = false; }
+            }}>Speichern</button>
+            <button type="button" className="link" onClick={closeAll}>Abbrechen</button>
+          </>}>
+          <label className="tk-field">Name der Routine<input autoFocus value={draft.name} onChange={(e) => set({ name: e.target.value })} /></label>
+          <RowList label="Übungen">
+            {draft.exercises.map((e, i) => (
+              <li key={i} className="tk-rowitem tk-stepper">
+                <span className="tk-row-title">{e.title}</span>
+                <button type="button" className="link" aria-label={`Satz entfernen ${e.title}`} disabled={e.sets.length <= 1} onClick={() => setEx(i, (x) => ({ ...x, sets: x.sets.slice(0, -1) }))}>−</button>
+                <span className="tk-stepcount" aria-label={`${e.sets.length} Sätze`}>{e.sets.length}</span>
+                <button type="button" className="link" aria-label={`Satz hinzufügen ${e.title}`} onClick={() => setEx(i, (x) => ({ ...x, sets: [...x.sets, emptySet()] }))}>+</button>
+                <button type="button" className="danger-link tk-del-ex" aria-label={`Übung entfernen ${e.title}`} onClick={() => setEx(i, () => null)}>×</button>
+              </li>
+            ))}
+          </RowList>
+          <button type="button" className="secondary" onClick={() => setPicking(true)}>Übung hinzufügen</button>
+          {note}
+        </Sheet>
+      );
+    }
+    if (!openRecord) return null;
+    const body = openRecord.body as GymWorkout;
     return (
-      <div className="tk-screen">
-        <h1 className="tk-title">{draft.isNew ? 'Neue Routine' : 'Routine bearbeiten'}</h1>
-        <label className="tk-field">Name der Routine<input value={draft.name} onChange={(e) => set({ name: e.target.value })} /></label>
-        {draft.exercises.map((e, i) => (
-          <div key={i} className="card tk-row">
-            <strong>{e.title}</strong><span className="muted">{e.sets.length} Sätze</span><span className="spacer" />
-            <button type="button" className="secondary" aria-label={`Satz entfernen ${e.title}`} disabled={e.sets.length <= 1} onClick={() => setEx(i, (x) => ({ ...x, sets: x.sets.slice(0, -1) }))}>−</button>
-            <button type="button" className="secondary" aria-label={`Satz hinzufügen ${e.title}`} onClick={() => setEx(i, (x) => ({ ...x, sets: [...x.sets, emptySet()] }))}>+</button>
-            <button type="button" className="ghost" aria-label={`Übung entfernen ${e.title}`} onClick={() => setEx(i, () => null)}>Entfernen</button>
-          </div>
-        ))}
-        <button type="button" className="secondary" onClick={() => setPicking(true)}>Übung hinzufügen</button>
-        {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Die Routine bleibt hier offen, versuch es gleich nochmal.</p>}
-        <div className="tk-row">
-          <button type="button" disabled={draft.name.trim() === ''} onClick={async () => {
-            if (saving.current) return; // a double tap saves once
-            saving.current = true;
-            try {
-              const body: GymWorkout = { name: draft.name.trim(), exercises: draft.exercises };
-              if (await write({ kind: 'routine', id: draft.id, updatedMs: after(now, draft.updatedMs), deleted: false, body })) setDraft(null);
-            } finally { saving.current = false; }
-          }}>Routine speichern</button>
-          <button type="button" className="ghost" onClick={() => { setDraft(null); setFailed(false); }}>Abbrechen</button>
-        </div>
-        {picking && <ExercisePicker port={port} now={now} newId={newId} onClose={() => setPicking(false)} onPick={(ex) => {
-          setPicking(false);
-          set({ exercises: [...draft.exercises, { templateId: ex.id, title: ex.title, restS: null, supersetId: null, notes: '', sets: [emptySet(), emptySet(), emptySet()] }] });
-        }} />}
-      </div>
+      <Sheet title={body.name} onClose={closeAll}
+        actions={<>
+          <button type="button" onClick={() => { setOpen(null); onStart(body); }}>Training starten</button>
+          <button type="button" className="secondary" onClick={() => setDraft({ id: openRecord.id, isNew: false, name: body.name, exercises: body.exercises, updatedMs: openRecord.updatedMs })}>Bearbeiten</button>
+        </>}>
+        {body.exercises.length === 0 ? <p className="muted">Noch keine Übung.</p> : (
+          <RowList label="Übungen">{body.exercises.map((e, i) => <Row key={i} title={e.title} value={`${e.sets.length} Sätze`} />)}</RowList>
+        )}
+        {note}
+        <div className="tk-links"><ConfirmLink label="Löschen" question="Routine wirklich löschen?" onConfirm={async () => { if (await write({ ...openRecord, updatedMs: after(now, openRecord.updatedMs), deleted: true })) setOpen(null); }} /></div>
+      </Sheet>
     );
-  }
+  })();
 
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Routinen</h1>
       {q.failed && <p role="status" className="tk-note">Deine Routinen konnten gerade nicht gelesen werden. <button type="button" onClick={q.retry}>Nochmal versuchen</button></p>}
       {records !== null && records.length === 0 && <p className="muted">Noch keine Routine. Leg eine an, dann startest du sie mit einem Tipp.</p>}
-      {(records ?? []).map((r) => {
-        const body = r.body as GymWorkout;
-        return (
-          <div key={r.id} className="card">
-            <div className="tk-row">
-              <h2>{body.name}</h2><span className="muted">{body.exercises.length} Übungen</span><span className="spacer" />
-              <button type="button" aria-label={`${body.name} starten`} onClick={() => onStart(body)}>Starten</button>
-              <button type="button" className="secondary" aria-label={`${body.name} bearbeiten`} onClick={() => setDraft({ id: r.id, isNew: false, name: body.name, exercises: body.exercises, updatedMs: r.updatedMs })}>Bearbeiten</button>
-              <button type="button" className="ghost" aria-label={`${body.name} löschen`} onClick={() => setDeleting(r.id)}>Löschen</button>
-            </div>
-            {deleting === r.id && (
-              <p className="tk-note">Routine löschen?{' '}
-                <button type="button" onClick={async () => { await write({ ...r, updatedMs: after(now, r.updatedMs), deleted: true }); setDeleting(null); }}>Ja, löschen</button>{' '}
-                <button type="button" className="ghost" onClick={() => setDeleting(null)}>Behalten</button>
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {failed && <p role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</p>}
-      <button type="button" onClick={() => setDraft({ id: newId(), isNew: true, name: '', exercises: [], updatedMs: 0 })}>Neue Routine</button>
+      {(records ?? []).length > 0 && (
+        <RowList label="Routinen">
+          {(records ?? []).map((r) => {
+            const body = r.body as GymWorkout;
+            return <Row key={r.id} title={body.name} value={<span className="tk-ellipsis">{names(body)}</span>} onClick={() => setOpen(r.id)} />;
+          })}
+        </RowList>
+      )}
+      {!sheet && note}
+      <button type="button" className="secondary" onClick={() => setDraft({ id: newId(), isNew: true, name: '', exercises: [], updatedMs: 0 })}>Neue Routine</button>
+      {sheet}
+      {draft && picking && <ExercisePicker port={port} now={now} newId={newId} onClose={() => setPicking(false)} onPick={(ex) => {
+        setPicking(false);
+        setDraft({ ...draft, exercises: [...draft.exercises, { templateId: ex.id, title: ex.title, restS: null, supersetId: null, notes: '', sets: [emptySet(), emptySet(), emptySet()] }] });
+      }} />}
     </div>
   );
 }

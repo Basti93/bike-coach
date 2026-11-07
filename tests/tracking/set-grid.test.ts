@@ -35,3 +35,12 @@ test('an exercise planned without any weight says so once', () => {
   expect(exerciseHasNoWeight({ timed: true, sets: [{ weightKg: null }] })).toBe(false);
   expect(exerciseHasNoWeight({ sets: [] })).toBe(false);
 });
+
+test('the line under the next set is only last time; the target range is its own text, working sets only', async () => {
+  const { setLastHint, setTargetHint } = await import('../../src/tracking/ui/setGrid');
+  expect(setLastHint(s('normal', 57.5, 8), false)).toBe('zuletzt 57,5 kg × 8');
+  expect(setLastHint(null, false)).toBeNull();
+  expect(setTargetHint({ repRange: { start: 8, end: 12 } }, false)).toBe('Ziel 8–12');
+  expect(setTargetHint({ type: 'warmup' }, false, { min: 6, max: 12 })).toBeNull();
+  expect(setTargetHint({ type: 'normal' }, false, { min: 6, max: 12 })).toBe('Ziel 6–12');
+});

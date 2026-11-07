@@ -6,9 +6,11 @@ import { exerciseImages, videoSearchUrl } from '../media';
 import type { TrackingPort } from '../ports';
 import { ExerciseInfo } from './ExerciseInfo';
 import { MuscleIcon } from './MuscleIcon';
+import { ChoiceRow, RowList, Sheet } from './kit';
+import { ExerciseGroups } from './ExerciseGroups';
 import { matchesSearch, similarExercises } from '../similar';
 import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
-import { EQUIPMENT, equipmentSuffix, muscleLabel, MUSCLES, TYPES } from './labels';
+import { EQUIPMENT, MUSCLES, TYPES } from './labels';
 
 /** `like` is the exercise being swapped; similar ones then come first. */
 export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, newId = () => crypto.randomUUID() }: {
@@ -19,22 +21,26 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   const workouts = usePortRecords(port, 'workout').records;
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({ name: '', muscle: '', equipment: '', type: '' });
+  // Equipment and type start with the usual choice, so a new exercise needs only a name and a muscle.
+  const [draft, setDraft] = useState({ name: '', muscle: '', equipment: 'dumbbell', type: 'weight_reps' });
   const [error, setError] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
-  const [more, setMore] = useState(false);
   const excluded = useExcluded(port);
   const done = useMemo(() => new Set(finishedWorkouts(workouts).flatMap((w) => w.exercises.map((x) => x.exerciseId))), [workouts]);
 
-  const groups = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const hit = catalog.filter((e) => matchesSearch(e, needle) && (needle !== '' || more || e.source !== 'fedb'));
-    const by = new Map<string, Exercise[]>();
-    for (const e of hit) by.set(e.primaryMuscle, [...(by.get(e.primaryMuscle) ?? []), e]);
-    return [...by.entries()].sort((a, b) => muscleLabel(a[0]).localeCompare(muscleLabel(b[0]), 'de'));
-  }, [catalog, q, more]);
-  const similar = useMemo(() => (like && !q.trim() ? similarExercises(like, catalog, done, excluded).slice(0, 8) : []), [like, catalog, q, done, excluded]);
+  const needle = q.trim().toLowerCase();
+  const hit = useMemo(() => catalog.filter((e) => matchesSearch(e, needle)), [catalog, needle]);
+  const found = useMemo(() => [...hit].sort((a, b) => a.title.localeCompare(b.title, 'de')), [hit]);
+  // The last exercises from finished workouts, newest first.
+  const recent = useMemo(() => {
+    const byId = new Map(catalog.map((e) => [e.id, e] as [string, Exercise]));
+    const ids = new Set<string>();
+    for (const w of finishedWorkouts(workouts)) for (const x of w.exercises) ids.add(x.exerciseId);
+    return [...ids].map((id) => byId.get(id)).filter((e): e is Exercise => !!e && !excluded.has(e.id)).slice(0, 6);
+  }, [catalog, workouts, excluded]);
+  const similar = useMemo(() => (like && !needle ? similarExercises(like, catalog, done, excluded).slice(0, 8) : []), [like, catalog, needle, done, excluded]);
 
+  const choose = (e: Exercise) => onPick(e);
   const valid = draft.name.trim() !== '' && draft.muscle !== '' && draft.equipment !== '' && draft.type !== '';
   async function save() {
     const ex: Exercise = { id: newId(), title: draft.name.trim(), type: draft.type, primaryMuscle: draft.muscle, equipment: draft.equipment };
@@ -47,69 +53,66 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
   const item = (e: Exercise) => {
     const icon = <MuscleIcon group={muscleGroupOf(e)} />;
     return (
-      <div key={e.id} className="tk-pick-item">
+      <li key={e.id} className="tk-rowitem">
         <div className="tk-pick-row">
-          <span className="tk-pick-icon">{icon}</span>
-          <button type="button" className="tk-pick" onClick={() => onPick(e)}>
-            {e.title}{equipmentSuffix(e.title, e.equipment) && <small aria-hidden="true"> · {equipmentSuffix(e.title, e.equipment)}</small>}
+          <button type="button" className="tk-rowbtn" onClick={() => choose(e)}>
+            <span className="tk-row-title">{e.title}</span>
           </button>
-          <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
-            onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
+          <button type="button" className="link tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
+            onClick={() => setInfo(info === e.id ? null : e.id)}>ⓘ</button>
         </div>
         {info === e.id && (
-          <ExerciseInfo title={e.title} description={descriptionOf(e)} images={exerciseImages(e.id)} video={videoSearchUrl(e)} icon={icon} />
+          <div className="tk-row-more"><ExerciseInfo title={e.title} description={descriptionOf(e)} images={exerciseImages(e.id)} video={videoSearchUrl(e)} icon={icon} /></div>
         )}
-      </div>
+      </li>
     );
   };
+  const options = (m: Record<string, string>) => Object.entries(m).map(([value, label]) => ({ value, label }));
 
-  return (
-    <div className="tk-picker" role="dialog" aria-label="Übung wählen">
-      <div className="tk-row">
-        <input className="tk-search" aria-label="Suchen" placeholder="Übung oder Muskel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button type="button" className="ghost" onClick={onClose}>Schließen</button>
-      </div>
-      {creating ? (
-        <form className="tk-form" onSubmit={(e) => { e.preventDefault(); if (valid) void save(); }}>
-          <label>Name<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-          <label>Muskelgruppe
-            <select value={draft.muscle} onChange={(e) => setDraft({ ...draft, muscle: e.target.value })}>
-              <option value="">Bitte wählen</option>{Object.entries(MUSCLES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
-          <label>Equipment
-            <select value={draft.equipment} onChange={(e) => setDraft({ ...draft, equipment: e.target.value })}>
-              <option value="">Bitte wählen</option>{Object.entries(EQUIPMENT).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
-          <label>Art
-            <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value })}>
-              <option value="">Bitte wählen</option>{Object.entries(TYPES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
+  if (creating) {
+    return (
+      <Sheet title="Eigene Übung" onClose={() => setCreating(false)}
+        actions={<>
+          <button type="submit" form="tk-own-exercise" disabled={!valid}>Übung speichern</button>
+          <button type="button" className="link" onClick={() => setCreating(false)}>Abbrechen</button>
+        </>}>
+        <form id="tk-own-exercise" className="tk-form" onSubmit={(e) => { e.preventDefault(); if (valid) void save(); }}>
+          <label className="tk-field">Name<input value={draft.name} autoFocus onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
+          <ChoiceRow label="Muskelgruppe" placeholder="Wählen" value={draft.muscle} options={options(MUSCLES)} onChange={(muscle) => setDraft({ ...draft, muscle })} />
+          <ChoiceRow label="Equipment" placeholder="Wählen" value={draft.equipment} options={options(EQUIPMENT)} onChange={(equipment) => setDraft({ ...draft, equipment })} />
+          <ChoiceRow label="Art" placeholder="Wählen" value={draft.type} options={options(TYPES)} onChange={(type) => setDraft({ ...draft, type })} />
+          {!valid && <p className="muted">Name und Muskelgruppe fehlen noch.</p>}
           {error && <p role="status" className="tk-note">Konnte gerade nicht gespeichert werden. Versuch es gleich nochmal.</p>}
-          <div className="tk-row">
-            <button type="submit" disabled={!valid}>Übung speichern</button>
-            <button type="button" className="ghost" onClick={() => setCreating(false)}>Abbrechen</button>
-          </div>
         </form>
+      </Sheet>
+    );
+  }
+
+  const own = <button type="button" className="secondary" onClick={() => setCreating(true)}>Eigene Übung anlegen</button>;
+  return (
+    <Sheet title="Übung wählen" onClose={onClose}>
+      <input className="tk-search" aria-label="Suchen" placeholder="Übung oder Muskel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
+      {needle ? (
+        found.length > 0 ? <RowList label="Gefunden">{found.map(item)}</RowList> : <p className="muted">Nichts gefunden.</p>
       ) : (
-        <button type="button" className="secondary" onClick={() => setCreating(true)}>Eigene Übung anlegen</button>
+        <>
+          {similar.length > 0 && (
+            <section aria-label="Ähnliche Übungen">
+              <h3 className="tk-section">Ähnlich wie {like!.title}</h3>
+              <RowList>{similar.map(item)}</RowList>
+            </section>
+          )}
+          {recent.length > 0 && (
+            <section aria-label="Zuletzt benutzt">
+              <h3 className="tk-section">Zuletzt benutzt</h3>
+              <RowList>{recent.map(item)}</RowList>
+            </section>
+          )}
+          <h3 className="tk-section">Muskelgruppen</h3>
+          <ExerciseGroups exercises={found} used={done} searching={false} item={item} />
+        </>
       )}
-      {groups.length === 0 && <p className="muted">Nichts gefunden. Du kannst eine eigene Übung anlegen.</p>}
-      {similar.length > 0 && (
-        <section aria-label="Ähnliche Übungen">
-          <h3>Ähnlich wie {like!.title}</h3>
-          <div className="tk-list">{similar.map(item)}</div>
-        </section>
-      )}
-      {groups.map(([muscle, list]) => (
-        <section key={muscle}>
-          <h3>{muscleLabel(muscle)}</h3>
-          <div className="tk-list">{list.map(item)}</div>
-        </section>
-      ))}
-      {!q.trim() && !more && <button type="button" className="ghost" onClick={() => setMore(true)}>Mehr Übungen</button>}
-    </div>
+      {own}
+    </Sheet>
   );
 }

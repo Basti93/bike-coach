@@ -9,6 +9,7 @@ import { dayHeading, timeLabel } from '../../src/shared/dates';
 import { applyRecord, type TrackedRecord } from '../../src/shared/records';
 import { openTasks, readTask, taskId, taskRecord } from '../../src/shared/tasks';
 import { readable } from '../../src/web/validate';
+import { openChat } from '../tracking/open-chat';
 import { CoachScreen } from '../../src/tracking/ui/CoachScreen';
 import { fakePort } from '../tracking/fake-port';
 
@@ -34,6 +35,7 @@ describe('week chat', () => {
   it('has a separator per day and a time on each message', async () => {
     const { port } = fakePort([msg('a', 'rider', 'Alt', at(5, 8, 30)), msg('b', 'coach', 'Gestern Antwort', at(1, 19, 45)), msg('c', 'rider', 'Heute Frage', at(0, 13, 7))]);
     render(<CoachScreen port={port} {...env} />);
+    await openChat();
     const chat = within(await screen.findByRole('region', { name: 'Unterhaltung mit dem Coach' }));
     await chat.findByText('Heute Frage');
     expect(chat.getAllByRole('separator').map((e) => e.textContent)).toEqual([dayHeading(at(5, 8), NOW), 'Gestern', 'Heute']);
@@ -46,6 +48,7 @@ describe('week chat', () => {
     const rows = Array.from({ length: 75 }, (_, i) => msg(`m${String(i).padStart(2, '0')}`, 'rider', `Nachricht ${i}`, NOW - (75 - i) * 60_000));
     const { port } = fakePort(rows);
     render(<CoachScreen port={port} {...env} />);
+    await openChat();
     const chat = within(await screen.findByRole('region', { name: 'Unterhaltung mit dem Coach' }));
     await chat.findByText('Nachricht 74');
     expect(chat.getAllByText(/^Nachricht \d+$/)).toHaveLength(30);
@@ -65,11 +68,19 @@ describe('forwarded requests on the week page', () => {
   it('lists open tasks with the coach and the end, removes with a tombstone, hides expired ones', async () => {
     const { port, map } = fakePort([rec('chat', 'gym', 'Nur eine Trizepsübung', false, NOW - DAY), rec('bike', 'run', 'Beine schonen', true, NOW - 2 * DAY), rec('chat', 'gym', 'Uralt', false, NOW - 9 * DAY)]);
     render(<CoachScreen port={port} {...env} />);
-    const list = within(await screen.findByRole('list', { name: 'Weitergegeben' }));
-    expect(list.getByText(/An Kraft-Coach: Nur eine Trizepsübung/).textContent).toContain('bis Fr., 13. Nov.');
-    expect(list.getByText(/An Lauf-Coach: Beine schonen/).textContent).toContain('dauerhaft');
+    fireEvent.click(await screen.findByRole('button', { name: /^Regeln/ }));
+    const list = within(await screen.findByRole('list', { name: 'Regeln' }));
+    const row = (re: RegExp) => list.getByRole('button', { name: re });
+    expect(row(/Nur eine Trizepsübung/).textContent).toContain('für Kraft');
+    expect(row(/Beine schonen/).textContent).toContain('für Laufen');
     expect(list.queryByText(/Uralt/)).toBeNull();
-    fireEvent.click(list.getByRole('button', { name: 'Entfernen Nur eine Trizepsübung' }));
+    fireEvent.click(row(/Beine schonen/));
+    expect(list.getByText('dauerhaft')).toBeTruthy();
+    fireEvent.click(row(/Nur eine Trizepsübung/));
+    expect(list.getByText('bis Fr., 13. Nov.')).toBeTruthy();
+    expect(list.queryByText('dauerhaft')).toBeNull(); // only one row is open
+    fireEvent.click(list.getByRole('button', { name: 'Entfernen' }));
+    fireEvent.click(list.getByRole('button', { name: 'Ja' }));
     await waitFor(() => expect(list.queryByText(/Trizepsübung/)).toBeNull());
     const gone = [...map.values()].find((r) => r.kind === 'task' && (r.body as { text: string }).text === 'Nur eine Trizepsübung')!;
     expect(gone.deleted).toBe(true);

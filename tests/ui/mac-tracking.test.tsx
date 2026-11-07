@@ -294,14 +294,14 @@ describe('screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
     fireEvent.click(screen.getByRole('button', { name: 'Training starten' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     expect(((await screen.findByLabelText('Gewicht Satz 1')) as HTMLInputElement).value).toBe('62,5');
     h.ride = true;
     rerender(<App />);
     expect(screen.getByTestId('target')).toBeTruthy();
     h.ride = false;
     rerender(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     expect(((await screen.findByLabelText('Gewicht Satz 1')) as HTMLInputElement).value).toBe('62,5');
     expect(fp.map.size).toBe(1);
   });

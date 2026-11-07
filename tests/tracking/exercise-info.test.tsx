@@ -23,7 +23,7 @@ const ids = { newId: () => 'new-id', now: () => 100_000 };
 async function running() {
   const { port } = fakePort([rec(open)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findByText('Kniebeuge');
 }
 
@@ -32,6 +32,7 @@ describe('workout: Ausführung in the exercise menu', () => {
     await running();
     expect(screen.queryByText(/Füße etwas mehr als hüftbreit/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Kniebeuge' });
     expect(note.textContent).toMatch(/Füße etwas mehr als hüftbreit/);
@@ -44,8 +45,10 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('the menu entry toggles: a second tap hides it', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     const entry = screen.getByRole('button', { name: 'Ausführung Kniebeuge' });
     expect(entry.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(entry);
@@ -55,6 +58,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('an own text shows without a credit line', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Frontkniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Frontkniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Frontkniebeuge' });
     expect(note.textContent).toMatch(/Ellbogen/);
@@ -64,6 +68,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('an exercise without a description still opens: no text yet, but the video link', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Meine Übung' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Meine Übung' }));
     const note = screen.getByRole('note', { name: 'Ausführung Meine Übung' });
     expect(note.textContent).toContain('Noch keine Beschreibung.');
@@ -74,6 +79,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('the video link searches the English Hevy name in a new window; no picture means no image', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Kniebeuge' });
     const video = within(note).getByRole('link', { name: 'Video ansehen' });
@@ -101,7 +107,7 @@ describe('workout: imported exercises resolve by identity', () => {
   async function runningWith(extra: TrackedRecord[]) {
     const { port } = fakePort([rec(imported), ...extra]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     await screen.findByText('Cable Row Custom');
   }
   const iconOf = (title: string) => within(within(screen.getByRole('region', { name: title })).getByRole('img').closest('.tk-ex-head') as HTMLElement).getByRole('img');
@@ -124,6 +130,7 @@ describe('workout: imported exercises resolve by identity', () => {
   test('a Smith machine squat shows no free-weight text and no pictures', async () => {
     await runningWith([good]);
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Squat (Smith Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Squat (Smith Machine)' }));
     const note = screen.getByRole('note', { name: 'Ausführung Squat (Smith Machine)' });
     expect(note.textContent).toContain('Noch keine Beschreibung.');
@@ -134,6 +141,7 @@ describe('workout: imported exercises resolve by identity', () => {
   test('the machine reverse fly from Hevy shows its machine text', async () => {
     await runningWith([]);
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Rear Delt Reverse Fly (Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' }));
     const note = screen.getByRole('note', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' });
     expect(note.textContent).toContain(exerciseDescription('pf-rear-delt-fly-machine')!.text);
@@ -196,6 +204,7 @@ describe('picker: info toggle per exercise', () => {
     const { port } = fakePort();
     const onPick = vi.fn();
     render(<ExercisePicker port={port} onPick={onPick} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
     const info = await screen.findByRole('button', { name: 'Ausführung Bankdrücken' });
     expect(info.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('note', { name: 'Ausführung Bankdrücken' })).toBeNull();
@@ -224,23 +233,25 @@ describe('picker: info toggle per exercise', () => {
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'mine-1' }));
   });
 
-  test('each row shows the muscle icon; the picture shows in the opened info', async () => {
+  test('a row is the name only; the muscle icon and the picture show in the opened info', async () => {
     const { port } = fakePort();
     render(<ExercisePicker port={port} onPick={() => {}} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
     const row = (await screen.findByRole('button', { name: 'Bankdrücken' })).closest('.tk-pick-row') as HTMLElement;
-    expect(within(row).getByRole('img', { name: 'Brust' })).toBeTruthy();
+    expect(within(row).queryByRole('img')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Bankdrücken' }));
     expect(screen.getAllByRole('img', { name: 'Bankdrücken, Ausführung' }).length).toBeGreaterThan(0);
   });
 });
 
 describe('long descriptions', () => {
-  test('over 90 words are cut with a mehr toggle', async () => {
+  test('a long text is clamped to three lines with a mehr toggle; the text itself stays whole', async () => {
     const text = Array.from({ length: 120 }, (_, i) => `w${i}`).join(' ');
     render(<ExerciseInfo title="X" description={{ text, source: { kind: 'own' } }} video="https://example.com" />);
-    expect(screen.queryByText(/w100/)).toBeNull();
+    const p = screen.getByText(/w119/);
+    expect(p.className).toBe('tk-clamp');
     fireEvent.click(screen.getByRole('button', { name: 'mehr' }));
-    expect(screen.getByText(/w119/)).toBeTruthy();
+    expect(p.className).toBe('');
+    expect(screen.getByRole('button', { name: 'weniger' })).toBeTruthy();
   });
 });

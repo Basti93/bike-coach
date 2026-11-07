@@ -1,5 +1,6 @@
 import type { TrackedRecord } from '../../shared/records';
 import { weekOf } from '../../shared/meals';
+import { shortDateOfKey } from '../../shared/dates';
 import { readRunBody, runIdType, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody } from '../../shared/run';
 
 export type RunView = { status: RunStatusBody | null; settings: RunSettingsBody | null; week: RunWeekBody | null; reviews: RunReviewBody[]; visible: boolean };
@@ -36,9 +37,6 @@ export const dateKeyOf = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-/** "Mittwoch, 4.11." */
-export const dayText = (key: string): string => {
-  const [y, m, d] = key.split('-').map(Number) as [number, number, number];
-  return new Date(y, m - 1, d, 12).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'numeric' });
-};
+/** "Mi., 4. Nov." */
+export const dayText = (key: string): string => shortDateOfKey(key);
 export const kmFromKm = (km: number): string => `${km.toFixed(1).replace('.', ',')} km`;

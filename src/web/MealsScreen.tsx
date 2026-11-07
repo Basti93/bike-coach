@@ -1,12 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { TrackedRecord } from '../shared/records';
 import {
-  addWeeks, CHAT_MAX_CHARS, cookPortions, isChatRecordId, newChatId, readMealChat, DAY_LONG, DAY_SHORT, dayDate, dayIndex, eatersOf, initialOf, mealKey, readMealPlan, readMealState, recipeAmount,
-  shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS, stateRecordId, weekOf, weekRangeText, withEater, withItem,
+  addWeeks, changeOwn, CHAT_MAX_CHARS, isOwnKey, newOwnKey, OWN_AMOUNT_MAX, OWN_NAME_MAX, withOwn, cookPortions, isChatRecordId, newChatId, readMealChat, DAY_LONG, DAY_SHORT, dayDate, dayIndex, eatersOf, initialOf, mealKey, readMealPlan, readMealState, recipeAmount,
+  shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS, stateRecordId, weekOf, withEater, withItem,
   type ItemState, type Meal, type MealChat, type MealPlan, type MealState, type ShopItem,
 } from '../shared/meals';
+import { weekRangeOfKey } from '../shared/dates';
 import type { WebPort } from './webPort';
 import { usePortRecords } from '../tracking/ui/hooks';
+import { ConfirmLink, PageHead, Row, RowList, Sheet } from '../tracking/ui/kit';
 
 type Week = { plan: MealPlan; state: MealState };
 
@@ -34,17 +36,18 @@ const ChatRow = ({ c }: { c: MealChat }) => (
   </li>
 );
 
-/** "Sag dem Coach, was du ändern willst": written as a record, answered by the Mac at its next sync with no ride open. */
-function ChatBox({ chat, onSend }: { chat: MealChat[]; onSend: (text: string) => Promise<void> }) {
+/** "Änderung wünschen": written as a record, answered by the Mac at its next sync with no ride open. */
+function ChatSheet({ chat, onSend, onClose }: { chat: MealChat[]; onSend: (text: string) => Promise<void>; onClose: () => void }) {
   const [text, setText] = useState('');
+  const formId = useId();
   const [last, ...before] = [...chat].reverse();
   const submit = () => { const t = text.trim(); if (!t) return; setText(''); void onSend(t); };
   return (
-    <section className="card pm-chat" aria-label="Mit dem Coach über den Plan sprechen">
-      <h3>Sag dem Coach, was du ändern willst</h3>
-      <form className="tk-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <input aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="z. B. Mittwoch lieber Nudeln" value={text} onChange={(e) => setText(e.target.value)} />
-        <button type="submit" className="secondary" disabled={!text.trim()}>Senden</button>
+    <Sheet title="Änderung wünschen" onClose={onClose} actions={<button type="submit" form={formId} disabled={!text.trim()}>Senden</button>}>
+      <form id={formId} className="tk-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <label className="tk-field"><span>Sag dem Coach, was du ändern willst</span>
+          <input autoFocus aria-label="Nachricht an den Coach" maxLength={CHAT_MAX_CHARS} placeholder="z. B. Mittwoch lieber Nudeln" value={text} onChange={(e) => setText(e.target.value)} />
+        </label>
       </form>
       {last && <ul className="pm-chat-list"><ChatRow c={last} /></ul>}
       {before.length > 0 && (
@@ -53,27 +56,41 @@ function ChatBox({ chat, onSend }: { chat: MealChat[]; onSend: (text: string) =>
           <ul className="pm-chat-list">{before.map((c) => <ChatRow key={c.id} c={c} />)}</ul>
         </details>
       )}
-    </section>
+    </Sheet>
   );
 }
 
 const short = (k: string) => { const [d, s] = k.split('-'); return `${DAY_SHORT[Number(d)]}${s === 'mittag' ? '' : ` ${SLOT_LABEL[s as keyof typeof SLOT_LABEL]}`}`; };
 const color = (plan: MealPlan, id: string) => Math.max(0, plan.people.findIndex((p) => p.id === id)) % 4;
 const NEXT: Record<ItemState, ItemState> = { offen: 'gekauft', gekauft: 'offen', da: 'offen' };
+const listAnd = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}` : names[0] ?? '');
 
-function MealCard({ week, meal, onEater }: { week: Week; meal: Meal; onEater: (person: string, on: boolean) => void }) {
+/** One meal as a row; opened, it shows the recipe, the protein and who eats. A deviation from the plan shows under the title. */
+function MealRow({ week, meal, open, onToggle, onEater }: { week: Week; meal: Meal; open: boolean; onToggle: () => void; onEater: (person: string, on: boolean) => void }) {
   const k = mealKey(meal.day, meal.slot);
   const eaters = eatersOf(week.plan, week.state, k);
+  const away = week.plan.people.filter((p) => !eaters.includes(p.id));
   const reuses = week.plan.meals.filter((m) => m.reuseOf === k);
   const cook = cookPortions(week.plan, week.state, k);
+  const note = eaters.length === 0 ? 'Niemand isst mit' : away.length > 0 ? `${listAnd(away.map((p) => p.name))} ${away.length > 1 ? 'essen' : 'isst'} nicht mit` : null;
+  const extras = [meal.takeAlong ? 'zum Mitnehmen' : meal.slot === 'abend' ? 'kleine Portion' : '', meal.reuseOf ? `Rest von ${short(meal.reuseOf)}: nur einpacken` : '', reuses.length > 0 ? `reicht für ${reuses.map((r) => short(mealKey(r.day, r.slot))).join(', ')}` : ''].filter(Boolean);
+  const askedBy = meal.askedBy ? week.plan.people.find((p) => p.id === meal.askedBy) : undefined;
   return (
-    <section className={`card pm-meal slot-${meal.slot}${eaters.length === 0 ? ' pm-empty' : ''}`} aria-label={`${SLOT_LABEL[meal.slot]}: ${meal.dish.title}`}>
-      <div className="pm-slot"><b>{SLOT_LABEL[meal.slot]}</b> <span>{SLOT_TIME[meal.slot]}{meal.takeAlong ? ' · zum Mitnehmen' : meal.slot === 'abend' ? ' · kleine Portion' : ''}</span></div>
-      {meal.reuseOf && <span className="pm-badge">Rest von {short(meal.reuseOf)}: nur einpacken</span>}
-      <h2>{meal.dish.title}</h2>
-      {meal.askedBy && week.plan.people.some((p) => p.id === meal.askedBy) && <p className="pm-asked">auf Wunsch von {week.plan.people.find((p) => p.id === meal.askedBy)!.name}</p>}
-      <p className="pm-meta">{!meal.reuseOf && <>{meal.dish.minutes} Min · </>}<b>{meal.dish.proteinG} g</b> Eiweiß pro Portion{reuses.length > 0 && <> · reicht für {reuses.map((r) => short(mealKey(r.day, r.slot))).join(', ')}</>}</p>
-      <div className="tk-row pm-people">
+    <Row
+      title={<><span className="pm-rowtitle"><b>{SLOT_LABEL[meal.slot]}</b> · {meal.dish.title}</span>{note && <small className="pm-dev">{note}</small>}</>}
+      value={meal.reuseOf ? 'Rest' : `${meal.dish.minutes} Min`} expanded={open} onClick={onToggle}>
+      {!meal.reuseOf && cook.total > 0 && (
+        <>
+          <h3 className="tk-section">Rezept für {cook.total} {cook.total === 1 ? 'Portion' : 'Portionen'}</h3>
+          <ul className="pm-ingredients">{meal.dish.ingredients.map((i, n) => <li key={n}><b>{recipeAmount(i, cook.total)}</b> {i.name}</li>)}</ul>
+        </>
+      )}
+      <ol className="pm-steps">{meal.dish.steps.map((s, n) => <li key={n}>{s}</li>)}</ol>
+      <p className="muted pm-meta">{[SLOT_TIME[meal.slot], `${meal.dish.minutes} Min`, `${meal.dish.proteinG} g Eiweiß`, meal.dish.keepsDays === 0 ? 'am besten frisch' : `hält ${meal.dish.keepsDays} ${meal.dish.keepsDays === 1 ? 'Tag' : 'Tage'}`].join(' · ')}</p>
+      {extras.length > 0 && <p className="muted pm-meta">{extras.join(' · ')}</p>}
+      {askedBy && <p className="pm-asked">auf Wunsch von {askedBy.name}</p>}
+      <div className="tk-row pm-people" role="group" aria-label="Wer isst mit">
+        <span className="muted">Isst mit:</span>
         {week.plan.people.map((p) => {
           const on = eaters.includes(p.id);
           return (
@@ -83,32 +100,59 @@ function MealCard({ week, meal, onEater }: { week: Week; meal: Meal; onEater: (p
           );
         })}
       </div>
-      <details className="pm-recipe">
-        <summary>Rezept{!meal.reuseOf && cook.total > 0 ? ` für ${cook.total} ${cook.total === 1 ? 'Portion' : 'Portionen'}` : ''}</summary>
-        {!meal.reuseOf && cook.total > 0 && <ul className="pm-ingredients">{meal.dish.ingredients.map((i, n) => <li key={n}><b>{recipeAmount(i, cook.total)}</b> {i.name}</li>)}</ul>}
-        <ol className="pm-steps">{meal.dish.steps.map((s, n) => <li key={n}>{s}</li>)}</ol>
-        <p className="muted pm-keeps">{meal.dish.keepsDays === 0 ? 'Am besten frisch essen.' : `Hält im Kühlschrank ${meal.dish.keepsDays} ${meal.dish.keepsDays === 1 ? 'Tag' : 'Tage'}.`}</p>
-      </details>
-    </section>
+    </Row>
   );
 }
 
-function Shopping({ week, onSet }: { week: Week; onSet: (item: string, state: ItemState) => void }) {
+const SECTION_LABEL: Record<string, string> = { Sonstiges: 'Weiteres' };
+
+/** One flat list with small headings. Tick to buy; "Haben wir" (or a confirmed "Entfernen" on an own item) sits at the right of each open row. Bought items sink to the end of their group. */
+function Shopping({ week, onSet, onOwn }: { week: Week; onSet: (item: string, state: ItemState) => void; onOwn: (f: (s: MealState, at: number) => MealState) => void }) {
   const list = shoppingList(week.plan, week.state);
-  const row = (i: ShopItem) => (
-    <li key={i.key} className={`pm-item ${i.state}`}>
-      <button type="button" className="pm-check" role="checkbox" aria-checked={i.state === 'gekauft'} aria-label={`${i.name} gekauft`} onClick={() => onSet(i.key, NEXT[i.state])}>{i.state === 'gekauft' ? '✓' : ''}</button>
-      <span className="pm-name">{i.name}{i.amount !== 'aus dem Vorrat' && <small>{i.amount}</small>}</span>
-      <button type="button" className="pm-have" aria-label={i.state === 'da' ? `${i.name} doch kaufen` : `${i.name} schon da`} onClick={() => onSet(i.key, i.state === 'da' ? 'offen' : 'da')}>{i.state === 'da' ? 'doch kaufen' : 'schon da'}</button>
-    </li>
-  );
-  if (list.total === 0) return <p className="muted">Diese Woche gibt es nichts einzukaufen.</p>;
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const row = (i: ShopItem) => {
+    const own = isOwnKey(i.key);
+    const bought = i.state === 'gekauft';
+    return (
+      <li key={i.key} className={`pm-item ${i.state}`}>
+        <div className="pm-itemline">
+          <button type="button" className="pm-check" role="checkbox" aria-checked={bought} aria-label={`${i.name} gekauft`}
+            onClick={() => (own ? onOwn((s, at) => changeOwn(s, i.key, { state: bought ? 'offen' : 'gekauft' }, at)) : onSet(i.key, NEXT[i.state]))}>{bought ? '✓' : ''}</button>
+          <span className="pm-name">{i.name}<small className="muted">{i.amount === 'aus dem Vorrat' ? 'Vorrat' : i.amount}</small></span>
+          {own
+            ? <ConfirmLink label="Entfernen" question="Wirklich entfernen?" onConfirm={() => onOwn((s, at) => changeOwn(s, i.key, { removed: true }, at))} />
+            : i.state !== 'gekauft' && <button type="button" className="link pm-have" onClick={() => onSet(i.key, i.state === 'da' ? 'offen' : 'da')}>{i.state === 'da' ? 'Doch kaufen' : 'Haben wir'}</button>}
+        </div>
+      </li>
+    );
+  };
+  const group = (title: string, items: ShopItem[], cls = '') => {
+    // Bought items go to the end of their group.
+    const sorted = [...items.filter((i) => i.state !== 'gekauft'), ...items.filter((i) => i.state === 'gekauft')];
+    return items.length === 0 ? null : <section key={title} className={`pm-group ${cls}`}><h3 className="tk-section">{title}</h3><ul>{sorted.map(row)}</ul></section>;
+  };
+  const add = () => {
+    const n = name.trim();
+    if (!n) return;
+    const key = newOwnKey();
+    setName(''); setAmount('');
+    onOwn((s, at) => withOwn(s, key, n, amount, at));
+  };
   return (
     <>
-      <p className="pm-summary"><b>{list.open}</b> von {list.total} noch offen</p>
-      {list.sections.map((s) => <section key={s.section} className="card pm-shop"><h3>{s.section}</h3><ul>{s.items.map(row)}</ul></section>)}
-      {list.pantry.length > 0 && <section className="card pm-shop"><h3>Kleine Mengen: kurz prüfen, ob da</h3><ul>{list.pantry.map(row)}</ul></section>}
-      {list.have.length > 0 && <section className="card pm-shop pm-have-list"><h3>Schon da</h3><ul>{list.have.map(row)}</ul></section>}
+      {list.total === 0 && list.own.length === 0 && <p className="muted">Diese Woche gibt es nichts einzukaufen.</p>}
+      {group('Eigenes', list.own)}
+      {list.sections.map((s) => group(SECTION_LABEL[s.section] ?? s.section, s.items))}
+      {group('Kleine Mengen, kurz prüfen', list.pantry)}
+      {group('Schon da', list.have, 'pm-have-list')}
+      <form className="pm-add" onSubmit={(e) => { e.preventDefault(); add(); }}>
+        <div className="pm-addline">
+          <input aria-label="Etwas dazuschreiben" placeholder="Etwas dazuschreiben …" maxLength={OWN_NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />
+          <input aria-label="Menge (optional)" placeholder="Menge" maxLength={OWN_AMOUNT_MAX} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <button type="submit" className="secondary" disabled={!name.trim()}>Hinzufügen</button>
+      </form>
     </>
   );
 }
@@ -128,12 +172,13 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
   const [dayPick, setDay] = useState<number | null>(null);
   const day = dayPick ?? (isCurrent ? today : 0);
   const [tab, setTab] = useState<'tage' | 'einkauf'>('tage');
+  const [openMeal, setOpenMeal] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const chat = useMemo(() => mealChats(records), [records]);
-  if (!week) return <div className="tk-screen"><h1 className="tk-title">Essen</h1><p className="muted">Noch kein Essensplan da. Der Mac plant samstagmorgens die kommende Woche.</p></div>;
+  if (!week) return <div className="tk-screen"><PageHead title="Essen" /><p className="muted">Noch kein Essensplan da. Der Mac plant samstagmorgens die kommende Woche.</p></div>;
 
-  /** One more change on top of what this phone has; the newer entry wins on the Mac. */
-  /** One at a time, each on the freshest stored state, so quick taps never undo each other. */
+  /** One at a time, each on the freshest stored state, so quick taps never undo each other. The newer entry wins on the Mac. */
   const change = (f: (s: MealState, at: number) => MealState) => {
     const id = stateRecordId(week.plan.week);
     queue.current = queue.current.then(async () => {
@@ -149,41 +194,42 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
     await port.put({ kind: 'mealplan', id: newChatId(at), updatedMs: at, deleted: false, body: { week: week.plan.week, text, atMs: at, reply: null, answeredMs: null, changed: [] } }).catch(() => { /* the field stays empty; nothing else is lost */ });
   };
   const list = shoppingList(week.plan, week.state);
-  const pick = (w: Week) => { setWeekKey(w.plan.week); setDay(w.plan.week === current ? today : 0); };
+  const openCount = list.open + list.own.filter((o) => o.state === 'offen').length;
+  const pick = (w: Week) => { setWeekKey(w.plan.week); setDay(w.plan.week === current ? today : 0); setOpenMeal(null); };
   return (
     <div className="tk-screen pm">
-      <div className="pm-head">
-        <h1 className="tk-title">Essen</h1>
-        <span className="muted">{isCurrent ? 'Diese Woche' : 'Nächste Woche'}, {weekRangeText(week.plan.week)}</span>
-      </div>
+      <PageHead title="Essen" subtitle={`${isCurrent ? 'Diese Woche' : 'Nächste Woche'}, ${weekRangeOfKey(week.plan.week)}`} />
       {weeks.length > 1 && (
-        <div className="pm-seg" role="group" aria-label="Woche">
-          {weeks.map((w) => <button key={w.plan.week} type="button" aria-pressed={w === week} onClick={() => pick(w)}>{w.plan.week === current ? 'Diese Woche' : 'Nächste Woche'}</button>)}
+        <div className="tk-textseg" role="group" aria-label="Woche">
+          {weeks.map((w) => <button key={w.plan.week} type="button" className="link" aria-pressed={w === week} onClick={() => pick(w)}>{w.plan.week === current ? 'Diese Woche' : 'Nächste Woche'}</button>)}
         </div>
       )}
       <div className="pm-seg" role="group" aria-label="Ansicht">
         <button type="button" aria-pressed={tab === 'tage'} onClick={() => setTab('tage')}>Tage</button>
-        <button type="button" aria-pressed={tab === 'einkauf'} onClick={() => setTab('einkauf')}>Einkauf{list.open > 0 ? ` · ${list.open}` : ''}</button>
+        <button type="button" aria-pressed={tab === 'einkauf'} onClick={() => setTab('einkauf')}>Einkauf{openCount > 0 ? ` · ${openCount}` : ''}</button>
       </div>
       {tab === 'tage' ? (
         <>
           <div className="pm-days" role="tablist" aria-label="Tag">
             {DAY_SHORT.map((d, i) => (
-              <button key={d} type="button" role="tab" aria-selected={i === day} className={`${isCurrent && i === today ? 'today' : ''}${isCurrent && i < today ? ' past' : ''}`} onClick={() => setDay(i)}>
+              <button key={d} type="button" role="tab" aria-selected={i === day} className={`${isCurrent && i === today ? 'today' : ''}${isCurrent && i < today ? ' past' : ''}`} onClick={() => { setDay(i); setOpenMeal(null); }}>
                 <b>{d}</b><span>{dayDate(week.plan.week, i).split('.')[0]}</span>
               </button>
             ))}
           </div>
           <h2 className="pm-dayname">{isCurrent && day === today ? 'Heute' : DAY_LONG[day]}{week.plan.trainingDays.includes(day) && <small> · Trainingstag</small>}</h2>
-          {SLOTS.map((slot) => {
-            const m = week.plan.meals.find((x) => x.day === day && x.slot === slot);
-            return m
-              ? <MealCard key={slot} week={week} meal={m} onEater={(person, on) => void change((s, at) => withEater(s, mealKey(m.day, m.slot), person, on, at))} />
-              : <section key={slot} className="card pm-meal pm-empty"><div className="pm-slot"><b>{SLOT_LABEL[slot]}</b></div><p className="muted">Frei.</p></section>;
-          })}
-          <ChatBox chat={chat} onSend={say} />
+          <RowList label="Mahlzeiten">
+            {SLOTS.map((slot) => {
+              const m = week.plan.meals.find((x) => x.day === day && x.slot === slot);
+              if (!m) return <Row key={slot} title={SLOT_LABEL[slot]} value="Frei" />;
+              const k = mealKey(m.day, m.slot);
+              return <MealRow key={slot} week={week} meal={m} open={openMeal === k} onToggle={() => setOpenMeal(openMeal === k ? null : k)} onEater={(person, on) => void change((s, at) => withEater(s, k, person, on, at))} />;
+            })}
+          </RowList>
+          <button type="button" className="secondary" onClick={() => setChatOpen(true)}>Änderung wünschen</button>
+          {chatOpen && <ChatSheet chat={chat} onSend={say} onClose={() => setChatOpen(false)} />}
         </>
-      ) : <Shopping week={week} onSet={(item, state) => void change((s, at) => withItem(s, item, state, at))} />}
+      ) : <Shopping key={week.plan.week} week={week} onSet={(item, state) => void change((s, at) => withItem(s, item, state, at))} onOwn={(f) => void change(f)} />}
     </div>
   );
 }

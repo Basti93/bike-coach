@@ -35,7 +35,16 @@ export type ItemState = 'offen' | 'gekauft' | 'da';
 export type MealState = {
   eaters: Record<string, Record<string, { on: boolean; atMs: number }>>;
   items: Record<string, { state: ItemState; atMs: number }>;
+  /** The person's own shopping items ("Kaffee"), added on the phone. They live here, not in the plan, so a new plan for the week never touches them. */
+  own?: Record<string, OwnItem>;
 };
+/** `removed` is a tombstone: a removed item must not come back when another device still has it. */
+export type OwnItem = { name: string; amount: string; state: 'offen' | 'gekauft'; removed: boolean; atMs: number };
+export const OWN_NAME_MAX = 60;
+export const OWN_AMOUNT_MAX = 30;
+export const OWN_MAX = 80;
+export const isOwnKey = (key: string): boolean => /^own-[a-z0-9]{4,24}$/.test(key);
+export const newOwnKey = (random: () => number = Math.random): string => `own-${Math.floor(random() * 2 ** 40).toString(36).padStart(8, '0')}`;
 export const EMPTY_STATE: MealState = { eaters: {}, items: {} };
 
 export const mealKey = (day: number, slot: Slot): string => `${day}-${slot}`;
@@ -90,6 +99,17 @@ export const withEater = (state: MealState, key: string, person: string, on: boo
   ({ ...state, eaters: { ...state.eaters, [key]: { ...(state.eaters[key] ?? {}), [person]: { on, atMs } } } });
 export const withItem = (state: MealState, item: string, s: ItemState, atMs: number): MealState =>
   ({ ...state, items: { ...state.items, [item]: { state: s, atMs } } });
+/** Adds an own item (blank names are ignored); `change` ticks or removes one that is there. */
+export function withOwn(state: MealState, key: string, name: string, amount: string, atMs: number): MealState {
+  const n = name.trim().replace(/\s+/g, ' ').slice(0, OWN_NAME_MAX);
+  if (!n || !isOwnKey(key)) return state;
+  return { ...state, own: { ...state.own, [key]: { name: n, amount: amount.trim().replace(/\s+/g, ' ').slice(0, OWN_AMOUNT_MAX), state: 'offen', removed: false, atMs } } };
+}
+export function changeOwn(state: MealState, key: string, change: { state: 'offen' | 'gekauft' } | { removed: true }, atMs: number): MealState {
+  const have = state.own?.[key];
+  if (!have) return state;
+  return { ...state, own: { ...state.own, [key]: { ...have, ...change, atMs } } };
+}
 
 /** Entry by entry, the newer one wins; a tie goes to the greater JSON text so every device ends the same. */
 export function mergeStates(a: MealState, b: MealState): MealState {
@@ -107,7 +127,9 @@ export function mergeStates(a: MealState, b: MealState): MealState {
   }
   const items: MealState['items'] = {};
   for (const k of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) items[k] = pick(a.items[k], b.items[k])!;
-  return { eaters, items };
+  const own: Record<string, OwnItem> = {};
+  for (const k of new Set([...Object.keys(a.own ?? {}), ...Object.keys(b.own ?? {})])) own[k] = pick(a.own?.[k], b.own?.[k])!;
+  return { eaters, items, ...(Object.keys(own).length > 0 ? { own } : {}) };
 }
 
 // ---- Shopping list ----
@@ -175,7 +197,11 @@ export function recipeAmount(i: Ingredient, portions: number): string {
 
 export type ShopItem = { key: string; name: string; amount: string; state: ItemState; dishes: string[] };
 /** `pantry`: spoonfuls and pinches, usually at home already: only a reminder to check. */
-export type ShopList = { sections: { section: Section; items: ShopItem[] }[]; pantry: ShopItem[]; have: ShopItem[]; open: number; total: number };
+export type ShopList = {
+  sections: { section: Section; items: ShopItem[] }[]; pantry: ShopItem[]; have: ShopItem[]; open: number; total: number;
+  /** The person's own items, open ones first. Not part of `open` and `total`, which count what the plan needs. */
+  own: ShopItem[];
+};
 
 /** Every ingredient of the week, summed over the portions really eaten, grouped by supermarket section. */
 export function shoppingList(plan: MealPlan, state: MealState): ShopList {
@@ -195,7 +221,9 @@ export function shoppingList(plan: MealPlan, state: MealState): ShopList {
   const sections = SECTIONS.map((section) => ({ section, items: all.filter((x) => x.section === section && !x.pantry && x.item.state !== 'da').map((x) => x.item).sort(byName) })).filter((s) => s.items.length > 0);
   const pantry = all.filter((x) => x.pantry && x.item.state !== 'da').map((x) => x.item).sort(byName);
   const have = all.filter((x) => x.item.state === 'da').map((x) => x.item).sort(byName);
-  return { sections, pantry, have, open: all.filter((x) => x.item.state === 'offen').length, total: all.length };
+  const own = Object.entries(state.own ?? {}).filter(([, o]) => !o.removed).sort(([, x], [, y]) => (x.state === y.state ? 0 : x.state === 'offen' ? -1 : 1) || x.atMs - y.atMs)
+    .map(([key, o]): ShopItem => ({ key, name: o.name, amount: o.amount, state: o.state, dishes: [] }));
+  return { sections, pantry, have, open: all.filter((x) => x.item.state === 'offen').length, total: all.length, own };
 }
 
 // ---- Reading records: anything else is skipped, never thrown ----
@@ -239,6 +267,16 @@ export function readMealState(body: unknown): MealState {
   }
   if (isObj(body.items)) {
     for (const [k, v] of Object.entries(body.items)) if (isObj(v) && (v.state === 'offen' || v.state === 'gekauft' || v.state === 'da') && num(v.atMs)) out.items[k] = { state: v.state, atMs: v.atMs };
+  }
+  if (isObj(body.own)) {
+    const own: Record<string, OwnItem> = {};
+    for (const [k, v] of Object.entries(body.own)) {
+      if (Object.keys(own).length >= OWN_MAX) break;
+      if (!isOwnKey(k) || !isObj(v) || !str(v.name) || !num(v.atMs) || (v.state !== 'offen' && v.state !== 'gekauft')) continue;
+      const name = v.name.trim().slice(0, OWN_NAME_MAX);
+      if (name) own[k] = { name, amount: str(v.amount) ? v.amount.trim().slice(0, OWN_AMOUNT_MAX) : '', state: v.state, removed: v.removed === true, atMs: v.atMs };
+    }
+    if (Object.keys(own).length > 0) out.own = own;
   }
   return out;
 }

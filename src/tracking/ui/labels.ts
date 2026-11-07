@@ -10,3 +10,17 @@ export function equipmentSuffix(title: string, equipment: string): string {
   const inTitle = new Set(words(title));
   return words(label).some((w) => w.length > 3 && w !== 'oder' && inTitle.has(w)) ? '' : label;
 }
+
+/** The catalog's display groups: about eight instead of one per muscle. A display mapping only; the muscle data stays. */
+export const CATALOG_GROUPS: { label: string; muscles: string[] }[] = [
+  { label: 'Brust', muscles: ['chest'] },
+  { label: 'Rücken', muscles: ['lats', 'upper_back', 'lower_back', 'traps'] },
+  { label: 'Schultern', muscles: ['shoulders', 'front_delts', 'side_delts', 'rear_delts'] },
+  { label: 'Arme', muscles: ['biceps', 'triceps', 'forearms'] },
+  { label: 'Bauch', muscles: ['abdominals'] },
+  { label: 'Beine', muscles: ['quadriceps', 'hamstrings', 'calves', 'abductors', 'adductors'] },
+  { label: 'Gesäß', muscles: ['glutes'] },
+  { label: 'Ganzkörper & Ausdauer', muscles: ['full_body', 'cardio', 'other'] },
+];
+/** The display group of a muscle; an unknown muscle belongs to the last one. */
+export const catalogGroup = (muscle: string): string => (CATALOG_GROUPS.find((g) => g.muscles.includes(muscle)) ?? CATALOG_GROUPS[CATALOG_GROUPS.length - 1]).label;

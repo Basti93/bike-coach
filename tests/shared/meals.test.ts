@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addWeeks, cookPortions, dayIndex, eatersOf, EMPTY_STATE, itemKey, mergeStates, readMealPlan, readMealState, shopAmount, shoppingList,
-  weekOf, withEater, withItem, type Dish, type MealPlan,
+  weekOf, withEater, withItem, withOwn, changeOwn, type Dish, type MealPlan,
 } from '../../src/shared/meals';
 
 const dish = (title: string, ingredients: Dish['ingredients'], keepsDays = 2): Dish => ({ title, ingredients, steps: ['Kochen.'], minutes: 20, proteinG: 25, keepsDays, source: 'liste' });
@@ -112,5 +112,49 @@ describe('state merge and reading', () => {
     expect(p.meals).toHaveLength(4);
     expect(readMealState({ eaters: { '0-abend': { lena: { on: false, atMs: 1 } }, bad: {} }, items: { a: { state: 'gekauft', atMs: 2 }, b: { state: 'weg', atMs: 2 } } }))
       .toEqual({ eaters: { '0-abend': { lena: { on: false, atMs: 1 } } }, items: { a: { state: 'gekauft', atMs: 2 } } });
+  });
+});
+
+describe('own shopping items', () => {
+  const K = 'own-abc12345';
+  const empty = shoppingList(plan(), EMPTY_STATE);
+
+  it('an own item is added with its amount, ticked and removed, apart from the plan list', () => {
+    let s = withOwn(EMPTY_STATE, K, '  Kaffee ', '2 Pakete', 10);
+    expect(shoppingList(plan(), s).own).toEqual([{ key: K, name: 'Kaffee', amount: '2 Pakete', state: 'offen', dishes: [] }]);
+    // The plan's own counts do not change.
+    expect(shoppingList(plan(), s).total).toBe(empty.total);
+    expect(shoppingList(plan(), s).open).toBe(empty.open);
+    s = changeOwn(s, K, { state: 'gekauft' }, 20);
+    expect(shoppingList(plan(), s).own[0]!.state).toBe('gekauft');
+    s = changeOwn(s, K, { removed: true }, 30);
+    expect(shoppingList(plan(), s).own).toEqual([]);
+  });
+
+  it('blank names and odd keys are ignored; ticked items sink below open ones', () => {
+    expect(withOwn(EMPTY_STATE, K, '   ', '', 1)).toBe(EMPTY_STATE);
+    expect(withOwn(EMPTY_STATE, 'x', 'Tee', '', 1)).toBe(EMPTY_STATE);
+    let s = withOwn(EMPTY_STATE, K, 'Kaffee', '', 1);
+    s = withOwn(s, 'own-def67890', 'Tee', '', 2);
+    s = changeOwn(s, K, { state: 'gekauft' }, 3);
+    expect(shoppingList(plan(), s).own.map((i) => i.name)).toEqual(['Tee', 'Kaffee']);
+  });
+
+  it('they merge entry by entry: a removal newer than another device\'s tick wins, and a state without any reads as before', () => {
+    const base = withOwn(EMPTY_STATE, K, 'Kaffee', '', 1);
+    const removed = changeOwn(base, K, { removed: true }, 5);
+    const ticked = changeOwn(base, K, { state: 'gekauft' }, 3);
+    expect(shoppingList(plan(), mergeStates(removed, ticked)).own).toEqual([]);
+    expect(shoppingList(plan(), mergeStates(ticked, removed)).own).toEqual([]);
+    expect(mergeStates(EMPTY_STATE, EMPTY_STATE)).toEqual(EMPTY_STATE);
+    expect(readMealState({ eaters: {}, items: {} })).toEqual(EMPTY_STATE);
+  });
+
+  it('reading a stored state keeps good own entries, cuts long text and skips bad ones', () => {
+    const read = readMealState({ own: { [K]: { name: 'x'.repeat(200), amount: 'y'.repeat(200), state: 'gekauft', removed: false, atMs: 1 }, bad: { name: 'a', state: 'offen', atMs: 1 }, 'own-zzzz1111': { name: 'b', state: 'da', atMs: 1 } } });
+    expect(Object.keys(read.own!)).toEqual([K]);
+    expect(read.own![K]!.name).toHaveLength(60);
+    expect(read.own![K]!.amount).toHaveLength(30);
+    expect(readMealState(JSON.parse(JSON.stringify(read)))).toEqual(read);
   });
 });

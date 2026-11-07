@@ -21,12 +21,14 @@ const card = (mobility: MobilityView | null | undefined) => {
 
 test('shows the exercises with their descriptions and the minutes', () => {
   card({ session, askFeel: false });
-  fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }));
+  expect(screen.queryByText('Waden an der Wand')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
   for (const t of ['Waden an der Wand', 'Hände an die Wand.', 'Kindhaltung']) expect(screen.getByText(t)).toBeTruthy();
-  expect(screen.getByText(/8 Minuten/)).toBeTruthy();
+  expect(screen.getByText('8 Min')).toBeTruthy();
 });
 test('"Gemacht" sends the session id', () => {
   const send = card({ session, askFeel: false });
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Gemacht' }));
   expect(send).toHaveBeenCalledWith({ type: 'mobility-done', profileId: 'p', sessionId: 'mobility-bike-5' });
 });
@@ -59,27 +61,28 @@ test('an empty answer is not sent as an answer', () => {
 test('the bike page and the strength page both show it', () => {
   const profile = { id: 'p', name: 'Anna', ftpW: 150 };
   render(<CoachView profile={profile} state={null} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} mobility={{ session, askFeel: false }} />);
-  expect(screen.getByText(/Beweglichkeit, wenn du magst/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Beweglichkeit/ })).toBeTruthy();
   cleanup();
   const gym = { ready: true, thinking: false, hevy: false, complaints: [], hasHistory: true, state: initialGymState('p') };
   render(<GymView profileId="p" gym={gym} preview={null} previewFailed={false} result={null} send={vi.fn()} clear={vi.fn()} mobility={{ session, askFeel: false }} />);
-  expect(screen.getByText(/Beweglichkeit, wenn du magst/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Beweglichkeit/ })).toBeTruthy();
 });
 
 test('on both pages it sits below the next session, not above it', () => {
   const profile = { id: 'p', name: 'Anna', ftpW: 150 };
   const state = { profileId: 'p', ftpW: 150, ftpHistory: [], phase: { name: 'Aufbau', weeksLeft: 3, goal: 'x' }, ftpForecast: [], next: { session: { id: 'k', name: 'Locker', steps: [{ kind: 'erg' as const, durationS: 600, ftpFraction: 0.5, label: 'Warmup' }] }, reason: 'y', source: 'claude' }, changes: [], notes: [], feedback: {}, summaries: [], processedRides: [], awaitingFeedback: null, dirty: false, dirtySinceMs: null, lastError: null, lastAttemptMs: null } as never;
   render(<CoachView profile={profile} state={state} thinking={false} coachConnected sendRide={vi.fn()} sendCoach={vi.fn()} mobility={{ session, askFeel: false }} />);
-  expect(screen.getByText('Los').compareDocumentPosition(screen.getByText(/Beweglichkeit, wenn du magst/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText('Los').compareDocumentPosition(screen.getByRole('button', { name: /^Beweglichkeit/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   cleanup();
   const next = { source: 'rules' as const, reason: 'r', workout: { name: 'Beine A', exercises: [{ templateId: 'squat', title: 'Kniebeuge', restS: 90, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 40, reps: 8 }] }] } };
   const gym = { ready: true, thinking: false, hevy: false, complaints: [], hasHistory: true, state: { ...initialGymState('p'), next } };
   render(<GymView profileId="p" gym={gym} preview={null} previewFailed={false} result={null} send={vi.fn()} clear={vi.fn()} mobility={{ session, askFeel: false }} />);
-  expect(screen.getByRole('heading', { name: 'Beine A' }).compareDocumentPosition(screen.getByText(/Beweglichkeit, wenn du magst/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Beine A' }).compareDocumentPosition(screen.getByRole('button', { name: /^Beweglichkeit/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 test('"Heute nicht" hides it for today and sends nothing', () => {
   const send = card({ session, askFeel: false });
+  fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Heute nicht' }));
-  expect(screen.queryByText(/Beweglichkeit/)).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Beweglichkeit/ })).toBeNull();
   expect(send).not.toHaveBeenCalled();
 });
