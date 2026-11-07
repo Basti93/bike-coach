@@ -10,3 +10,7 @@ Branch: milestone-i-smoother-everyday
 - Run feel: easy/right/hard; two hard in a row hold the run progression.
 
 ## Tasks
+- T1 9fe8adf: per-set plannedKg/prefillKg; hide/remove only on start screen.
+- T2 93e45ae: trained today = hardness != null; own done advice wins over published.
+- T3 3514382: run question uses RunStatusBody.card (no lastRun publish).
+- Opus review: ok; FEEL_ASK_DAYS from register. 2793 green. Merged.
