@@ -1,5 +1,5 @@
 import type { Exercise } from './exercises';
-import { MUSCLES } from '../tracking/ui/labels';
+import { MUSCLES } from './muscles';
 import type { TrackedRecord } from './records';
 import { isFamily } from './families';
 import { isObj, linkOf, str, strings } from './exercise-links';
