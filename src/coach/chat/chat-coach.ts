@@ -1,6 +1,6 @@
 import { changeId, changeRecord, readNextOps, type NextOp } from '../../shared/changes';
 import { CHAT_CONTEXT, CHAT_KEEP_MS, chatThread, readWorkoutChange, waitingMessage, type ChatEntry, type ChatMessage } from '../../shared/chat';
-import { EXERCISES, type Exercise } from '../../shared/exercises';
+import { EXERCISES, exerciseTitles, type Exercise } from '../../shared/exercises';
 import { checkOps } from '../../tracking/workout-change';
 import { gehtNicht } from '../../shared/wording';
 import type { TrackedWorkout } from '../../tracking/session';
@@ -48,7 +48,7 @@ export const CHAT_SYSTEM_PROMPT = `Du bist der Coach in Pandafit für Rad, Kraft
 Du planst mit der Person ihre Woche: welche Sportart an welchem Tag und wie hart. Ruhetage gehören zum Plan, nicht jeder Tag ist Training.
 Die einzelnen Einheiten (Übungen, Sätze, Watt, Laufminuten) planen der Rad-Coach (bike), der Kraft-Coach (gym) und der Lauf-Coach (run); was sie als Nächstes geplant haben, steht in einheiten. Fragen dazu beantwortest du selbst, fachlich und sportwissenschaftlich begründet. Verweise die Person nie an einen anderen Coach oder ins Training.
 Will die Person an einer Einheit etwas ändern (etwa "nur eine Trizepsübung", "mehr Beine", "Samstag kürzer"), gib dem zuständigen Coach in tasks einen Auftrag: coach, text als klare Anweisung in ihren Worten, lasting true, wenn es ein Wunsch für länger ist, sonst false. Der Coach plant dann sofort neu. Sag in text kurz, was du weitergegeben hast. Ohne Änderungswunsch ist tasks leer.
-Will die Person etwas fürs nächste Training ändern (etwa "nächstes Mal ohne Kniebeugen"), setze nextChange: ops mit exerciseId aus einheiten, und reason als ein Satz, warum. Ohne so einen Wunsch ist nextChange null. Es gilt erst, wenn die Person es übernimmt.
+Will die Person etwas fürs nächste Training ändern (etwa "nächstes Mal ohne Kniebeugen"), setze nextChange: ops mit exerciseId aus einheiten, und reason als ein Satz, warum. Für Tausch fürs nächste Training: nenne toId aus katalog oder toTitle; kennst du die id nicht, nenne toTitle. Ohne so einen Wunsch ist nextChange null. Es gilt erst, wenn die Person es übernimmt.
 Sagt die Person "künftig", "immer" oder "nie" ("künftig keine Kniebeugen", "ich will lieber kurze Pausen"), ist das keine einmalige Änderung, sondern eine Regel: setze ruleDraft mit kind exclude (bestimmte Übungen fallen dauerhaft weg; exerciseIds aus katalog, alle Varianten dieser Übung), wish (ein allgemeiner Wunsch) oder goal (das Trainingsziel ändert sich: goal mit strength muscle, strength oder fitness, focus bis zu drei Muskelgruppen, sports mit gym, bike, run als focus, equal oder keep, nur was sich ändert; weeks von 1 bis 12 nur, wenn Schwerpunkt oder Sportarten bloß für einige Wochen gelten sollen), text als kurzer Satz in der Sicht der Person, sport gym, bike, run oder all. Sonst ist ruleDraft null. Bei einer Regel bleiben nextChange null und tasks ohne lasting-Auftrag dafür. Es gilt erst, wenn die Person es übernimmt.
 Die Person kann Mengen nennen ("2× Kraft, 3× Rad"), feste Tage ("Freitag Studio") oder dich vorschlagen lassen; oft eine Mischung. Feste Wünsche der Person markierst du mit fixed true.
 Stelle höchstens eine Frage auf einmal und nur, wenn die Antwort den Plan ändert. Wenn du genug weißt, mach einen Vorschlag.
@@ -64,13 +64,13 @@ export const WORKOUT_SYSTEM_PROMPT = `Du bist der Coach in Pandafit und begleite
 Sie sagt dir etwa "Gerät belegt", "Schulter zwickt" oder "nur noch 30 Minuten". Schlag dann vor, wie der Rest dieses Trainings aussieht, als change mit ops; ohne Änderung ist change null.
 ops: drop (die offenen Sätze einer Übung fallen weg), swap (die offenen Sätze wandern zu einer anderen Übung aus katalog, to ist deren id, nimm eine mit demselben Muskel und einem Gerät, das frei ist), sets (open: so viele offene Sätze bleiben), lighter (pct 5 bis 30: die offenen Sätze werden um so viel Prozent leichter). ex ist immer die ex-Kennung einer Übung aus training, die noch offene Sätze hat. Erledigte Sätze änderst du nie.
 Bei Schmerzen: die betroffene Bewegung weglassen oder deutlich leichter, nie durchziehen; keine medizinischen Ratschläge. Erzählt die Person von einem neuen Schmerz, setze newComplaint auf einen kurzen Text in ihren Worten; sonst null. Sagt sie, eine Beschwerde aus beschwerden ist vorbei, nenne deren id in complaintsOver.
-Meint die Person das nächste Training statt dieses ("nächstes Mal"), setze statt change nextChange: ops mit exerciseId (die Übungs-id aus katalog oder training) und reason als ein Satz; sonst null. Nichts ändert sich, bevor die Person den Vorschlag übernimmt. Sagt sie "künftig/immer/nie", setze ruleDraft (kind exclude mit exerciseIds aus katalog, wish oder goal; text, sport); sonst null. text: ein bis zwei Sätze.`;
+Meint die Person das nächste Training statt dieses ("nächstes Mal"), setze statt change nextChange: ops mit exerciseId (die Übungs-id aus katalog oder training) und reason als ein Satz; für einen Tausch nenne toId aus katalog oder toTitle, kennst du die id nicht, nenne toTitle; sonst null. Nichts ändert sich, bevor die Person den Vorschlag übernimmt. Sagt sie "künftig/immer/nie", setze ruleDraft (kind exclude mit exerciseIds aus katalog, wish oder goal; text, sport); sonst null. text: ein bis zwei Sätze.`;
 
 const nextChangeSchema = { anyOf: [{ type: 'null' }, {
   type: 'object', additionalProperties: false, required: ['ops', 'reason'],
   properties: { reason: { type: 'string' }, ops: { type: 'array', items: {
     type: 'object', additionalProperties: false, required: ['op', 'exerciseId'],
-    properties: { op: { enum: ['drop', 'swap', 'sets', 'lighter'] }, exerciseId: { type: 'string' }, toId: { type: 'string' }, sets: { type: 'integer' } },
+    properties: { op: { enum: ['drop', 'swap', 'sets', 'lighter'] }, exerciseId: { type: 'string' }, toId: { type: 'string' }, toTitle: { type: 'string' }, sets: { type: 'integer' } },
   } } },
 }] };
 
@@ -179,13 +179,14 @@ export class ChatCoach {
         over: Array.isArray(raw.complaintsOver) ? raw.complaintsOver.filter((x): x is string => typeof x === 'string') : [],
         tasks: readTasks(raw.tasks),
         draft: this.draftOf(id, raw.nextChange),
+        nextRaw: raw.nextChange,
         ruleRaw: raw.ruleDraft,
       };
     };
     let a = await ask(prompt);
-    // The coach does not see the catalog by default. Only a rule that names exercises it could not name gets one more try, with the catalog.
-    if (fromRider && this.needsCatalog(id, a.ruleRaw)) {
-      try { a = await ask(`${prompt}\n${dataBlock('katalog', this.catalogOf(id).filter((e) => !excludedOf(this.deps.store, id).has(e.id)).map((e) => ({ id: e.id, titel: e.title })))}\nNenne in ruleDraft.exerciseIds die ids aus katalog.`); } catch { /* the first answer decides */ }
+    // The coach does not see the catalog by default. Only a rule or a swap that names exercises it could not name gets one more try, with the catalog.
+    if (fromRider && this.needsCatalog(id, a.ruleRaw, a.nextRaw)) {
+      try { a = await ask(`${prompt}\n${this.catalogBlock(id)}\nNenne in ruleDraft.exerciseIds und bei einem Tausch in nextChange als toId die ids aus katalog.`); } catch { /* the first answer decides */ }
     }
     // Only the rider's own words start or end a complaint, never a message the coach opened by itself.
     if (fromRider) this.applyComplaints(id, a.complaint, a.over);
@@ -228,7 +229,7 @@ export class ChatCoach {
     const sets = (s: TrackedWorkout['exercises'][number]['sets'], done: boolean) => s.filter((x) => (x.doneMs !== null) === done).map((x) => ({ kg: x.weightKg, wdh: x.reps, typ: x.type }));
     const prompt = [
       dataBlock('training', { name: w.title, minutenSeitStart: Math.round((at - w.startMs) / 60_000), uebungen: w.exercises.map((e) => ({ ex: e.rid, uebungId: e.exerciseId, uebung: e.title, erledigt: sets(e.sets, true), offen: sets(e.sets, false) })) }),
-      dataBlock('katalog', this.catalogOf(id).filter((e) => !excludedOf(this.deps.store, id).has(e.id)).map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, geraet: e.equipment }))),
+      this.catalogBlock(id, true),
       dataBlock('beschwerden', this.complaintList(id)),
       ...this.wishLines(id, ['gym']),
       dataBlock('verlauf', thread.filter((m) => m.inWorkout === w.id).slice(-10).map((m) => ({ von: m.role === 'rider' ? 'person' : 'coach', text: m.text }))),
@@ -256,9 +257,32 @@ export class ChatCoach {
 
   private catalogOf(id: string): Exercise[] { return this.deps.catalog?.(id) ?? EXERCISES; }
 
-  /** An exclude rule that names no exercise the catalog knows. */
-  private needsCatalog(id: string, x: unknown): boolean {
-    return isObj(x) && x.kind === 'exclude' && this.validIds(x.exerciseIds, this.catalogOf(id)).length === 0;
+  /** The compact catalog the coach gets when it has to name an exercise: id, title and muscle (and the equipment when asked), without the excluded ones. */
+  private catalogBlock(id: string, withEquipment = false): string {
+    const out = excludedOf(this.deps.store, id);
+    return dataBlock('katalog', this.catalogOf(id).filter((e) => !out.has(e.id)).map((e) => ({ id: e.id, titel: e.title, muskel: e.primaryMuscle, ...(withEquipment ? { geraet: e.equipment } : {}) })));
+  }
+
+  /** An exclude rule that names no exercise the catalog knows, or a swap whose target is not in the catalog. */
+  private needsCatalog(id: string, rule: unknown, next: unknown): boolean {
+    return (isObj(rule) && rule.kind === 'exclude' && this.validIds(rule.exerciseIds, this.catalogOf(id)).length === 0) || this.splitOps(id, next).unknown > 0;
+  }
+
+  /** The ops of a next-change draft with every swap target resolved (by id, else by an exact title); `unknown` counts the swaps still without a catalog target (those are left out of `ops`). */
+  private splitOps(id: string, x: unknown): { ops: unknown[]; unknown: number } {
+    if (!isObj(x) || !Array.isArray(x.ops)) return { ops: [], unknown: 0 };
+    const catalog = this.catalogOf(id);
+    let unknown = 0;
+    const ops = x.ops.flatMap((o): unknown[] => {
+      if (!isObj(o) || o.op !== 'swap') return [o];
+      if (typeof o.toId === 'string' && catalog.some((e) => e.id === o.toId)) return [o];
+      const title = typeof o.toTitle === 'string' ? o.toTitle.trim() : '';
+      const hit = title ? catalog.find((e) => exerciseTitles(e).includes(title)) : undefined;
+      if (hit) return [{ ...o, toId: hit.id }];
+      unknown++;
+      return [];
+    });
+    return { ops, unknown };
   }
 
   private validIds(x: unknown, catalog: readonly Exercise[]): string[] {
@@ -302,13 +326,17 @@ export class ChatCoach {
   /** A change for the next workout the coach proposed: valid ops and a reason, or null. */
   private draftOf(id: string, x: unknown): Draft | null {
     if (!isObj(x)) return null;
-    const read = readNextOps(x.ops, this.deps.catalog?.(id) ?? EXERCISES);
+    const split = this.splitOps(id, x);
+    const read = split.ops.length ? readNextOps(split.ops, this.catalogOf(id)) : split.unknown ? [] : null;
     const reason = typeof x.reason === 'string' ? x.reason.trim().slice(0, 200) : '';
     if (!read || !reason) return null;
     // A swap into an excluded exercise is refused whole; the others stay. `refused` carries the reasons to the message.
     const excluded = excludedOf(this.deps.store, id);
     const catalog = this.deps.catalog?.(id) ?? EXERCISES;
-    const refused = read.flatMap((o) => (o.op === 'swap' && excluded.has(o.toId) ? [`du ${catalog.find((e) => e.id === o.toId)?.title ?? 'die Übung'} ausgeschlossen hast`] : []));
+    const refused = [
+      ...read.flatMap((o) => (o.op === 'swap' && excluded.has(o.toId) ? [`du ${catalog.find((e) => e.id === o.toId)?.title ?? 'die Übung'} ausgeschlossen hast`] : [])),
+      ...(split.unknown ? ['die Übung nicht im Katalog steht'] : []),
+    ];
     const ops = read.filter((o) => !(o.op === 'swap' && excluded.has(o.toId)));
     return ops.length || refused.length ? { ops, reason, ...(refused.length ? { refused } : {}) } : null;
   }
