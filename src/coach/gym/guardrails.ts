@@ -1,3 +1,4 @@
+import { contiguousGroups } from '../../shared/superset';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_WIDOWMAKERS } from './limits';
@@ -134,7 +135,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const known = new Set(avail.map((a) => a.templateId));
     const recentEquipment = new Set(avail.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
     parsed.forEach((p) => checkExercise(p.ex, p.template, ctx, recentEquipment, known));
-    const workout = { name: raw.name.trim(), exercises };
+    const workout = { name: raw.name.trim(), exercises: contiguousGroups(exercises) };
     if (ctx.budgetMinutes !== undefined && gymMinutes(workout) > gymLimit(ctx.budgetMinutes)) return no(`zu lang für deine Zeit: ca. ${gymMinutes(workout)} Min bei höchstens ${ctx.budgetMinutes}`);
     return { ok: true, workout };
   } catch (e) {

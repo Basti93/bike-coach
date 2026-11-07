@@ -120,6 +120,15 @@ describe('HevyRoutines', () => {
     expect(writes(calls).map((c) => c.method)).toEqual(['PUT', 'POST']);
   });
 
+  it('a superset is sent contiguous, even when the plan lists the partner later', async () => {
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
+    const { routines, calls } = make(world);
+    const ex = (templateId: string, supersetId: number | null) => ({ templateId, title: templateId, restS: 90, supersetId, notes: '', sets: [{ type: 'normal' as const, weightKg: 20, reps: 8 }] });
+    await routines.writeRoutine({ name: 'S', exercises: [ex('T1', 0), ex('T2', null), ex('T3', 0), ex('T4', 1), ex('T5', 1)] }, none);
+    const body = calls.find((c) => c.method === 'POST' && c.url.endsWith('/v1/routines'))!.body;
+    expect(body.routine.exercises.map((e: any) => [e.exercise_template_id, e.superset_id])).toEqual([['T1', 0], ['T3', 0], ['T2', null], ['T4', 1], ['T5', 1]]);
+  });
+
   it("the body matches Hevy's schema", async () => {
     const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
     const { routines, calls } = make(world);

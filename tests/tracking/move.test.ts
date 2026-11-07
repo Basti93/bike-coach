@@ -1,6 +1,6 @@
 import { EXERCISES } from '../../src/shared/exercises';
 import { readWorkoutChange } from '../../src/shared/chat';
-import { confirmSet, linkSuperset, moveExercise, startFromPlan, type TrackedWorkout } from '../../src/tracking/session';
+import { confirmSet, linkWith, moveExercise, startFromPlan, type TrackedWorkout } from '../../src/tracking/session';
 import { takeChange, undoChange } from '../../src/tracking/workout-change';
 import type { GymWorkout } from '../../src/coach/gym/types';
 
@@ -21,12 +21,12 @@ test('moves up and down, ends and unknown rows change nothing', () => {
 
 test('a group moves as one block past a single exercise or a group', () => {
   let w = start();
-  w = linkSuperset(w, rid(w, 1)); // B+C
+  w = linkWith(w, rid(w, 1), rid(w, 2)); // B+C
   const down = moveExercise(w, rid(w, 1), 1);
   expect(titles(down)).toBe('ADBC');
   expect(titles(moveExercise(w, rid(w, 2), -1))).toBe('BCAD');
   const x = start();
-  const both = linkSuperset(linkSuperset(x, rid(x, 2)), rid(x, 0)); // A+B, C+D
+  const both = linkWith(linkWith(x, rid(x, 2), rid(x, 3)), rid(x, 0), rid(x, 1)); // A+B, C+D
   expect(titles(moveExercise(both, rid(both, 0), 1))).toBe('CDAB');
 });
 

@@ -5,6 +5,7 @@ import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STU
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import { ladderFrom, snapDown, type LoadStepOverrides } from '../shared/loads';
+import { tidyGroups, contiguousGroups } from '../shared/superset';
 import { restAfterSet, restChoices, restExtendS } from '../shared/rest';
 import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
@@ -193,7 +194,7 @@ export const removeSet = (w: TrackedWorkout, ex: string, set: string): TrackedWo
 export const addExercise = (w: TrackedWorkout, e: Exercise, history: LoggedWorkout[], studios: StudioState = NO_STUDIOS): TrackedWorkout =>
   ({ ...w, exercises: [...w.exercises, fromCatalog(e, history, hereKey(w, history, studios), undefined, studios)] });
 export const removeExercise = (w: TrackedWorkout, ex: string): TrackedWorkout =>
-  w.exercises.some((e) => e.rid === ex) ? { ...w, exercises: w.exercises.filter((e) => e.rid !== ex) } : w;
+  w.exercises.some((e) => e.rid === ex) ? { ...w, exercises: tidyGroups(w.exercises.filter((e) => e.rid !== ex)) } : w;
 
 /** What really happened counts: confirmed sets stay with the old exercise, the rest moves to the new one. */
 export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history: LoggedWorkout[], studios: StudioState = NO_STUDIOS): TrackedWorkout {
@@ -203,8 +204,15 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   const doneSets = old.sets.filter(isDone);
   const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true };
   const exercises = [...w.exercises];
-  exercises.splice(i, 1, ...(doneSets.length ? [{ ...old, sets: doneSets }, fresh] : [fresh]));
-  return { ...w, exercises };
+  if (!doneSets.length) exercises.splice(i, 1, fresh);
+  else {
+    // The done-set copy leaves the group (it goes right before it), so the group stays contiguous around the new exercise.
+    const copy = { ...old, supersetId: null, sets: doneSets };
+    const at = old.supersetId === null ? i : exercises.findIndex((x) => x.supersetId === old.supersetId);
+    exercises.splice(i, 1, fresh);
+    exercises.splice(at, 0, copy);
+  }
+  return { ...w, exercises: tidyGroups(exercises) };
 }
 
 export const restRemainingS = (w: TrackedWorkout, nowMs: number): number =>
@@ -241,16 +249,44 @@ export function durationLabel(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
-/** Joins an exercise with the next one in a superset; the next one joins this one's group, or both start a new group. */
-export function linkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
-  const i = w.exercises.findIndex((x) => x.rid === ex);
-  if (i < 0 || i + 1 >= w.exercises.length) return w;
-  const a = w.exercises[i], b = w.exercises[i + 1];
-  if (a.supersetId !== null && a.supersetId === b.supersetId) return w;
-  const used = w.exercises.map((x) => x.supersetId ?? -1);
-  const id = a.supersetId ?? b.supersetId ?? Math.max(-1, ...used) + 1;
-  const from = b.supersetId; // b's old group moves along with it
-  return { ...w, exercises: w.exercises.map((x, j) => (j === i || j === i + 1 || (from !== null && x.supersetId === from) ? { ...x, supersetId: id } : x)) };
+/**
+ * Joins an exercise with any partner in a superset: the partner (with its own group) moves directly behind the group of `ex`,
+ * all share one group id. The partner must be unstarted (no confirmed set); anything else changes nothing. Rows stay intact.
+ */
+export function linkWith(w: TrackedWorkout, ex: string, partner: string): TrackedWorkout {
+  const a = w.exercises.find((x) => x.rid === ex), p = w.exercises.find((x) => x.rid === partner);
+  if (!a || !p || a === p || (a.supersetId !== null && a.supersetId === p.supersetId)) return w;
+  if (p.sets.some(isDone)) return w;
+  const id = a.supersetId ?? p.supersetId ?? Math.max(-1, ...w.exercises.map((x) => x.supersetId ?? -1)) + 1;
+  const moving = (x: TrackedExercise) => x === p || (p.supersetId !== null && x.supersetId === p.supersetId);
+  const base = contiguousGroups(w.exercises.filter((x) => !moving(x)));
+  const into = (x: TrackedExercise) => x.rid === ex || (a.supersetId !== null && x.supersetId === a.supersetId);
+  const last = base.reduce((n, x, k) => (into(x) ? k : n), -1);
+  const joined = w.exercises.filter(moving).map((x) => ({ ...x, supersetId: id }));
+  base.splice(last + 1, 0, ...joined);
+  return { ...w, exercises: base.map((x) => (into(x) ? { ...x, supersetId: id } : x)) };
+}
+
+/** The exercises other than `ex` that can be its partner: unstarted and not already in its group. */
+export const supersetPartners = (w: TrackedWorkout, ex: string): TrackedExercise[] => {
+  const a = w.exercises.find((x) => x.rid === ex);
+  return a ? w.exercises.filter((x) => x !== a && !x.sets.some(isDone) && (a.supersetId === null || x.supersetId !== a.supersetId)) : [];
+};
+
+/**
+ * The next set to train, in round order: a single exercise by its sets, a superset group round by round (A1 B1 A2 B2).
+ * Members without an open set, or skipped, are passed over. null when nothing is open.
+ */
+export function currentSet(w: TrackedWorkout): { ex: string; set: string; round: number } | null {
+  const open = (e: TrackedExercise) => (e.supersetId !== null && e.effort === 'skip' ? -1 : e.sets.findIndex((s) => !isDone(s)));
+  for (const e of w.exercises) {
+    if (open(e) < 0) continue;
+    const members = e.supersetId === null ? [e] : w.exercises.filter((x) => x.supersetId === e.supersetId && open(x) >= 0);
+    const best = members.reduce((m, x) => (open(x) < open(m) ? x : m), members[0]!);
+    const k = open(best);
+    return { ex: best.rid, set: best.sets[k]!.rid, round: k + 1 };
+  }
+  return null;
 }
 
 /** Takes one exercise out of its superset; a group left with one exercise is dissolved. */

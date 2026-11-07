@@ -10,7 +10,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -114,7 +114,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const remaining = restRemainingS(w, now());
 
   // Opening (or continuing) a workout scrolls once to the exercise with the next open set.
-  const currentRid = w.exercises.find((x) => x.sets.some((st) => st.doneMs === null))?.rid ?? null;
+  const current = currentSet(w);
+  const currentRid = current?.ex ?? null;
   const screenRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = screenRef.current?.querySelector('[aria-current="step"]');
@@ -200,9 +201,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
           <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
-      {w.exercises.map((e, ei) => {
-        const nextEx = w.exercises[ei + 1];
-        const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
+      {w.exercises.map((e) => {
+        const partners = supersetPartners(w, e.rid);
         const labels = setLabels(e.sets);
         const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
         const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere, studios));
@@ -216,15 +216,15 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         const icon = <MuscleIcon group={resolved.group} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
-        const current = e.rid === currentRid;
+        const isCurrent = e.rid === currentRid;
         return (
-          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${current ? ' tk-ex-current' : ''}`} aria-label={e.title}
-            aria-current={current ? 'step' : undefined}>
+          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${isCurrent ? ' tk-ex-current' : ''}`} aria-label={e.title}
+            aria-current={isCurrent ? 'step' : undefined}>
             <div className="tk-ex-head">
               <span className="tk-ex-icon">{icon}</span>
               <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
               {allDone && <span className="tk-ex-badge">Erledigt</span>}
-              {e.supersetId !== null && <span className="muted">Superset</span>}
+              {e.supersetId !== null && <span className="muted">Superset{isCurrent && current ? ` · Runde ${current.round}` : ''}</span>}
               <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
             </div>
             {menu === e.rid && (
@@ -235,9 +235,13 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                   onClick={() => act((x) => moveExercise(x, e.rid, -1))}>Nach oben</button>
                 <button type="button" className="secondary" aria-label={`${e.title} nach unten`} disabled={moveExercise(w, e.rid, 1) === w}
                   onClick={() => act((x) => moveExercise(x, e.rid, 1))}>Nach unten</button>
-                {canLink && (
-                  <button type="button" className="secondary" aria-label={`${e.title} als Superset mit ${nextEx!.title}`}
-                    onClick={() => { setMenu(null); act((x) => linkSuperset(x, e.rid)); }}>Superset mit nächster Übung</button>
+                {partners.length > 0 && (
+                  <label className="tk-rest-pick">Supersatz mit{' '}
+                    <select aria-label={`${e.title} als Superset mit …`} value="" onChange={(ev) => { const p = ev.target.value; if (p) { setMenu(null); act((x) => linkWith(x, e.rid, p)); } }}>
+                      <option value="">…</option>
+                      {partners.map((p) => <option key={p.rid} value={p.rid}>{p.title}</option>)}
+                    </select>
+                  </label>
                 )}
                 {e.supersetId !== null && (
                   <button type="button" className="secondary" aria-label={`${e.title} aus dem Superset lösen`}

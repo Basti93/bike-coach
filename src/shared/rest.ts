@@ -31,11 +31,11 @@ export function restOf(e: RestExercise, catalog: readonly Exercise[] = EXERCISES
   return restMid(compound ? 'rest.compound-s' : 'rest.isolation-s');
 }
 
-type RestWorkout = { exercises: (RestExercise & { rid: string; supersetId: number | null; sets: readonly (RestSet & { doneMs: number | null })[] })[] };
+type RestWorkout = { exercises: (RestExercise & { rid: string; supersetId: number | null; effort?: string; sets: readonly (RestSet & { doneMs: number | null })[] })[] };
 
 /**
  * The rest to start after the set at `setIndex` of exercise `rid`: in a superset only after the last member of the round
- * (null while a later member still has that round's set open), then the longest rest of the members.
+ * (null while another member still has that round's set open, skipped members aside), then the longest rest of the members.
  */
 export function restAfterSet(w: RestWorkout, rid: string, setIndex: number, catalog: readonly Exercise[] = EXERCISES): number | null {
   const i = w.exercises.findIndex((x) => x.rid === rid);
@@ -43,7 +43,7 @@ export function restAfterSet(w: RestWorkout, rid: string, setIndex: number, cata
   if (!e) return null;
   const group = e.supersetId;
   if (group === null) return restOf(e, catalog);
-  if (w.exercises.slice(i + 1).some((x) => x.supersetId === group && x.sets[setIndex]?.doneMs === null)) return null;
+  if (w.exercises.some((x) => x !== e && x.supersetId === group && x.effort !== 'skip' && x.sets[setIndex]?.doneMs === null)) return null;
   return Math.max(...w.exercises.filter((x) => x.supersetId === group).map((x) => restOf(x, catalog)));
 }
 
