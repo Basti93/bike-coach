@@ -1,5 +1,5 @@
 import type { Exercise } from './exercises';
-import { MUSCLES } from './muscles';
+import { EQUIPMENT, MUSCLES, TYPES } from './muscles';
 import type { TrackedRecord } from './records';
 import { isFamily } from './families';
 import { isObj, linkOf, str, strings } from './exercise-links';
@@ -14,6 +14,7 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
   const covered = new Set(builtIns.flatMap((e) => (e.fedbId ? [e.fedbId] : [])));
   const out: Exercise[] = [...builtIns, ...base.filter((e) => !covered.has(e.id))].map((e) => ({ ...e }));
   const index = new Map(out.map((e, i) => [e.id, i]));
+  const types = new Set([...Object.keys(TYPES), ...out.map((e) => e.type)]);
   for (const r of records) {
     if (r.deleted || !isObj(r.body) || r.body.proposal !== undefined || r.body.kind === 'link') continue;
     const b = r.body;
@@ -28,7 +29,11 @@ export function mergeCatalog(builtIns: Exercise[], base: Exercise[], records: Tr
       }
     } else if (str(b.id) && str(b.title) && str(b.primaryMuscle) && str(b.equipment) && str(b.type)) {
       index.set(b.id, out.length); // a later record with this id is only an overlay (aliases, description), never a replacement
-      const e: Exercise = { id: b.id, title: b.title, primaryMuscle: b.primaryMuscle, equipment: b.equipment, type: b.type };
+      // A value outside the allowed ones does not make the record unreadable: the field falls back to "other" / the plain type.
+      const e: Exercise = {
+        id: b.id, title: b.title, primaryMuscle: Object.hasOwn(MUSCLES, b.primaryMuscle) ? b.primaryMuscle : 'other',
+        equipment: Object.hasOwn(EQUIPMENT, b.equipment) ? b.equipment : 'other', type: types.has(b.type) ? b.type : 'weight_reps',
+      };
       const aliases = strings(b.aliases);
       if (aliases.length > 0) e.aliases = aliases;
       const secondary = strings(b.secondaryMuscles).filter((m) => Object.hasOwn(MUSCLES, m));
