@@ -789,11 +789,12 @@ describe('next time, in the history of the latest workout', () => {
     expect(await screen.findByText('Nächstes Mal: 62,5 kg × 8 – weil du alle Wiederholungen geschafft hast.')).toBeTruthy();
     expect(screen.queryByText('Kommt nach der Auswertung')).toBeNull();
   });
-  it('says it comes after the evaluation until the publish arrives', async () => {
+  it('shows nothing about the next time until the publish arrives', async () => {
     const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
     render(<HistoryScreen port={port} {...ids} />);
     fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
-    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
+    await screen.findByText('Kniebeuge');
+    expect(screen.queryByText(/Nächstes Mal|nach der Auswertung/)).toBeNull();
   });
   it('an older workout shows neither', async () => {
     const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000)), stats([step()])]);
@@ -807,8 +808,8 @@ describe('next time, in the history of the latest workout', () => {
     const { port } = fakePort([rec(finished('b', 9000)), stats([step({ forWorkoutId: 'zzz', atMs: 1 })])]);
     render(<HistoryScreen port={port} {...ids} />);
     fireEvent.click(await screen.findByRole('button', { name: /Beine/ }));
-    expect(await screen.findByText('Kommt nach der Auswertung')).toBeTruthy();
-    expect(screen.queryByText(/Nächstes Mal/)).toBeNull();
+    await screen.findByText('Kniebeuge');
+    expect(screen.queryByText(/Nächstes Mal|nach der Auswertung/)).toBeNull();
   });
 });
 

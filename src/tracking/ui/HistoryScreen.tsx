@@ -88,7 +88,6 @@ function Detail({ port, store, history, onBack, onDeleted, latest, next }: { por
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">{dateLabel(w.startMs)}</p>
       {save === 'unsaved' && <p role="status" className="tk-note">Gerade nicht gespeichert. Die Änderung bleibt hier und wird beim nächsten Schritt erneut gespeichert.</p>}
-      {latest && mine.length === 0 && <p className="muted">Kommt nach der Auswertung</p>}
       {editing ? (
         w.exercises.map((e) => (
           <section key={e.rid} className="tk-ex" aria-label={e.title}>

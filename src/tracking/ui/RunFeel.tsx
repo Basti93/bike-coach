@@ -1,6 +1,6 @@
 import { ruleNumber } from '../../shared/training-policy';
 import type { RunFeel as Feel } from '../../shared/run';
-import { dayText } from './run-view';
+import { dayName } from './WeekList';
 
 const DAY = 86_400_000;
 /** The question is asked for the newest run of the last 3 days (register: run.feel-ask-days). */
@@ -19,7 +19,7 @@ export function RunFeelQuestion({ date, onAnswer }: { date: string; onAnswer: (f
   const tap = onAnswer;
   return (
     <section className="tk-feel" aria-label="Wie war der Lauf?">
-      <p>Wie war der Lauf am {dayText(date).split(',')[0]}?</p>
+      <p>Wie war der Lauf am {dayName(date)}?</p>
       <div className="tk-chips">
         {(Object.keys(LABEL) as Feel[]).map((f) => <button key={f} type="button" className="secondary" onClick={() => tap(f)}>{LABEL[f]}</button>)}
       </div>

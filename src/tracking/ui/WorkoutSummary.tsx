@@ -20,9 +20,7 @@ export function WorkoutSummary({ workout: w, next, onDone }: { workout: LoggedWo
     <section className="card tk-summary" aria-label="Zusammenfassung">
       <h2>Fertig · {w.exercises.length} {w.exercises.length === 1 ? 'Übung' : 'Übungen'} · {minutes} Min</h2>
       <p className="muted">{doneSets(w)} {doneSets(w) === 1 ? 'Satz' : 'Sätze'} gespeichert</p>
-      {mine.length === 0
-        ? <p className="muted">Nächstes Mal: kommt nach der Auswertung</p>
-        : rows.map(({ e, n }, i) => <p key={i} className="muted tk-sub">{e.title} · {nextLine(n!)}</p>)}
+      {rows.map(({ e, n }, i) => <p key={i} className="muted tk-sub">{e.title} · {nextLine(n!)}</p>)}
       <button type="button" onClick={onDone}>Fertig</button>
     </section>
   );

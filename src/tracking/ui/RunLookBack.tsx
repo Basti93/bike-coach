@@ -1,6 +1,6 @@
 import type { TrackingPort } from '../ports';
 import { kmText, type RunReviewBody } from '../../shared/run';
-import { weekRangeText } from '../../shared/meals';
+import { weekRangeOfKey } from '../../shared/dates';
 import { usePortRecords } from './hooks';
 import { kmFromKm, runView } from './run-view';
 
@@ -10,8 +10,8 @@ export function ReviewList({ reviews }: { reviews: RunReviewBody[] }) {
     <ul className="tk-list tk-run-list">
       {reviews.slice(0, 6).map((r) => (
         <li key={r.week}>
-          <b>{weekRangeText(r.week)}</b>
-          <span>{kmFromKm(r.km)} in {r.minutes} Min.{r.plannedMinutes !== null ? `, geplant waren ${r.plannedMinutes} Min.` : ''}</span>
+          <b>{weekRangeOfKey(r.week)}</b>
+          <span>{kmFromKm(r.km)} in {r.minutes} Min{r.plannedMinutes !== null ? `, geplant waren ${r.plannedMinutes} Min` : ''}</span>
           {r.longestKm !== null && <span>Längster Lauf: {kmFromKm(r.longestKm)}</span>}
           {r.testM !== null && <span>Test über 30 Minuten: {kmText(r.testM)}</span>}
           <span className="muted">{r.focus}</span>

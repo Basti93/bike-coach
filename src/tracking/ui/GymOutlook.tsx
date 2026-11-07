@@ -1,7 +1,7 @@
 import type { GymOutlook as Outlook } from '../../shared/gym-outlook';
+import { shortDateOfKey } from '../../shared/dates';
 
-const dayLabel = (date: string | null): string | null =>
-  date ? new Date(`${date}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' }) : null;
+const dayLabel = (date: string | null): string | null => (date ? shortDateOfKey(date) : null);
 
 /** The workouts after the next one, as a sketch, and where the training is heading. Nothing without an outlook. */
 export function GymOutlook({ outlook }: { outlook: Outlook | null | undefined }) {

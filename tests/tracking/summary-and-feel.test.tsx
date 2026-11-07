@@ -33,9 +33,10 @@ test('after the finish the summary lists the next step per exercise, and Fertig 
   expect(localStorage.getItem('pandafit-summary-pending')).toBeNull();
 });
 
-test('before the publish the summary says the next step comes after the evaluation, and a reload still shows it', async () => {
+test('before the publish the summary shows no placeholder, and a reload still shows it', async () => {
   const { port } = await finish([]);
-  expect(await screen.findByText('Nächstes Mal: kommt nach der Auswertung')).toBeTruthy();
+  expect(await screen.findByText(/^Fertig · 1 Übung/)).toBeTruthy();
+  expect(screen.queryByText(/nach der Auswertung/)).toBeNull();
   cleanup();
   render(<WorkoutScreen port={port} {...ids} />);
   expect(await screen.findByText(/^Fertig · 1 Übung/)).toBeTruthy();
