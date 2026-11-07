@@ -272,7 +272,7 @@ export class ChatCoach {
     return (isObj(rule) && rule.kind === 'exclude' && this.validIds(rule.exerciseIds, this.catalogOf(id)).length === 0 && this.validFamilies(rule.families).length === 0) || this.splitOps(id, next).unknown > 0;
   }
 
-  /** The ops of a next-change draft with every swap target resolved (by id, else by an exact title); `unknown` counts the swaps still without a catalog target (those are left out of `ops`). */
+  /** The ops of a next-change draft with every swap target resolved (by id, else by a title, ignoring case and extra whitespace); `unknown` counts the swaps still without a catalog target (those are left out of `ops`). */
   private splitOps(id: string, x: unknown): { ops: unknown[]; unknown: number } {
     if (!isObj(x) || !Array.isArray(x.ops)) return { ops: [], unknown: 0 };
     const catalog = this.catalogOf(id);
@@ -280,8 +280,9 @@ export class ChatCoach {
     const ops = x.ops.flatMap((o): unknown[] => {
       if (!isObj(o) || o.op !== 'swap') return [o];
       if (typeof o.toId === 'string' && catalog.some((e) => e.id === o.toId)) return [o];
-      const title = typeof o.toTitle === 'string' ? o.toTitle.trim() : '';
-      const hit = title ? catalog.find((e) => exerciseTitles(e).includes(title)) : undefined;
+      const norm = (t: string) => t.toLocaleLowerCase('de').split(/\s+/).filter(Boolean).join(' ');
+      const title = typeof o.toTitle === 'string' ? norm(o.toTitle) : '';
+      const hit = title ? catalog.find((e) => exerciseTitles(e).some((t) => norm(t) === title)) : undefined;
       if (hit) return [{ ...o, toId: hit.id }];
       unknown++;
       return [];

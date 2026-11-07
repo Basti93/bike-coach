@@ -257,6 +257,13 @@ describe('a swap for the next workout is resolved against the whole catalog', ()
     expect([...s.recs.values()].find((r) => r.kind === 'change')!.body).toMatchObject({ ops: [{ op: 'swap', toId: 'pf-goblet-squat' }] });
   });
 
+  test('a toTitle resolves ignoring case and extra spaces', async () => {
+    const s = store([rider('r1', 'Tausch die Kniebeuge')]);
+    const c = coach(s, async () => swap(undefined, '  goblet   SQUAT '));
+    await c.tick('p');
+    expect([...s.recs.values()].find((r) => r.kind === 'change')!.body).toMatchObject({ ops: [{ op: 'swap', toId: 'pf-goblet-squat' }] });
+  });
+
   test('an excluded target is refused, without a retry', async () => {
     const s = store([rider('r1', 'Tausch die Kniebeuge'), exclude]);
     let calls = 0;
