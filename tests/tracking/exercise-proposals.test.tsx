@@ -91,6 +91,14 @@ describe('ExerciseProposals card', () => {
     expect(screen.getByText(/‚Cable Curl‘ als Kniebeuge eingeordnet/)).toBeTruthy();
   });
 
+  test('two proposals for one title show one card; confirming withdraws both', async () => {
+    const twin: TrackedRecord = { ...sameProposal, id: 'prop-1b', body: { id: 'prop-1b', proposal: { forTitle: TITLE, kind: 'same', targetId: 'pf-squat', reason: 'x', atMs: NOW - 500 } } };
+    const f = show([sameProposal, twin]);
+    expect(await screen.findAllByRole('button', { name: 'Bestätigen' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Bestätigen' }));
+    await waitFor(() => expect(f.state.puts.map((r) => `${r.id}:${r.deleted}`).sort()).toEqual([`${linkId(TITLE)}:false`, 'prop-1:true', 'prop-1b:true'].sort()));
+  });
+
   test('Bestätigen writes the records through the port, the row goes', async () => {
     const f = show([sameProposal]);
     fireEvent.click(await screen.findByRole('button', { name: 'Bestätigen' }));

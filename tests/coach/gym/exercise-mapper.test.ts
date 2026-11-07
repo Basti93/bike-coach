@@ -260,6 +260,14 @@ describe('ExerciseMapper', () => {
     expect(h.prompts[0]!.match(/Titel:/g)).toHaveLength(20);
     expect(h.prompts[0]).not.toContain('Ancient');
   });
+
+  it('asks again when a waiting proposal points at an exercise that is gone', async () => {
+    const h = harness([() => same('medium', 'own-gone')]);
+    h.store.putMany(ID, [{ kind: 'exercise', id: proposalId(TITLE, NOW - 5000), updatedMs: NOW - 5000, deleted: false, body: { id: 'x', proposal: { forTitle: TITLE, kind: 'same', targetId: 'own-gone', reason: '', atMs: NOW - 5000 } } }]);
+    await h.mapper.run(ID);
+    expect(h.prompts).toHaveLength(1);
+  });
+
 });
 
 import { exerciseTitles } from '../../../src/shared/exercises';
