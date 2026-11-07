@@ -25,6 +25,14 @@ describe('the caps', () => {
   });
 });
 
+describe('the same note again', () => {
+  it('keeps the old note and its time when key, text and reason are unchanged', () => {
+    const a = { ...note(3), key: 'k' };
+    expect(addNote([a], { ...note(0, { text: a.text }), key: 'k' }, NOW).map((n) => n.atMs)).toEqual([a.atMs]);
+    expect(addNote([a], { ...note(0, { text: a.text }), key: 'k', reason: 'anders' }, NOW)[0]!.atMs).toBe(NOW);
+  });
+});
+
 describe('published notes', () => {
   it('the newest 8 across the coaches, newest first', () => {
     const all = Array.from({ length: 12 }, (_, i) => note(i + 1, { coach: (['bike', 'gym', 'run'] as const)[i % 3] }));

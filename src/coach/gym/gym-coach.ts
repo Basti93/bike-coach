@@ -379,13 +379,13 @@ export class GymCoach {
   tick(id: string): Promise<void> {
     const active = this.running.get(id);
     if (active) return active;
-    const run: Promise<void> = this.plan(id).then(() => this.noteChanges(id)).finally(() => { if (this.running.get(id) === run) this.running.delete(id); });
+    const run: Promise<void> = this.plan(id).then((planned) => { if (planned) this.noteChanges(id); }).finally(() => { if (this.running.get(id) === run) this.running.delete(id); });
     this.running.set(id, run);
     return run;
   }
 
-  private async plan(id: string): Promise<void> {
-    if (!this.enabled(id) || !this.deps.ready(id)) return;
+  private async plan(id: string): Promise<boolean> {
+    if (!this.enabled(id) || !this.deps.ready(id)) return false;
     // Workouts loaded before the store existed reach it once, without waiting for a change.
     if (this.isHevy(id) && !this.imported.has(id)) { this.imported.add(id); try { this.importHevy(id); } catch { this.imported.delete(id); } }
     const now = this.deps.nowMs();
@@ -398,12 +398,12 @@ export class GymCoach {
     if (used !== s.complaintsFingerprint) this.update(id, (x) => { x.complaintsFingerprint = used; x.dirty = true; x.attempts = 0; });
     const seen = new Set(s.seenWorkoutIds);
     const unseen = real.filter((w) => !seen.has(w.id));
-    if (s.planned && !s.dirty && unseen.length === 0) return;
+    if (s.planned && !s.dirty && unseen.length === 0) return false;
     const newest = (list: StrengthWorkout[]) => list.reduce<StrengthWorkout | null>((a, w) => (!a || w.startMs > a.startMs ? w : a), null);
     const key = (newest(unseen) ?? newest(real))?.id ?? 'none';
     if (s.attemptKey !== key) this.update(id, (x) => { x.attemptKey = key; x.attempts = 0; });
-    if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return;
-    if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return;
+    if (s.attempts > 0 && (s.attempts >= MAX_ATTEMPTS || (s.lastAttemptMs !== null && now - s.lastAttemptMs < RETRY_MS))) return false;
+    if (s.templatesFailedMs !== null && now - s.templatesFailedMs < RETRY_MS) return false;
     this.update(id, (x) => { x.dirty = true; });
     const latest = newest(real);
     // Old workouts surfacing during a break get no feedback, which would also replace the note about the break.
@@ -416,7 +416,7 @@ export class GymCoach {
       templates = await this.templateList(id);
     } catch {
       this.updateIf(gen, id, (x) => { x.lastError = 'failed'; x.templatesFailedMs = now; });
-      return;
+      return false;
     }
     this.updateIf(gen, id, (x) => { x.templatesFailedMs = null; x.attempts += 1; x.lastAttemptMs = now; });
     try {
@@ -444,7 +444,7 @@ export class GymCoach {
           x.emptyReason = hasRule ? null : rule.reason;
           x.lastError = null; x.dirty = false; x.planned = true; x.attempts = 0; x.seenWorkoutIds = [];
         });
-        return;
+        return true;
       }
       // An empty rule workout is never stored as an offer; only its reason is kept.
       this.updateIf(gen, id, (x) => {
@@ -475,8 +475,10 @@ export class GymCoach {
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
       });
+      return true;
     } catch (e) {
       this.updateIf(gen, id, (x) => { x.lastError = e instanceof ClaudeError ? e.kind : 'failed'; x.dirty = true; });
+      return false;
     }
   }
 

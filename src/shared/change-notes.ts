@@ -14,6 +14,8 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 
 /** The list with the note put in: a note with the same key is replaced, old ones are dropped, the newest NOTES_PER_COACH stay. */
 export function addNote<T extends ChangeNote & { key?: string }>(list: readonly T[], note: T, nowMs: number): T[] {
+  // The same note again stays as it is, with its time: writing it once is the point.
+  if (note.key !== undefined && list.some((n) => n.key === note.key && n.text === note.text && n.reason === note.reason)) return [...list];
   const kept = list.filter((n) => (note.key === undefined || n.key !== note.key) && nowMs - n.atMs <= NOTES_KEEP_MS);
   return [...kept, note].sort((a, b) => a.atMs - b.atMs).slice(-NOTES_PER_COACH);
 }

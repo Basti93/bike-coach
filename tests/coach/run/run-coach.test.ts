@@ -318,7 +318,7 @@ describe('test runs and restarts', () => {
       now += HOUR;
       const again = make();
       await again.tick('pa');
-      expect(again.changeNotes('pa').filter((n) => n.text.startsWith('Lauf: Phase'))).toHaveLength(1);
+      expect(again.changeNotes('pa').filter((n) => n.text.startsWith('Lauf: Phase'))).toEqual(phase);
     });
     test('a test week gets a note, and the notes keep at most 20', async () => {
       garmin = history(-11, -1);

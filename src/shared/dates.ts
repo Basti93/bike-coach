@@ -1,9 +1,11 @@
 /** German date and time for the light UI, in the local time zone. One place, used by every screen. */
 
+import { dateKey } from './day-rating';
+
 const pad = (n: number): string => String(n).padStart(2, '0');
 
 /** The local day of a time, as YYYY-MM-DD. */
-export const localDayKey = (ms: number): string => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+export const localDayKey = dateKey;
 
 /** "Mo., 3. Nov." */
 export const shortDate = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });

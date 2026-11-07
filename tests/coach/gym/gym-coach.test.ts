@@ -1136,6 +1136,19 @@ describe('what the coach changed ("Zuletzt geändert")', () => {
     await h.coach.tick(ID);
     expect(h.coach.changeNotes(ID)).toEqual([]);
   });
+  it('repeated ticks without a new plan leave the gym state files byte-identical', async () => {
+    const h = harness();
+    h.workouts = heavy();
+    h.replies.push(plan(45));
+    await h.coach.templateList(ID);
+    await h.coach.tick(ID);
+    const first = h.coach.changeNotes(ID);
+    const dump = (): string => fs.readdirSync(dir, { recursive: true }).map(String).sort().map((f) => { const p = path.join(dir, f); return fs.statSync(p).isFile() ? `${f}:${fs.readFileSync(p, 'utf8')}` : f; }).join('\n');
+    const before = dump();
+    for (let i = 0; i < 3; i++) { h.now = NOW + (i + 1) * 3_600_000; await h.coach.tick(ID); }
+    expect(dump()).toBe(before);
+    expect(h.coach.changeNotes(ID)).toEqual(first);
+  });
   it('the notes survive a restart', async () => {
     const h = harness();
     h.workouts = heavy();
