@@ -46,7 +46,7 @@ export function readAdvice(x: unknown): PublishedAdvice | null {
   const also = x.also === undefined ? undefined : readPart(x.also);
   if (also === null) return null;
   if (x.legs !== undefined && typeof x.legs !== 'boolean') return null;
-  return { ...first, ...(also ? { also } : {}), label: x.label, reason: x.reason, line: x.line, fromPlan: x.fromPlan, ...(x.legs !== undefined ? { legs: x.legs } : {}), date: x.date, mode: x.mode };
+  return { ...first, ...(also ? { also } : {}), label: x.label, reason: x.reason, line: x.line, fromPlan: x.fromPlan, ...(x.done === true ? { done: true as const } : {}), ...(x.legs !== undefined ? { legs: x.legs } : {}), date: x.date, mode: x.mode };
 }
 
 const WHY = ['progress', 'keep', 'step-back'];

@@ -8,11 +8,15 @@ import { COACH_LABEL, deleteTask, ONE_OFF_MS, openTasks } from '../../shared/tas
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
-import { useCatalog, useGoal, usePortRecords } from './hooks';
+import { finishedWorkouts, useCatalog, useGoal, usePortRecords } from './hooks';
+import { usedSports } from './used-sports';
+import { readStats } from '../../shared/stats';
+import { ruleNumber } from '../../shared/training-policy';
+import type { RunWeekBody } from '../../shared/run';
 
 const STRENGTH_LABEL: Record<Strength, string> = { muscle: 'Muskeln aufbauen', strength: 'Kraft steigern', fitness: 'Fit bleiben' };
 const PRIO_LABEL: Record<Prio, string> = { focus: 'Schwerpunkt', equal: 'gleichrangig', keep: 'erhalten' };
-// All three sports are always shown: the card does not guess which ones the person uses.
+// With no activity at all the card shows all three sports; otherwise the used ones, the others behind a toggle.
 const SPORTS: SportKey[] = ['gym', 'bike', 'run'];
 
 const WEEK_CHOICES = [0, 2, 4, 6, 8];
@@ -36,6 +40,12 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const rules = rulesOf(usePortRecords(port, 'rule').all ?? []).filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal');
   // What was passed on to the coaches and is still open: from the week chat or from one coach to another.
   const tasks = openTasks(usePortRecords(port, 'task').all ?? [], now());
+  // Only the sports the person has used lately; one with a priority set always stays.
+  const workouts = finishedWorkouts(usePortRecords(port, 'workout').records);
+  const runWeeks = (usePortRecords(port, 'run').records ?? []).map((r) => r.body as RunWeekBody).filter((b) => b && b.type === 'week' && Array.isArray(b.runs));
+  const statsRecord = (usePortRecords(port, 'stats').records ?? []).find((r) => r.id === 'stats');
+  const used = usedSports(workouts, runWeeks, (statsRecord ? readStats(statsRecord.body)?.days : undefined) ?? [], today, ruleNumber('goal.used-sports-days'));
+  const [moreSports, setMoreSports] = useState(false);
   const [changingFocus, setChangingFocus] = useState(false);
   const [text, setText] = useState('');
   const [picking, setPicking] = useState(false);
@@ -112,6 +122,14 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
     void saveGoal(base);
   };
 
+  const shown = (s: SportKey): boolean => used.size === 0 || used.has(s) || goal.sports[s] !== undefined;
+  const sportSelect = (s: SportKey) => (
+    <label key={s}>{SPORT_LABEL[s]} <select value={goal.sports[s] ?? ''} onChange={(e) => setPrio(s, e.target.value)}>
+      <option value="">–</option>
+      {(Object.keys(PRIO_LABEL) as Prio[]).map((p) => <option key={p} value={p}>{PRIO_LABEL[p]}</option>)}
+    </select></label>
+  );
+
   return (
     <section className="card tk-rules" aria-label="Meine Regeln und Ziele">
       <h2>Meine Regeln und Ziele</h2>
@@ -151,12 +169,9 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
         </div>
       )}
       <div className="tk-row">
-        {SPORTS.map((s) => (
-          <label key={s}>{SPORT_LABEL[s]} <select value={goal.sports[s] ?? ''} onChange={(e) => setPrio(s, e.target.value)}>
-            <option value="">–</option>
-            {(Object.keys(PRIO_LABEL) as Prio[]).map((p) => <option key={p} value={p}>{PRIO_LABEL[p]}</option>)}
-          </select></label>
-        ))}
+        {SPORTS.filter(shown).map(sportSelect)}
+        {SPORTS.some((s) => !shown(s)) && <button type="button" className="ghost tk-small" aria-expanded={moreSports} onClick={() => setMoreSports(!moreSports)}>Weitere Sportarten</button>}
+        {moreSports && SPORTS.filter((s) => !shown(s)).map(sportSelect)}
       </div>
       {rules.length === 0 ? <p className="muted">Noch keine Regeln. Schreib dem Coach „künftig …“ oder füge eine hinzu.</p> : (
         <ul className="tk-rule-list">

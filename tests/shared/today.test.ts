@@ -84,3 +84,17 @@ describe('todayAdvice', () => {
     expect(r[TODAY]).toEqual({ date: TODAY, hardness: 'hard', legs: true, minutes: 70, sports: ['bike', 'gym'] });
   });
 });
+
+describe('done today', () => {
+  const trained = rated([TODAY, { date: TODAY, hardness: 'moderate', legs: false, minutes: 50, sports: ['gym'] }]);
+  it('trained today and the evening: rest, done', () => {
+    expect(todayAdvice(base({ ratings: trained, hour: 18, planDay: planDay({ sport: 'bike' }) })))
+      .toMatchObject({ sport: 'rest', done: true, reason: 'weil du heute schon trainiert hast', fromPlan: false });
+  });
+  it('before the hour, without training or without an hour it stays as it was', () => {
+    expect(todayAdvice(base({ ratings: trained, hour: 17, planDay: planDay({ sport: 'bike' }) })).done).toBeUndefined();
+    expect(todayAdvice(base({ ratings: trained, planDay: planDay({ sport: 'bike' }) })).done).toBeUndefined();
+    const none = rated([TODAY, { date: TODAY, hardness: null, legs: false, minutes: 0 }]);
+    expect(todayAdvice(base({ ratings: none, hour: 21, planDay: planDay({ sport: 'bike' }) })).done).toBeUndefined();
+  });
+});

@@ -17,6 +17,8 @@ export type TodayInput = {
   goal: { sports: Partial<Record<SportKey, Prio>> };
   frame: { mode: PlanMode };
   readiness?: { restingHrRaised?: boolean };
+  /** Local hour of the day (0-23). From the register's done-after hour on, a day already trained is done. */
+  hour?: number;
 };
 
 export type TodayAdvice = {
@@ -31,6 +33,8 @@ export type TodayAdvice = {
   fromPlan: boolean;
   /** false: a strength session today leaves the legs out (the plan day says so, or the legs are tired). */
   legs?: boolean;
+  /** True when today is already trained and the day is over for training: rest, nothing more to do. */
+  done?: true;
 };
 
 const SPORT_KEYS: readonly SportKey[] = ['gym', 'bike', 'run'];
@@ -55,6 +59,11 @@ export function todayAdvice(input: TodayInput): TodayAdvice {
   const { date, ratings, goal } = input;
   const before = (n: number): DayRating | undefined => ratings[addDays(date, -n)];
   const legsHardYesterday = before(1)?.legs === true && before(1)?.hardness === 'hard';
+  if (input.hour !== undefined && ratings[date]?.hardness != null && input.hour >= ruleNumber('today.done-after-hour')) {
+    const reason = 'weil du heute schon trainiert hast';
+    const label = wordsOf(date, REST, false);
+    return { sport: 'rest', hardness: 'easy', label, reason, line: `${label} – ${reason}`, fromPlan: false, done: true };
+  }
   const plan = input.frame.mode === 'week' ? input.planDay ?? null : null;
 
   // The starting point: the plan day, else the sport done least recently, at moderate.

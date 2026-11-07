@@ -1,6 +1,6 @@
 import {
   addExercise, addSet, confirmSet, editSet, finish, hereKey, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
-  durationLabel, linkWith, currentSet, supersetPartners, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes, setStudio,
+  durationLabel, linkWith, currentSet, supersetPartners, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, setRest, restRemainingS, ensureIds, editNotes, setStudio,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
 import { studioRecord, studioStateOf } from '../../src/shared/studio';
@@ -410,5 +410,16 @@ describe('weights fit the studio you chose', () => {
   test('a workout not started from a plan is not refitted', () => {
     const w = addExercise({ ...startEmpty(1, 'e'), studio: 'Alt' }, bench, hist);
     expect(setStudio(w, 'Neu', { history: hist })).toEqual({ ...w, studio: 'Neu' });
+  });
+});
+
+describe('rest on swap', () => {
+  const alt = { id: 'pf-chest-press-machine', title: 'Brustpresse', type: 'weight_reps', primaryMuscle: 'chest', equipment: 'machine' };
+  test('a rest the person set survives a swap, a planned one does not', () => {
+    const w = startFromPlan(plan, [], 10, 'w1');
+    expect(swapExercise(w, ex0(w), alt, []).exercises[0].restS).toBeUndefined();
+    const own = setRest(w, ex0(w), 90);
+    const s = swapExercise(own, ex0(own), alt, []);
+    expect(s.exercises[0]).toMatchObject({ exerciseId: 'pf-chest-press-machine', restS: 90, restByUser: true });
   });
 });

@@ -168,3 +168,16 @@ describe('replan key and exact-title exclusion', () => {
     expect(ruleWorkout(ctx).workout.exercises.map((e) => e.templateId)).not.toContain(hevy.id);
   });
 });
+
+describe('taken changes in the personal key', () => {
+  const change = (state: 'taken' | 'proposed' | 'used' | 'undone') => ({ kind: 'change' as const, id: 'chg-m1', updatedMs: 5, deleted: false,
+    body: { target: 'next', ops: [{ op: 'drop', exerciseId: 'pf-squat' }], reason: 'x', state, atMs: 1 } });
+  it('a taken change changes the key at once; proposed does not; using it is one more change', () => {
+    const base = personalKeyOf([], [], [], '2026-11-07', []);
+    expect(personalKeyOf([], [], [], '2026-11-07', [change('proposed')])).toBe(base);
+    const taken = personalKeyOf([], [], [], '2026-11-07', [change('taken')]);
+    expect(taken).not.toBe(base);
+    expect(personalKeyOf([], [], [], '2026-11-07', [change('used')])).toBe(base);
+    expect(personalKeyOf([], [], [], '2026-11-07', [change('undone')])).toBe(base);
+  });
+});

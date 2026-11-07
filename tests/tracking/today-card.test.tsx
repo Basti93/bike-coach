@@ -34,3 +34,12 @@ test('a run day names the planned run when the run coach has one', () => {
   expect(screen.getByText("Lauf: 35 Minuten locker")).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Zum Laufen' })).toBeTruthy();
 });
+
+test('trained today, in the evening: one line, done', async () => {
+  const { fakePort } = await import('./fake-port');
+  const at = new Date(2026, 10, 4, 19).getTime();
+  const w: TrackedRecord = { kind: 'workout', id: 'w1', updatedMs: 1, deleted: false, body: { id: 'w1', title: 'T', startMs: at - 3_600_000, endMs: at - 600_000, source: 'pandafit', exercises: [] } };
+  const { port } = fakePort([w]);
+  render(<TodayCard port={port} weekplans={[plan(['rest', 'rest', 'bike'])]} runs={[]} nowMs={at} gym={<p>Gym</p>} />);
+  expect((await screen.findByRole('heading')).textContent).toBe('Heute erledigt – gut gemacht.');
+});

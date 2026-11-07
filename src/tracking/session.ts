@@ -17,7 +17,7 @@ import type { GymExercise, GymWorkout } from '../coach/gym/types';
  * `prefillKg`: the weight put in at the start or at the last studio change. A set whose weight still equals `prefillKg` was not edited.
  */
 export type TrackedSet = LoggedSet & { rid: string; repRange?: { start: number; end: number }; plannedReps?: number; plannedKg?: number | null; prefillKg?: number | null };
-export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; timed?: boolean; swappedIn?: true };
+export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; restByUser?: true; timed?: boolean; swappedIn?: true };
 /** Stored as the record body. `rest` keeps the timer start, so a reload continues it. Rows have stable ids (`rid`). */
 /** `planStudio`: the studio the plan's weights were made for (a bucket key), kept so a studio change can refit them. */
 export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null; planStudio?: string };
@@ -238,7 +238,7 @@ export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: nu
 /** Adds the extension (30 s) to the running rest. No rest running changes nothing. */
 export const extendRest = (w: TrackedWorkout, s: number = restExtendS()): TrackedWorkout => (w.rest ? { ...w, rest: { ...w.rest, durationS: w.rest.durationS + s } } : w);
 /** Sets the rest of one exercise (one of the offered choices); the next confirmed set uses it. */
-export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s })) : w);
+export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s, restByUser: true as const })) : w);
 export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: null }));
   return next === w ? w : { ...next, rest: null };
@@ -279,7 +279,7 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   if (i < 0) return w;
   const old = w.exercises[i];
   const doneSets = old.sets.filter(isDone);
-  const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true };
+  const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true, ...(old.restByUser && old.restS != null ? { restS: old.restS, restByUser: true as const } : {}) };
   const exercises = [...w.exercises];
   if (!doneSets.length) exercises.splice(i, 1, fresh);
   else {

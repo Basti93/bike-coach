@@ -43,6 +43,8 @@ export const RULES: PolicyRule[] = [
   // What fits today (src/shared/today.ts): own product choices.
   r('today.hard-days-in-row', 'planner', 'product', 'checked', 'Nach zwei harten Tagen hintereinander ist der nächste Tag locker.', 'Heutiger Vorschlag', active, { value: 2, unit: 'Tage', where: ['src/shared/today.ts'] }),
   r('today.rest-after-days', 'planner', 'product', 'checked', 'Nach 6 Tagen ohne Pause ist heute ein Ruhetag.', 'Heutiger Vorschlag', active, { value: 6, unit: 'Tage', where: ['src/shared/today.ts'] }),
+  r('today.done-after-hour', 'planner', 'product', 'checked', 'Ab 18 Uhr gilt ein Tag, an dem schon trainiert wurde, als erledigt.', 'Heutiger Vorschlag', active, { value: 18, unit: 'Uhr', where: ['src/shared/today.ts'] }),
+  r('goal.used-sports-days', 'planner', 'product', 'checked', 'Bei den Sportarten im Ziel zeigt die Karte die, in denen in den letzten 90 Tagen etwas war.', 'Zielkarte', active, { value: 90, unit: 'Tage', where: ['src/tracking/ui/RulesCard.tsx'] }),
 
   // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
   r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
