@@ -31,8 +31,8 @@ import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
-import { defaultStudio, knownStudios, studioName, studioStateOf } from '../../shared/studio';
-import { rememberStudio, renameStudio } from '../studios';
+import { defaultStudio, knownStudios, resolveStudio, studioName, studioStateOf } from '../../shared/studio';
+import { hideStudio, rememberStudio, removeStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
 import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
@@ -40,7 +40,11 @@ import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
 const NEW_STUDIO = '\u0000new';
 
 /** One light line: "Studio: <Name>" with a select of the known names and "Neues Studio …", which opens a text input. */
-function StudioLine({ value, known, onChange, onRename }: { value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void }) {
+function StudioLine({ value, known, onChange, onRename, onAway }: {
+  value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void;
+  /** Takes the studio out of the picker: removed for good when `used` is false (no workout has it), else only hidden. Without it, no such button. */
+  onAway?: { used: boolean; run: (name: string, used: boolean) => void };
+}) {
   const [typing, setTyping] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const names = value && !known.includes(value) ? [value, ...known] : known;
@@ -57,6 +61,7 @@ function StudioLine({ value, known, onChange, onRename }: { value: string | unde
           <option value={NEW_STUDIO}>Neues Studio …</option>
         </select>
       {value && !typing && !renaming && <button type="button" className="secondary" onClick={() => setRenaming(true)}>Umbenennen</button>}
+      {value && !typing && !renaming && onAway && <button type="button" className="secondary" onClick={() => onAway.run(value, onAway.used)}>{onAway.used ? 'Ausblenden' : 'Entfernen'}</button>}
       {renaming && (
         <input type="text" aria-label="Neuer Name des Studios" maxLength={40} autoFocus defaultValue={value}
           onBlur={(e) => commitRename(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); if (e.key === 'Escape') setRenaming(false); }} />
@@ -94,9 +99,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const excluded = useExcluded(port);
   const statsRecords = usePortRecords(port, 'stats').records;
   const loadSteps = usePortRecords(port, 'loadstep').records;
-  const overrides = useMemo(() => loadStepOverrides(loadSteps ?? []), [loadSteps]);
   const studioRecords = usePortRecords(port, 'studio').records;
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
+  const overrides = useMemo(() => loadStepOverrides(loadSteps ?? [], studios.renames), [loadSteps, studios]);
   const studioHere = hereKey(w, [...history], studios);
   const chooseStep = (exerciseId: string, stepKg: number | null) => {
     void port.list('loadstep').then((stored) => port.put(stepChange(stored, exerciseId, studioHere, stepKg, now()))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.'));
@@ -184,7 +189,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
     <div className="tk-screen" ref={screenRef}>
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
-      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '')); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
+      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks, studios.hidden)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '', { history, catalog, studios, overrides })); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
         onRename={(from, to) => { void renameStudio(port, from, to, now()).then(() => act((x) => setStudio(x, to))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }} />
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
@@ -389,6 +394,14 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
   const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
   const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
+  // A studio with workouts is hidden (they keep it), one without is removed. Another known studio takes its place.
+  const awayStudio = (name: string, used: boolean) => {
+    const gone = resolveStudio(name, studios.renames).toLowerCase();
+    const other = knownStudios(logged, studios.renames, studios.picks, studios.hidden).find((n) => n.toLowerCase() !== gone);
+    setChosen(other);
+    void (used ? hideStudio(port, name, now()) : removeStudio(port, name, now()))
+      .then(() => (other ? rememberStudio(port, other, now() + 1) : undefined)).catch(saveFailed);
+  };
 
   async function begin(w: TrackedWorkout, startNotice: string | null = null): Promise<boolean> {
     if (starting.current) return false; // a double tap makes one workout
@@ -406,9 +419,9 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // finished one whose mark got lost is made up here.
   // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
-    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]), excludedNow: ReadonlySet<string> = new Set();
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([], studios.renames), excludedNow: ReadonlySet<string> = new Set();
     try { excludedNow = excludedIds(await port.list('rule')); } catch { /* start without them */ }
-    try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
+    try { overrides = loadStepOverrides(await port.list('loadstep'), studios.renames); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
     let skipped: string[] = [];
     const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded: excludedNow, onSkipped: (l) => { skipped = l; } });
     if (!(await begin(w, skipped.length ? skipped.join(' ') : null))) return;
@@ -454,7 +467,8 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
       {message && <p role="status" className="tk-note">{message}</p>}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks)}
+      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks, studios.hidden)}
+        onAway={studio ? { used: logged.some((x) => x.studio && resolveStudio(x.studio, studios.renames).toLowerCase() === resolveStudio(studio, studios.renames).toLowerCase()), run: awayStudio } : undefined}
         onChange={(n) => { setChosen(n); if (n) void rememberStudio(port, n, now()).catch(saveFailed); }}
         onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
       {plan && (

@@ -2,9 +2,9 @@ import { contiguousGroups } from '../../shared/superset';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate, GymExercise, GymSet, GymWorkout } from './types';
 import { MAX_EXERCISES, MAX_FAILURE_SETS, MAX_SETS, MAX_WIDOWMAKERS } from './limits';
-import { availableExercises, isAssisted, LEG_MUSCLES, isRepBased, ladderFor, suggestNext } from './history';
+import { availableExercises, isAssisted, LEG_MUSCLES, isRepBased, ladderFor, plannedKey, suggestNext } from './history';
 import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
-import type { Renames } from '../../shared/studio';
+import { studioName, type Renames } from '../../shared/studio';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { isExcluded } from '../../shared/excluded';
 import { EXERCISES, type Exercise } from '../../shared/exercises';
@@ -135,7 +135,9 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const known = new Set(avail.map((a) => a.templateId));
     const recentEquipment = new Set(avail.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
     parsed.forEach((p) => checkExercise(p.ex, p.template, ctx, recentEquipment, known));
-    const workout = { name: raw.name.trim(), exercises: contiguousGroups(exercises) };
+    // The weights are for this studio's equipment; the app uses it to refit them when another studio is chosen. Never taken from the answer.
+    const studio = studioName(plannedKey(ctx.workouts, ctx));
+    const workout: GymWorkout = { name: raw.name.trim(), exercises: contiguousGroups(exercises), ...(studio ? { studio } : {}) };
     if (ctx.budgetMinutes !== undefined && gymMinutes(workout, ctx.catalog ?? EXERCISES) > gymLimit(ctx.budgetMinutes)) return no(`zu lang für deine Zeit: ca. ${gymMinutes(workout, ctx.catalog ?? EXERCISES)} Min bei höchstens ${ctx.budgetMinutes}`);
     return { ok: true, workout };
   } catch (e) {

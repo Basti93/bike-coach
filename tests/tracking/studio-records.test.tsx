@@ -64,3 +64,32 @@ describe('studio records on the start screen', () => {
     expect(screen.queryByRole('option', { name: 'Beta' })).toBeNull();
   });
 });
+
+describe('removing and hiding studios', () => {
+  test('a studio without workouts is removed: its records are tombstoned and it is gone after a remount', async () => {
+    const f = fakePort([past('a', 1000, 'Alpha'), studioRecord('Leer', 5000, 5000)]);
+    await start(f);
+    await waitFor(() => expect(select().value).toBe('Leer'));
+    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
+    await waitFor(() => expect(f.state.puts.some((r) => r.kind === 'studio' && r.deleted)).toBe(true));
+    expect(f.state.puts.some((r) => r.kind === 'workout')).toBe(false);
+    cleanup();
+    await start(f);
+    await waitFor(() => expect(select().value).toBe('Alpha'));
+    expect(screen.queryByRole('option', { name: 'Leer' })).toBeNull();
+  });
+
+  test('a studio with workouts is hidden: not offered any more, the workout keeps it', async () => {
+    const f = fakePort([past('a', 1000, 'Alpha'), past('b', 2000, 'Beta')]);
+    await start(f);
+    await waitFor(() => expect(select().value).toBe('Beta'));
+    expect(screen.queryByRole('button', { name: 'Entfernen' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ausblenden' }));
+    await waitFor(() => expect(f.state.puts.some((r) => r.kind === 'studio' && (r.body as { hidden?: boolean }).hidden === true)).toBe(true));
+    cleanup();
+    await start(f);
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Beta' })).toBeNull());
+    expect(select().value).toBe('Alpha');
+    expect((f.map.get('workout:b')!.body as LoggedWorkout).studio).toBe('Beta');
+  });
+});

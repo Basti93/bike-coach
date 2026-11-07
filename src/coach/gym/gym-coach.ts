@@ -158,7 +158,7 @@ export class GymCoach {
   }
   private loadSteps(id: string): LoadStepOverrides {
     if (this.deps.loadSteps) return this.deps.loadSteps(id);
-    return this.deps.store ? loadStepsOf(this.deps.store, id) : new Map();
+    return this.deps.store ? loadStepsOf(this.deps.store, id, this.studios(id).renames) : new Map();
   }
   /** The studio the plan is for: the one of the newest own workout. Undefined when none is known. */
   studio(id: string): string | undefined { const s = this.studios(id); return defaultStudio(this.logged(id), s.renames, s.picks); }

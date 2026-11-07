@@ -60,7 +60,7 @@ type Sets = StrengthWorkout['exercises'][number]['workSets'];
 type Session = { ms: number; weightKg: number | null; minReps: number; sets: number[]; effort?: Effort };
 
 /** The bucket the plan is for. No studio known means the main studio, or the one shared bucket. */
-const plannedKey = (workouts: StrengthWorkout[], plan: Plan | undefined): string => (plan?.studio ? resolveStudio(plan.studio, plan.renames) : undefined) ?? mainStudio(workouts, plan?.renames) ?? '';
+export const plannedKey = (workouts: StrengthWorkout[], plan: Plan | undefined): string => (plan?.studio ? resolveStudio(plan.studio, plan.renames) : undefined) ?? mainStudio(workouts, plan?.renames) ?? '';
 
 /** The exercise's sessions in the planned studio only, oldest first. Several occurrences in one workout are one session. */
 function occurrences(templateId: string, workouts: StrengthWorkout[], nowMs: number, plan: Plan | undefined): { ms: number; sets: Sets; effort?: Effort }[] {

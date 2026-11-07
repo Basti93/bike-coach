@@ -1,6 +1,6 @@
 import {
   addExercise, addSet, confirmSet, editSet, finish, hereKey, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
-  durationLabel, linkWith, currentSet, supersetPartners, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
+  durationLabel, linkWith, currentSet, supersetPartners, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes, setStudio,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
 import { studioRecord, studioStateOf } from '../../src/shared/studio';
@@ -361,5 +361,54 @@ describe('renamed studios in the app', () => {
     const ladder = (renames: typeof studios.renames) => stepHere('pf-squat', 'machine', [past('a', 10, 'Alpha', 60), past('c', 15, 'Alpha', 62.5), past('b', 20, 'Beta', 40)], 'Neu', new Map(), renames);
     expect(ladder(studios.renames).stepKg).toBe(2.5);
     expect(ladder(new Map()).stepKg).not.toBe(2.5);
+  });
+});
+
+describe('weights fit the studio you chose', () => {
+  const bench = EXERCISES.find((e) => e.id === 'pf-bench-press')!;
+  const mk = (kg: number | null, repRange = { start: 8, end: 12 }) => ({ name: 'P', studio: 'Alt', exercises: [{ templateId: 'pf-bench-press', title: 'B', restS: null, supersetId: null, notes: '', sets: [
+    { type: 'normal' as const, weightKg: kg, reps: null, repRange }, { type: 'normal' as const, weightKg: kg, reps: null, repRange }] }] });
+  const hist = [
+    past('a', 9000, 'pf-bench-press', [done(60, 10), done(60, 10)], { studio: 'Alt' }),
+    past('b', 8000, 'pf-bench-press', [done(30, 10), done(35, 10)], { studio: 'Neu' }),
+  ];
+  const kgs = (w: ReturnType<typeof startFromPlan>) => w.exercises[0].sets.map((s) => s.weightKg);
+
+  test('another studio takes its own last weight, the reps stay from the plan', () => {
+    const w = startFromPlan(mk(60), hist, 10, 'w', undefined, 'Neu');
+    expect(kgs(w)).toEqual([30, 35]);
+    expect(w.exercises[0].sets.map((s) => s.reps)).toEqual([8, 8]);
+  });
+  test('without own history the plan weight is snapped down to the studio\'s ladder', () => {
+    const only = [past('a', 9000, 'pf-bench-press', [done(60, 10)], { studio: 'Alt' })];
+    const kg = (overrides?: Map<string, number>) => startFromPlan(mk(63), only, 10, 'w', undefined, 'Neu', undefined, { changes: [], workouts: [], ...(overrides ? { overrides } : {}) }).exercises[0].sets[0].weightKg;
+    expect(kg()).toBe(62.5); // the barbell's default step from the bar
+    expect(kg(new Map([['pf-bench-press|Neu', 5]]))).toBe(60); // the person's step in that studio
+    expect(kg(new Map([['pf-bench-press|Alt', 5]]))).toBe(62.5); // another studio's step does not count
+  });
+  test('the same studio changes nothing', () => {
+    expect(kgs(startFromPlan(mk(50), hist, 10, 'w', undefined, 'Alt'))).toEqual([50, 50]);
+    expect(kgs(startFromPlan({ ...mk(50), studio: undefined }, hist, 10, 'w', undefined, 'Neu'))).toEqual([50, 50]);
+  });
+  test('a studio change mid-workout refits untouched exercises only', () => {
+    let w: ReturnType<typeof startFromPlan> = { ...startFromPlan(mk(60), hist, 10, 'w', undefined, 'Alt'), studio: 'Alt' };
+    expect(kgs(w)).toEqual([60, 60]);
+    // the rider typed 62.5 into the first set
+    w = editSet(w, ex0(w), set0(w, 0), { weightKg: 62.5 });
+    const fit = { history: hist };
+    const moved = setStudio(w, 'Neu', fit);
+    expect(moved.studio).toBe('Neu');
+    expect(kgs(moved as never)).toEqual([62.5, 35]); // the edited set stays, the untouched one follows
+    // back again: the untouched set returns to the plan weight
+    expect(kgs(setStudio(moved, 'Alt', fit) as never)).toEqual([62.5, 60]);
+    // a confirmed set freezes the exercise
+    const done1 = confirmSet(w, ex0(w), set0(w, 1), 20);
+    expect(kgs(setStudio(done1, 'Neu', fit) as never)).toEqual([62.5, 60]);
+    // without the fit nothing but the name changes
+    expect(kgs(setStudio(w, 'Neu') as never)).toEqual([62.5, 60]);
+  });
+  test('a workout not started from a plan is not refitted', () => {
+    const w = addExercise({ ...startEmpty(1, 'e'), studio: 'Alt' }, bench, hist);
+    expect(setStudio(w, 'Neu', { history: hist })).toEqual({ ...w, studio: 'Neu' });
   });
 });
