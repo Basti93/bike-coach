@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { feelAsked, RunFeelQuestion } from './RunFeel';
 import { ReviewList } from './RunLookBack';
-import { Row, RowList, Sheet, Switch } from './kit';
+import { PageHead, Row, RowList, Sheet, Switch } from './kit';
 import { shortDateOfKey } from '../../shared/dates';
 import type { TrackedRecord } from '../../shared/records';
 import { manualRunId, paceText, runSendId, weekFp, type PlannedRun, type RunGarmin, type RunNumbers, type RunSendBody, type RunFeelBody, runFeelId, type RunWeekBody, type RunReviewBody, type ManualRunBody } from '../../shared/run';
@@ -232,7 +232,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
 
   return (
     <div className="tk-screen tk-run">
-      <h1 className="tk-title">Laufen</h1>
+      <PageHead title="Laufen" />
       {status.suggest && !status.on && <Suggestion onAnswer={(on) => { void writeSettings(port, all, now(), (old) => ({ type: 'settings', on, weekdays: old?.weekdays ?? null, answers: old?.answers ?? null })).catch(() => {}); }} />}
       {status.on && firstQuestions && <Questions suggested={status.suggestedDays} saved={view.settings ?? null} onSave={saveSettings} />}
       {status.on && paused && <p role="status" className="tk-note">{PAUSE}</p>}

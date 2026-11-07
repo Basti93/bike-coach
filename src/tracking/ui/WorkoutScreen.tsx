@@ -232,6 +232,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
               <button type="button" className="link tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => { if (menu !== e.rid) setOpenRid(e.rid); setMenu(menu === e.rid ? null : e.rid); }}>⋯</button>
             </div>
             {menu === e.rid && (
+              <Sheet size="small" title={e.title} onClose={() => setMenu(null)}>
               <ul className="tk-rows tk-menu" aria-label={`Menü ${e.title}`}>
                 {item('Satz hinzufügen', () => { setMenu(null); act((x) => addSet(x, e.rid)); }, { aria: `Satz hinzufügen ${e.title}` })}
                 {warmupOffered && item('Aufwärmen hinzufügen', () => { setMenu(null); act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog)); }, { aria: `Aufwärmen hinzufügen ${e.title}` })}
@@ -249,6 +250,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                 <li className="tk-rowitem"><button type="button" className="danger-link" aria-label={`${e.title} entfernen`}
                   onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button></li>
               </ul>
+              </Sheet>
             )}
             {removing === e.rid && (
               <p className="tk-note">
@@ -298,7 +300,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         </div>
       )}
       {topMenu && (
-        <Sheet title="Training" onClose={() => setTopMenu(false)}>
+        <Sheet size="small" title="Training" onClose={() => setTopMenu(false)}>
           <ul className="tk-rows">
             <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setStudioOpen(true); }}><span className="tk-row-title">Studio wechseln</span><span className="tk-row-value muted">{w.studio ?? '–'}</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
             <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setCoachAsk((n) => n + 1); }}><span className="tk-row-title">Coach fragen</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
@@ -522,7 +524,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, resume = fals
           onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
       )}
       {others && (
-        <Sheet title="Anderes Training" onClose={() => setOthers(false)}>
+        <Sheet size="small" title="Anderes Training" onClose={() => setOthers(false)}>
           <ul className="tk-rows">
             {routines.map((r) => {
               const body = r.body as GymWorkout;

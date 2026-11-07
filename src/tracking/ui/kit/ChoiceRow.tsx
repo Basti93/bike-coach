@@ -13,7 +13,7 @@ export function ChoiceRow<T extends string | number>({ label, value, options, on
         <span className="tk-chevron" aria-hidden="true">›</span>
       </button>
       {open && (
-        <Sheet title={label} onClose={() => setOpen(false)}>
+        <Sheet size="small" title={label} onClose={() => setOpen(false)}>
           <ul className="tk-rows">
             {options.map((o) => (
               <li key={String(o.value)} className="tk-rowitem">

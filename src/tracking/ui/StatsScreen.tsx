@@ -9,7 +9,7 @@ import { dateLabel } from './labels';
 import { MuscleIcon } from './MuscleIcon';
 import { progressRows, type ProgressRow } from '../progress';
 import { runView } from './run-view';
-import { Row, RowList, Sheet } from './kit';
+import { PageHead, Row, RowList, Sheet } from './kit';
 
 const SPORT_LABEL: Record<Sport, string> = { bike: 'Rad', strength: 'Kraft', run: 'Laufen', mobility: 'Mobility', other: 'Andere' };
 const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
@@ -161,10 +161,7 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
   const hasDetails = minutes || muscles || progress.length > 0 || v.unknown.length > 0;
   return (
     <div className="tk-screen">
-      <div>
-        <h1 className="tk-title">Statistik</h1>
-        <p className="muted">{v.asOfMs !== null ? `Stand: ${dateLabel(v.asOfMs)}` : 'Minuten und harte Tage erscheinen nach dem nächsten Lauf des Coaches.'}</p>
-      </div>
+      <PageHead title="Statistik" subtitle={v.asOfMs !== null ? `Stand: ${dateLabel(v.asOfMs)}` : 'Minuten und harte Tage erscheinen nach dem nächsten Lauf des Coaches.'} />
       <ThisWeek v={v} sentence={sentence} muscles={muscles} />
       {hasDetails && <RowList><Row title="Details" onClick={() => setDetails(true)} /></RowList>}
       {details && (

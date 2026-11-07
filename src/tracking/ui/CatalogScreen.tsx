@@ -94,7 +94,7 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
         })}
       </RowList>
       {asking && (
-        <Sheet title="Nicht mehr vorschlagen" onClose={() => setAsking(null)}>
+        <Sheet size="small" title="Nicht mehr vorschlagen" onClose={() => setAsking(null)}>
           <RowList>
             <Row title="Nur diese Übung" onClick={() => { const e = asking; setAsking(null); void exclude(e); }} />
             <Row title={`Alle Varianten (${familyLabel(askFam)})`} onClick={() => { const e = asking; setAsking(null); void exclude(e, askFam); }} />

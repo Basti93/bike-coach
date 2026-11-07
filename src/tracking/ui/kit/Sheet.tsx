@@ -2,14 +2,37 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
- * Full screen on the phone: title, × top right, the body, and a sticky bottom area for the primary button.
+ * Full screen on the phone (size "small": a bottom sheet of auto height, at most 70 %, over a dimmed backdrop, for short option lists): title, × top right, the body, and a sticky bottom area for the primary button.
  * The page behind does not scroll. Escape, ×, and the browser's Back all call `onClose`. Focus goes to the sheet and returns afterwards.
  * Render it only while it is open: `{open && <Sheet …/>}`.
  */
 /** Open sheets, the newest last: Escape and Back only close the top one, so a sheet may open another (a picker inside a form). */
 const stack: string[] = [];
 
-export function Sheet({ title, onClose, children, actions }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
+/**
+ * A sheet that closes gives its history entry back with history.back(), which finishes later. A sheet that opens in the same commit
+ * must not push its own entry before that: the late "back" would then pop the new sheet. So a pending back is counted, the popstate
+ * it causes is swallowed by every sheet, and a new sheet pushes its entry only after it.
+ */
+let pendingBacks = 0;
+let swallowing = false;
+const afterBacks: (() => void)[] = [];
+const flushAfterBacks = () => { if (pendingBacks === 0) afterBacks.splice(0).forEach((f) => f()); };
+const giveBack = () => {
+  pendingBacks++;
+  try { history.back(); } catch { pendingBacks--; return; }
+  setTimeout(() => { if (pendingBacks > 0) { pendingBacks = 0; flushAfterBacks(); } }, 500); // no popstate came: do not wait forever
+};
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => { // registered first, so it runs before any sheet's own listener
+    if (pendingBacks === 0) return;
+    pendingBacks--;
+    swallowing = true;
+    setTimeout(() => { swallowing = false; flushAfterBacks(); }, 0);
+  });
+}
+
+export function Sheet({ title, onClose, children, actions, size = 'full' }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; size?: 'full' | 'small' }) {
   const id = useId();
   const box = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -24,29 +47,36 @@ export function Sheet({ title, onClose, children, actions }: { title: string; on
     stack.push(id);
     const mark = { sheet: id };
     let popped = false;
-    try { history.pushState(mark, ''); } catch { /* no history: Escape and × still work */ }
-    const onPop = () => { if ((history.state as { sheet?: string } | null)?.sheet === id) return; popped = true; close.current(); };
+    let pushed = false;
+    let gone = false;
+    const push = () => { if (gone) return; try { history.pushState(mark, ''); pushed = true; } catch { /* no history: Escape and × still work */ } };
+    if (pendingBacks > 0) afterBacks.push(push); else push();
+    const onPop = () => { if (swallowing || !pushed || (history.state as { sheet?: string } | null)?.sheet === id) return; popped = true; close.current(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && stack[stack.length - 1] === id) { e.stopPropagation(); close.current(); } };
     window.addEventListener('popstate', onPop);
     document.addEventListener('keydown', onKey);
     return () => {
+      gone = true;
       stack.splice(stack.indexOf(id), 1);
       window.removeEventListener('popstate', onPop);
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
-      if (!popped && (history.state as { sheet?: string } | null)?.sheet === id) history.back();
+      if (!popped && pushed && (history.state as { sheet?: string } | null)?.sheet === id) giveBack();
       before?.focus();
     };
   }, [id]);
 
   return createPortal(
-    <div className="tk-screen tk-sheet" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} tabIndex={-1} ref={box}>
+    <div className={`tk-screen tk-sheet${size === 'small' ? ' tk-sheet-small' : ''}`} role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} tabIndex={-1} ref={box}>
+      {size === 'small' && <div className="tk-sheet-backdrop" aria-hidden="true" onClick={onClose} />}
+      <div className="tk-sheet-panel">
       <header className="tk-sheet-head">
         <h2 id={`${id}-t`}>{title}</h2>
         <button type="button" className="link tk-sheet-x" aria-label="Schließen" onClick={onClose}>×</button>
       </header>
       <div className="tk-sheet-body">{children}</div>
       {actions && <footer className="tk-sheet-actions">{actions}</footer>}
+      </div>
     </div>,
     document.body,
   );

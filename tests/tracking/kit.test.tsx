@@ -31,12 +31,50 @@ test('the sheet opens with focus on it, locks the page behind, and closes on × 
   expect(closed).toHaveBeenCalledTimes(2);
 });
 
+/** The history of an earlier test (a closed sheet gives its entry back a moment later) has settled. */
+const settled = () => new Promise((r) => setTimeout(r, 60));
+
 test('the browser Back closes the sheet', async () => {
+  await settled();
   render(<Opener />);
   fireEvent.click(screen.getByRole('button', { name: 'Öffnen' }));
   expect(screen.getByRole('dialog')).toBeTruthy();
+  await waitFor(() => expect((history.state as { sheet?: string } | null)?.sheet).toBeTruthy()); // it has taken its history entry
   history.back();
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
+function Swap() {
+  const [which, setWhich] = useState<'a' | 'b' | null>(null);
+  return (
+    <>
+      <button type="button" onClick={() => setWhich('a')}>A öffnen</button>
+      {which === 'a' && <Sheet title="Blatt A" onClose={() => setWhich(null)}><button type="button" onClick={() => setWhich('b')}>Weiter zu B</button></Sheet>}
+      {which === 'b' && <Sheet title="Blatt B" onClose={() => setWhich(null)}><p>Inhalt B</p></Sheet>}
+    </>
+  );
+}
+
+test('closing one sheet while another opens in the same handler leaves the new one open; Back then closes it', async () => {
+  await settled();
+  render(<Swap />);
+  fireEvent.click(screen.getByRole('button', { name: 'A öffnen' }));
+  await waitFor(() => expect((history.state as { sheet?: string } | null)?.sheet).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Weiter zu B' }));
+  expect(screen.getByRole('dialog', { name: 'Blatt B' })).toBeTruthy();
+  await new Promise((r) => setTimeout(r, 120)); // the old sheet's history.back() has long arrived
+  expect(screen.getByRole('dialog', { name: 'Blatt B' })).toBeTruthy();
+  await waitFor(() => expect((history.state as { sheet?: string } | null)?.sheet).toBeTruthy());
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
+test('a small sheet is a dialog with a backdrop that closes it', () => {
+  const closed = vi.fn();
+  render(<Sheet size="small" title="Studio" onClose={closed}><p>Liste</p></Sheet>);
+  expect(screen.getByRole('dialog', { name: 'Studio' }).className).toContain('tk-sheet-small');
+  fireEvent.click(document.querySelector('.tk-sheet-backdrop')!);
+  expect(closed).toHaveBeenCalled();
 });
 
 test('a switch row toggles from its label and states its hint', () => {

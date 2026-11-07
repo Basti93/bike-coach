@@ -9,17 +9,18 @@ html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 /* The tab bar sits at the bottom, inside the safe area. The page keeps room for it, so it never covers the finish button. */
 :root { --web-nav-h: 3.6rem; }
-.web-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); gap: .2rem; padding: .3rem calc(.4rem + env(safe-area-inset-right)) calc(.3rem + env(safe-area-inset-bottom)) calc(.4rem + env(safe-area-inset-left)); background: var(--bg); border-top: 1px solid var(--line); }
+.web-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); gap: .1rem; padding: .3rem calc(.5rem + env(safe-area-inset-right)) calc(.3rem + env(safe-area-inset-bottom)) calc(.5rem + env(safe-area-inset-left)); background: var(--bg); border-top: 1px solid var(--line); }
 .web-nav button { font: inherit; font-size: .95rem; font-weight: 600; min-height: 48px; padding: .3rem .2rem; border-radius: .9rem; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 /* Up to eight tabs on a narrow phone: the label shrinks a little and never wraps. */
-.web-nav button { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: .1rem; padding-right: .1rem; }
+.web-nav button { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: .1rem; padding-right: .1rem; }
 @media (min-width: 560px) { .web-nav button { font-size: .95rem; } }
 .web-nav button[aria-current='page'] { background: var(--card); color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
 /* While a field has focus the keyboard is up: the bar steps aside instead of riding on top of it. */
 .web-nav-away { display: none; }
 .web-main { padding-top: env(safe-area-inset-top); padding-bottom: calc(var(--web-nav-h) + env(safe-area-inset-bottom) + 1.5rem); }
 .web-login label { display: flex; flex-direction: column; gap: .3rem; }
-.web-login { padding-top: calc(12vh + env(safe-area-inset-top)); gap: .75rem; }
+.web-login { padding-top: calc(28vh + env(safe-area-inset-top)); gap: .75rem; }
+.web-login button[type='submit'] { margin-top: .25rem; }
 /* Sticky pieces sit below the notch; the tab bar is at the bottom now. */
 .tk-rest { top: calc(env(safe-area-inset-top) + .4rem) !important; }
 .tk-picker { padding-top: calc(1rem + env(safe-area-inset-top)); padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
@@ -135,3 +136,7 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .tk-screen .tk-seg button[aria-pressed='true'] { background: var(--bg); color: var(--text); font-weight: 700; }
 /* The live workout header leaves room for the round profile button at the top right. */
 .web-main .tk-live-head { padding-right: 3.2rem; }
+/* A sheet covers everything: the round profile button steps aside while one is open. */
+body:has(.tk-sheet) .web-profile { display: none; }
+/* The title block leaves room for the round profile button at the top right. */
+.web-main .tk-pagehead, .web-main > .tk-screen > .tk-title { padding-right: 3.4rem; }
