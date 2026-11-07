@@ -43,6 +43,8 @@ export const RULES: PolicyRule[] = [
   // What fits today (src/shared/today.ts): own product choices.
   r('today.hard-days-in-row', 'planner', 'product', 'checked', 'Nach zwei harten Tagen hintereinander ist der nächste Tag locker.', 'Heutiger Vorschlag', active, { value: 2, unit: 'Tage', where: ['src/shared/today.ts'] }),
   r('today.rest-after-days', 'planner', 'product', 'checked', 'Nach 6 Tagen ohne Pause ist heute ein Ruhetag.', 'Heutiger Vorschlag', active, { value: 6, unit: 'Tage', where: ['src/shared/today.ts'] }),
+  r('today.done-after-hour', 'planner', 'product', 'checked', 'Ab 18 Uhr gilt ein Tag, an dem schon trainiert wurde, als erledigt.', 'Heutiger Vorschlag', active, { value: 18, unit: 'Uhr', where: ['src/shared/today.ts'] }),
+  r('goal.used-sports-days', 'planner', 'product', 'checked', 'Bei den Sportarten im Ziel zeigt die Karte die, in denen in den letzten 90 Tagen etwas war.', 'Zielkarte', active, { value: 90, unit: 'Tage', where: ['src/tracking/ui/RulesCard.tsx'] }),
 
   // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
   r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
@@ -58,6 +60,9 @@ export const RULES: PolicyRule[] = [
   r('run.weekly-growth-pct', 'run', 'product', 'checked', 'Die wöchentliche Laufzeit steigt höchstens um 10 %.', 'Laufprogression', replace(12, 'Einzelne Einheit und Wochenänderung unterscheiden; als eigene Vorsicht kennzeichnen.'), { value: 10, unit: '%', sourceIds: ['S25', 'S26'], where: ['src/coach/run/limits.ts'], scenarioIds: ['F13'] }),
   r('run.deload-every-4th', 'run', 'product', 'checked', 'Jede vierte Woche ist mit 70 % leichter.', 'Laufprogression', replace(12, 'Entlastung nach Leistung, Verfügbarkeit und Rückmeldung.'), { value: 0.7, where: ['src/coach/run/limits.ts'] }),
   r('run.test-every-days', 'run', 'product', 'checked', 'Ein Testlauf alle 28 Tage.', 'Laufkalibrierung', replace(12, 'Prüfintervall als Option, keine Schuld.'), { value: 28, unit: 'Tage', where: ['src/coach/run/limits.ts'] }),
+  r('run.feel-hold-count', 'run', 'product', 'checked', 'Haben sich die letzten 2 Läufe mit Rückmeldung beide schwer angefühlt, steigt der nächste Plan nicht: die Woche bleibt, wie sie ist.', 'Laufprogression', active, { value: 2, unit: 'Läufe', where: ['src/coach/run/limits.ts', 'src/coach/run/rules.ts'] }),
+  r('run.feel-window-days', 'run', 'product', 'checked', 'Nur Läufe der letzten 14 Tage zählen für die Rückmeldung.', 'Laufprogression', active, { value: 14, unit: 'Tage', where: ['src/coach/run/limits.ts'] }),
+  r('run.feel-ask-days', 'run', 'product', 'checked', 'Nach dem Lauf wird einmal gefragt, wie er war, bis 3 Tage danach.', 'Laufrückmeldung', active, { value: 3, unit: 'Tage', where: ['src/tracking/ui/RunFeel.tsx'] }),
   r('run.cross-sport-minutes', 'run', 'product', 'checked', 'Rad- und Gymminuten der Woche vermindern den Laufumfang.', 'Sportübergreifende Belastung', replace(6, 'Nachvollziehbare gemeinsame Kontextbewertung statt gleichwertiger Minuten.'), { where: ['src/coach/run'] }),
 
   // Agreed start values, not in effect before their task (foundation §4, §5, §6, §7).

@@ -31,8 +31,9 @@ import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
-import { defaultStudio, knownStudios, studioName, studioStateOf } from '../../shared/studio';
-import { rememberStudio, renameStudio } from '../studios';
+import { WorkoutSummary, pendingSummary, setPendingSummary } from './WorkoutSummary';
+import { defaultStudio, knownStudios, resolveStudio, studioName, studioStateOf } from '../../shared/studio';
+import { hideStudio, rememberStudio, removeStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
 import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
@@ -40,7 +41,11 @@ import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
 const NEW_STUDIO = '\u0000new';
 
 /** One light line: "Studio: <Name>" with a select of the known names and "Neues Studio …", which opens a text input. */
-function StudioLine({ value, known, onChange, onRename }: { value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void }) {
+function StudioLine({ value, known, onChange, onRename, onAway }: {
+  value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void;
+  /** Takes the studio out of the picker: removed for good when `used` is false (no workout has it), else only hidden. Without it, no such button. */
+  onAway?: { used: boolean; run: (name: string, used: boolean) => void };
+}) {
   const [typing, setTyping] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const names = value && !known.includes(value) ? [value, ...known] : known;
@@ -57,6 +62,7 @@ function StudioLine({ value, known, onChange, onRename }: { value: string | unde
           <option value={NEW_STUDIO}>Neues Studio …</option>
         </select>
       {value && !typing && !renaming && <button type="button" className="secondary" onClick={() => setRenaming(true)}>Umbenennen</button>}
+      {value && !typing && !renaming && onAway && <button type="button" className="secondary" onClick={() => onAway.run(value, onAway.used)}>{onAway.used ? 'Ausblenden' : 'Entfernen'}</button>}
       {renaming && (
         <input type="text" aria-label="Neuer Name des Studios" maxLength={40} autoFocus defaultValue={value}
           onBlur={(e) => commitRename(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); if (e.key === 'Escape') setRenaming(false); }} />
@@ -78,7 +84,7 @@ async function markUsed(port: TrackingPort, workouts: { id: string; changes?: { 
 }
 
 function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice, onLeave }: {
-  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; startNotice?: string | null; onLeave: (message: string) => void;
+  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; startNotice?: string | null; onLeave: (message: string, finishedId?: string) => void;
 }) {
   const { workout: w, save } = useStoreView(store);
   const [picker, setPicker] = useState<Picker>(null);
@@ -94,9 +100,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const excluded = useExcluded(port);
   const statsRecords = usePortRecords(port, 'stats').records;
   const loadSteps = usePortRecords(port, 'loadstep').records;
-  const overrides = useMemo(() => loadStepOverrides(loadSteps ?? []), [loadSteps]);
   const studioRecords = usePortRecords(port, 'studio').records;
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
+  const overrides = useMemo(() => loadStepOverrides(loadSteps ?? [], studios.renames), [loadSteps, studios]);
   const studioHere = hereKey(w, [...history], studios);
   const chooseStep = (exerciseId: string, stepKg: number | null) => {
     void port.list('loadstep').then((stored) => port.put(stepChange(stored, exerciseId, studioHere, stepKg, now()))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.'));
@@ -108,6 +114,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const [notice, setNotice] = useState<string | null>(startNotice ?? null);
   const [effortOn, setEffortOn] = useState(effortQuestionsOn);
   const pendingLeave = useRef<string | null>(null);
+  const finishedMsg = 'Training gespeichert. Gut gemacht.';
   useWakeLock(true);
   useTick(true); // the rest countdown and the total time
   // Leaving the screen: a clean store is let go, a dirty one keeps retrying in the registry until it is clean.
@@ -154,7 +161,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
 
   // A finish that could not be saved at first leaves the screen once a retry succeeds.
   useEffect(() => {
-    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; void markUsed(port, [w], now()); closeStore(port, store); onLeave(m); }
+    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; void markUsed(port, [w], now()); closeStore(port, store); onLeave(m, m === finishedMsg ? w.id : undefined); }
   }, [save, w]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
@@ -167,7 +174,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       const r = await store.finish(choice);
       if (r.status === 'ask') { leaving.current = false; setAsk(r); return; }
       setAsk(null);
-      const msg = r.status === 'discard' ? 'Das Training wurde verworfen.' : 'Training gespeichert. Gut gemacht.';
+      const msg = r.status === 'discard' ? 'Das Training wurde verworfen.' : finishedMsg;
       if (!r.saved) {
         if (r.status === 'finished') pendingLeave.current = msg; // stays here, calmly, until a retry works
         else leaving.current = false;
@@ -175,7 +182,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       }
       if (r.status === 'finished') await markUsed(port, [w], now());
       closeStore(port, store);
-      onLeave(msg);
+      onLeave(msg, r.status === 'finished' ? w.id : undefined);
     } finally { ending.current = false; }
   }
   useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -184,7 +191,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
     <div className="tk-screen" ref={screenRef}>
       <h1 className="tk-title">{w.title}</h1>
       <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
-      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '')); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
+      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks, studios.hidden)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '', { history, catalog, studios, overrides })); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
         onRename={(from, to) => { void renameStudio(port, from, to, now()).then(() => act((x) => setStudio(x, to))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }} />
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
@@ -378,6 +385,8 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const excluded = useExcluded(port);
   const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean; notice?: string | null } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [summaryId, setSummaryId] = useState<string | null>(pendingSummary);
+  const statsQ = usePortRecords(port, 'stats').records;
   const starting = useRef(false);
   const started = useRef<GymWorkout | null>(null);
   const history = finishedWorkouts(workouts);
@@ -388,7 +397,20 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const studioRecords = usePortRecords(port, 'studio').records;
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
   const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
+  const summary = summaryId ? logged.find((x) => x.id === summaryId && x.endMs !== null) ?? null : null;
+  const nextSteps = useMemo(() => {
+    const r = (statsQ ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+    return (r && readStats(r.body)?.next) || [];
+  }, [statsQ]);
   const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
+  // A studio with workouts is hidden (they keep it), one without is removed. Another known studio takes its place.
+  const awayStudio = (name: string, used: boolean) => {
+    const gone = resolveStudio(name, studios.renames).toLowerCase();
+    const other = knownStudios(logged, studios.renames, studios.picks, studios.hidden).find((n) => n.toLowerCase() !== gone);
+    setChosen(other);
+    void (used ? hideStudio(port, name, now()) : removeStudio(port, name, now()))
+      .then(() => (other ? rememberStudio(port, other, now() + 1) : undefined)).catch(saveFailed);
+  };
 
   async function begin(w: TrackedWorkout, startNotice: string | null = null): Promise<boolean> {
     if (starting.current) return false; // a double tap makes one workout
@@ -396,7 +418,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     try {
       const s = acquireStore(port, studio ? { ...w, studio } : w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
-      setMessage(null);
+      setMessage(null); setPendingSummary(null); setSummaryId(null);
       setStore({ s, autoEnd: false, notice: startNotice });
       return true;
     } finally { starting.current = false; }
@@ -406,9 +428,9 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // finished one whose mark got lost is made up here.
   // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
-    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([]), excludedNow: ReadonlySet<string> = new Set();
+    let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([], studios.renames), excludedNow: ReadonlySet<string> = new Set();
     try { excludedNow = excludedIds(await port.list('rule')); } catch { /* start without them */ }
-    try { overrides = loadStepOverrides(await port.list('loadstep')); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
+    try { overrides = loadStepOverrides(await port.list('loadstep'), studios.renames); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
     let skipped: string[] = [];
     const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded: excludedNow, onSkipped: (l) => { skipped = l; } });
     if (!(await begin(w, skipped.length ? skipped.join(' ') : null))) return;
@@ -419,7 +441,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
   }, [routine, workouts]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} startNotice={store.notice} onLeave={(m) => { setStore(null); setMessage(m); }} />;
+  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} startNotice={store.notice} onLeave={(m, finishedId) => { setStore(null); if (finishedId) { setPendingSummary(finishedId); setSummaryId(finishedId); setMessage(null); } else setMessage(m); }} />;
   if (workoutsQ.failed) {
     return (
       <div className="tk-screen">
@@ -452,9 +474,11 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   return (
     <div className="tk-screen">
       {message && <p role="status" className="tk-note">{message}</p>}
+      {summary && <WorkoutSummary workout={summary} next={nextSteps} onDone={() => { setPendingSummary(null); setSummaryId(null); }} />}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks)}
+      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks, studios.hidden)}
+        onAway={studio ? { used: logged.some((x) => x.studio && resolveStudio(x.studio, studios.renames).toLowerCase() === resolveStudio(studio, studios.renames).toLowerCase()), run: awayStudio } : undefined}
         onChange={(n) => { setChosen(n); if (n) void rememberStudio(port, n, now()).catch(saveFailed); }}
         onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
       {plan && (

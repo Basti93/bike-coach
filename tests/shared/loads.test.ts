@@ -157,3 +157,22 @@ describe('one ladder for app and coach', () => {
     expect(nextUp(22.68, ladder)).toBeCloseTo(22.68 + ladder.stepKg, 2);
   });
 });
+
+describe('a rename keeps the own step', () => {
+  const ren = new Map([['alt', 'Neu']]);
+  test('the override of the old name is found under the new one', () => {
+    const o = loadStepOverrides([loadStepRecord('pf-bench-press', 'Alt', 5, 10)], ren);
+    expect(o.get('pf-bench-press|Neu')).toBe(5);
+    expect(o.has('pf-bench-press|Alt')).toBe(false);
+    expect(loadStepOverrides([loadStepRecord('pf-bench-press', 'Alt', 5, 10)]).get('pf-bench-press|Alt')).toBe(5);
+  });
+  test('when both names have a step, the newer one wins', () => {
+    const recs = [loadStepRecord('pf-bench-press', 'Neu', 2.5, 20), loadStepRecord('pf-bench-press', 'Alt', 5, 10)];
+    expect(loadStepOverrides(recs, ren).get('pf-bench-press|Neu')).toBe(2.5);
+  });
+  test('the ladder of the renamed studio uses it', () => {
+    const o = loadStepOverrides([loadStepRecord('pf-bench-press', 'Alt', 5, 10)], ren);
+    const sessions = [{ studio: 'Alt', startMs: 1, sets: [{ type: 'normal', weightKg: 40 }, { type: 'normal', weightKg: 42.5 }] }];
+    expect(ladderFrom(sessions, { exerciseId: 'pf-bench-press', studio: 'Neu', main: undefined, renames: ren }, 'machine', o).ladder.stepKg).toBe(5);
+  });
+});

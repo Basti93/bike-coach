@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { TrackedRecord } from './records';
 import { titleHash } from './exercise-links';
 import { ruleNumber, ruleNumbers, ruleValues } from './training-policy';
-import { studioKey, type Renames } from './studio';
+import { resolveStudio, studioKey, type Renames } from './studio';
 
 /** Weight steps learned per exercise and studio, reachable weights and barbell plates. Pure, shared by app and coach. Product values: see the `load.*` rules. */
 export type Ladder = { stepKg: number; anchorKg: number; learned: boolean };
@@ -75,12 +75,13 @@ export const loadStepRecord = (exerciseId: string, studio: string, stepKg: numbe
   ({ kind: 'loadstep', id: loadStepId(exerciseId, studio), updatedMs, deleted: false, body: { exerciseId, studio, stepKg } });
 
 /** Live, readable `loadstep` records by exercise and studio. Deleted and malformed ones count for nothing. */
-export function loadStepOverrides(records: readonly TrackedRecord[]): LoadStepOverrides {
+export function loadStepOverrides(records: readonly TrackedRecord[], renames: Renames = new Map()): LoadStepOverrides {
   const out: LoadStepOverrides = new Map();
-  for (const r of records) {
+  // A rename keeps the step: the studio is read through the renames; when both names have one, the newer record wins.
+  for (const r of [...records].sort((a, b) => a.updatedMs - b.updatedMs)) {
     if (r.kind !== 'loadstep' || r.deleted) continue;
     const s = readLoadStep(r.body);
-    if (s) out.set(keyOf(s.exerciseId, s.studio), s.stepKg);
+    if (s) out.set(keyOf(s.exerciseId, s.studio === '' ? '' : resolveStudio(s.studio, renames)), s.stepKg);
   }
   return out;
 }

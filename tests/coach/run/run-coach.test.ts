@@ -950,3 +950,46 @@ describe('runs for the statistics', () => {
     expect(make().runsFor('pa')).toEqual([]);
   });
 });
+
+describe('how the runs felt', () => {
+  const feel = (runId: string, f: 'easy' | 'right' | 'hard' | null) => store.put('pa', { kind: 'run', id: `run-feel-${runId}`, updatedMs: now, deleted: false, body: { type: 'feel', runId, feel: f, atMs: now } });
+  const total = (w: RunWeekBody | null) => w!.runs.reduce((a, r) => a + r.minutes, 0);
+  const steady = () => { garmin = [run('g1', at(-20), 30), run('g2', at(-18), 30), run('g3', at(-13), 30), run('g4', at(-11), 30), run('g5', at(-6), 30), run('g6', at(-4), 30), run('g7', at(-2), 30), run('g8', at(-1), 30)]; };
+
+  test('two hard runs in a row hold the week, with the reason; two easy ones change nothing', async () => {
+    now = at(0, 9);
+    steady();
+    settings({ weekdays: [0, 1, 2, 3, 4, 5, 6] }, at(-30));
+    ask = vi.fn(async () => { throw new Error('rules only'); });
+    await make().tick('pa');
+    const free = week(W0)!;
+    expect(free.reason).not.toMatch(/schwer/);
+
+    store = new RecordStore({ dir: path.join(dir, 'tracking-easy') });
+    settings({ weekdays: [0, 1, 2, 3, 4, 5, 6] }, at(-30));
+    feel('g7', 'easy'); feel('g8', 'easy');
+    await make({ dir: path.join(dir, 'run-easy') }).tick('pa');
+    expect(week(W0)!.runs).toEqual(free.runs);
+    expect(week(W0)!.reason).toBe(free.reason);
+
+    store = new RecordStore({ dir: path.join(dir, 'tracking-hard') });
+    settings({ weekdays: [0, 1, 2, 3, 4, 5, 6] }, at(-30));
+    feel('g7', 'hard'); feel('g8', 'hard');
+    await make({ dir: path.join(dir, 'run-hard') }).tick('pa');
+    const held = week(W0)!;
+    expect(held.reason).toContain('weil sich die letzten Läufe schwer angefühlt haben');
+    expect(total(held)).toBeLessThan(total(free));
+    expect(Math.max(...held.runs.map((r) => r.minutes))).toBeLessThanOrEqual(30);
+  });
+
+  test('one hard run, a hard run between two others, or a skipped question hold nothing', async () => {
+    now = at(0, 9);
+    steady();
+    settings({ weekdays: [0, 1, 2, 3, 4, 5, 6] }, at(-30));
+    ask = vi.fn(async () => { throw new Error('rules only'); });
+    feel('g7', 'hard'); feel('g8', null);
+    await make().tick('pa');
+    // g8 was skipped, so g6 and g7 are the last two with a feeling: g6 has none yet, so only one hard run counts.
+    expect(week(W0)!.reason).not.toMatch(/schwer/);
+  });
+});

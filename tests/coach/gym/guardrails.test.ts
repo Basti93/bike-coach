@@ -28,6 +28,17 @@ const wo = (exercises: unknown) => ({ name: 'Test', exercises });
 const refused = (raw: unknown, ctx = CTX) => { const r = checkWorkout(raw, ctx); expect(r.ok).toBe(false); return r.ok ? '' : r.reason; };
 const passes = (raw: unknown, ctx = CTX) => { const r = checkWorkout(raw, ctx); if (!r.ok) throw new Error(r.reason); return r.workout; };
 
+describe('checkWorkout stamps the studio', () => {
+  it('the plan carries the studio it was planned for, never one from the answer', () => {
+    const inStudio = (studio: string) => two('cp', 40).map((w) => ({ ...w, studio }));
+    const ctx: GymContext = { ...CTX, workouts: inStudio('Alpha') };
+    expect(passes(wo([ex('cp', [set(40, 8)])]), ctx).studio).toBe('Alpha');
+    expect(passes({ ...wo([ex('cp', [set(40, 8)])]), studio: 'Fremd' }, ctx).studio).toBe('Alpha');
+    expect(passes(wo([ex('cp', [set(null, 8)])]), { ...ctx, studio: 'Beta' }).studio).toBe('Beta');
+    expect(passes(wo([ex('cp', [set(40, 8)])])).studio).toBeUndefined();
+  });
+});
+
 describe('checkWorkout', () => {
   it('an unknown template id is refused', () => {
     refused(wo([ex('nope', [set(null, 8)])]));

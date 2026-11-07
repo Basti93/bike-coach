@@ -47,6 +47,14 @@ function View({ weekplans, runs, nowMs, gym, onRun, bike, a }: Props & { a?: Adv
     ? { date, sport: a.advice.sport, hardness: a.advice.hardness, fixed: false, ...(a.advice.also ? { also: a.advice.also } : {}) }
     : planned;
   const only = a && <TodayOnly frame={a.frame} date={date} onChange={(m) => void a.setToday(m).catch(() => {})} />;
+  if (a?.advice.done) {
+    return (
+      <section className="card tk-today-card" aria-label="Heute">
+        <h2>Heute erledigt – gut gemacht.</h2>
+        {only}
+      </section>
+    );
+  }
   if (!today) {
     if (!a) return null;
     return (

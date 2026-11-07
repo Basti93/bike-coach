@@ -110,3 +110,19 @@ describe('studio records and renames', () => {
     expect(resolveStudio('A', new Map([['a', 'a']]))).toBe('A');
   });
 });
+
+describe('hidden studios', () => {
+  const records = [studioRecord('Alpha', 10, 10), studioRecord('Beta', 20, 20, undefined, true)];
+  test('a hidden studio is not offered, but a workout in it still resolves', () => {
+    const st = studioStateOf(records);
+    const workouts = [w('a', 100, 'Beta'), w('b', 50, 'Alpha')];
+    expect(knownStudios(workouts, st.renames, st.picks, st.hidden)).toEqual(['Alpha']);
+    expect(knownStudios(workouts, st.renames, st.picks)).toEqual(['Beta', 'Alpha']);
+    expect(studioKey(workouts[0]!, mainStudio(workouts, st.renames), st.renames)).toBe('Beta');
+    expect(defaultStudio(workouts, st.renames, st.picks)).toBe('Beta');
+  });
+  test('picking it again brings it back', () => {
+    const st = studioStateOf([...records.slice(0, 1), studioRecord('Beta', 30, 30)]);
+    expect(knownStudios([], st.renames, st.picks, st.hidden)).toEqual(['Beta', 'Alpha']);
+  });
+});

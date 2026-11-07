@@ -245,12 +245,12 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   /** What the hints need to say what fits today: the last days' load, goal, frame and the resting pulse. */
   const todayContextOf = (id: string): TodayContext => {
     const now = nowMs();
-    const dates = Array.from({ length: 8 }, (_, i) => addDays(dateKey(now), -i - 1));
+    const dates = Array.from({ length: 9 }, (_, i) => addDays(dateKey(now), -i));
     let ratings: Record<string, DayRating> = {};
     try { ratings = ratingsOf(id, dates, run.runsFor(id)); } catch { /* no ratings: the advice goes by the plan */ }
     let readiness: TodayContext['readiness'];
     try { const data = garminData(id); if (data) readiness = { restingHrRaised: restingHrRaised(data.days) }; } catch { /* no body data */ }
-    return { ratings, goal: goalOfProfile(records, id, dateKey(now)), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
+    return { ratings, hour: new Date(now).getHours(), goal: goalOfProfile(records, id, dateKey(now)), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
   };
   /** What fits today for a profile, with the bike rides in the ratings; null when it cannot be told. */
   const adviceOf = (id: string): PublishedAdvice | null => {
@@ -287,7 +287,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
   const taskSeen = new PlanSeen(path.join(coachDir, 'chat', 'task-seen.json'));
-  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'), dateKey(nowMs()));
+  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'), dateKey(nowMs()), records.all(id, 'change'));
   // Today's advice changing (a new day, tired legs, a raised pulse) makes the coaches plan again, at most about once a day. The first sighting only counts.
   const adviceSeen = new PlanSeen(path.join(coachDir, 'chat', 'advice-seen.json'));
   // The week conversation and the evening suggestion, only when the rider switched them on.

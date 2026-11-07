@@ -174,6 +174,21 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Ausführung Kniebeuge' }).click();
     await win.waitForTimeout(200);
   } },
+  { name: 'workout-summary', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 900, steps: async (win) => {
+    // A just-finished workout with the coach's next steps for two of its exercises (invented data). The start screen shows the summary until "Fertig".
+    const t = Date.now();
+    const sets = (kg: number, n: number) => Array.from({ length: n }, () => ({ type: 'normal', weightKg: kg, reps: 8, durationS: null, doneMs: t - 1800000 }));
+    const rows = [
+      { kind: 'workout', id: 'fin', updatedMs: t, deleted: false, body: { id: 'fin', title: 'Beine A', startMs: t - 3000000, endMs: t - 60000, source: 'pandafit', exercises: [
+        { exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: sets(80, 3) }, { exerciseId: 'pf-leg-press', title: 'Beinpresse', supersetId: null, notes: '', sets: sets(120, 3) }, { exerciseId: 'pf-calf-raise', title: 'Wadenheben', supersetId: null, notes: '', sets: sets(40, 2) }] } },
+      { kind: 'stats', id: 'stats', updatedMs: t, deleted: false, body: { type: 'stats', atMs: t, goal: null, days: [], muscles: {}, next: [
+        { exerciseId: 'pf-squat', title: 'Kniebeuge', weightKg: 82.5, reps: 8, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'fin', atMs: t - 3000000 },
+        { exerciseId: 'pf-leg-press', title: 'Beinpresse', weightKg: 120, reps: 10, why: 'keep', reason: 'weil die Last gerade passt', forWorkoutId: 'fin', atMs: t - 3000000 }] } },
+    ];
+    await win.evaluate(([rs, id]) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map((rs as { kind: string; id: string }[]).map((r) => [`${r.kind}:${r.id}`, r])); localStorage.setItem('pandafit-summary-pending', id as string); }, [rows, 'fin']);
+    await win.getByRole('button', { name: 'Training starten' }).click();
+    await win.waitForTimeout(400);
+  } },
   { name: 'workout-warmup', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1100, steps: async (win) => {
     // An open workout whose first exercise (barbell squat, 100 kg planned, 2.5 kg steps learned) has not started: the card offers the warm-up ramp.
     const t = Date.now();

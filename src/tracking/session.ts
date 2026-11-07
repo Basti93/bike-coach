@@ -4,7 +4,7 @@ import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
-import { ladderFrom, snapDown, type Ladder, type LoadStepOverrides } from '../shared/loads';
+import { extendDown, ladderFrom, snapDown, type Ladder, type LoadStepOverrides } from '../shared/loads';
 import { tidyGroups, contiguousGroups } from '../shared/superset';
 import { warmupRamp, workingWeightOf } from '../shared/warmup';
 import { restAfterSet, restChoices, restExtendS } from '../shared/rest';
@@ -12,11 +12,15 @@ import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../sh
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
 /** Pure workout logic. No browser, Node or Electron APIs, so the Mac app and the web app share it. */
-/** `plannedReps`: the reps the plan asked for, kept when the rider edits `reps`. */
-export type TrackedSet = LoggedSet & { rid: string; repRange?: { start: number; end: number }; plannedReps?: number };
-export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; timed?: boolean; swappedIn?: true };
+/**
+ * `plannedReps`: the reps the plan asked for, kept when the rider edits `reps`. `plannedKg`: the plan's weight (null: none);
+ * `prefillKg`: the weight put in at the start or at the last studio change. A set whose weight still equals `prefillKg` was not edited.
+ */
+export type TrackedSet = LoggedSet & { rid: string; repRange?: { start: number; end: number }; plannedReps?: number; plannedKg?: number | null; prefillKg?: number | null };
+export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets: TrackedSet[]; restS?: number | null; restByUser?: true; timed?: boolean; swappedIn?: true };
 /** Stored as the record body. `rest` keeps the timer start, so a reload continues it. Rows have stable ids (`rid`). */
-export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null };
+/** `planStudio`: the studio the plan's weights were made for (a bucket key), kept so a studio change can refit them. */
+export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null; planStudio?: string };
 
 export const STALE_OPEN_MS = 6 * 3_600_000;
 export type FinishChoice = 'complete' | 'omit' | 'discard';
@@ -56,16 +60,18 @@ export function hereKey(w: { studio?: string }, history: readonly LoggedWorkout[
 /**
  * The last done sets of an exercise; an own exercise also finds sets logged in Hevy under its titles. A session known twice
  * (own and Hevy, record and kept copy) counts once. Sessions of the studio `studio` (a bucket key; default: the default
- * studio) come first, so weights never come from another studio's machines; only without any history there, all studios count.
+ * studio) come first, so weights never come from another studio's machines; only without any history there, all studios count
+ * (unless `only`: then nothing from other studios).
  */
-export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog?: Exercise[], studio?: string, studios: StudioState = NO_STUDIOS): LoggedSet[] {
+export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog?: Exercise[], studio?: string, studios: StudioState = NO_STUDIOS, only = false): LoggedSet[] {
   const own = (catalog ?? EXERCISES).find((e) => e.id === exerciseId);
   const titles = own ? exerciseTitles(own) : [];
   const key = studio ?? hereKey({}, history, studios);
   const main = mainStudio(history, studios.renames);
   const sessions = onePerSession(dedupeSessions(history));
   const setsOf = (w: LoggedWorkout): LoggedSet[] => w.exercises.filter((e) => e.exerciseId === exerciseId || titles.includes(e.title)).flatMap((e) => e.sets.filter(isDone));
-  for (const pool of [sessions.filter((w) => studioKey(w, main, studios.renames) === key), sessions]) {
+  const here = sessions.filter((w) => studioKey(w, main, studios.renames) === key);
+  for (const pool of only ? [here] : [here, sessions]) {
     for (const w of pool) {
       const sets = setsOf(w);
       if (sets.length) return sets;
@@ -77,7 +83,45 @@ export function lastValues(exerciseId: string, history: LoggedWorkout[], catalog
 const blank = (): TrackedSet => ({ rid: newRid(), type: 'normal', weightKg: null, reps: null, durationS: null, doneMs: null });
 const typeOf = (id: string, catalog: Exercise[]): string => catalog.find((e) => e.id === id)?.type ?? 'weight_reps';
 
-function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exercise[], studio?: string, studios: StudioState = NO_STUDIOS): TrackedExercise {
+/** What decides the weights of a plan exercise: the studio chosen, the studio the plan is for, the person's step overrides. */
+type Fit = { planStudio?: string; overrides?: LoadStepOverrides };
+
+/** True when the plan was made for another studio than the one chosen (both bucket keys, renames applied). */
+function otherStudio(planStudio: string | undefined, chosen: string, studios: StudioState): boolean {
+  return !!planStudio && resolveStudio(planStudio, studios.renames).toLowerCase() !== chosen.toLowerCase();
+}
+
+/**
+ * The prefill weight per set of an exercise whose sets carry their `plannedKg`, for the studio bucket `chosen`.
+ * Same studio as the plan: the plan's weight, else the last one there (all studios as fallback). Another studio: that studio's own
+ * last weight (no other studio's), else the plan's weight snapped down to that studio's ladder. Reps are not touched.
+ */
+function prefillWeights(e: Pick<TrackedExercise, 'exerciseId' | 'sets'>, chosen: string, history: LoggedWorkout[], catalog: Exercise[], studios: StudioState, fit: Fit): (number | null)[] {
+  const other = otherStudio(fit.planStudio, chosen, studios);
+  const last = lastValues(e.exerciseId, history, catalog, chosen, studios, other);
+  let ladder: Ladder | null = null;
+  const snap = (kg: number): number => {
+    if (!ladder) {
+      const equipment = catalog.find((c) => c.id === e.exerciseId)?.equipment ?? '';
+      const sessions = onePerSession(dedupeSessions([...history])).map((h) => ({ studio: h.studio, startMs: h.startMs, sets: h.exercises.filter((x) => x.exerciseId === e.exerciseId).flatMap((x) => x.sets.filter(isDone)) }));
+      ladder = extendDown(ladderFrom(sessions, { exerciseId: e.exerciseId, studio: chosen, main: mainStudio(history, studios.renames), renames: studios.renames }, equipment, fit.overrides ?? new Map()).ladder, equipment);
+    }
+    return snapDown(kg, ladder);
+  };
+  const seen = { warm: 0, work: 0 };
+  return e.sets.map((s) => {
+    // A warmup only ever prefills a warmup, a working set only a working set.
+    const warm = s.type === 'warmup';
+    const pool = last.filter((l) => (l.type === 'warmup') === warm);
+    const i = warm ? seen.warm++ : seen.work++;
+    const l = pool[i] ?? pool[pool.length - 1];
+    const planned = s.plannedKg ?? null;
+    if (!other) return planned ?? l?.weightKg ?? null;
+    return l?.weightKg ?? (planned !== null ? snap(planned) : null);
+  });
+}
+
+function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exercise[], studio?: string, studios: StudioState = NO_STUDIOS, fit: Fit = {}): TrackedExercise {
   const last = lastValues(g.templateId, history, catalog, studio, studios);
   const timed = isTimed(typeOf(g.templateId, catalog));
   const seen = { warm: 0, work: 0 };
@@ -92,11 +136,15 @@ function plannedExercise(g: GymExercise, history: LoggedWorkout[], catalog: Exer
       weightKg: p.weightKg ?? l?.weightKg ?? null,
       reps: p.reps ?? (p.repRange ? p.repRange.start : null) ?? l?.reps ?? null,
       durationS: l?.durationS ?? null, doneMs: null,
+      plannedKg: p.weightKg,
       ...(p.repRange ? { repRange: p.repRange } : {}),
       ...(p.reps !== null && p.reps !== undefined ? { plannedReps: p.reps } : {}),
     };
   });
-  return { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
+  const ex: TrackedExercise = { rid: newRid(), exerciseId: g.templateId, title: g.title, supersetId: g.supersetId, notes: g.notes, sets, restS: g.restS, ...(timed ? { timed } : {}) };
+  // Another studio than the plan's: the weights come from there. The same studio keeps the weights as they are.
+  const kg = otherStudio(fit.planStudio, hereKey({ studio }, history, studios), studios) ? prefillWeights(ex, hereKey({ studio }, history, studios), history, catalog, studios, fit) : null;
+  return { ...ex, sets: ex.sets.map((s, i) => ({ ...s, weightKg: kg ? kg[i]! : s.weightKg, prefillKg: kg ? kg[i]! : s.weightKg })) };
 }
 
 /**
@@ -128,7 +176,8 @@ export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: nu
   const { plan, notes: changeNotes, applied } = applyNextChanges(w, todo, catalog, lower, next.excluded);
   const notes = [...dropped.map((e) => `Ohne ${e.title} – deine Regel.`), ...changeNotes];
   const done = todo.filter((c) => applied.includes(c.id));
-  const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios));
+  const planStudio = w.studio ? studioName(w.studio) : undefined;
+  const exercises = plan.exercises.map((g) => plannedExercise(g, history, catalog, studio, studios, { planStudio, overrides: next.overrides }));
   // Lighter also works on weights the last session gave (the plan had none); planned weights were lightened above.
   for (const c of done) for (const o of c.ops) {
     const g = o.op === 'lighter' ? plan.exercises.findIndex((x) => x.templateId === o.exerciseId) : -1;
@@ -136,13 +185,26 @@ export function startFromPlan(w: GymWorkout, history: LoggedWorkout[], nowMs: nu
   }
   if (notes.length) next.onSkipped?.(notes);
   const changes = done.map((c) => ({ id: c.id, atMs: nowMs, prior: [], pos: [], after: [] }));
-  return { id, title: plan.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises, rest: null, ...(changes.length ? { changes } : {}) };
+  return { id, title: plan.name, startMs: nowMs, endMs: null, source: 'pandafit', exercises, rest: null, ...(planStudio ? { planStudio } : {}), ...(changes.length ? { changes } : {}) };
 }
-/** Sets (or, with an empty name, clears) the studio. */
-export function setStudio(w: TrackedWorkout, raw: string): TrackedWorkout {
+/**
+ * Sets (or, with an empty name, clears) the studio. With `fit` (a workout that started from a plan) the weights follow: exercises
+ * with no confirmed set get the weights for the new studio (see `prefillWeights`), but only in sets still holding their prefill; a
+ * weight the rider typed stays. Confirmed sets are never touched.
+ */
+export function setStudio(w: TrackedWorkout, raw: string, fit?: { history: LoggedWorkout[]; catalog?: Exercise[]; studios?: StudioState; overrides?: LoadStepOverrides }): TrackedWorkout {
   const { studio: _old, ...rest } = w;
   const studio = studioName(raw);
-  return studio ? { ...rest, studio } : rest;
+  const next: TrackedWorkout = studio ? { ...rest, studio } : rest;
+  if (!fit || !w.planStudio) return next;
+  const studios = fit.studios ?? NO_STUDIOS;
+  const catalog = fit.catalog ?? EXERCISES;
+  const chosen = hereKey(next, fit.history, studios);
+  return { ...next, exercises: next.exercises.map((e) => {
+    if (e.sets.some(isDone) || !e.sets.some((s) => s.prefillKg !== undefined)) return e;
+    const kg = prefillWeights(e, chosen, fit.history, catalog, studios, { planStudio: w.planStudio, overrides: fit.overrides });
+    return { ...e, sets: e.sets.map((s, i) => (s.prefillKg === undefined || s.weightKg !== s.prefillKg ? s : { ...s, weightKg: kg[i]!, prefillKg: kg[i]! })) };
+  }) };
 }
 export const startFromRoutine = startFromPlan;
 export const startEmpty = (nowMs: number, id: string, title = 'Training'): TrackedWorkout =>
@@ -176,7 +238,7 @@ export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: nu
 /** Adds the extension (30 s) to the running rest. No rest running changes nothing. */
 export const extendRest = (w: TrackedWorkout, s: number = restExtendS()): TrackedWorkout => (w.rest ? { ...w, rest: { ...w.rest, durationS: w.rest.durationS + s } } : w);
 /** Sets the rest of one exercise (one of the offered choices); the next confirmed set uses it. */
-export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s })) : w);
+export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s, restByUser: true as const })) : w);
 export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: null }));
   return next === w ? w : { ...next, rest: null };
@@ -217,7 +279,7 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   if (i < 0) return w;
   const old = w.exercises[i];
   const doneSets = old.sets.filter(isDone);
-  const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true };
+  const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true, ...(old.restByUser && old.restS != null ? { restS: old.restS, restByUser: true as const } : {}) };
   const exercises = [...w.exercises];
   if (!doneSets.length) exercises.splice(i, 1, fresh);
   else {

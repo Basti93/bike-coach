@@ -9,7 +9,7 @@ import type { TrackedRecord } from '../../shared/records';
 import { addWeeks, dateKey, dateOf, dayIndex, weekOf } from '../../shared/meals';
 import {
   readRunBody, runFp, runIdType, runReviewId, runSendId, runWeekId, weekFp, RUN_SETTINGS_ID, RUN_STATUS_ID,
-  type PlannedRun, type RunBody, type RunGarmin, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody,
+  type PlannedRun, type RunBody, type RunFeel, type RunGarmin, type RunReviewBody, type RunSettingsBody, type RunStatusBody, type RunWeekBody,
 } from '../../shared/run';
 import { runCard } from './card';
 import { RUN_REGION, runComplaintMode, type ComplaintMode } from './complaints';
@@ -21,7 +21,7 @@ import { bandFor, capFor, easyPaceAt, maxHrOf, runNumbers, suggestedDays } from 
 import { buildRunPrompt, RUN_SYSTEM_PROMPT, runAnswerJsonSchema } from './prompt';
 import { personalHint } from '../tracking/personal';
 import { addNote, type ChangeNote } from '../../shared/change-notes';
-import { phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
+import { feelHold, HOLD_REASON, phaseOf, ruleWeek, weekDates, type RuleWeek } from './rules';
 import { manualRuns, mergeRuns } from './runs';
 import { loadRunCache, saveRunCache, type RunCache } from './state';
 import { readTasks, type CoachId } from '../coach-tasks';
@@ -75,8 +75,16 @@ type Target = { week: string; fromDate: string; announce: boolean };
 type Ctx = {
   id: string; now: number; today: string; runs: Run[]; settings: RunSettingsBody; settingsMs: number; weekdays: number[];
   maxHr: number | null; mode: ComplaintMode; complaints: Complaint[]; weeks: Map<string, RunWeekBody>;
+  /** The last runs with a feeling were hard: the plan does not grow. */
+  hold: boolean;
 };
 
+/** The feelings the rider gave, by run id. A skipped question is null. */
+const feelsOf = (own: Map<string, Own>): Map<string, RunFeel | null> => {
+  const out = new Map<string, RunFeel | null>();
+  for (const o of own.values()) if (o.body.type === 'feel') out.set(o.body.runId, o.body.feel);
+  return out;
+};
 const startMsOf = (date: string): number => { const d = dateOf(date, 0); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const shift = (date: string, n: number): string => dateKey(dateOf(date, n));
 const dateOfMs = (ms: number): string => dateKey(new Date(ms));
@@ -201,7 +209,7 @@ export class RunCoach {
       const current = weekOf(now);
       const ctx: Ctx = {
         id, now, today, runs, settings, settingsMs: settingsOwn!.rec.updatedMs, weekdays: settings.weekdays ?? suggestedDays(runs, now),
-        maxHr, mode, complaints, weeks,
+        maxHr, mode, complaints, weeks, hold: feelHold(runs, feelsOf(own), now),
       };
       // A run already done today keeps today as it is: the replan starts tomorrow.
       const ranToday = runs.some((r) => dateOfMs(r.startMs) === today);
@@ -266,7 +274,7 @@ export class RunCoach {
     const cache = this.cache(id);
     const existing = ctx.weeks.get(t.week) ?? null;
     const missed = (existing?.runs ?? []).filter((r) => r.date < ctx.today && this.doneOn(ctx.runs, r.date) === null).map((r) => r.date);
-    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, ...(this.deps.planKey ? [this.deps.planKey(id, t.week)] : [])]);
+    const key = JSON.stringify([ctx.settingsMs, ctx.weekdays, ctx.mode, missed, ctx.settings.answers, ctx.hold, ...(this.deps.planKey ? [this.deps.planKey(id, t.week)] : [])]);
     const dates = Array.from({ length: 9 }, (_, i) => dateKey(dateOf(t.week, i - 1)));
     const days = this.deps.days(id, dates);
     const ratings = Object.fromEntries(dates.map((d) => [d, `${days[d]?.hardness ?? '-'}${days[d]?.legs ? ' legs' : ''}`]));
@@ -286,7 +294,7 @@ export class RunCoach {
       nowMs: now, week: t.week, fromDate: t.fromDate, runs: ctx.runs, weekdays: ctx.weekdays, answers: ctx.settings.answers, maxHr: ctx.maxHr,
       complaint: ctx.mode, days, crossCut: (m) => crossSportCut(this.deps.weeks(id), m),
       lastTestMs: this.lastTestMs(ctx, t.fromDate), dueAtMs: Math.max(now, startMsOf(t.fromDate)), phase: phaseOf(ctx.runs, this.complaintWeeks(ctx), now), restartSince: this.restartSince(ctx),
-      longDates: this.longDatesBefore(ctx, t.fromDate),
+      longDates: this.longDatesBefore(ctx, t.fromDate), hold: ctx.hold,
     });
     this.noteChanges(id, t.week, rule, now);
     const save = (planned: PlannedRun[], source: 'rules' | 'claude', reason: string, note: string | null): void => {
@@ -356,6 +364,7 @@ export class RunCoach {
       }
       cache.lastPhase = rule.phase;
       if (rule.light && rule.runs.length > 0) put(`light:${week}`, 'Lauf: leichtere Woche', 'damit Erholung Platz hat');
+      if (rule.held && rule.runs.length > 0) put(`hold:${week}`, 'Lauf: Woche bleibt gleich', HOLD_REASON);
       if (rule.testDate !== null) put(`test:${week}`, 'Lauf: Testlauf in dieser Woche', 'als Messpunkt für deinen Fortschritt');
       if (JSON.stringify(cache.changeNotes) !== before || was !== rule.phase) this.saveCache(id);
     } catch { /* a note is a bonus */ }
@@ -545,7 +554,7 @@ export class RunCoach {
         longestKm: longest.length > 0 ? round1(Math.max(...longest) / 1000) : null,
         easyPace: pace === null ? null : { now: pace, weeks4: easyPaceAt(ctx.runs, endMs - 28 * DAY) },
         testM: testRun?.best30M ?? null,
-        focus: focusText(ctx.mode, phaseOf(ctx.runs, this.complaintWeeks(ctx), ctx.now).phase),
+        focus: focusText(ctx.mode, phaseOf(ctx.runs, this.complaintWeeks(ctx), ctx.now).phase, ctx.hold),
       };
       this.write(ctx.id, recId, body, ctx.now);
     }
@@ -555,9 +564,10 @@ export class RunCoach {
 }
 
 /** The coming week's focus, calm and without pressure. */
-export const focusText = (mode: ComplaintMode, phase: 1 | 2): string => {
+export const focusText = (mode: ComplaintMode, phase: 1 | 2, hold = false): string => {
   if (mode === 'pause') return 'Nächste Woche ruht das Laufen. Sobald es wieder passt, geht es sanft weiter.';
   if (mode !== null) return 'Nächste Woche bleibt der Plan sanft, mit halber Zeit.';
+  if (hold) return `Nächste Woche bleibt der Plan, wie er ist, ${HOLD_REASON}.`;
   if (phase === 1) return 'Nächste Woche: ruhige Läufe, die Zeit auf den Beinen wächst behutsam.';
   return 'Nächste Woche: Der lange Lauf wächst Schritt für Schritt, die anderen Läufe bleiben ruhig.';
 };

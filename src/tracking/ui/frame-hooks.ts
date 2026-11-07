@@ -56,7 +56,7 @@ export function useTodayAdvice(port: TrackingPort, nowMs: number): { advice: Tod
   const date = dateKey(nowMs);
   const ratings = useMemo(() => {
     const weeks = (runs ?? []).map((r) => r.body as RunWeekBody).filter((b) => b && b.type === 'week' && Array.isArray(b.runs));
-    return ratingsFromRecords(finishedWorkouts(workouts), weeks, catalog, Array.from({ length: DAYS_BACK }, (_, i) => addDays(date, -(i + 1))));
+    return ratingsFromRecords(finishedWorkouts(workouts), weeks, catalog, Array.from({ length: DAYS_BACK + 1 }, (_, i) => addDays(date, -i)));
   }, [workouts, runs, catalog, date]);
   // The coach's advice for today counts when it is there (it knows the bike rides); else the app's own.
   const published = useMemo(() => {
@@ -67,9 +67,9 @@ export function useTodayAdvice(port: TrackingPort, nowMs: number): { advice: Tod
     return rest as TodayAdvice;
   }, [stats, date, fr.frame.mode]);
   const own = useMemo(
-    () => todayAdvice({ date, ratings, planDay: planFor(weekplans ?? [], date), goal, frame: { mode: fr.frame.mode } }),
-    [date, ratings, weekplans, goal, fr.frame.mode],
+    () => todayAdvice({ date, ratings, planDay: planFor(weekplans ?? [], date), goal, frame: { mode: fr.frame.mode }, hour: new Date(nowMs).getHours() }),
+    [date, ratings, weekplans, goal, fr.frame.mode, nowMs],
   );
-  const advice = published ?? own;
+  const advice = own.done ? own : published ?? own;
   return { advice, ratings, ...fr };
 }

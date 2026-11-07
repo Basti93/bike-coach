@@ -5,7 +5,7 @@ import { dataBlock } from '../meals/prompt';
 import { todayAdvice, type TodayInput } from '../../shared/today';
 
 /** What the hint needs beyond the week plan to say what fits today. */
-export type TodayContext = Pick<TodayInput, 'ratings' | 'goal' | 'frame' | 'readiness'>;
+export type TodayContext = Pick<TodayInput, 'ratings' | 'goal' | 'frame' | 'readiness' | 'hour'>;
 
 /**
  * The accepted week plan for a coach's prompt: the next seven days from today, and what it means for this coach. Empty without

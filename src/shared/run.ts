@@ -18,7 +18,10 @@ export type RunNumbers = { easyPace: { now: number | null; weeks4: number | null
 export type RunCard = { runId: string; date: string; kind: RunKind | 'unplanned'; counted: string; result: string; sentence: string };
 export type RunStatusBody = { type: 'status'; atMs: number; on: boolean; suggest: boolean; needsAnswers: boolean; /** Garmin is connected and can take workouts: only then is sending offered. `week.garmin` may stay set after a disconnect. */ garmin: boolean; suggestedDays: number[]; hrCap: number | null; complaint: 'pause' | 'half' | 'restart' | null; numbers: RunNumbers; card: RunCard | null };
 export type RunReviewBody = { type: 'review'; week: string; atMs: number; km: number; minutes: number; plannedMinutes: number | null; runs: number; longestKm: number | null; easyPace: { now: number | null; weeks4: number | null } | null; testM: number | null; focus: string };
-export type RunBody = RunWeekBody | RunSettingsBody | ManualRunBody | RunSendBody | RunStatusBody | RunReviewBody;
+/** How a run felt, from the rider. `null` is "skipped": the question is not asked again. */
+export type RunFeel = 'easy' | 'right' | 'hard';
+export type RunFeelBody = { type: 'feel'; runId: string; feel: RunFeel | null; atMs: number };
+export type RunBody = RunWeekBody | RunSettingsBody | ManualRunBody | RunSendBody | RunStatusBody | RunReviewBody | RunFeelBody;
 
 export const RUN_SETTINGS_ID = 'settings';
 export const RUN_STATUS_ID = 'status';
@@ -26,6 +29,7 @@ export const runWeekId = (week: string): string => `week-${week}`;
 export const runSendId = (week: string): string => `send-${week}`;
 export const runReviewId = (week: string): string => `review-${week}`;
 export const manualRunId = (uuid: string): string => `manual-${uuid}`;
+export const runFeelId = (runId: string): string => `run-feel-${runId}`;
 
 /** The body type a record id must carry, or null for an id that is no run id. */
 export function runIdType(id: string): RunBody['type'] | null {
@@ -33,6 +37,7 @@ export function runIdType(id: string): RunBody['type'] | null {
   if (id === RUN_STATUS_ID) return 'status';
   const m = /^(week|send|review)-(\d{4}-\d{2}-\d{2})$/.exec(id);
   if (m) return isWeekKey(m[2]) ? m[1] as 'week' | 'send' | 'review' : null;
+  if (/^run-feel-.{1,150}$/.test(id)) return 'feel';
   return /^manual-.{1,100}$/.test(id) ? 'manual' : null;
 }
 
@@ -93,6 +98,7 @@ export function readRunBody(body: unknown): RunBody | null {
       return isWeekKey(b.week) && nn(b.atMs) && nn(b.km) && nn(b.minutes) && optNn(b.plannedMinutes) && nn(b.runs) && optNn(b.longestKm)
         && (e === null || (isObj(e) && optFin(e.now) && optFin(e.weeks4))) && optNn(b.testM) && text(b.focus, 1000) ? b as RunReviewBody : null;
     }
+    case 'feel': return text(b.runId, 150) && b.runId.length > 0 && (b.feel === null || b.feel === 'easy' || b.feel === 'right' || b.feel === 'hard') && nn(b.atMs) ? b as RunFeelBody : null;
     default: return null;
   }
 }

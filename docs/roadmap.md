@@ -33,6 +33,11 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **F Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
 | ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
 | ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
+| ✅ | **I Alltag glätten** | Gewichte passen zum gewählten Studio, Zusammenfassung nach dem Training, Übernommenes wirkt sofort, Studios verwalten, „Heute erledigt“, Rückfrage nach dem Lauf. | Parkplatz C, D, F, G, H |
+| | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
+| | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
+| | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
+| | **M Wochenübersicht per E-Mail** | Jede Person bekommt ihre Wochenübersicht per E-Mail an die Adresse aus ihrem Profil (selbst änderbar). | Wunsch 07.11.2026 |
 
 Die Reihenfolge folgt dem Nutzen: A–C machen die Kraftdaten verlässlich, D ist die Voraussetzung dafür, dass E–H dem Coach mehr erlauben.
 
@@ -193,6 +198,26 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Befristung als optionaler Zeitraum im Ziel (Grundziel bleibt gespeichert); Schwerpunkt-Muskeln erhöhen das Wochenziel um einen Faktor aus dem Regelregister; Begründungen der Steigerung kommen vom Coach mit dem Plan; Aufträge werden eigene Datensätze statt Mac-Datei.
 
+## Meilenstein I — Brief (umgesetzt 07.11.2026)
+
+**Ziel:** Die kleinen Stolpersteine des Alltags verschwinden: Gewichte stimmen fürs gewählte Studio, nach dem Training sieht man kurz, was war und was kommt, und was man übernimmt, wirkt sofort.
+
+**Abnahme:**
+1. Wählt man vor oder zu Beginn des Trainings ein anderes Studio als das, für das der Coach geplant hat, stehen die Gewichte dieses Studios da (eigener Verlauf, sonst auf dessen Stufen gerundet).
+2. Nach „Beenden“ erscheint eine kurze Zusammenfassung: Dauer, Sätze, und pro Übung „Nächstes Mal …“ (oder „Kommt nach der Auswertung“).
+3. Eine übernommene Änderung fürs nächste Training lässt den Coach sofort neu planen; „Berücksichtigt: …“ erscheint ohne Warten.
+4. Beim Umbenennen eines Studios bleiben eigene Gewichtsstufen erhalten. Ein Studio ohne Trainings lässt sich entfernen, eines mit Trainings ausblenden.
+5. Eine selbst eingestellte Pause bleibt beim Tauschen einer Übung erhalten.
+6. Hat man heute schon trainiert, sagt die Empfehlung ab dem Abend „Heute erledigt“ statt einer neuen Einheit.
+7. Die Zielkarte zeigt nur Sportarten, die man in letzter Zeit gemacht hat; die anderen hinter „Weitere“.
+8. Nach einem Lauf fragt die App einmal „Wie war der Lauf?“ (leicht / passend / schwer). Die Antwort fließt in den Laufplan ein: zweimal schwer hintereinander → keine Steigerung, mit Grund.
+
+**Fällt weg:** Plan-Gewichte eines anderen Studios; Zielkarte mit immer allen drei Sportarten.
+
+**Nicht dabei:** Inventar pro Studio, Teilen von Studios zwischen Profilen.
+
+**Von Claude entschieden (07.11.2026):** Plan merkt sich sein Studio; ein abweichendes Studio nimmt eigene Werte, sonst den Plan auf seine Stufen abgerundet. Ausblenden statt Löschen, sobald Trainings dranhängen. „Heute erledigt“ ab 18 Uhr (Regelregister). „In letzter Zeit“ = 90 Tage.
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
@@ -229,7 +254,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Aus Meilenstein E:
   - Ausschluss ganzer Bewegungsfamilien ohne Übungsliste (heute: Liste konkreter Varianten).
   - Sportarten in der Zielkarte immer alle drei; später nur die genutzten zeigen.
-  - Schwerpunkt-Muskeln wirken im Coach-Prompt, noch nicht in der Bilanz-Anzeige.
+  - ~~Schwerpunkt-Muskeln wirken im Coach-Prompt, noch nicht in der Bilanz-Anzeige.~~ Erledigt mit H.
 - Aus Meilenstein F:
   - Die Handy-App kennt keine Radfahrten; ohne veröffentlichte Empfehlung des Coaches rechnet sie nur mit Kraft und Laufen.
   - Ein Plantag kann nicht „nur Beine“ markieren; nach harten Beinen wird Kraft immer zu „Kraft ohne Beine“.
@@ -243,3 +268,6 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Rad-Änderungen ohne eigenen Grund erscheinen in „Zuletzt geändert“ ohne „– Grund“.
   - Chat-Nachrichten werden weiter nach 90 Tagen gelöscht (alte Regel, bewusst beibehalten).
   - Läufe haben keine eigene Rückfrage nach dem Training.
+- Aus Meilenstein I:
+  - Ausblenden/Entfernen eines Studios nur auf dem Startbildschirm, nicht im laufenden Training.
+  - Eine schwere Laufwoche hält nur, wenn es eine Basis gibt; ohne Läufe der letzten Wochen wirkt sie nicht.

@@ -156,3 +156,32 @@ test('"Jetzt beenden" ends the temporary focus without an ended notice', async (
   expect(c.queryByText(/ausgelaufen/)).toBeNull();
   expect(c.queryByRole('button', { name: 'Jetzt beenden' })).toBeNull();
 });
+
+describe('used sports', () => {
+  const sportsShown = (c: { getAllByRole: (role: string) => HTMLElement[] }) => c.getAllByRole('combobox').map((x) => x.parentElement!.firstChild!.textContent!.trim()).filter((x) => ['Kraft', 'Rad', 'Laufen'].includes(x));
+  const workout = (dayOffset: number): TrackedRecord => ({ kind: 'workout', id: `w${dayOffset}`, updatedMs: 1, deleted: false,
+    body: { id: `w${dayOffset}`, title: 'T', startMs: NOW - dayOffset * 86_400_000, endMs: NOW - dayOffset * 86_400_000 + 3_600_000, source: 'pandafit', exercises: [] } });
+  test('only sports with activity in the last 90 days, the rest behind a toggle', async () => {
+    const { port } = fakePort([workout(3), workout(200)]);
+    render(<CoachScreen port={port} {...env} />);
+    const c = await card();
+    await c.findByRole('button', { name: 'Weitere Sportarten' });
+    expect(sportsShown(c)).toEqual(['Kraft']);
+    fireEvent.click(c.getByRole('button', { name: 'Weitere Sportarten' }));
+    expect(sportsShown(c)).toEqual(['Kraft', 'Rad', 'Laufen']);
+  });
+  test('a sport with a priority always shows; with no activity all three show', async () => {
+    const { port } = fakePort([workout(3), goalRecord({ strength: 'fitness', focus: [], sports: { run: 'keep' } }, 1)]);
+    render(<CoachScreen port={port} {...env} />);
+    const c = await card();
+    await c.findByRole('button', { name: 'Weitere Sportarten' });
+    expect(sportsShown(c)).toEqual(['Kraft', 'Laufen']);
+    cleanup();
+    const empty = fakePort([]);
+    render(<CoachScreen port={empty.port} {...env} />);
+    const e = await card();
+    await e.findByLabelText('Ziel');
+    expect(sportsShown(e)).toEqual(['Kraft', 'Rad', 'Laufen']);
+    expect(e.queryByRole('button', { name: 'Weitere Sportarten' })).toBeNull();
+  });
+});

@@ -3,6 +3,7 @@ import type { MuscleGroup } from './muscle-targets';
 import { titleHash, above } from './exercise-links';
 import { addDays } from './week-plan';
 import { ruleNumber } from './training-policy';
+import { takenChanges } from './changes';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
@@ -192,7 +193,7 @@ export const wishLine = (texts: readonly string[]): string | null =>
  * What makes the coaches plan again: active or paused exclude and wish rules (id, state, exercises, text) and the goal record.
  * Proposals, declines and deleted rules are not in it, so they never trigger a replan. '' when there is nothing.
  */
-export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[], frameRecords: readonly TrackedRecord[] = [], today?: string): string {
+export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[], frameRecords: readonly TrackedRecord[] = [], today?: string, changeRecords: readonly TrackedRecord[] = []): string {
   const parts = rulesOf(ruleRecords)
     .filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal')
     .map((r) => `${r.id}:${r.state}:${(r.exerciseIds ?? []).join(',')}:${r.text}`);
@@ -202,5 +203,7 @@ export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords
   if (today && until) parts.push(`focus-active:${today <= until ? 1 : 0}`);
   // A new mode or time makes the plans fit again.
   for (const f of frameRecords) parts.push(`frame:${f.id}:${f.updatedMs}:${f.deleted ? 1 : 0}`);
+  // A change the person took makes the coaches plan at once; when it is used (one more step) or undone, they plan once more.
+  for (const c of takenChanges(changeRecords)) parts.push(`chg:${c.id}:${c.state}`);
   return parts.sort().join('|');
 }
