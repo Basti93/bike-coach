@@ -18,12 +18,12 @@ export const feelAsked = (card: { runId: string; date: string } | null, answered
 export function RunFeelQuestion({ date, onAnswer }: { date: string; onAnswer: (feel: Feel | null) => void }) {
   const tap = onAnswer;
   return (
-    <section className="card tk-feel" aria-label="Wie war der Lauf?">
+    <section className="tk-feel" aria-label="Wie war der Lauf?">
       <p>Wie war der Lauf am {dayText(date).split(',')[0]}?</p>
-      <div className="tk-row">
+      <div className="tk-chips">
         {(Object.keys(LABEL) as Feel[]).map((f) => <button key={f} type="button" className="secondary" onClick={() => tap(f)}>{LABEL[f]}</button>)}
-        <button type="button" className="ghost" onClick={() => tap(null)}>Überspringen</button>
       </div>
+      <button type="button" className="link tk-skip-feel" onClick={() => tap(null)}>Überspringen</button>
     </section>
   );
 }

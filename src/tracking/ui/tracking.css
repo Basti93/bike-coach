@@ -341,3 +341,16 @@
 .tk-screen section.tk-ex .tk-head { margin-bottom: 0; }
 .tk-screen .tk-title + p.muted { margin-top: -.5rem; }
 .tk-row-more > p { margin: 0; }
+
+/* Laufen: today first, the rest behind rows and sheets */
+.tk-dayrow { display: flex; gap: .25rem; }
+.tk-screen .tk-dayrow button.tk-day { flex: 1; min-width: 0; padding: 0; }
+.tk-run .tk-today-line { font-size: 1.1rem; }
+.tk-run .tk-today-line + p, .tk-lastrun p, .tk-weekinfo p { margin: 0; }
+.tk-weekinfo, .tk-lastrun { display: flex; flex-direction: column; gap: .5rem; }
+.tk-feel { display: flex; flex-direction: column; gap: .5rem; padding-top: .5rem; }
+.tk-feel p { margin: 0; }
+.tk-screen button.tk-skip-feel { align-self: flex-start; padding-left: 0; }
+.tk-sheet section > .tk-section { margin: .5rem 0 .25rem; }
+.tk-sheet input[type="date"] { width: 100%; }
+.tk-form label.tk-switchrow { flex-direction: row; align-items: center; color: inherit; }

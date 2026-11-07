@@ -68,15 +68,22 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .pm-keeps { font-size: .85rem; margin: 0; }
 .pm-summary { margin: 0; color: var(--muted); }
 .pm-summary b { color: var(--text); font-size: 1.2rem; }
-.tk-screen .pm-shop { gap: 0; padding: .8rem 1rem; }
-.pm-shop h3 { margin: 0 0 .3rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.pm-shop ul { list-style: none; margin: 0; padding: 0; }
-.pm-item { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; padding: .15rem 0; border-top: 1px solid var(--line); }
+.pm-group { display: flex; flex-direction: column; gap: .25rem; }
+.pm-group ul { list-style: none; margin: 0; padding: 0; }
+.pm-item { border-top: 1px solid var(--line); }
 .pm-item:first-child { border-top: 0; }
+.pm-itemline { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; min-height: 52px; }
+.tk-screen button.pm-amount { display: inline-flex; align-items: center; gap: .25rem; min-height: 48px; padding: 0 0 0 .5rem; background: none; border: 0; border-radius: 0; color: var(--muted); font-weight: 400; font-size: .95rem; text-align: right; }
+.pm-itemmore { padding: 0 0 .5rem 52px; }
+.pm-add { display: flex; flex-direction: column; gap: .5rem; margin-top: 1rem; }
+.pm-addline { display: grid; grid-template-columns: 1fr 6rem; gap: .5rem; }
+.pm-addline input { min-width: 0; }
+.pm-rowtitle { display: block; }
+.pm-dev { display: block; color: var(--accent); font-size: .85rem; }
+.pm-people[role="group"] { margin: .25rem 0; }
 .tk-screen button.pm-check { width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: .7rem; background: transparent; border: 2px solid var(--muted); color: var(--ink); font-size: 1.2rem; }
 .pm-item.gekauft button.pm-check { background: var(--good); border-color: var(--good); }
-.pm-name { display: flex; flex-direction: column; font-weight: 600; }
-.pm-name small { font-weight: 400; color: var(--muted); font-size: .85rem; }
+.pm-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pm-item.gekauft .pm-name, .pm-item.da .pm-name { text-decoration: line-through; color: var(--muted); }
 .tk-screen button.pm-have { background: transparent; color: var(--muted); font-weight: 500; font-size: .8rem; padding: .3rem .5rem; min-width: 0; }
 .pm-have-list { opacity: .75; }

@@ -409,12 +409,24 @@ async function main() {
   // Essen, Laufen, Statistik, Profil.
   await fresh('Essen');
   await shot('essen-tage');
+  await step('essen-mahlzeit-offen', async () => { await page.locator('.tk-rowbtn[aria-expanded]').first().click(); await shot('essen-tage-mahlzeit-offen'); });
+  await step('essen-wunsch', async () => { await page.getByRole('button', { name: 'Änderung wünschen' }).click(); await shot('essen-aenderung-wuenschen'); await page.keyboard.press('Escape'); });
   await step('essen-einkauf', async () => { await page.getByRole('button', { name: /^Einkauf/ }).click(); await shot('essen-einkauf'); });
+  await step('essen-einkauf-haben-wir', async () => { await page.locator('.pm-amount').first().click(); await shot('essen-einkauf-haben-wir'); await page.locator('.pm-amount').first().click(); });
+  await step('essen-einkauf-eigenes', async () => {
+    await page.getByLabel('Etwas dazuschreiben').fill('Kaffee');
+    await page.getByLabel('Menge (optional)').fill('2 Pakete');
+    await page.getByRole('button', { name: 'Hinzufügen' }).click();
+    await page.getByRole('checkbox', { name: 'Haferflocken gekauft' }).click().catch(() => {});
+    await page.waitForTimeout(400);
+    await shot('essen-einkauf-eigenes');
+  });
   await nav('Laufen');
   await page.waitForTimeout(500);
   await shot('laufen');
-  await step('laufen-eintragen', async () => { await page.getByRole('button', { name: 'Lauf eintragen' }).click(); await shot('laufen-lauf-eintragen'); });
-  await step('laufen-einstellungen', async () => { await fresh('Laufen'); await page.getByRole('button', { name: 'Lauftage und Angaben ändern' }).click(); await shot('laufen-lauftage-aendern'); });
+  await step('laufen-eintragen', async () => { await page.getByRole('button', { name: 'Lauf eintragen' }).click(); await shot('laufen-lauf-eintragen'); await page.getByRole('button', { name: /^Mehr/ }).click(); await shot('laufen-lauf-eintragen-mehr'); await page.keyboard.press('Escape'); });
+  await step('laufen-entwicklung', async () => { await fresh('Laufen'); await page.getByRole('button', { name: /^Entwicklung/ }).click(); await shot('laufen-entwicklung'); await page.keyboard.press('Escape'); });
+  await step('laufen-einstellungen', async () => { await fresh('Laufen'); await page.getByRole('button', { name: /^Lauftage und Angaben/ }).click(); await shot('laufen-lauftage-aendern'); await page.keyboard.press('Escape'); });
   await nav('Statistik');
   await page.waitForTimeout(500);
   await shot('statistik');

@@ -92,18 +92,18 @@ test('the questions write answers and weekdays in one settings record', async ()
 test('a planned run shows what counts today', async () => {
   const { port } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
-  const today = (await screen.findByRole('heading', { name: 'Was heute zählt' })).closest('section')!;
+  const today = await screen.findByRole('region', { name: 'Heute' });
   expect(within(today).getByText('Heute zählt die Zeit, nicht das Tempo.')).toBeTruthy();
   expect(within(today).getByText(/30 Min/)).toBeTruthy();
   expect(screen.getByRole('region', { name: 'Läufe dieser Woche' })).toBeTruthy();
   expect(screen.getByText('Ruhiger Start in die Woche.')).toBeTruthy();
 });
 
-test('no run today: no "Was heute zählt"', async () => {
+test('no run today: no today card', async () => {
   const { port } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody([planned({ date: '2026-11-07' })]))]);
   render(<RunScreen port={port} {...ids} />);
   await screen.findByRole('region', { name: 'Läufe dieser Woche' });
-  expect(screen.queryByRole('heading', { name: 'Was heute zählt' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Heute' })).toBeNull();
 });
 
 describe('Garmin', () => {
@@ -203,12 +203,31 @@ test('manual entry writes manual-<id> with minutes in seconds and km in metres',
   const { port, map } = fakePort([rec('status', statusBody()), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
-  expect(await screen.findByRole('heading', { name: 'Lauf eintragen' })).toBeTruthy();
-  fireEvent.change(screen.getByLabelText('Dauer in Minuten'), { target: { value: '32' } });
-  fireEvent.change(screen.getByLabelText('Strecke in km'), { target: { value: '5,2' } });
-  fireEvent.change(screen.getByLabelText('Puls im Schnitt (optional)'), { target: { value: '148' } });
+  const sheet = within(await screen.findByRole('dialog', { name: 'Lauf eintragen' }));
+  fireEvent.change(sheet.getByLabelText('Dauer in Minuten'), { target: { value: '32' } });
+  fireEvent.change(sheet.getByLabelText('Strecke in km'), { target: { value: '5,2' } });
+  fireEvent.click(sheet.getByRole('button', { name: 'Mehr' }));
+  fireEvent.change(sheet.getByLabelText('Puls im Schnitt (optional)'), { target: { value: '148' } });
   fireEvent.click(screen.getByRole('button', { name: 'Lauf speichern' }));
   await waitFor(() => expect(bodyOf(map, 'manual-u1')).toEqual({ type: 'manual', startMs: NOW, durationS: 1920, distanceM: 5200, avgHr: 148, runType: 'running' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
+test('the run entry sheet starts with distance and duration, today as the date, and the rest under Datum and Mehr', async () => {
+  const { port } = fakePort([rec('status', statusBody())]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
+  const sheet = within(await screen.findByRole('dialog', { name: 'Lauf eintragen' }));
+  const labels = sheet.getAllByRole('textbox').map((e) => e.getAttribute('aria-label') ?? e.closest('label')?.textContent);
+  expect(labels[0]).toBe('Strecke in km');
+  expect(labels[1]).toBe('Dauer in Minuten');
+  expect(sheet.getByRole('button', { name: /^Datum/ }).textContent).toContain('Heute');
+  expect(sheet.queryByLabelText('Datum')).toBeNull();
+  expect(sheet.queryByLabelText('Puls im Schnitt (optional)')).toBeNull();
+  expect(sheet.queryByLabelText('Beginn')).toBeNull();
+  fireEvent.click(sheet.getByRole('button', { name: /^Datum/ }));
+  fireEvent.change(sheet.getByLabelText('Datum'), { target: { value: '2026-11-03' } });
+  expect(sheet.getByRole('button', { name: /^Datum/ }).textContent).toContain('Di., 3. Nov.');
 });
 
 test('manual entry needs a duration and writes nothing otherwise', async () => {
@@ -236,7 +255,7 @@ test('a pause status shows the calm pause text and no runs', async () => {
   render(<RunScreen port={port} {...ids} />);
   expect(await screen.findByText('Laufen pausiert, solange die Beschwerde offen ist. Sobald sie vorbei ist, geht es ruhig weiter.')).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Läufe dieser Woche' })).toBeNull();
-  expect(screen.queryByRole('heading', { name: 'Was heute zählt' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Heute' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'An Garmin senden' })).toBeNull();
 });
 
@@ -258,28 +277,43 @@ const progress = statusBody({
   },
 });
 
-test('the easy pace shows now, vor 4 Wochen and vor 12 Wochen with a decimal comma', async () => {
+test('Entwicklung is a row; its sheet says the easy pace in one sentence with decimal commas, and has longest run, km per week and no bars for the pace', async () => {
   const { port } = fakePort([rec('status', progress), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
-  const sec = (await screen.findByRole('heading', { name: 'Dein Fortschritt' })).closest('section')!;
-  expect(within(sec).getByText('Jetzt')).toBeTruthy();
-  expect(within(sec).getByText('vor 4 Wochen')).toBeTruthy();
-  expect(within(sec).getByText('vor 12 Wochen')).toBeTruthy();
-  expect(within(sec).getByText('6:12 /km')).toBeTruthy();
-  expect(within(sec).getByText('6:24 /km')).toBeTruthy();
-  expect(within(sec).getByText('6:40 /km')).toBeTruthy();
-  expect(sec.querySelectorAll('.tk-spark > span')).toHaveLength(12);
-  const longest = screen.getByRole('heading', { name: 'Längster Lauf' }).closest('section')!;
-  expect(longest.textContent).toContain('8,5 km');
-  const km = screen.getByRole('heading', { name: 'Kilometer pro Woche' }).closest('section')!;
+  expect(screen.queryByText(/Ruhiges Tempo bei gleichem Puls/)).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: /^Entwicklung/ }));
+  const sheet = within(await screen.findByRole('dialog', { name: 'Entwicklung' }));
+  expect(sheet.getByText(/jetzt 6:12 \/km, vor 4 Wochen 6:24 \/km, vor 12 Wochen 6:40 \/km/)).toBeTruthy();
+  expect(document.querySelectorAll('.tk-spark')).toHaveLength(0);
+  expect(sheet.getByRole('heading', { name: 'Längster Lauf' }).closest('section')!.textContent).toContain('8,5 km');
+  const km = sheet.getByRole('heading', { name: 'Kilometer pro Woche' }).closest('section')!;
   expect(km.textContent).toContain('12,3 km');
+  expect(km.textContent).toContain('ab 26. Okt.');
   expect(km.textContent).not.toMatch(/\d\.\d+ km/);
+});
+
+test('the weekly look back sits in the Entwicklung sheet, newest first', async () => {
+  const { port } = fakePort([rec('status', statusBody()), rec('review-2026-10-19', reviewBody({ week: '2026-10-19', km: 9 })), rec('review-2026-10-26', reviewBody({ testM: 5200 }))]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: /^Entwicklung/ }));
+  const sheet = within(await screen.findByRole('dialog', { name: 'Entwicklung' }));
+  expect(sheet.getByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
+  const items = sheet.getAllByRole('listitem');
+  expect(items[0]!.textContent).toContain('12,5 km');
+  expect(items[1]!.textContent).toContain('9,0 km');
+});
+
+test('without numbers and reviews there is no Entwicklung row', async () => {
+  const { port } = fakePort([rec('status', statusBody())]);
+  render(<RunScreen port={port} {...ids} />);
+  await screen.findByRole('button', { name: 'Lauf eintragen' });
+  expect(screen.queryByRole('button', { name: /^Entwicklung/ })).toBeNull();
 });
 
 test('no progress without numbers', async () => {
   const { port } = fakePort([rec('status', statusBody())]);
   render(<RunScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
+  await screen.findByRole('button', { name: 'Lauf eintragen' });
   expect(screen.queryByRole('heading', { name: 'Dein Fortschritt' })).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Kilometer pro Woche' })).toBeNull();
 });
@@ -333,6 +367,7 @@ test('the test-day label and hint follow the chosen date', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Lauf eintragen' }));
   expect(await screen.findByLabelText('Strecke in km')).toBeTruthy();
   expect(screen.queryByText(/An diesem Tag ist ein Testlauf/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /^Datum/ }));
   fireEvent.change(screen.getByLabelText('Datum'), { target: { value: '2026-11-07' } });
   expect(screen.getByLabelText('Strecke in den 30 Minuten')).toBeTruthy();
   expect(screen.getByText(/An diesem Tag ist ein Testlauf/)).toBeTruthy();
@@ -397,7 +432,7 @@ test('days and answers can be changed later, starting from what was saved', asyn
   const saved = { type: 'settings', on: true, weekdays: [0, 3], answers: { runsPerWeek: 2, usualMinutes: 40, pain: false } };
   const { port, map } = fakePort([rec('status', statusBody()), rec('settings', saved), rec(`week-${WEEK}`, weekBody())]);
   render(<RunScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Lauftage und Angaben ändern' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Lauftage und Angaben/ }));
   expect((screen.getByLabelText('Wie oft läufst du pro Woche?') as HTMLInputElement).value).toBe('2');
   expect((screen.getByLabelText('Wie lange dauert ein Lauf meist (Minuten)?') as HTMLInputElement).value).toBe('40');
   expect(screen.getByRole('button', { name: 'Montag' }).getAttribute('aria-pressed')).toBe('true');
@@ -412,19 +447,43 @@ test('changing can be cancelled without writing', async () => {
   const saved = { type: 'settings', on: true, weekdays: [0, 3], answers: { runsPerWeek: 2, usualMinutes: 40, pain: false } };
   const { port, map } = fakePort([rec('status', statusBody()), rec('settings', saved)]);
   render(<RunScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Lauftage und Angaben ändern' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Lauftage und Angaben/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
   expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull();
   expect(map.get('run:settings')!.updatedMs).toBe(1);
 });
 
-test('the entry form is closed until asked for, and closes again on Abbrechen', async () => {
+test('the entry sheet is closed until asked for, and closes again with ×', async () => {
   const { port } = fakePort([rec('status', statusBody())]);
   render(<RunScreen port={port} {...ids} />);
   const open = await screen.findByRole('button', { name: 'Lauf eintragen' });
   expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
   fireEvent.click(open);
   expect(screen.getByLabelText('Dauer in Minuten')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
   expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
+});
+
+test('the feel question sits inside "Letzter Lauf", with Überspringen as a link', async () => {
+  const card = { runId: 'a', date: '2026-11-03', kind: 'unplanned' as const, counted: 'Zeit zählt', result: '30 Minuten', sentence: 'Schön ruhig.' };
+  const { port } = fakePort([rec('status', statusBody({ card }))]);
+  render(<RunScreen port={port} {...ids} />);
+  const last = await screen.findByRole('region', { name: 'Dein letzter Lauf' });
+  expect(within(last).getByText('Letzter Lauf')).toBeTruthy();
+  expect(within(last).getByText(/Di\., 3\. Nov\./)).toBeTruthy();
+  const q = within(last).getByRole('region', { name: 'Wie war der Lauf?' });
+  expect(within(q).getByRole('button', { name: 'Überspringen' }).className).toContain('link');
+});
+
+test('the pain question is a switch in the sheet "Lauftage und Angaben", with all seven days in one row', async () => {
+  const saved = { type: 'settings', on: true, weekdays: [0, 3], answers: { runsPerWeek: 2, usualMinutes: 40, pain: false } };
+  const { port, map } = fakePort([rec('status', statusBody()), rec('settings', saved)]);
+  render(<RunScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: /^Lauftage und Angaben/ }));
+  const sheet = within(await screen.findByRole('dialog', { name: 'Lauftage und Angaben' }));
+  expect(sheet.getByRole('group', { name: 'An welchen Tagen möchtest du laufen?' }).querySelectorAll('button')).toHaveLength(7);
+  fireEvent.click(sheet.getByRole('switch', { name: 'Hast du beim Laufen gerade Schmerzen?' }));
+  fireEvent.click(sheet.getByRole('button', { name: 'Speichern' }));
+  await waitFor(() => expect(bodyOf(map, 'settings')).toEqual({ ...saved, answers: { ...saved.answers, pain: true } }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 });

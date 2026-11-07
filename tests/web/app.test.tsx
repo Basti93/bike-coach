@@ -472,8 +472,19 @@ describe('Essen on the phone', () => {
     const a = await boot({ account: 'anna', seed: [mealPlan] });
     fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
     expect(await screen.findByRole('heading', { name: 'Heute' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Skyr mit Beeren' })).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Lena isst mit' })[0]!);
+    // A meal is one row; the people and the recipe show when it is opened, one row at a time.
+    const row = screen.getByRole('button', { name: /Skyr mit Beeren/ });
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Lena isst mit' })).toBeNull();
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole('button', { name: /Linsen-Bolognese/ }));
+    expect(screen.getByRole('button', { name: /Skyr mit Beeren/ }).getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: /Skyr mit Beeren/ }));
+    expect(screen.getByText('Verrühren.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Lena isst mit' }));
+    // Only a deviation shows on the closed row.
+    fireEvent.click(screen.getByRole('button', { name: /Skyr mit Beeren/ }));
+    expect(await screen.findByText('Lena isst nicht mit')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Einkauf/ }));
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Skyr gekauft' }));
     await waitFor(async () => {
@@ -484,6 +495,47 @@ describe('Essen on the phone', () => {
       expect(body?.items?.[itemKey('Skyr', 'g')]?.state).toBe('gekauft');
       expect(body?.eaters?.[`${today}-fruehstueck`]?.pb?.on).toBe(false);
     });
+  });
+
+  it('own shopping items: added under "Eigenes", ticked, and removed after a confirm; all in the state record', async () => {
+    const a = await boot({ account: 'anna', seed: [mealPlan] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Einkauf/ }));
+    fireEvent.change(await screen.findByLabelText('Etwas dazuschreiben'), { target: { value: 'Kaffee' } });
+    fireEvent.change(screen.getByLabelText('Menge (optional)'), { target: { value: '2 Pakete' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' }));
+    expect(await screen.findByRole('heading', { name: 'Eigenes' })).toBeTruthy();
+    expect(screen.getByText('2 Pakete')).toBeTruthy();
+    expect((screen.getByLabelText('Etwas dazuschreiben') as HTMLInputElement).value).toBe('');
+    const stateOf = async () => {
+      const s = await openIdb('anna', a.factory);
+      const rec = (await s.list('mealplan')).find((r) => r.id === `state-${week}`);
+      s.close();
+      return (rec?.body as { own?: Record<string, { name: string; state: string; removed: boolean }> } | undefined)?.own ?? {};
+    };
+    await waitFor(async () => expect(Object.values(await stateOf()).map((o) => o.name)).toEqual(['Kaffee']));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Kaffee gekauft' }));
+    await waitFor(async () => expect(Object.values(await stateOf())[0]!.state).toBe('gekauft'));
+    // The plan's own items keep "Haben wir"; an own item offers only a confirmed removal.
+    fireEvent.click(screen.getByRole('button', { name: 'Kaffee: Entfernen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
+    expect(screen.getByText('Wirklich entfernen?')).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(Object.values(await stateOf())[0]!.removed).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Ja' }));
+    await waitFor(async () => expect(Object.values(await stateOf())[0]!.removed).toBe(true));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Eigenes' })).toBeNull());
+  });
+
+  it('"schon da" moved into the row: the amount opens "Haben wir", and the item moves to "Schon da"', async () => {
+    await boot({ account: 'anna', seed: [mealPlan] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Einkauf/ }));
+    expect(screen.queryByText(/von \d+ noch offen/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Haben wir' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Skyr: Haben wir' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Haben wir' }));
+    expect(await screen.findByRole('heading', { name: 'Schon da' })).toBeTruthy();
   });
 
   it('a message to the coach: written as a record, waiting until the Mac answers, then the reply and the change for both', async () => {
@@ -504,6 +556,7 @@ describe('Essen on the phone', () => {
     await mac.replan('pa', week);
     const a = await boot({ account: 'anna', seed: store.all('pb') });
     fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Änderung wünschen' }));
     fireEvent.change(await screen.findByLabelText('Nachricht an den Coach'), { target: { value: 'Heute Abend lieber was mit Nudeln' } });
     fireEvent.click(screen.getByRole('button', { name: 'Senden' }));
     expect(await screen.findByText('Der Coach antwortet gleich. Ist der Mac aus, dauert es, bis er wieder an ist.')).toBeTruthy();
@@ -520,9 +573,11 @@ describe('Essen on the phone', () => {
     cleanup();
     await boot({ account: 'anna', seed: store.all('pb') });
     fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Änderung wünschen' }));
     expect(await screen.findByText('Heute Abend gibt es Nudeln.')).toBeTruthy();
     expect(screen.queryByText('Der Coach antwortet gleich. Ist der Mac aus, dauert es, bis er wieder an ist.')).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Nudeln mit Tomatensoße und Linsen' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
+    fireEvent.click(screen.getByRole('button', { name: /Nudeln mit Tomatensoße und Linsen/ }));
     expect(screen.getByText('auf Wunsch von Lena')).toBeTruthy();
     expect(store.all('pa').some((r) => r.id.startsWith('chat-'))).toBe(false);
   });
@@ -601,10 +656,12 @@ describe('Laufen on the phone', () => {
     await boot({ account: 'anna', seed: [status()] });
     fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
     await screen.findByRole('button', { name: 'Lauf eintragen' });
-    expect(screen.queryByRole('heading', { name: 'Wochenrückblick' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Entwicklung/ })).toBeNull();
     cleanup();
     await boot({ account: 'anna', seed: [status(), review] });
     fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
+    expect(screen.queryByRole('heading', { name: 'Wochenrückblick' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: /^Entwicklung/ }));
     expect(await screen.findByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
     expect(screen.getByText(/12,5 km/)).toBeTruthy();
   });

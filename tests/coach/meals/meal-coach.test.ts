@@ -301,6 +301,27 @@ describe('sync through the account records', () => {
     expect(w.state.items[key]).toEqual({ state: 'da', atMs: t0 + 3000 });
   });
 
+  it('an own shopping item from a phone reaches the household, survives a regenerated plan, and goes out to the other phone', async () => {
+    const { coach, store, clock } = setup({ linked: ['max', 'lena'] });
+    coach.setSettings('max', ON());
+    coach.setSettings('lena', ON());
+    await coach.tick();
+    const st = store.all('lena', 'mealplan').find((r) => r.id === 'state-2026-11-09')!;
+    clock.now += 1000;
+    const own = { 'own-abc12345': { name: 'Kaffee', amount: '2 Pakete', state: 'offen', removed: false, atMs: clock.now } };
+    store.putMany('lena', [{ ...st, updatedMs: clock.now, body: { ...(st.body as object), own } }], 'remote');
+    clock.now += 1000;
+    await coach.tick();
+    expect(shoppingList(coach.view('max').weeks[0]!.plan, coach.view('max').weeks[0]!.state).own.map((i) => i.name)).toEqual(['Kaffee']);
+    // A new plan for the same week: the list of the plan changes, the own item stays.
+    clock.now += 1000;
+    await coach.replan('max', '2026-11-09');
+    const w = coach.view('max').weeks[0]!;
+    expect(shoppingList(w.plan, w.state).own).toEqual([{ key: 'own-abc12345', name: 'Kaffee', amount: '2 Pakete', state: 'offen', dishes: [] }]);
+    const maxState = store.all('max', 'mealplan').find((r) => r.id === 'state-2026-11-09')!;
+    expect((maxState.body as { own: Record<string, { name: string }> }).own['own-abc12345']!.name).toBe('Kaffee');
+  });
+
   it('turning the plan off tombstones the records of that profile', async () => {
     const { coach, store } = setup({ linked: ['max'] });
     coach.setSettings('max', ON());

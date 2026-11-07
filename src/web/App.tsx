@@ -6,7 +6,7 @@ import { openStoreCount } from '../tracking/registry';
 import { Row, RowList, Switch } from '../tracking/ui/kit';
 import { CoachPrefs } from '../tracking/ui/CoachPrefs';
 import { localDayKey, shortDate, timeLabel } from '../shared/dates';
-import { CatalogScreen, HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { CatalogScreen, HistoryScreen, RoutinesScreen, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { TodayCard, todayPlan } from '../tracking/ui/TodayCard';
@@ -432,7 +432,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
           {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={(r) => { setResume(!!r); setTab('training'); }} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
           {tab === 'training' && <Training port={port} env={env} resume={resume} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
-          {tab === 'laufen' && hasRun && <><RunScreen port={port} now={env.now} newId={env.newId} /><RunLookBack port={port} now={env.now} /></>}
+          {tab === 'laufen' && hasRun && <RunScreen port={port} now={env.now} newId={env.newId} />}
           {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} showPrefs={false} />}
           {tab === 'statistik' && hasStats && <StatsScreen port={port} now={env.now} />}
           {tab === 'profil' && <Profil account={account} port={port} now={env.now} status={status} onLogout={onLogout} onBack={() => setTab(back)} push={push.state} persistRefused={persistRefused} />}
