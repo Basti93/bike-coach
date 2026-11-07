@@ -8,7 +8,7 @@ import { changeProposal, confirmProposal, proposalOf, recentLinkOf, rejectPropos
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
 import { usePortRecords } from './hooks';
-import { EQUIPMENT, muscleLabel } from './labels';
+import { equipmentSuffix, muscleLabel } from './labels';
 
 /** What the coach sorted for the person: proposals to confirm or change, and recent links to change or take back. Nothing when there is nothing. */
 export function ExerciseProposals({ port, now = Date.now, newId }: { port: TrackingPort; now?: () => number; newId?: () => string }) {
@@ -49,7 +49,7 @@ export function ExerciseProposals({ port, now = Date.now, newId }: { port: Track
             <span>
               {p.kind === 'same'
                 ? <>‚{p.forTitle}‘ ist vermutlich {title(p.targetId)}</>
-                : <>Neue Übung: {isObj(r.body) && typeof r.body.title === 'string' ? r.body.title : p.forTitle}{isObj(r.body) && typeof r.body.primaryMuscle === 'string' ? `, ${muscleLabel(r.body.primaryMuscle)}` : ''}{isObj(r.body) && typeof r.body.equipment === 'string' ? `, ${EQUIPMENT[r.body.equipment] ?? r.body.equipment}` : ''}</>}
+                : <>Neue Übung: {isObj(r.body) && typeof r.body.title === 'string' ? r.body.title : p.forTitle}{isObj(r.body) && typeof r.body.primaryMuscle === 'string' ? `, ${muscleLabel(r.body.primaryMuscle)}` : ''}{isObj(r.body) && typeof r.body.equipment === 'string' && equipmentSuffix(String(r.body.title ?? p.forTitle), r.body.equipment) ? `, ${equipmentSuffix(String(r.body.title ?? p.forTitle), r.body.equipment)}` : ''}</>}
             </span>
             <span className="tk-proposal-actions">
               <button type="button" className="secondary" onClick={() => void write((stored, cat) => { const cur = current(stored, r); return cur ? confirmProposal(cur, cat, now(), stored) : []; })}>Bestätigen</button>

@@ -8,7 +8,7 @@ import { ExerciseInfo } from './ExerciseInfo';
 import { MuscleIcon } from './MuscleIcon';
 import { matchesSearch, similarExercises } from '../similar';
 import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
-import { EQUIPMENT, muscleLabel, MUSCLES, TYPES } from './labels';
+import { EQUIPMENT, equipmentSuffix, muscleLabel, MUSCLES, TYPES } from './labels';
 
 /** `like` is the exercise being swapped; similar ones then come first. */
 export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, newId = () => crypto.randomUUID() }: {
@@ -51,7 +51,7 @@ export function ExercisePicker({ port, onPick, onClose, like, now = Date.now, ne
         <div className="tk-pick-row">
           <span className="tk-pick-icon">{icon}</span>
           <button type="button" className="tk-pick" onClick={() => onPick(e)}>
-            {e.title}<small aria-hidden="true"> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
+            {e.title}{equipmentSuffix(e.title, e.equipment) && <small aria-hidden="true"> · {equipmentSuffix(e.title, e.equipment)}</small>}
           </button>
           <button type="button" className="ghost tk-info-toggle" aria-label={`Ausführung ${e.title}`} aria-expanded={info === e.id}
             onClick={() => setInfo(info === e.id ? null : e.id)}>i</button>
