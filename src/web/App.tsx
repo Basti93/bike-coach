@@ -21,6 +21,7 @@ import { createWebPort, type WebPort } from './webPort';
 import { MealsScreen, mealWeeks } from './MealsScreen';
 import { TogetherCard, TogetherPage, togetherOf } from './TogetherScreen';
 import type { PushEnv, SubJson } from './push';
+import { ContactSettings } from './ContactSettings';
 
 export type Env = {
   fetchFn: typeof fetch;
@@ -341,6 +342,7 @@ function Profil({ account, port, now, status, onLogout, onBack, push, persistRef
       </RowList>
       {!quiet && <p role="status" className="muted">{sync}</p>}
       <RunSettingsCard port={port} now={now} />
+      <ContactSettings port={port} now={now} />
       {push && <PushSettings push={push} />}
       {/* The coach's timing is about notifications: it shows under them once they are on (always where the shell has no push at all). */}
       {(!push || push.on) && <CoachPrefs port={port} now={now} nested />}
