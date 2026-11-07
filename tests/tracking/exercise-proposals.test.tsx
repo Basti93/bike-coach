@@ -8,6 +8,7 @@ import { resolveExercise } from '../../src/tracking/exercise-identity';
 import { changeProposal, confirmProposal, rejectProposal, relink, undoLink } from '../../src/tracking/exercise-proposals';
 import { ExerciseProposals } from '../../src/tracking/ui/ExerciseProposals';
 import { WorkoutScreen } from '../../src/tracking/ui/WorkoutScreen';
+import { CatalogScreen } from '../../src/tracking/ui/CatalogScreen';
 import { fakePort } from './fake-port';
 
 afterEach(cleanup);
@@ -176,5 +177,18 @@ describe('ExerciseProposals card', () => {
     cleanup();
     expect(await open()).toBe('Muskel unbekannt');
     expect(f.state.puts[0]).toMatchObject({ id: linkId(TITLE), deleted: true });
+  });
+});
+
+describe('where the card lives', () => {
+  test('under Übungen, not on the training start screen', async () => {
+    const f = fakePort([sameProposal]);
+    render(<CatalogScreen port={f.port} now={() => NOW} newId={() => 'x'} />);
+    expect(await screen.findByRole('region', { name: 'Übungen einordnen' })).toBeTruthy();
+    cleanup();
+    render(<WorkoutScreen port={fakePort([sameProposal]).port} now={() => NOW} newId={() => 'x'} />);
+    await screen.findByRole('heading', { level: 1 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('region', { name: 'Übungen einordnen' })).toBeNull();
   });
 });

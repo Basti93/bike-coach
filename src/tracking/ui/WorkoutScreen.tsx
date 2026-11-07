@@ -18,7 +18,6 @@ import { acquireStore, closeStore, releaseStore } from '../registry';
 import { createWorkoutStore } from '../store';
 import { ExerciseInfo, StepLine } from './ExerciseInfo';
 import { ExercisePicker } from './ExercisePicker';
-import { ExerciseProposals } from './ExerciseProposals';
 import { MuscleIcon } from './MuscleIcon';
 import { finishedWorkouts, useCatalog, useExcluded, usePortRecords, useStoreView, useTick, useWakeLock, type WorkoutStore } from './hooks';
 import { clock, dateLabel } from './labels';
@@ -547,7 +546,6 @@ export function WorkoutScreen({ port, plan = null, routine = null, resume = fals
           </ul>
         </Sheet>
       )}
-      <ExerciseProposals port={port} now={now} newId={newId} />
     </div>
   );
 }
