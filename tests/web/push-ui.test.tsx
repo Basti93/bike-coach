@@ -141,10 +141,10 @@ describe('push notifications on the phone', () => {
     expect(pushSupport({ ua: 'Mozilla/5.0 Android', standalone: false, hasPush: true })).toBe('ok');
   });
 
-  it('the settings text names the three notices', async () => {
+  it('the settings hint names the notices in one line', async () => {
     const push = fakePush();
     await boot({ push, loggedIn: true });
     fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
-    expect(await screen.findByText('Nur wenige: wenn eine neue Version da ist, wenn dein Essensplan oder Laufplan für die Woche kommt und wenn der Coach dir schreibt.')).toBeTruthy();
+    expect(await screen.findByText('Neue Version, Essens- und Laufplan, Antworten vom Coach.')).toBeTruthy();
   });
 });

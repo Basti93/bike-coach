@@ -3,14 +3,15 @@
   --tk-bg: var(--bg, #12201a); --tk-text: var(--text, #f6eedd); --tk-ink: var(--ink, #1f1408); --tk-field: var(--field, #101b16);
   --tk-card: var(--card, #1c2f26); --tk-line: var(--line, #33493c); --tk-muted: var(--muted, #aebba9); --tk-accent: var(--accent, #e8964a); --tk-good: var(--good, #9ccb68); --tk-warm: var(--low, #f2bd55);
   font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--tk-text);
-  display: flex; flex-direction: column; gap: .8rem; padding: 1rem; max-width: 640px; margin: 0 auto; box-sizing: border-box; width: 100%;
+  display: flex; flex-direction: column; gap: .5rem; padding: 1rem; max-width: 640px; margin: 0 auto; box-sizing: border-box; width: 100%;
 }
 .tk-screen *, .tk-picker * { box-sizing: border-box; }
 .tk-screen .muted, .tk-picker .muted { color: var(--tk-muted); }
-.tk-title { font-size: 1.6rem; margin: 0; }
-.tk-screen h2 { font-size: 1.15rem; margin: 0; }
+.tk-title { font-size: 1.5rem; margin: 0; }
+.tk-screen h2 { font-size: 1rem; margin: 0; }
 .tk-picker h3 { font-size: .85rem; color: var(--tk-muted, #aebba9); margin: .8rem 0 .4rem; text-transform: uppercase; letter-spacing: .05em; }
-.tk-screen .card { background: var(--tk-card); border-radius: 1.1rem; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.tk-screen .card { background: var(--tk-card); border-radius: 1.1rem; padding: .75rem 1rem; display: flex; flex-direction: column; gap: .5rem; }
+.tk-screen .card .card { background: none; border: 0; border-radius: 0; padding: 0; }
 .tk-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .tk-row .spacer { flex: 1; }
 .tk-screen button, .tk-picker button {
@@ -18,8 +19,11 @@
   background: var(--accent, #e8964a); color: var(--ink, #1f1408); cursor: pointer;
 }
 .tk-screen button:disabled, .tk-picker button:disabled { opacity: .4; cursor: default; }
-.tk-screen button.secondary, .tk-picker button.secondary { background: #2d4638; color: var(--text, #f6eedd); }
-.tk-screen button.ghost, .tk-picker button.ghost { background: transparent; color: var(--muted, #aebba9); border: 1px solid var(--line, #33493c); }
+.tk-screen button.secondary, .tk-picker button.secondary { background: transparent; color: var(--text, #f6eedd); border: 1px solid var(--muted, #aebba9); }
+/* Calm UI kit (see kit/index.ts): buttons are primary (the default), secondary (outline), link (text) and danger-link (muted red text). ghost is the old name of link. */
+.tk-screen button.primary, .tk-picker button.primary { background: var(--accent, #e8964a); color: var(--ink, #1f1408); border: 0; }
+.tk-screen button.ghost, .tk-picker button.ghost, .tk-screen button.link, .tk-picker button.link, .tk-screen button.danger-link, .tk-picker button.danger-link { background: transparent; border: 0; border-radius: .5rem; color: var(--muted, #aebba9); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; padding: .5rem .6rem; }
+.tk-screen button.danger-link, .tk-picker button.danger-link { color: var(--danger, #d9806f); font-weight: 500; }
 .tk-screen input, .tk-screen select, .tk-screen textarea, .tk-picker input, .tk-picker select {
   font: inherit; min-height: 44px; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line, #33493c); background: var(--field, #101b16); color: inherit;
 }
@@ -231,3 +235,38 @@
 .tk-cat-line small.tk-out { color: var(--warn, #e0b46a); }
 .tk-family { margin: .2rem 0; }
 .tk-cat-group .tk-info-pic img { max-height: 9rem; width: 100%; object-fit: contain; }
+
+/* ---- Calm UI kit: rows, switch, sheet (components in kit/). ---- */
+.tk-section { font-size: .8rem; font-weight: 600; color: var(--tk-muted, #aebba9); text-transform: uppercase; letter-spacing: .05em; margin: 1rem 0 0; }
+.tk-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tk-rowitem { border-top: 1px solid var(--line, #33493c); }
+.tk-rowitem:first-child, .tk-rows > .tk-choice:first-child { border-top: 0; }
+.tk-rowbtn { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 48px; padding: .5rem 0; text-align: left; font: inherit; color: inherit; }
+.tk-screen button.tk-rowbtn, .tk-sheet button.tk-rowbtn { background: none; border: 0; border-radius: 0; font-weight: 400; justify-content: flex-start; }
+.tk-row-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tk-row-value { flex: none; max-width: 55%; text-align: right; font-size: .95rem; }
+.tk-chevron { flex: none; width: 1rem; text-align: center; color: var(--tk-muted, #aebba9); font-size: 1.4rem; line-height: 1; transition: transform .15s; }
+.tk-chevron.open { transform: rotate(90deg); }
+.tk-row-more { padding: 0 0 .5rem; display: flex; flex-direction: column; gap: .5rem; }
+.tk-choice { border-top: 1px solid var(--line, #33493c); }
+.tk-confirm { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .25rem; }
+.tk-switchrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 48px; padding: .5rem 0; cursor: pointer; border-top: 1px solid var(--line, #33493c); }
+.tk-switchrow:first-child { border-top: 0; }
+.tk-switchtext { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.tk-switchtext small { font-size: .85rem; }
+.tk-screen .tk-switchrow input[role="switch"], .tk-switchrow input[role="switch"] {
+  appearance: none; -webkit-appearance: none; flex: none; width: 3rem; height: 1.75rem; min-height: 0; padding: 0; border-radius: 999px; position: relative;
+  background: var(--line, #33493c); border: 0; cursor: pointer; transition: background .15s;
+}
+.tk-switchrow input[role="switch"]::after { content: ''; position: absolute; top: .2rem; left: .2rem; width: 1.35rem; height: 1.35rem; border-radius: 50%; background: var(--text, #f6eedd); transition: transform .15s; }
+.tk-switchrow input[role="switch"]:checked { background: var(--accent, #e8964a); }
+.tk-switchrow input[role="switch"]:checked::after { transform: translateX(1.25rem); background: var(--ink, #1f1408); }
+.tk-switchrow input[role="switch"]:focus-visible { outline: 2px solid var(--tk-accent, #e8964a); outline-offset: 2px; }
+.tk-switchrow input[role="switch"]:disabled { opacity: .5; }
+.tk-sheet { position: fixed; inset: 0; z-index: 20; max-width: none; margin: 0; padding: env(safe-area-inset-top) 0 0; gap: 0; background: var(--bg, #12201a); overflow: hidden; outline: 0; }
+.tk-sheet-head { display: flex; align-items: center; gap: .5rem; padding: .5rem 1rem; border-bottom: 1px solid var(--line, #33493c); }
+.tk-sheet-head h2 { flex: 1; font-size: 1.15rem; }
+.tk-screen button.tk-sheet-x { font-size: 1.6rem; line-height: 1; text-decoration: none; padding: 0; width: 44px; }
+.tk-sheet-body { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .5rem; max-width: 640px; width: 100%; margin: 0 auto; }
+.tk-sheet-actions { display: flex; flex-direction: column; gap: .5rem; padding: .5rem 1rem calc(.5rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--line, #33493c); background: var(--bg, #12201a); max-width: 640px; width: 100%; margin: 0 auto; }
+.tk-back { align-self: flex-start; margin: 0 0 -.5rem -.6rem; }

@@ -4,6 +4,7 @@ import { RUN_SETTINGS_ID, readRunBody, runIdType, type RunSettingsBody } from '.
 import type { TrackingPort } from '../ports';
 import { usePortRecords } from './hooks';
 import { nextUpdatedMs } from './run-view';
+import { Switch } from './kit';
 
 /** Reads the person's settings record, if it is a readable one. */
 export function settingsOf(records: TrackedRecord[] | null): { have: TrackedRecord | undefined; body: RunSettingsBody | null } {
@@ -19,7 +20,7 @@ export function writeSettings(port: TrackingPort, all: TrackedRecord[] | null, n
   return port.put({ kind: 'run', id: RUN_SETTINGS_ID, updatedMs: nextUpdatedMs(now, have), deleted: false, body: next });
 }
 
-/** The always-present switch (profile): running can be switched on by hand, with or without Garmin. */
+/** The always-present switch row (profile): running can be switched on by hand, with or without Garmin. */
 export function RunSettingsCard({ port, now }: { port: TrackingPort; now: () => number }) {
   const q = usePortRecords(port, 'run');
   const { body } = settingsOf(q.records);
@@ -30,14 +31,5 @@ export function RunSettingsCard({ port, now }: { port: TrackingPort; now: () => 
     void writeSettings(port, q.all, now(), (old) => ({ type: 'settings', on: !on, weekdays: old?.weekdays ?? null, answers: old?.answers ?? null }))
       .catch(() => {}).finally(() => setBusy(false));
   };
-  return (
-    <section className="card tk-run-switch">
-      <h2>Laufen</h2>
-      <p className="muted">Pandafit plant dein Laufen mit, wenn du das möchtest. Du kannst es jederzeit wieder ausschalten.</p>
-      <label className="tk-switch">
-        <input type="checkbox" role="switch" checked={on} disabled={q.records === null || busy} onChange={toggle} />
-        <span>Laufen planen</span>
-      </label>
-    </section>
-  );
+  return <Switch label="Laufen planen" hint="Pandafit plant dein Laufen mit." checked={on} disabled={q.records === null || busy} onChange={toggle} />;
 }

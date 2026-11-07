@@ -66,6 +66,23 @@ describe('web app', () => {
     expect(await screen.findByText('Name oder Passwort stimmt nicht. Versuch es gern nochmal.')).toBeTruthy();
   });
 
+  it('login: the button is always enabled; empty fields say what is missing instead of sending', async () => {
+    const a = await boot({ me: 401 });
+    const btn = await screen.findByRole('button', { name: 'Anmelden' }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    expect(await screen.findByText('Bitte Name und Passwort eingeben')).toBeTruthy();
+    expect(a.calls.some((c) => c.includes('/login'))).toBe(false);
+  });
+
+  it('Profil has a way back and the coach timing switches', async () => {
+    await boot({ account: 'anna', seed: [] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
+    expect(await screen.findByRole('switch', { name: /Wochengespräch/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '‹ Zurück' }));
+    expect(await screen.findByRole('heading', { name: 'Heute' })).toBeTruthy();
+  });
+
   it('storage persistence is requested at login, and a refusal gets a single calm line', async () => {
     const a = await boot({ me: 401, persist: false });
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'anna' } });
@@ -156,8 +173,8 @@ describe('web app', () => {
     expect([...nav.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Heute', 'Woche', 'Kraft']);
     expect(screen.queryByRole('button', { name: 'Abmelden' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
-    expect(await screen.findByRole('heading', { name: 'anna' })).toBeTruthy();
-    expect(screen.getByText(/abgeglichen|Abgleich|Senden|Verbindung/)).toBeTruthy();
+    expect(await screen.findByText('Angemeldet als anna')).toBeTruthy();
+    expect(screen.getByText(/gesichert|Abgleich|Senden|Verbindung/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Abmelden' })).toBeTruthy();
   });
 

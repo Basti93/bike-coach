@@ -1,8 +1,8 @@
 /* Only the shell. Everything else comes from the tracking screens' own tracking.css and its variables. */
-:root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; color-scheme: dark light; }
+:root { --bg: #12201a; --text: #f6eedd; --ink: #1f1408; --field: #101b16; --card: #1c2f26; --line: #33493c; --muted: #aebba9; --accent: #e8964a; --good: #9ccb68; --danger: #d9806f; color-scheme: dark light; }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; }
-  .tk-screen button.secondary, .tk-picker button.secondary, .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
+  :root { --bg: #f7f3e8; --text: #1f2a24; --ink: #1f1408; --field: #ffffff; --card: #ece6d4; --line: #cfc7ad; --muted: #5d6a60; --danger: #a8372a; }
+  .tk-pick { background: #dcd5bd !important; color: var(--text) !important; }
   .tk-chip-warm { color: #9a6a00; } .tk-chip-fail { color: #b23a2a; } .tk-chip-drop { color: #2a6aa0; }
 }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -19,6 +19,7 @@ body { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemF
 .web-nav-away { display: none; }
 .web-main { padding-top: env(safe-area-inset-top); padding-bottom: calc(var(--web-nav-h) + env(safe-area-inset-bottom) + 1.5rem); }
 .web-login label { display: flex; flex-direction: column; gap: .3rem; }
+.web-login { padding-top: calc(12vh + env(safe-area-inset-top)); gap: .75rem; }
 /* Sticky pieces sit below the notch; the tab bar is at the bottom now. */
 .tk-rest { top: calc(env(safe-area-inset-top) + .4rem) !important; }
 .tk-picker { padding-top: calc(1rem + env(safe-area-inset-top)); padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }

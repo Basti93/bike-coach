@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { chatThread, COACH_PREFS_ID, prefsOf, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type CoachPrefs } from '../../shared/chat';
+import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage } from '../../shared/chat';
 import { dayLabel, mondayOf, SPORT_LABEL, planOfWeek, WEEKDAY_LABEL, addDays, type PlanDay, type WeekProposal } from '../../shared/week-plan';
 import type { TrackingPort } from '../ports';
 import { readStats, STATS_ID } from '../../shared/stats';
@@ -13,6 +13,7 @@ import { useTodayAdvice } from './frame-hooks';
 import { NextChangeCard } from './NextChangeCard';
 import { RuleCard } from './RuleCard';
 import { RulesCard } from './RulesCard';
+import { CoachPrefs } from './CoachPrefs';
 import { useCatalog, usePortRecords } from './hooks';
 import { dayText as runDay, nextUpdatedMs, runView } from './run-view';
 import type { TrackedRecord } from '../../shared/records';
@@ -75,32 +76,6 @@ function Proposal({ m, answer, undoWhy, past, loading, onTake, onUndo, onDecline
   );
 }
 
-const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);
-
-/** When the coach writes by itself. Both off until switched on; pushes need notifications allowed on this device. */
-function PrefsCard({ prefs, onChange }: { prefs: CoachPrefs; onChange: (p: CoachPrefs) => void }) {
-  const hourSelect = (label: string, value: number, set: (h: number) => void) => (
-    <select aria-label={label} value={value} onChange={(e) => set(Number(e.target.value))}>{HOURS.map((h) => <option key={h} value={h}>{h}:00</option>)}</select>
-  );
-  return (
-    <details className="card tk-prefs">
-      <summary>Wann sich der Coach meldet</summary>
-      <label className="tk-row"><input type="checkbox" checked={prefs.week.on} onChange={(e) => onChange({ ...prefs, week: { ...prefs.week, on: e.target.checked } })} /> Wochengespräch mit Vorschlag für die nächste Woche</label>
-      {prefs.week.on && (
-        <div className="tk-row">
-          <select aria-label="Tag des Wochengesprächs" value={prefs.week.day} onChange={(e) => onChange({ ...prefs, week: { ...prefs.week, day: Number(e.target.value) } })}>
-            {WEEKDAY_LABEL.map((d, i) => <option key={d} value={i}>{d}</option>)}
-          </select>
-          {hourSelect('Uhrzeit des Wochengesprächs', prefs.week.hour, (h) => onChange({ ...prefs, week: { ...prefs.week, hour: h } }))}
-        </div>
-      )}
-      <label className="tk-row"><input type="checkbox" checked={prefs.evening.on} onChange={(e) => onChange({ ...prefs, evening: { ...prefs.evening, on: e.target.checked } })} /> Am Vorabend sagen, was morgen ansteht (nur vor Trainingstagen)</label>
-      {prefs.evening.on && <div className="tk-row">{hourSelect('Uhrzeit am Vorabend', prefs.evening.hour, (h) => onChange({ ...prefs, evening: { ...prefs.evening, hour: h } }))}</div>}
-      <p className="muted">Kommt als Mitteilung, wenn sie auf diesem Gerät erlaubt sind, und steht immer hier im Chat.</p>
-    </details>
-  );
-}
-
 /** What the coaches changed lately and why, one line each: "Mo., 3. Nov. · Text – Grund". Nothing to show, no card. */
 function ChangedCard({ records }: { records: TrackedRecord[] | null }) {
   const rec = (records ?? []).find((x) => x.id === STATS_ID && !x.deleted);
@@ -116,8 +91,9 @@ function ChangedCard({ records }: { records: TrackedRecord[] | null }) {
   );
 }
 
-/** One chat with the coach for all sports, with the week plan on top. Proposals change nothing until the rider takes them. */
-export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () => number; newId: () => string }) {
+/** One chat with the coach for all sports, with the week plan on top. Proposals change nothing until the rider takes them.
+ *  `showPrefs`: the Mac still shows the coach's timing here; the phone has it on Profil. */
+export function CoachScreen({ port, now, newId, showPrefs = true }: { port: TrackingPort; now: () => number; newId: () => string; showPrefs?: boolean }) {
   const chat = usePortRecords(port, 'chat').all;
   const plans = usePortRecords(port, 'weekplan').all;
   const changeRecs = usePortRecords(port, 'change').all;
@@ -125,7 +101,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
   const catalog = useCatalog(port);
   const runRecords = usePortRecords(port, 'run').all;
   const complaintRecords = usePortRecords(port, 'complaint').all;
-  const prefRecords = usePortRecords(port, 'coachprefs').all;
   const statsRecords = usePortRecords(port, 'stats').all;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -186,10 +161,6 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
       if (res.ok) await write({ role: 'rider', text: 'Wochenplan rückgängig gemacht.', atMs: now(), undoes: m.id }); else setError(res.reason);
     } catch { setError('Der Plan konnte nicht gespeichert werden. Versuch es gleich nochmal.'); }
   };
-  const savePrefs = (p: CoachPrefs) => {
-    const have = (prefRecords ?? []).find((r) => r.id === COACH_PREFS_ID);
-    void port.put({ kind: 'coachprefs', id: COACH_PREFS_ID, updatedMs: nextUpdatedMs(now(), have), deleted: false, body: p }).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'));
-  };
   const decline = (m: ChatEntry) => void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id });
 
   return (
@@ -216,7 +187,7 @@ export function CoachScreen({ port, now, newId }: { port: TrackingPort; now: () 
       )}
       <ChangedCard records={statsRecords} />
       <RulesCard port={port} now={now} newId={newId} />
-      <PrefsCard prefs={prefsOf(prefRecords ?? [])} onChange={savePrefs} />
+      {showPrefs && <section className="card"><CoachPrefs port={port} now={now} /></section>}
       <section className="card tk-chat" aria-label="Unterhaltung mit dem Coach">
         {thread.length === 0 && <p className="muted">Zum Beispiel: „4 Tage diese Woche, Freitag bin ich sicher im Studio“ oder „Schlag mir eine Woche vor“.</p>}
         {visible.length > shown && <button type="button" className="ghost" onClick={older}>Ältere anzeigen</button>}

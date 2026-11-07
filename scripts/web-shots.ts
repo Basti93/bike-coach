@@ -359,7 +359,6 @@ async function main() {
     if (await page.getByRole('button', { name: 'Ältere anzeigen' }).count()) await page.getByRole('button', { name: 'Ältere anzeigen' }).click();
     await shot('woche-chat-all');
   });
-  await step('woche-prefs-open', async () => { await fresh('Woche'); await page.locator('summary', { hasText: 'Wann sich der Coach meldet' }).click(); await shot('woche-prefs-open'); });
   await step('woche-focus-change', async () => { await fresh('Woche'); await page.getByRole('button', { name: 'ändern', exact: true }).click(); await shot('woche-goal-focus-change'); });
   await step('woche-exclude-picker', async () => { await fresh('Woche'); await page.getByRole('button', { name: 'Übung ausschließen' }).click(); await shot('woche-exclude-exercise-picker'); await closeDialog(); });
   await step('woche-typing', async () => { await fresh('Woche'); await page.getByLabel('Nachricht an den Coach').fill('Kannst du mir für nächste Woche etwas mit weniger Beinen vorschlagen?'); await page.getByLabel('Nachricht an den Coach').focus(); await shot('woche-chat-typing'); });
