@@ -9,6 +9,7 @@ import { matchesSearch } from '../similar';
 import { ExerciseInfo } from './ExerciseInfo';
 import { finishedWorkouts, useCatalog, useExcluded, usePortRecords } from './hooks';
 import { ExerciseGroups } from './ExerciseGroups';
+import { ExerciseProposals } from './ExerciseProposals';
 import { Row, RowList, Sheet } from './kit';
 
 /**
@@ -70,6 +71,8 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
   return (
     <div className="tk-screen">
       <h1 className="tk-title">Übungen</h1>
+      {/* Unknown exercises wait here to be sorted in (not on the training screen); nothing shows when none wait. */}
+      <ExerciseProposals port={port} now={now} newId={newId} />
       <input className="tk-search" aria-label="Übung suchen" placeholder="Übung oder Muskel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
       {error && <p role="alert" className="tk-note">Konnte nicht gespeichert werden. Versuch es gleich nochmal.</p>}
       {hits.length === 0 && <p className="muted">Nichts gefunden.</p>}
