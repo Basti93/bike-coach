@@ -1,7 +1,7 @@
 import { restOf, restAfterSet } from '../../src/shared/rest';
 import { gymMinutes } from '../../src/shared/duration';
-import { policyRule } from '../../src/shared/training-policy';
-import { confirmSet, extendRest, setRest, startFromPlan } from '../../src/tracking/session';
+import { policyRule, ruleNumber } from '../../src/shared/training-policy';
+import { currentSet, confirmSet, extendRest, setRest, startFromPlan } from '../../src/tracking/session';
 import type { GymWorkout } from '../../src/coach/gym/types';
 
 const sets = (reps: number | null, n = 3, type: 'normal' | 'warmup' = 'normal') => Array.from({ length: n }, () => ({ type, weightKg: 20, reps }));
@@ -30,7 +30,7 @@ describe('rest with warm-ups', () => {
   it('a warm-up pairs with nothing; rounds count work sets', () => {
     const w = startFromPlan({ name: 'S', exercises: [mk(60), { ...ex('b', 120, 10, 1, 2) }] }, [], 10, 'w1');
     const [a, b] = w.exercises;
-    expect(confirmSet(w, a.rid, a.sets[0].rid, 1000).rest?.durationS).toBe(60);
+    expect(confirmSet(w, a.rid, a.sets[0].rid, 1000).rest?.durationS).toBe(ruleNumber('rest.warmup-s')); // short, whatever the exercise's rest
     const x = confirmSet(w, a.rid, a.sets[1].rid, 1000);
     expect(x.rest).toBeNull();
     expect(confirmSet(x, b.rid, b.sets[0].rid, 2000).rest?.durationS).toBe(120);
@@ -82,5 +82,22 @@ describe('extending and editing the rest', () => {
     const r = setRest(w, w.exercises[0].rid, 180);
     expect(confirmSet(r, r.exercises[0].rid, r.exercises[0].sets[0].rid, 1000).rest?.durationS).toBe(180);
     expect(setRest(w, w.exercises[0].rid, 31)).toBe(w);
+  });
+});
+
+describe('one rest everywhere', () => {
+  it('a rule plan leaves the rest to restOf; estimate, timer and Hevy body agree for a compound exercise', () => {
+    const e = { ...ex('pf-bench-press', null), sets: sets(10) };
+    const w = startFromPlan({ name: 'T', exercises: [e] }, [], 10, 'w1');
+    const done = confirmSet(w, w.exercises[0].rid, w.exercises[0].sets[0].rid, 1000);
+    expect(done.rest?.durationS).toBe(150);
+    expect(restOf(e)).toBe(150);
+  });
+  it('a warm-up set rests short and an open warm-up never blocks the work sets', () => {
+    const e = { ...ex('pf-bench-press', null), sets: [{ type: 'warmup' as const, weightKg: 10, reps: 5 }, ...sets(10, 2)] };
+    let w = startFromPlan({ name: 'T', exercises: [e] }, [], 10, 'w1');
+    const x = w.exercises[0];
+    w = confirmSet(w, x.rid, x.sets[1].rid, 1000); // work set first, warm-up still open
+    expect(currentSet(w)).toMatchObject({ set: x.sets[2].rid });
   });
 });

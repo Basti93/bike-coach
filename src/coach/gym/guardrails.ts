@@ -7,7 +7,7 @@ import { nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../sha
 import type { Renames } from '../../shared/studio';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { isExcluded } from '../../shared/excluded';
-import type { Exercise } from '../../shared/exercises';
+import { EXERCISES, type Exercise } from '../../shared/exercises';
 import { gymLimit, gymMinutes } from '../../shared/duration';
 
 export type GymContext = { workouts: StrengthWorkout[]; templates: ExerciseTemplate[]; nowMs: number; /** Leave leg exercises out of rule workouts, e.g. for an open leg complaint. */ avoidLegs?: boolean;
@@ -136,7 +136,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     const recentEquipment = new Set(avail.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
     parsed.forEach((p) => checkExercise(p.ex, p.template, ctx, recentEquipment, known));
     const workout = { name: raw.name.trim(), exercises: contiguousGroups(exercises) };
-    if (ctx.budgetMinutes !== undefined && gymMinutes(workout) > gymLimit(ctx.budgetMinutes)) return no(`zu lang für deine Zeit: ca. ${gymMinutes(workout)} Min bei höchstens ${ctx.budgetMinutes}`);
+    if (ctx.budgetMinutes !== undefined && gymMinutes(workout, ctx.catalog ?? EXERCISES) > gymLimit(ctx.budgetMinutes)) return no(`zu lang für deine Zeit: ca. ${gymMinutes(workout, ctx.catalog ?? EXERCISES)} Min bei höchstens ${ctx.budgetMinutes}`);
     return { ok: true, workout };
   } catch (e) {
     if (e instanceof Refuse) return { ok: false, reason: e.message };

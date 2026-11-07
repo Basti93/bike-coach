@@ -174,6 +174,12 @@ describe('ruleWorkout', () => {
   const many = (): StrengthWorkout[] => [
     ...two('cp', 40), ...two('lr', 30), ...two('sp', 20), ...two('cu', 15), ...two('hc', 25), ...two('lp', 100), wk(3, 'db', [[10, 8]]),
   ];
+  it('leaves every rest to restOf (restS null)', () => {
+    const ctx: GymContext = { workouts: [...many(), wk(2, 'cp', [[40, 8]]), wk(1, 'cp', [[40, 8]])].map((w) => ({ ...w, startMs: w.startMs - 5 * DAY })), templates: TEMPLATES, nowMs: NOW };
+    const ex = ruleWorkout(ctx).workout.exercises;
+    expect(ex.length).toBeGreaterThan(0);
+    expect(ex.every((e) => e.restS === null)).toBe(true);
+  });
   it('has a recurring core of up to 6 most frequent recent exercises, passes its own check, and has no weights where history is missing', () => {
     const ctx: GymContext = { workouts: [...many(), wk(2, 'cp', [[40, 8]]), wk(1, 'cp', [[40, 8]])].map((w) => ({ ...w, startMs: w.startMs - 5 * DAY })), templates: TEMPLATES, nowMs: NOW };
     const r = ruleWorkout(ctx);

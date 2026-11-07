@@ -1,5 +1,5 @@
 import { ruleNumber, ruleNumbers, ruleRange, policyRule } from './training-policy';
-import { EXERCISES, exerciseTitles, type Exercise } from './exercises';
+import { EXERCISES, catalogEntryOf, type Exercise } from './exercises';
 import { muscleGroupOf } from './muscle-targets';
 
 /** The rest of an exercise comes from here only: the timer, the duration estimate and the coach plan all ask `restOf`. */
@@ -14,18 +14,12 @@ const plannedRepsOf = (sets: readonly RestSet[] = []): number | null => {
   return s ? (s.plannedReps ?? s.reps ?? s.repRange?.end ?? null) : null;
 };
 
-function lookup(e: RestExercise, catalog: readonly Exercise[]): Exercise | null {
-  const id = e.exerciseId ?? e.templateId;
-  const title = (e.title ?? '').trim();
-  return catalog.find((x) => x.id === id) ?? (title ? catalog.find((x) => exerciseTitles(x).includes(title)) : undefined) ?? null;
-}
-
 /** Seconds of rest after a set: an explicit rest wins, else the register by kind (heavy, compound, isolation). */
 export function restOf(e: RestExercise, catalog: readonly Exercise[] = EXERCISES): number {
   if (typeof e.restS === 'number') return e.restS;
   const reps = plannedRepsOf(e.sets);
   if (reps !== null && reps <= ruleNumber('rest.heavy-max-reps')) return restMid('rest.heavy-strength-s');
-  const own = lookup(e, catalog);
+  const own = catalogEntryOf(e, catalog);
   const lists = policyRule('rest.compound-s').lists ?? {};
   const big = (g: string): boolean => (lists.groups ?? []).includes(g);
   // Compound: a big primary group and a secondary muscle in another group (a movement over more than one joint group).
@@ -44,7 +38,8 @@ export function restAfterSet(w: RestWorkout, rid: string, setIndex: number, cata
   const e = w.exercises[i];
   if (!e) return null;
   const group = e.supersetId;
-  if (group === null || e.sets[setIndex]?.type === 'warmup') return restOf(e, catalog); // a warm-up set pairs with nothing
+  if (e.sets[setIndex]?.type === 'warmup') return ruleNumber('rest.warmup-s'); // a warm-up set pairs with nothing and rests short
+  if (group === null) return restOf(e, catalog);
   const round = e.sets.slice(0, setIndex).filter((s) => s.type !== 'warmup').length;
   const roundSet = (x: RestWorkout['exercises'][number]): { doneMs: number | null } | undefined => (x.sets as readonly { type?: string; doneMs: number | null }[]).filter((s) => s.type !== 'warmup')[round];
   if (w.exercises.some((x) => x !== e && x.supersetId === group && x.effort !== 'skip' && roundSet(x)?.doneMs === null)) return null;

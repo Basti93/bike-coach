@@ -131,6 +131,15 @@ describe('HevyRoutines', () => {
     expect(body.routine.exercises.map((e: any) => [e.exercise_template_id, e.superset_id])).toEqual([['T1', 0], ['T3', 0], ['T2', null], ['T4', 1], ['T5', 1]]);
   });
 
+  it('an unset rest is resolved with the coach catalog (a custom exercise gets its compound rest)', async () => {
+    const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
+    const { routines, calls } = make(world);
+    const mine = { id: 'own-1', title: 'Eigenes Bankdrücken', type: 'weight_reps', primaryMuscle: 'chest', secondaryMuscles: ['triceps'], equipment: 'barbell' };
+    const w = { name: 'S', exercises: [{ templateId: 'own-1', title: 'Eigenes Bankdrücken', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal' as const, weightKg: 20, reps: 10 }] }] };
+    await routines.writeRoutine(w, none, [mine]);
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/v1/routines'))!.body.routine.exercises[0].rest_seconds).toBe(150);
+  });
+
   it("the body matches Hevy's schema", async () => {
     const world: World = { folders: [{ id: 5, title: 'Pandafit' }], routines: [] };
     const { routines, calls } = make(world);

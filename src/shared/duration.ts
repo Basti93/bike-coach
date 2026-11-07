@@ -16,7 +16,7 @@ const roundTo5 = (min: number): number => Math.round(min / 5) * 5;
 export function gymMinutes(w: TimedWorkout, catalog: readonly Exercise[] = EXERCISES): number {
   if (w.exercises.length === 0) return 0;
   const work = ruleNumber('duration.set-work-s');
-  const warm = ruleNumber('duration.warmup-set-s');
+  const warm = work + ruleNumber('rest.warmup-s');
   const isWarm = (s: { type?: string }): boolean => s.type === 'warmup';
   let sets = 0;
   for (let i = 0; i < w.exercises.length; i++) {
@@ -38,4 +38,4 @@ export function gymMinutes(w: TimedWorkout, catalog: readonly Exercise[] = EXERC
 export const gymLimit = (budgetMinutes: number): number => budgetMinutes * (1 + ruleNumber('duration.slack-pct') / 100);
 
 /** The words for the plan reason and card. */
-export const durationNote = (w: TimedWorkout): string => `ca. ${gymMinutes(w)} Min`;
+export const durationNote = (w: TimedWorkout, catalog: readonly Exercise[] = EXERCISES): string => `ca. ${gymMinutes(w, catalog)} Min`;

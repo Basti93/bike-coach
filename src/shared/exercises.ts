@@ -380,6 +380,13 @@ export function linkHevyTemplates(templates: { id: string; title: string }[], ca
 /** Hevy shows the equipment in the app's language; the same exercise can be logged under either title. */
 const EQUIPMENT_DE: Record<string, string> = { Barbell: 'Langhantel', Dumbbell: 'Kurzhantel', Machine: 'Maschine', Cable: 'Kabel', 'Smith Machine': 'Smith-Maschine', Bodyweight: 'Körpergewicht' };
 
+/** The catalog entry of a logged or planned exercise: by id, else by an exact known title (never fuzzy). */
+export function catalogEntryOf(e: { exerciseId?: string; templateId?: string; title?: string }, catalog: readonly Exercise[]): Exercise | null {
+  const id = e.exerciseId ?? e.templateId;
+  const title = (e.title ?? '').trim();
+  return catalog.find((x) => x.id === id) ?? (title ? catalog.find((x) => exerciseTitles(x).includes(title)) : undefined) ?? null;
+}
+
 /** Every title an own exercise may be logged under: German, English Hevy, Hevy and German with the Hevy equipment in German, and its aliases. */
 export function exerciseTitles(e: Exercise): string[] {
   const out = [e.title];

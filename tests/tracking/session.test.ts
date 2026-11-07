@@ -116,7 +116,7 @@ test('an exercise can be swapped and what happened counts', () => {
   expect(s.exercises.map((e) => e.exerciseId)).toEqual(['pf-bench-press', 'pf-chest-press-machine']);
   expect(s.exercises[0].sets).toHaveLength(1);
   expect(s.exercises[1].notes).toBe(''); // notes belong to the old exercise
-  expect(s.exercises[1].restS).toBe(120); // rest is kept
+  expect(s.exercises[1].restS).toBeUndefined(); // the new exercise resolves its own rest
   const none = swapExercise(startFromPlan(plan, [], 10, 'w2'), startFromPlan(plan, [], 10, 'w2').exercises[0].rid, alt, []);
   expect(none).toBeDefined();
 });

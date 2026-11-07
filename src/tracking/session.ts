@@ -148,12 +148,12 @@ export const startFromRoutine = startFromPlan;
 export const startEmpty = (nowMs: number, id: string, title = 'Training'): TrackedWorkout =>
   ({ id, title, startMs: nowMs, endMs: null, source: 'pandafit', exercises: [], rest: null });
 
-function fromCatalog(e: Exercise, history: LoggedWorkout[], studio: string, keep?: Pick<TrackedExercise, 'supersetId' | 'restS'>, studios: StudioState = NO_STUDIOS): TrackedExercise {
+function fromCatalog(e: Exercise, history: LoggedWorkout[], studio: string, keep?: Pick<TrackedExercise, 'supersetId'>, studios: StudioState = NO_STUDIOS): TrackedExercise {
   const last = lastValues(e.id, history, [e], studio, studios);
   const sets: TrackedSet[] = last.length
     ? last.map((l) => ({ rid: newRid(), type: l.type, weightKg: l.weightKg, reps: l.reps, durationS: l.durationS, doneMs: null }))
     : [blank()];
-  return { rid: newRid(), exerciseId: e.id, title: e.title, supersetId: keep?.supersetId ?? null, notes: '', sets, ...(keep?.restS !== undefined ? { restS: keep.restS } : {}), ...(isTimed(e.type) ? { timed: true } : {}) };
+  return { rid: newRid(), exerciseId: e.id, title: e.title, supersetId: keep?.supersetId ?? null, notes: '', sets, ...(isTimed(e.type) ? { timed: true } : {}) };
 }
 
 /** Applies f to the exercise with that row id. An unknown id (a stale tap) changes nothing and returns the same object. */
@@ -299,7 +299,8 @@ export function currentSet(w: TrackedWorkout): { ex: string; set: string; round:
   const work = (e: TrackedExercise) => e.sets.filter((s) => s.type !== 'warmup');
   /** The index among work sets of the first open work set; -1 when none. */
   const open = (e: TrackedExercise) => (skipped(e) ? -1 : work(e).findIndex((s) => !isDone(s)));
-  const warm = (e: TrackedExercise) => (skipped(e) ? undefined : e.sets.find((s) => s.type === 'warmup' && !isDone(s)));
+  // A warm-up is open only until the exercise has a done work set; later it never blocks the work.
+  const warm = (e: TrackedExercise) => (skipped(e) || work(e).some(isDone) ? undefined : e.sets.find((s) => s.type === 'warmup' && !isDone(s)));
   for (const e of w.exercises) {
     const members = e.supersetId === null ? [e] : w.exercises.filter((x) => x.supersetId === e.supersetId);
     // Warm-ups come before the first round and pair with nothing.

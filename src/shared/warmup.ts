@@ -1,6 +1,6 @@
 import { snapDown, type Ladder } from './loads';
 import { ruleNumber, ruleRamp, ruleValues } from './training-policy';
-import { EXERCISES, exerciseTitles, type Exercise } from './exercises';
+import { EXERCISES, catalogEntryOf, type Exercise } from './exercises';
 import { muscleGroupOf } from './muscle-targets';
 
 /** Warm-up per movement block: the ramp comes from the register (`prep.ramp`), the bar from `load.bar-kg`. Pure, shared by app and coach. */
@@ -35,11 +35,6 @@ export const workingWeightOf = (e: { sets: readonly WSet[] }): number | null => 
   return typeof w === 'number' && w > 0 ? w : null;
 };
 
-function lookup(e: WEx, catalog: readonly Exercise[]): Exercise | null {
-  const title = (e.title ?? '').trim();
-  return catalog.find((x) => x.id === e.exerciseId) ?? (title ? catalog.find((x) => exerciseTitles(x).includes(title)) : undefined) ?? null;
-}
-
 /**
  * True when the exercise has no done set and no warm-up set, and no earlier exercise of the same muscle group in this workout has a
  * done set (that muscle is warm already).
@@ -49,11 +44,11 @@ export function needsWarmup(w: { exercises: readonly WEx[] }, rid: string, catal
   if (i < 0) return false;
   const e = w.exercises[i]!;
   if (e.sets.some((s) => s.type === 'warmup' || (s.doneMs ?? null) !== null)) return false;
-  const own = lookup(e, catalog);
+  const own = catalogEntryOf(e, catalog);
   if (!own) return true;
   const group = muscleGroupOf(own);
   return !w.exercises.slice(0, i).some((p) => {
-    const o = lookup(p, catalog);
+    const o = catalogEntryOf(p, catalog);
     return !!o && muscleGroupOf(o) === group && p.sets.some((s) => (s.doneMs ?? null) !== null);
   });
 }
