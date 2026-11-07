@@ -76,20 +76,40 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
     if (!on && goal.focus.length >= MAX_FOCUS) return;
     const focus = on ? goal.focus.filter((x) => x !== g) : [...goal.focus, g];
     const { temporary, ...base } = stored;
-    if (weeks > 0) {
+    if (goal.temporary && temporary) {
+      // An active temporary focus is what is being edited; its end stays as it is.
+      void saveGoal({ ...base, temporary: { ...temporary, focus } });
+    } else if (weeks > 0) {
       // A time limit lies over the base goal and never changes it.
-      void saveGoal({ ...base, temporary: { ...(temporary?.sports ? { sports: temporary.sports } : {}), focus, until: addDays(today, weeks * 7) } });
+      void saveGoal({ ...stored, temporary: { focus, until: addDays(today, weeks * 7) } });
     } else {
-      // Unlimited: the focus becomes the base again, and a temporary focus on top of it ends.
-      const rest = temporary?.sports ? { temporary: { sports: temporary.sports, until: temporary.until } } : {};
-      void saveGoal({ ...base, focus, ...rest });
+      void saveGoal({ ...stored, focus });
     }
     if (focus.length >= MAX_FOCUS) setChangingFocus(false);
   };
   const setPrio = (s: SportKey, v: string) => {
+    const { temporary, ...base } = stored;
+    if (goal.temporary && temporary) {
+      const sports = { ...temporary.sports };
+      if (v === '') delete sports[s]; else sports[s] = v as Prio;
+      const { sports: _old, ...rest } = temporary;
+      const hasSports = Object.keys(sports).length > 0;
+      void saveGoal({ ...base, ...(rest.focus !== undefined || hasSports ? { temporary: hasSports ? { ...rest, sports } : rest } : {}) });
+      return;
+    }
     const sports = { ...stored.sports };
     if (v === '') delete sports[s]; else sports[s] = v as Prio;
     void saveGoal({ ...stored, sports });
+  };
+  // The person picks a new duration for the running temporary focus.
+  const pickWeeks = (w: number) => {
+    setWeeks(w);
+    const { temporary, ...base } = stored;
+    if (w > 0 && goal.temporary && temporary) void saveGoal({ ...base, temporary: { ...temporary, until: addDays(today, w * 7) } });
+  };
+  const endTemporary = () => {
+    const { temporary: _t, ...base } = stored;
+    void saveGoal(base);
   };
 
   return (
@@ -112,11 +132,12 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
       )}
       <div className="tk-row">
         <span>Schwerpunkt: {goal.focus.length ? focusLabel(goal.focus) : 'keiner'}{goal.temporary?.focus && goal.focus.length ? ` – bis ${dayLabel(goal.temporary.until)}` : ''}</span>
+        {goal.temporary && <button type="button" className="ghost tk-small" onClick={endTemporary}>Jetzt beenden</button>}
         <button type="button" className="ghost tk-small" aria-expanded={changingFocus} onClick={() => setChangingFocus(!changingFocus)}>{changingFocus ? 'fertig' : 'ändern'}</button>
       </div>
       {changingFocus && (
         <div className="tk-row">
-          <label>für <select aria-label="Dauer" value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
+          <label>für <select aria-label="Dauer" value={weeks} onChange={(e) => pickWeeks(Number(e.target.value))}>
             {WEEK_CHOICES.map((w) => <option key={w} value={w}>{w === 0 ? 'unbefristet' : `${w} Wochen`}</option>)}
           </select></label>
         </div>

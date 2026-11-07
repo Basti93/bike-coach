@@ -109,3 +109,50 @@ test('an ended focus shows once with OK, then it is gone', async () => {
   await waitFor(() => expect((body(map, 'goal:goal').temporary as { endedSeenMs?: number }).endedSeenMs).toBe(NOW));
   await waitFor(() => expect(c.queryByText(/ausgelaufen/)).toBeNull());
 });
+
+const activeTemp = (extra: object = {}) => goalRecord({ strength: 'muscle', focus: ['chest'], sports: { bike: 'keep' }, temporary: { focus: ['back'], until: '2026-11-20', endedSeenMs: 7, ...extra } }, NOW - 5000);
+
+test('toggling a muscle in an active temporary focus keeps its end and endedSeenMs, and not the base', async () => {
+  const { port, map } = fakePort([activeTemp()]);
+  render(<CoachScreen port={port} {...env} />);
+  const c = await card();
+  fireEvent.click(await c.findByRole('button', { name: 'ändern' }));
+  fireEvent.click(c.getByRole('button', { name: 'Bizeps' }));
+  await waitFor(() => expect(body(map, 'goal:goal').temporary).toEqual({ focus: ['back', 'biceps'], until: '2026-11-20', endedSeenMs: 7 }));
+  expect(body(map, 'goal:goal').focus).toEqual(['chest']);
+});
+
+test('a sport priority edits the temporary focus; the last part removed drops it', async () => {
+  const { port, map } = fakePort([activeTemp({ sports: { run: 'focus' } })]);
+  render(<CoachScreen port={port} {...env} />);
+  const c = await card();
+  const run = (await c.findByLabelText(/Laufen/)) as HTMLSelectElement;
+  fireEvent.change(run, { target: { value: 'equal' } });
+  await waitFor(() => expect((body(map, 'goal:goal').temporary as { sports: object }).sports).toEqual({ run: 'equal' }));
+  expect(body(map, 'goal:goal').sports).toEqual({ bike: 'keep' });
+  fireEvent.change(c.getByLabelText(/Laufen/), { target: { value: '' } });
+  await waitFor(() => expect(body(map, 'goal:goal').temporary).toEqual({ focus: ['back'], until: '2026-11-20', endedSeenMs: 7 }));
+});
+
+test('only picking a duration moves the end of an active temporary focus', async () => {
+  const { port, map } = fakePort([activeTemp()]);
+  render(<CoachScreen port={port} {...env} />);
+  const c = await card();
+  fireEvent.click(await c.findByRole('button', { name: 'ändern' }));
+  fireEvent.change(c.getByLabelText('Dauer'), { target: { value: '2' } });
+  await waitFor(() => expect((body(map, 'goal:goal').temporary as { until: string }).until).toBe('2026-11-18'));
+  fireEvent.click(c.getByRole('button', { name: 'Bizeps' }));
+  await waitFor(() => expect((body(map, 'goal:goal').temporary as { focus: string[] }).focus).toEqual(['back', 'biceps']));
+  expect((body(map, 'goal:goal').temporary as { until: string }).until).toBe('2026-11-18');
+});
+
+test('"Jetzt beenden" ends the temporary focus without an ended notice', async () => {
+  const { port, map } = fakePort([activeTemp()]);
+  render(<CoachScreen port={port} {...env} />);
+  const c = await card();
+  fireEvent.click(await c.findByRole('button', { name: 'Jetzt beenden' }));
+  await waitFor(() => expect(body(map, 'goal:goal').temporary).toBeUndefined());
+  expect(await c.findByText('Schwerpunkt: Brust')).toBeTruthy();
+  expect(c.queryByText(/ausgelaufen/)).toBeNull();
+  expect(c.queryByRole('button', { name: 'Jetzt beenden' })).toBeNull();
+});
