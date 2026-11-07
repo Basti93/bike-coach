@@ -391,17 +391,30 @@ export function unlinkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
   return { ...w, exercises: w.exercises.map((x) => (x.rid === ex || (rest.length === 1 && x.supersetId === group) ? { ...x, supersetId: null } : x)) };
 }
 
-/** Moves an exercise one place up (-1) or down (1). A superset group moves as one block past the neighbouring block (a single exercise or a whole group). Rows stay intact. */
-export function moveExercise(w: TrackedWorkout, ex: string, dir: -1 | 1): TrackedWorkout {
+/** The workout's exercises as blocks: a superset group is one block, every other exercise its own. */
+export function exerciseBlocks(w: TrackedWorkout): TrackedExercise[][] {
   const blocks: TrackedExercise[][] = [];
   for (const e of w.exercises) {
     const last = blocks[blocks.length - 1];
     if (last && e.supersetId !== null && last[0]!.supersetId === e.supersetId) last.push(e);
     else blocks.push([e]);
   }
+  return blocks;
+}
+
+/** Moves an exercise one place up (-1) or down (1). A superset group moves as one block past the neighbouring block (a single exercise or a whole group). Rows stay intact. */
+export function moveExercise(w: TrackedWorkout, ex: string, dir: -1 | 1): TrackedWorkout {
+  const blocks = exerciseBlocks(w);
   const i = blocks.findIndex((b) => b.some((e) => e.rid === ex));
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= blocks.length) return w;
-  [blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!];
+  return moveExerciseTo(w, ex, i + dir);
+}
+
+/** Moves the block of an exercise (a single exercise or its whole superset group) so it ends up at block index `targetIndex`. Same index, unknown row or out of range: the workout as it is. Rows stay intact. */
+export function moveExerciseTo(w: TrackedWorkout, ex: string, targetIndex: number): TrackedWorkout {
+  const blocks = exerciseBlocks(w);
+  const i = blocks.findIndex((b) => b.some((e) => e.rid === ex));
+  if (i < 0 || !Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= blocks.length || targetIndex === i) return w;
+  const [block] = blocks.splice(i, 1);
+  blocks.splice(targetIndex, 0, block!);
   return { ...w, exercises: blocks.flat() };
 }

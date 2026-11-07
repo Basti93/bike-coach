@@ -1,6 +1,6 @@
 import { EXERCISES } from '../../src/shared/exercises';
 import { readWorkoutChange } from '../../src/shared/chat';
-import { confirmSet, linkWith, moveExercise, startFromPlan, type TrackedWorkout } from '../../src/tracking/session';
+import { confirmSet, linkWith, moveExercise, moveExerciseTo, startFromPlan, type TrackedWorkout } from '../../src/tracking/session';
 import { takeChange, undoChange } from '../../src/tracking/workout-change';
 import type { GymWorkout } from '../../src/coach/gym/types';
 
@@ -71,4 +71,43 @@ test('an anchor of null means the start; an entry without anchor uses pos', () =
   const t = taken(w, [{ op: 'drop', ex: rid(w, 1) }]).workout; // A C D
   const old = { ...t, changes: t.changes!.map(({ anchor: _a, ...c }) => c) };
   expect(titles(undoChange(moveExercise(old, rid(old, 0), 1), 'c1').workout)).toBe('CBAD');
+});
+
+test('moveExerciseTo: single, block, to start and end, no-op', () => {
+  const w = start();
+  expect(titles(moveExerciseTo(w, rid(w, 0), 3))).toBe('BCDA');
+  expect(titles(moveExerciseTo(w, rid(w, 3), 0))).toBe('DABC');
+  expect(titles(moveExerciseTo(w, rid(w, 1), 2))).toBe('ACBD');
+  expect(moveExerciseTo(w, rid(w, 1), 1)).toBe(w);
+  expect(moveExerciseTo(w, rid(w, 1), 9)).toBe(w);
+  expect(moveExerciseTo(w, rid(w, 1), -1)).toBe(w);
+  expect(moveExerciseTo(w, 'nope', 0)).toBe(w);
+  const g = linkWith(w, rid(w, 1), rid(w, 2)); // B+C is one block: A, [BC], D
+  expect(titles(moveExerciseTo(g, rid(g, 2), 2))).toBe('ADBC');
+  expect(titles(moveExerciseTo(g, rid(g, 3), 0))).toBe('DABC');
+  expect(titles(moveExerciseTo(g, rid(g, 0), 1))).toBe('BCAD');
+  expect(moveExerciseTo(g, rid(g, 1), 2).exercises.map((e) => e.supersetId !== null)).toEqual([false, false, true, true]);
+});
+
+test('moveExerciseTo keeps rows and done sets intact', () => {
+  const w0 = start();
+  const w = confirmSet(w0, rid(w0, 2), w0.exercises[2]!.sets[0]!.rid, 5);
+  const m = moveExerciseTo(w, rid(w, 2), 0);
+  expect(m.exercises[0]).toBe(w.exercises[2]);
+  expect(m.exercises[1]).toBe(w.exercises[0]);
+});
+
+test('undo after a drag-reorder puts the rows back next to their anchor', () => {
+  const w0 = start(); // A B C D
+  const change = readWorkoutChange({ workoutId: 'w1', ops: [{ op: 'lighter', ex: rid(w0, 2), pct: 10 }] })!;
+  const { workout: taken } = takeChange(w0, 'c1', change, [], EXERCISES, { renames: [], picks: [] } as never, 1000);
+  const taken2 = taken;
+  const dragged = moveExerciseTo(taken2, rid(taken2, 2), 0); // C A B D: the changed row left its anchor B
+  expect(titles(dragged)).toBe('CABD');
+  const undone = undoChange(dragged, 'c1');
+  expect(undone.refusal).toBeNull();
+  expect(titles(undone.workout)).toBe('ABCD');
+  expect(undone.workout.exercises[2]!.sets[0]!.weightKg).toBe(50);
+  const anchorMoved = moveExerciseTo(taken2, rid(taken2, 1), 3); // A C D B: the anchor itself moved to the end
+  expect(titles(undoChange(anchorMoved, 'c1').workout)).toBe('ADBC');
 });

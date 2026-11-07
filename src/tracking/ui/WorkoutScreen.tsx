@@ -11,7 +11,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, moveExerciseTo, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -28,6 +28,7 @@ import { WorkoutCoach } from './WorkoutCoach';
 import { takenChanges, usedMarks } from '../../shared/changes';
 import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
+import { ReorderSheet, type DragStart } from './ReorderSheet';
 import { exerciseHasNoWeight, previousSets, setLabels, setLastHint, setTargetHint } from './setGrid';
 import { SyncNote } from './SyncNote';
 import { StudioRow, StudioSheet } from './StudioSheet';
@@ -60,6 +61,34 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const [topMenu, setTopMenu] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [coachAsk, setCoachAsk] = useState(0);
+  // Holding an exercise title (about half a second, the finger hardly moving) opens the "Reihenfolge" mode; the same finger then drags.
+  const [reorder, setReorder] = useState<DragStart | null>(null);
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number; rid: string; id: number } | null>(null);
+  const held = useRef(false); // the click that ends a long press must not also open the row
+  const stopHold = () => { if (hold.current) { clearTimeout(hold.current.timer); hold.current = null; } };
+  useEffect(() => stopHold, []);
+  const holdProps = (rid: string) => ({
+    onPointerDown: (ev: React.PointerEvent) => {
+      if (ev.button !== 0 && ev.button !== undefined) return;
+      stopHold();
+      const h = { x: ev.clientX, y: ev.clientY, rid, id: ev.pointerId, timer: setTimeout(() => {
+        const at = hold.current;
+        hold.current = null;
+        if (!at) return;
+        held.current = true;
+        setReorder({ rid: at.rid, pointerId: at.id, y: at.y });
+      }, 450) };
+      hold.current = h;
+    },
+    onPointerMove: (ev: React.PointerEvent) => {
+      const h = hold.current;
+      if (!h) return;
+      if (Math.hypot(ev.clientX - h.x, ev.clientY - h.y) > 8) stopHold();
+      else h.y = ev.clientY;
+    },
+    onPointerUp: stopHold, onPointerCancel: stopHold, onPointerLeave: stopHold,
+    onContextMenu: (ev: React.MouseEvent) => ev.preventDefault(),
+  });
   const [editing, setEditing] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState<ReadonlySet<string>>(new Set());
   const [info, setInfo] = useState<ReadonlySet<string>>(new Set());
@@ -224,7 +253,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
             aria-current={isCurrent ? 'step' : undefined}>
             <div className="tk-ex-head">
               <h2>
-                <button type="button" className="tk-rowbtn" aria-expanded={isOpen} onClick={() => setOpenRid(isOpen ? null : e.rid)}>
+                <button type="button" className="tk-rowbtn tk-hold" aria-expanded={isOpen} {...holdProps(e.rid)}
+                  onClick={() => { if (held.current) { held.current = false; return; } setOpenRid(isOpen ? null : e.rid); }}>
                   <span className="tk-ex-icon">{icon}</span>
                   <span className="tk-row-title">{e.title}</span>
                   {value && <span className="tk-row-value muted">{value}</span>}
@@ -292,6 +322,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
           </section>
         );
       })}
+      {reorder && (
+        <ReorderSheet workout={w} start={reorder}
+          onDrop={(rid, to) => act((x) => moveExerciseTo(x, rid, to))} onStep={(rid, dir) => act((x) => moveExercise(x, rid, dir))}
+          onClose={() => { held.current = false; setReorder(null); }} />
+      )}
       <div className="tk-end">
         <button type="button" className="secondary" onClick={() => setPicker({ mode: 'add' })}>Übung hinzufügen</button>
         <button type="button" className="link" onClick={() => void end()}>Training beenden</button>
