@@ -50,18 +50,38 @@ try {
   step('service worker controls the page');
 
   await page.getByRole('navigation').getByRole('button', { name: 'Kraft', exact: true }).click();
+  // Start an empty workout: directly, or through the "Anderes Training" sheet when a plan or routines exist.
+  const anderes = page.getByRole('button', { name: 'Anderes Training' });
+  const empty = page.getByRole('button', { name: 'Leeres Training starten' });
+  await empty.or(anderes).first().waitFor();
+  if (await anderes.count() > 0 && await empty.count() === 0) await anderes.click();
   await page.getByRole('button', { name: 'Leeres Training starten' }).click();
   await page.getByRole('button', { name: 'Übung hinzufügen' }).click();
-  await page.locator('.tk-pick').first().click();
+  const picker = page.getByRole('dialog', { name: 'Übung wählen' });
+  await picker.getByLabel('Suchen').fill('Bank');
+  const pickedTitle = (await picker.locator('.tk-row-title').first().innerText()).trim();
+  await picker.locator('.tk-rowbtn').first().click();
   await page.getByLabel('Gewicht Satz 1').fill('40');
   await page.getByLabel('Gewicht Satz 1').blur();
   await page.getByLabel('Wiederholungen Satz 1').fill('8');
   await page.getByLabel('Wiederholungen Satz 1').blur();
   await page.getByRole('button', { name: 'Satz 1 erledigt' }).click();
-  await page.getByRole('button', { name: 'Training beenden' }).click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
-  await page.getByRole('button', { name: 'Verlauf' }).click();
-  await page.locator('.tk-pick').first().waitFor();
+  await page.getByRole('button', { name: 'Training beenden', exact: true }).click();
+  // Everything is confirmed, so the summary shows; an end sheet only appears when sets are open.
+  const endSheet = page.getByRole('button', { name: 'Als erledigt zählen' });
+  const summary = page.getByRole('region', { name: 'Zusammenfassung' });
+  await endSheet.or(summary).first().waitFor();
+  if (await endSheet.count() > 0) await endSheet.click();
+  await summary.getByRole('button', { name: 'Fertig' }).click();
+  const seg = (p: Page, label: string) => p.getByRole('group', { name: 'Kraft' }).getByRole('button', { name: label, exact: true });
+  const nav = (p: Page) => p.getByRole('navigation').getByRole('button', { name: 'Kraft', exact: true });
+  const seeWorkout = async (p: Page, timeout = 15_000) => {
+    await nav(p).click();
+    await seg(p, 'Verlauf').click();
+    await p.getByRole('group', { name: 'Ansicht' }).getByRole('button', { name: 'Je Übung', exact: true }).click();
+    await p.getByRole('button', { name: pickedTitle, exact: true }).waitFor({ timeout });
+  };
+  await seeWorkout(page);
   step('workout tracked and finished');
 
   // The upload runs by itself; wait until it is no longer pending (the note disappears).
@@ -71,18 +91,14 @@ try {
   await ctx1.setOffline(true);
   await page.reload();
   await page.getByRole('navigation').waitFor();
-  await page.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
-  await page.getByRole('button', { name: 'Verlauf' }).click();
-  await page.locator('.tk-pick').first().waitFor();
+  await seeWorkout(page);
   step('offline reload: app shell and data come from the device');
   await ctx1.setOffline(false);
 
   const ctx2 = await browser.newContext();
   const second = await ctx2.newPage();
   await login(second);
-  await second.getByRole('navigation').getByRole('button', { name: 'Kraft' }).click();
-  await second.getByRole('button', { name: 'Verlauf' }).click();
-  await second.locator('.tk-pick').first().waitFor({ timeout: 20_000 });
+  await seeWorkout(second, 20_000);
   step('a second browser sees the workout');
   console.log('SMOKE PASSED');
 } catch (e) {
