@@ -86,7 +86,7 @@ export function todayAdvice(input: TodayInput): TodayAdvice {
   const noBreak = Array.from({ length: restAfter }, (_, i) => before(i + 1)?.hardness != null).every(Boolean);
   const day = asDay(date, parts, plan?.legs);
   const protective: { to: Parts; reason: string; noLegs?: boolean }[] = [
-    { to: dayHardness(day) === 'hard' ? REST : mapParts(parts, (p) => (p.sport === 'rest' ? p : { sport: p.sport, hardness: 'easy' })), reason: 'weil dein Ruhepuls erhöht ist' },
+    { to: dayHardness(day) === 'hard' ? REST : mapParts(parts, (p) => (p.sport === 'rest' ? p : { sport: p.sport, hardness: 'easy' })), reason: 'weil dein Ruhepuls erhöht ist', noLegs: gymWithLegs && legsHardYesterday },
     { to: mapParts(parts, (p) => (p.sport !== 'gym' && p.hardness === 'hard' ? { sport: p.sport, hardness: 'moderate' } : p)), reason: 'weil deine Beine gestern hart gearbeitet haben', noLegs: gymWithLegs },
     { to: mapParts(parts, (p) => (p.sport === 'rest' ? p : { sport: p.sport, hardness: 'easy' })), reason: `weil du ${NUMBER_WORD[hardInRow] ?? hardInRow} harte Tage hintereinander hattest` },
     { to: REST, reason: `weil du seit ${restAfter} Tagen ohne Pause trainierst` },

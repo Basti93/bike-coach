@@ -365,7 +365,8 @@ export class GymCoach {
       const overrides = this.loadSteps(id);
       const excluded = this.excluded(id);
       const budget = this.deps.store ? gymBudgetOf(this.deps.store, id, dateKey(now)) : null;
-      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(open.some((c) => LEG_COMPLAINT.test(c.text)) || this.deps.avoidLegsToday?.(id) ? { avoidLegs: true } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) };
+      const avoidLegs = open.some((c) => LEG_COMPLAINT.test(c.text)) || this.deps.avoidLegsToday?.(id) === true;
+      const ctx: GymContext = { workouts: real, templates, nowMs: now, excluded, catalog: this.catalog(id), links: this.state(id).links, ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, ...(avoidLegs ? { avoidLegs: true } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) };
       const rule = ruleWorkout(ctx);
       if (rule.guard) console.warn(`Regel-Training: erster Plan verworfen (${rule.guard})`);
       if (open.length > 0 && rule.workout.exercises.length > 0) rule.reason = `${rule.reason} ${COMPLAINT_HINT}`;
@@ -385,7 +386,7 @@ export class GymCoach {
         x.emptyReason = hasRule ? null : rule.reason;
       });
       const ask = (rejection?: string) => this.deps.ask({
-        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) }) + (this.deps.planHint?.(id) ?? ''),
+        prompt: buildGymPrompt({ state: this.state(id), workouts: real, templates, nowMs: now, ...this.deps.bike(id), previous, wantNote, rejection, mobility: this.mobilityData(id), catalog: this.catalog(id), ...(studio ? { studio } : {}), overrides, renames: this.studios(id).renames, excluded, ...(avoidLegs ? { avoidLegs: true } : {}), ...(this.deps.store ? { goal: goalOfProfile(this.deps.store, id), wishes: wishesOf(this.deps.store, id, 'gym') } : {}), ...(budget !== null ? { budgetMinutes: budget } : {}) }) + (this.deps.planHint?.(id) ?? ''),
         systemPrompt: GYM_SYSTEM_PROMPT, schema: gymAnswerJsonSchema,
       });
       let raw = await ask();

@@ -17,11 +17,15 @@ describe('frame', () => {
     const ok = { mode: 'spontaneous', minutes: 45, atMs: 1 };
     expect(validBody('frame', ok)).toBe(true);
     expect(validBody('frame', { ...ok, minutes: null })).toBe(true);
-    expect(validBody('frame', { ...ok, minutes: 50 })).toBe(false);
+    expect(validBody('frame', { ...ok, minutes: 50 })).toBe(true);
+    expect(validBody('frame', { ...ok, minutes: 4 })).toBe(false);
+    expect(validBody('frame', { ...ok, minutes: 241 })).toBe(false);
+    expect(validBody('frame', { ...ok, minutes: 30.5 })).toBe(false);
     expect(validBody('frame', { ...ok, mode: 'x' })).toBe(false);
     expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 30 } })?.today).toEqual({ date: '2026-11-09', minutes: 30 });
     expect(readFrame({ ...ok, today: { date: 'heute', minutes: 30 } })).toBeNull();
-    expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 33 } })).toBeNull();
+    expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 33 } })?.today?.minutes).toBe(33);
+    expect(readFrame({ ...ok, today: { date: '2026-11-09', minutes: 300 } })).toBeNull();
   });
   it('today only counts on its date', () => {
     const rec = frameRecord({ mode: 'week', minutes: 60, today: { date: '2026-11-09', minutes: 30 } }, 5);
@@ -54,6 +58,11 @@ describe('gym time budget', () => {
     expect(gymBudgetOf(store([plan, f({ date: '2026-11-09', minutes: 30 })]), 'p', '2026-11-09')).toBe(60);
     expect(gymBudgetOf(store([plan, f({ date: '2026-11-11', minutes: 20 })]), 'p', '2026-11-09')).toBe(20);
   });
+  it('spontaneous mode plans for today, whatever the week plan says', () => {
+    const f = (today?: { date: string; minutes: number }) => frameRecord({ mode: 'spontaneous', minutes: 60, ...(today ? { today } : {}) }, 5);
+    expect(gymBudgetOf(store([plan, f({ date: '2026-11-11', minutes: 20 })]), 'p', '2026-11-09')).toBe(60);
+    expect(gymBudgetOf(store([plan, f({ date: '2026-11-09', minutes: 30 })]), 'p', '2026-11-09')).toBe(30);
+  });
   it('skips a gym day that already has a finished workout', () => {
     const body = (endMs: number | null) => ({ id: 'w', title: 't', startMs: new Date(2026, 10, 11, 8).getTime(), endMs, source: 'pandafit', exercises: [] });
     const w = (endMs: number | null): TrackedRecord => ({ kind: 'workout', id: 'w', updatedMs: 1, deleted: false, body: body(endMs) });
@@ -66,5 +75,7 @@ describe('gym time budget', () => {
   it('is one line in the prompt', () => {
     const p = buildGymPrompt({ state: initialGymState('p'), workouts: [], templates: [], nowMs: 1, summaries: [], complaints: [], previous: null, wantNote: false, budgetMinutes: 30 });
     expect(p).toContain('Zeit: höchstens 30 Min einschließlich Aufwärmen und Pausen.');
+    expect(p).not.toContain('Heute keine Beinübungen.');
+    expect(buildGymPrompt({ state: initialGymState('p'), workouts: [], templates: [], nowMs: 1, summaries: [], complaints: [], previous: null, wantNote: false, avoidLegs: true })).toContain('Heute keine Beinübungen.');
   });
 });

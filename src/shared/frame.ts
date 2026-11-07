@@ -14,17 +14,20 @@ export const DEFAULT_FRAME: Omit<FrameBody, 'atMs'> = { mode: 'week', minutes: n
 /** One frame per profile: record kind `frame`, id `frame`. */
 export const FRAME_ID = 'frame';
 const MODES: PlanMode[] = ['week', 'spontaneous'];
+/** What a stored time may be; the choices the UI offers are a subset. */
+const MIN_MINUTES = 5;
+const MAX_MINUTES = 240;
 export const minuteChoices = (): number[] => ruleNumbers('frame.minute-choices');
 
 /** The body of a `frame` record, or null for anything else. */
 export function readFrame(body: unknown): FrameBody | null {
   if (!isObj(body) || !num(body.atMs) || !MODES.includes(body.mode as PlanMode)) return null;
-  const choices = minuteChoices();
-  if (body.minutes !== null && !(num(body.minutes) && choices.includes(body.minutes))) return null;
+  const valid = (m: unknown): m is number => num(m) && Number.isInteger(m) && m >= MIN_MINUTES && m <= MAX_MINUTES;
+  if (body.minutes !== null && !valid(body.minutes)) return null;
   let today: FrameBody['today'];
   if (body.today !== undefined) {
     const t = body.today;
-    if (!isObj(t) || typeof t.date !== 'string' || !DATE.test(t.date) || !num(t.minutes) || !choices.includes(t.minutes)) return null;
+    if (!isObj(t) || typeof t.date !== 'string' || !DATE.test(t.date) || !valid(t.minutes)) return null;
     today = { date: t.date, minutes: t.minutes };
   }
   return { mode: body.mode as PlanMode, minutes: body.minutes as number | null, ...(today ? { today } : {}), atMs: body.atMs };

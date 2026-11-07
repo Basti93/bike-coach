@@ -17,6 +17,12 @@ describe('todayAdvice', () => {
       .toMatchObject({ sport: 'bike', hardness: 'easy', reason: 'weil dein Ruhepuls erhöht ist' });
   });
 
+  it('1b: a raised resting pulse also leaves the legs out when gym with legs follows hard legs', () => {
+    const ratings = rated(past(1, { hardness: 'hard', legs: true, sports: ['gym'] }));
+    expect(todayAdvice(base({ ratings, readiness: { restingHrRaised: true }, planDay: planDay({ sport: 'gym', hardness: 'moderate' }) })))
+      .toMatchObject({ sport: 'gym', hardness: 'easy', legs: false, reason: 'weil dein Ruhepuls erhöht ist' });
+  });
+
   it('2: hard legs yesterday, no hard leg day today', () => {
     const ratings = rated(past(1, { hardness: 'hard', legs: true, sports: ['gym'] }));
     // the planned sport stays: strength goes on without legs, bike and run get less hard

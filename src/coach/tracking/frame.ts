@@ -20,7 +20,9 @@ export function gymBudgetOf(store: Reader, profileId: string, todayDate: string)
   try {
     // A day whose strength session is already done needs no plan.
     const done = new Set(store.all(profileId, 'workout').filter((r) => !r.deleted && isFinished(r.body)).map((r) => dateKey((r.body as { startMs: number }).startMs)));
-    const date = nextPlanDate(store.all(profileId, 'weekplan'), todayDate, 'gym', (d) => done.has(d)) ?? todayDate;
-    return frameOf(store.all(profileId, 'frame'), date).effectiveMinutes;
+    const frames = store.all(profileId, 'frame');
+    // Spontaneous: no week plan counts, the session is for today.
+    const date = frameOf(frames, todayDate).mode === 'spontaneous' ? todayDate : nextPlanDate(store.all(profileId, 'weekplan'), todayDate, 'gym', (d) => done.has(d)) ?? todayDate;
+    return frameOf(frames, date).effectiveMinutes;
   } catch { return null; }
 }

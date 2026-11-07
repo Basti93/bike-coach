@@ -214,6 +214,16 @@ describe('ruleWorkout', () => {
   });
 });
 
+describe('no legs today', () => {
+  const legs = wo([ex('lp', [set(null, 8)])]);
+  it('refuses a leg exercise when avoidLegs is set, accepts it otherwise', () => {
+    passes(legs);
+    const reason = refused(legs, { ...CTX, avoidLegs: true });
+    expect(reasonPhrase(reason)).not.toBe('eine Angabe außerhalb der Grenzen');
+    passes(wo([ex('cp', [set(40, 8)])]), { ...CTX, avoidLegs: true });
+  });
+});
+
 describe('time budget', () => {
   const sets = (n: number) => Array.from({ length: n }, () => set(40, 8));
   const long = wo([ex('cp', sets(4)), ex('lp', [set(null, 8), set(null, 8), set(null, 8), set(null, 8)]), ex('lr', [set(null, 8), set(null, 8), set(null, 8), set(null, 8)])]);
