@@ -21,6 +21,8 @@ RUN printf '{"type":"module","private":true}\n' > package.json && mkdir /data &&
 COPY --from=deps /app/web-server/node_modules ./web-server/node_modules
 COPY web-server/package.json web-server/*.ts ./web-server/
 COPY src/shared/records.ts ./src/shared/records.ts
+# The CLI's set-contact needs these (they import only records.ts). tests/web-server/api-image.test.ts checks the list.
+COPY src/shared/contact.ts src/shared/exercise-links.ts ./src/shared/
 COPY --from=web /src/out/web ./out/web
 USER node
 ENV PORT=8080 HOST=0.0.0.0 PANDAFIT_DB=/data/pandafit.db PANDAFIT_STATIC=/app/out/web
