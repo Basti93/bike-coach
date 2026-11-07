@@ -9,7 +9,7 @@ import { Coach } from './coach';
 import { GarminLink } from './garmin';
 import { GarminDb } from './garmin-db';
 import { healthData } from './garmin-health';
-import { readinessFrom, type GarminCoachData } from './readiness';
+import { readinessFrom, restingHrRaised, type GarminCoachData } from './readiness';
 import { GarminSync } from './garmin-sync';
 import { HevyLinks } from './hevy';
 import { activityName, canUpload, REPO_DESCRIPTION } from './garmin-upload';
@@ -41,11 +41,12 @@ import { statsContent } from './stats/stats-content';
 import { exportStats } from './tracking/stats-export';
 import { mirrorExercises } from './tracking/mirror-exercises';
 import { ChatCoach } from './chat/chat-coach';
-import { planHint } from './chat/plan-hint';
+import { planHint, type TodayContext } from './chat/plan-hint';
+import { frameOfProfile } from './tracking/frame';
 import { longTermHint } from './chat/long-term';
 import { PlanSeen, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
-import { mondayOf } from '../shared/week-plan';
+import { addDays, mondayOf } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
 import type { StatsBody } from '../shared/stats';
 import type { RecordLinks } from './tracking/link';
@@ -179,7 +180,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     strength: mergedStrength((profileId) => gym.history(profileId), (profileId) => hevy.workouts(profileId)),
     mobility: (profileId) => mobility.promptData(profileId),
     giveTask: (profileId, t) => giveTask(profileId, 'bike', t),
-    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike') + longTermHint(records.all(profileId, 'stats'), nowMs()) + activityHintOf(profileId) + tasks.hint(profileId, 'bike', nowMs()),
+    planHint: (profileId) => planHint(records.all(profileId, 'weekplan'), nowMs(), 'bike', todayContextOf(profileId)) + longTermHint(records.all(profileId, 'stats'), nowMs()) + activityHintOf(profileId) + tasks.hint(profileId, 'bike', nowMs()),
     ask,
   });
 
@@ -196,7 +197,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     store: records, hevy: gymConnected, catalog: catalogOf,
     mobility: (id) => mobility.promptData(id),
     giveTask: (id, t) => giveTask(id, 'gym', t),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'gym', nowMs()),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'gym', todayContextOf(id)) + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'gym', nowMs()),
     ask,
     workouts: (id) => hevy.workouts(id),
     templates: async (id) => { const w = gymWriter(id); return w ? w.templates() : []; },
@@ -236,6 +237,16 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       bikeDays: usualTrainingDays(s.summaries.map((r) => r.startedAtMs), now), gymDays: usualTrainingDays(history.map((w) => w.startMs), now),
       ...(runs ? { runs } : {}),
     }, dates);
+  };
+  /** What the hints need to say what fits today: the last days' load, goal, frame and the resting pulse. */
+  const todayContextOf = (id: string): TodayContext => {
+    const now = nowMs();
+    const dates = Array.from({ length: 8 }, (_, i) => addDays(dateKey(now), -i - 1));
+    let ratings: Record<string, DayRating> = {};
+    try { ratings = ratingsOf(id, dates, run.runsFor(id)); } catch { /* no ratings: the advice goes by the plan */ }
+    let readiness: TodayContext['readiness'];
+    try { const data = garminData(id); if (data) readiness = { restingHrRaised: restingHrRaised(data.days) }; } catch { /* no body data */ }
+    return { ratings, goal: goalOfProfile(records, id), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
   };
   /** What the stats record of a profile says; null when there is nothing in the nine weeks. */
   const statsOf = (id: string): Omit<StatsBody, 'atMs'> | null => {
@@ -324,7 +335,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const run = new RunCoach({
     dir: path.join(coachDir, 'run'), store: records, nowMs, ask, noOpenRide: () => noOpenRide(),
     giveTask: (id, t) => giveTask(id, 'run', t),
-    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run') + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'run', nowMs()),
+    planHint: (id) => planHint(records.all(id, 'weekplan'), nowMs(), 'run', todayContextOf(id)) + longTermHint(records.all(id, 'stats'), nowMs()) + activityHintOf(id) + tasks.hint(id, 'run', nowMs()),
     // A new activity of any source makes the week be planned again, from today on (from tomorrow after a run today).
     planKey: (id, week) => `${weekPlanKey(records.all(id, 'weekplan').filter((r) => r.id === week))}|a${activitySeen.version(id)}|t${tasks.version(id, 'run')}|p${personalKey(id)}`,
     profile: (id) => profiles().find((p) => p.id === id) ?? null,

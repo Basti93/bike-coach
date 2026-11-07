@@ -22,3 +22,19 @@ test('a combination day shows both parts and counts for both planners', () => {
   expect(h).toContain('"auch":{"sport":"bike","hardness":"easy"}');
   expect(h).toContain('"sport":"gym"');
 });
+
+describe('what fits today in the hint', () => {
+  const ctx = (mode: 'week' | 'spontaneous') => ({ ratings: {}, goal: { sports: { run: 'focus' as const } }, frame: { mode } });
+  it('spontaneous mode gives the advice as the hint, even with a plan', () => {
+    const h = planHint([], NOW, 'run', ctx('spontaneous'));
+    expect(h).toContain('Heute passt: Laufen, mittel – weil du Laufen am längsten nicht gemacht hast.');
+    expect(planHint([plan('2026-11-02', { 5: 'gym' })], NOW, 'run', ctx('spontaneous'))).not.toContain('wochenplan');
+  });
+  it('week mode: no extra line when the plan day stands, the advice line when it differs', () => {
+    const rec = plan('2026-11-02', { 5: 'bike' });
+    expect(planHint([rec], NOW, 'bike', ctx('week'))).not.toContain('Heute passt');
+    const hard = plan('2026-11-02', { 5: 'bike' });
+    (hard.body as { days: { hardness: string }[] }).days[5]!.hardness = 'hard';
+    expect(planHint([hard], NOW, 'bike', { ...ctx('week'), readiness: { restingHrRaised: true } })).toContain('Heute passt: Ruhetag – weil dein Ruhepuls erhöht ist.');
+  });
+});

@@ -40,6 +40,10 @@ export const RULES: PolicyRule[] = [
   r('duration.change-s', 'gym', 'product', 'checked', 'Ein Wechsel zur nächsten Übung kostet 60 Sekunden.', 'Dauerschätzung', active, { value: 60, unit: 's', where: ['src/shared/duration.ts'] }),
   r('duration.slack-pct', 'gym', 'product', 'checked', 'Ein Krafttraining darf die angegebene Zeit um 10 % überschreiten, danach ist es zu lang.', 'Zeitrahmen', active, { value: 10, unit: '%', where: ['src/coach/gym/guardrails.ts'] }),
 
+  // What fits today (src/shared/today.ts): own product choices.
+  r('today.hard-days-in-row', 'planner', 'product', 'checked', 'Nach zwei harten Tagen hintereinander ist der nächste Tag locker.', 'Heutiger Vorschlag', active, { value: 2, unit: 'Tage', where: ['src/shared/today.ts'] }),
+  r('today.rest-after-days', 'planner', 'product', 'checked', 'Nach 6 Tagen ohne Pause ist heute ein Ruhetag.', 'Heutiger Vorschlag', active, { value: 6, unit: 'Tage', where: ['src/shared/today.ts'] }),
+
   // Weight steps and plates (src/shared/loads.ts): learned per exercise and studio, these are only the starting points.
   r('load.default-step', 'gym', 'product', 'checked', 'Ohne genug Daten gilt je Gerät ein Standard-Lastschritt: Langhantel 2,5 kg, Kurzhantel 2 kg, Maschine 5 kg, Kettlebell 4 kg, sonst 2,5 kg.', 'Lastschritt', active, { values: { barbell: 2.5, dumbbell: 2, machine: 5, kettlebell: 4, none: 2.5, other: 2.5 }, unit: 'kg', where: ['src/shared/loads.ts'] }),
   r('load.step-choices', 'gym', 'product', 'checked', 'Den Lastschritt einer Übung kann man auf 0,5, 1, 1,25, 2, 2,5, 4, 5, 7 oder 10 kg setzen.', 'Lastschritt', active, { numbers: [0.5, 1, 1.25, 2, 2.5, 4, 5, 7, 10], unit: 'kg', where: ['src/shared/loads.ts'] }),

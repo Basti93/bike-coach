@@ -8,19 +8,16 @@ import { RAMP_ID } from './guardrails';
 import { stepFtpFraction } from '../shared/session';
 import { gymMinutes } from '../shared/duration';
 
-export type DayHardness = 'easy' | 'moderate' | 'hard';
-export type DayRating = { date: string; hardness: DayHardness | null; legs: boolean; minutes: number };
+import { HARD_FRACTION, MODERATE_FRACTION, dateKey, rateIntensity, ratingsFromEntries, type DayHardness, type DayRating, type RatingEntry } from '../shared/day-rating';
+
+export { dateKey };
+export type { DayHardness, DayRating };
 type MuscleOf = (templateId: string, title: string) => string | null;
 
-// Our own choices: where a day turns moderate or hard.
-const HARD_FRACTION = 0.8;
-const MODERATE_FRACTION = 0.7;
 /** Only the fallback for a day without a planned workout; a planned one is estimated (see shared/duration). */
 const GYM_MINUTES_WITHOUT_PLAN = 45;
 const MAX_CUT = 0.2;
 const BEFORE_WEEKS = 4;
-const ORDER: DayHardness[] = ['easy', 'moderate', 'hard'];
-const harder = (a: DayHardness | null, b: DayHardness): DayHardness => (a === null || ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a);
 
 /** Only reads the plan: hard for the ramp test or an erg step from 0.8, moderate for a main step from 0.7. */
 export const rateSession = (s: Session): DayHardness => {
@@ -29,10 +26,7 @@ export const rateSession = (s: Session): DayHardness => {
   return main.some((st) => stepFtpFraction(st) >= MODERATE_FRACTION) ? 'moderate' : 'easy';
 };
 
-export const rateRide = (r: RideSummary): DayHardness => {
-  const f = r.intensityFactor;
-  return f !== null && f >= HARD_FRACTION ? 'hard' : f !== null && f >= MODERATE_FRACTION ? 'moderate' : 'easy';
-};
+export const rateRide = (r: RideSummary): DayHardness => rateIntensity(r.intensityFactor);
 
 /** A test run is hard, a long run or any run of 75 minutes or more is moderate. */
 export const rateRun = (r: { durationS: number; planned: 'easy' | 'long' | 'test' | null }): DayHardness =>
@@ -47,10 +41,6 @@ export type DayInput = {
   runs?: { startMs: number; durationS: number; hardness: DayHardness }[];
 };
 
-export const dateKey = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 /** Monday is 0. */
 const weekday = (date: string): number => {
   const [y, m, d] = date.split('-').map(Number);
@@ -59,31 +49,27 @@ const weekday = (date: string): number => {
 
 /** How hard each of the given local dates is, from rides, gym workouts and the two next planned sessions. */
 export const dayRatings = (input: DayInput, dates: string[]): Record<string, DayRating> => {
-  const out: Record<string, DayRating> = Object.fromEntries(dates.map((date) => [date, { date, hardness: null, legs: false, minutes: 0 }]));
-  const add = (date: string, hardness: DayHardness, legs: boolean, minutes: number): void => {
-    const day = out[date];
-    if (!day) return;
-    day.hardness = harder(day.hardness, hardness);
-    day.legs = day.legs || legs;
-    day.minutes += Math.round(minutes);
+  const entries: RatingEntry[] = [];
+  const add = (date: string, hardness: DayHardness, legs: boolean, minutes: number, sport: RatingEntry['sport']): void => {
+    entries.push({ date, hardness, legs, minutes, ...(sport ? { sport } : {}) });
   };
-  for (const r of input.rides) add(dateKey(r.startedAtMs), rateRide(r), false, r.durationS / 60);
+  for (const r of input.rides) add(dateKey(r.startedAtMs), rateRide(r), false, r.durationS / 60, 'bike');
   for (const w of input.gym) {
     const legs = trainsLegs(w.exercises, input.muscleOf);
-    add(dateKey(w.startMs), legs ? 'hard' : 'moderate', legs, w.durationS / 60);
+    add(dateKey(w.startMs), legs ? 'hard' : 'moderate', legs, w.durationS / 60, 'gym');
   }
-  for (const r of input.runs ?? []) add(dateKey(r.startMs), r.hardness, false, r.durationS / 60);
+  for (const r of input.runs ?? []) add(dateKey(r.startMs), r.hardness, false, r.durationS / 60, 'run');
   // A planned session goes on the next usual day without a finished one of its own source. Without usual days, any date does.
   const nextFree = (days: number[], done: Set<string>): string | undefined =>
     dates.find((d) => (days.length === 0 || days.includes(weekday(d))) && !done.has(d));
   const bikeDate = input.bikeNext ? nextFree(input.bikeDays, new Set(input.rides.map((r) => dateKey(r.startedAtMs)))) : undefined;
-  if (input.bikeNext && bikeDate) add(bikeDate, rateSession(input.bikeNext), false, input.bikeNext.steps.reduce((a, s) => a + s.durationS, 0) / 60);
+  if (input.bikeNext && bikeDate) add(bikeDate, rateSession(input.bikeNext), false, input.bikeNext.steps.reduce((a, s) => a + s.durationS, 0) / 60, 'bike');
   const gymDate = input.gymNext ? nextFree(input.gymDays, new Set(input.gym.map((w) => dateKey(w.startMs)))) : undefined;
   if (input.gymNext && gymDate) {
     const legs = trainsLegs(input.gymNext.exercises, input.muscleOf);
-    add(gymDate, legs ? 'hard' : 'moderate', legs, input.gymNext.exercises.length > 0 ? gymMinutes(input.gymNext) : GYM_MINUTES_WITHOUT_PLAN);
+    add(gymDate, legs ? 'hard' : 'moderate', legs, input.gymNext.exercises.length > 0 ? gymMinutes(input.gymNext) : GYM_MINUTES_WITHOUT_PLAN, 'gym');
   }
-  return out;
+  return ratingsFromEntries(entries, dates);
 };
 
 /**
