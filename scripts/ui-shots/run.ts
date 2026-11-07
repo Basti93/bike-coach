@@ -220,6 +220,19 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Training starten' }).click();
     await win.waitForTimeout(300);
   } },
+  { name: 'catalog', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1300, steps: async (win) => {
+    // One person rule for a single exercise (invented), then a search with one hit opened.
+    const t = Date.now() - 3600000;
+    const R = (id: string, text: string, extra: object) => ({ kind: 'rule', id, updatedMs: t, deleted: false, body: { kind: 'exclude', text, sport: 'gym', state: 'active', source: 'person', atMs: t, ...extra } });
+    const rows = [R('rule-c1', 'Ohne Frontkniebeuge', { exerciseIds: ['pf-front-squat'] })];
+    await win.evaluate((rs) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map(rs.map((r) => [`${r.kind}:${r.id}`, r])); }, rows);
+    await win.getByRole('button', { name: 'Übungen', exact: true }).click();
+    await win.waitForTimeout(300);
+    await win.getByLabel('Übung suchen').fill('Frontkniebeuge');
+    await win.getByRole('button', { name: /^Frontkniebeuge mit zwei/ }).click();
+    await win.evaluate(() => window.scrollTo(0, 0));
+    await win.waitForTimeout(200);
+  } },
   { name: 'stats-muscles', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1500, steps: async (win) => {
     // Bench press and lateral raises this week, a squat last week. The app reads the records once at start, so seed them and reload.
     await win.addInitScript((t) => {

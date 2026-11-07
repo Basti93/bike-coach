@@ -20,7 +20,7 @@ type Props = {
   /** A workout is still open on this Mac: the start button then continues it. */
   openWorkout?: boolean;
   /** Opens one of the shared tracking screens. Without it the page shows no tracking buttons. */
-  onTrack?: (screen: 'workout' | 'routines' | 'history') => void;
+  onTrack?: (screen: 'workout' | 'routines' | 'history' | 'catalog') => void;
 };
 
 const SET_TYPE: Record<GymSet['type'], string> = { warmup: 'Aufwärmen', normal: '', failure: 'bis nichts mehr geht', dropset: 'Dropset' };
@@ -100,6 +100,7 @@ export const GymView = ({ profileId, gym, preview, previewFailed, result, send, 
           <button className="go" onClick={() => onTrack('workout')}>{openWorkout ? 'Training fortsetzen' : 'Training starten'}</button>
           <button className="secondary" onClick={() => onTrack('routines')}>Routinen</button>
           <button className="secondary" onClick={() => onTrack('history')}>Bisherige Trainings</button>
+          <button className="secondary" onClick={() => onTrack('catalog')}>Übungen</button>
         </div>
       )}
       {!ready && <p className="notice" role="status">Dein Verlauf wird noch geladen. Das dauert beim ersten Mal etwas.</p>}

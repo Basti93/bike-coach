@@ -5,7 +5,7 @@ import { addDays } from './week-plan';
 import { ruleNumber } from './training-policy';
 import { takenChanges } from './changes';
 import type { Exercise } from './exercises';
-import { familyOf, isExcludableFamily, MAX_FAMILIES } from './families';
+import { familyLabel, familyOf, isExcludableFamily, MAX_FAMILIES } from './families';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
@@ -177,6 +177,16 @@ export const rulesOf = (records: readonly TrackedRecord[]): Rule[] =>
 export function activeRules(records: readonly TrackedRecord[], sport: SportKey, _nowMs: number): Rule[] {
   return rulesOf(records).filter((r) => r.state === 'active' && r.kind !== 'goal' && (r.sport === sport || r.sport === 'all'));
 }
+
+/** The rule a person writes to rule out one exercise, or with `wholeFamily` all variants of a family. The one writer for RulesCard and the catalog page. */
+export const excludeRuleRecord = (e: { id: string; title: string }, wholeFamily: string | undefined, newId: string, nowMs: number): TrackedRecord => {
+  const text = wholeFamily ? `Ohne alle Varianten: ${familyLabel(wholeFamily)}` : `Ohne ${e.title}`;
+  return ruleRecord(ruleId(newId), { kind: 'exclude', text: text.slice(0, RULE_TEXT_MAX), sport: 'gym', ...(wholeFamily ? { families: [wholeFamily] } : { exerciseIds: [e.id] }) }, 'active', 'person', nowMs);
+};
+
+/** The active exclude rules that rule an exercise out by id or by its family. */
+export const rulesExcluding = (records: readonly TrackedRecord[], e: Pick<Exercise, 'id' | 'family'>): Rule[] =>
+  rulesOf(records).filter((r) => r.state === 'active' && r.kind === 'exclude' && ((r.exerciseIds ?? []).includes(e.id) || (isExcludableFamily(familyOf(e)) && (r.families ?? []).includes(familyOf(e)))));
 
 /**
  * The union of the exercises named by active exclude rules, whatever the rule's sport. The one resolver everywhere: a rule's

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { deleteRule, FOCUS_GROUPS, goalRecord, MAX_FOCUS, moveRule, ruleId, ruleRecord, RULE_TEXT_MAX, rulesOf, storedGoalOf, type GoalBody, type Prio, type SportKey, type Strength } from '../../shared/personal';
+import { deleteRule, excludeRuleRecord, FOCUS_GROUPS, goalRecord, MAX_FOCUS, moveRule, ruleId, ruleRecord, RULE_TEXT_MAX, rulesOf, storedGoalOf, type GoalBody, type Prio, type SportKey, type Strength } from '../../shared/personal';
 import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
 import { addDays, SPORT_LABEL } from '../../shared/week-plan';
 import { dateKey } from '../../shared/day-rating';
@@ -83,8 +83,7 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const pick = (e: Exercise) => { setPicking(false); setChosen(catalog.find((c) => c.id === e.id) ?? e); };
   const exclude = (e: { id: string; title: string }, wholeFamily?: string) => {
     setChosen(null);
-    const text = wholeFamily ? `Ohne alle Varianten: ${familyLabel(wholeFamily)}` : `Ohne ${e.title}`;
-    void attempt(() => port.put(ruleRecord(ruleId(newId()), { kind: 'exclude', text: text.slice(0, RULE_TEXT_MAX), sport: 'gym', ...(wholeFamily ? { families: [wholeFamily] } : { exerciseIds: [e.id] }) }, 'active', 'person', now())));
+    void attempt(() => port.put(excludeRuleRecord(e, wholeFamily, newId(), now())));
   };
   const toggleFocus = (g: (typeof FOCUS_GROUPS)[number]) => {
     const on = goal.focus.includes(g);

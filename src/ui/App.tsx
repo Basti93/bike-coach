@@ -17,7 +17,7 @@ import { CoachView } from './views/CoachView';
 import { coachScreen, DebriefView } from './views/DebriefCard';
 import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
-import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { CatalogScreen, HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { durationNote } from '../shared/duration';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
@@ -183,10 +183,12 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
         <button className="ghost" onClick={() => to('workout')} aria-pressed={track.screen === 'workout'}>Training</button>
         <button className="ghost" onClick={() => to('routines')} aria-pressed={track.screen === 'routines'}>Routinen</button>
         <button className="ghost" onClick={() => to('history')} aria-pressed={track.screen === 'history'}>Bisherige Trainings</button>
+        <button className="ghost" onClick={() => to('catalog')} aria-pressed={track.screen === 'catalog'}>Übungen</button>
       </div></div>
       {track.screen === 'workout' && <WorkoutScreen key={track.routine ? 'routine' : 'plan'} port={port} plan={track.routine ? null : coach.gym.state.next?.workout ?? null} routine={track.routine} />}
       {track.screen === 'routines' && <RoutinesScreen port={port} onStart={(routine) => patch({ trackFor: { ...track, screen: 'workout', routine } })} />}
       {track.screen === 'history' && <HistoryScreen port={port} />}
+      {track.screen === 'catalog' && <CatalogScreen port={port} />}
     </main>);
   }
   if (v.strengthFor === profile.id && coach.gym) {

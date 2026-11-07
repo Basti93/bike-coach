@@ -223,3 +223,11 @@
 .tk-frame-line select, .tk-today-only select { font-size: inherit; width: auto; display: inline-block; margin: 0 .25rem; padding: .2rem .5rem; }
 .tk-today-only { display: block; margin-top: .5rem; font-size: .9rem; }
 .tk-day { text-align: center; font-size: 0.85em; margin: 0.6em 0 0.2em; }
+
+/* Exercise catalog page: one light line per exercise, groups collapsed. */
+.tk-cat-group { margin-top: .4rem; }
+.tk-screen button.tk-cat-head { width: 100%; display: flex; justify-content: space-between; align-items: center; text-align: left; margin-bottom: .3rem; }
+.tk-cat-line small { color: var(--tk-muted, #aebba9); }
+.tk-cat-line small.tk-out { color: var(--warn, #e0b46a); }
+.tk-family { margin: .2rem 0; }
+.tk-cat-group .tk-info-pic img { max-height: 9rem; width: 100%; object-fit: contain; }

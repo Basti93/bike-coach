@@ -3,7 +3,7 @@ import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { durationNote } from '../shared/duration';
 import { openStoreCount } from '../tracking/registry';
-import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
+import { CatalogScreen, HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { TodayCard, todayPlan } from '../tracking/ui/TodayCard';
@@ -164,7 +164,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
 
 function Training({ port, env }: { port: WebPort; env: Env }) {
   const plans = usePortRecords(port, 'plan').records;
-  const [screen, setScreen] = useState<'workout' | 'routines' | 'history'>('workout');
+  const [screen, setScreen] = useState<'workout' | 'routines' | 'history' | 'catalog'>('workout');
   const [routine, setRoutine] = useState<GymWorkout | null>(null);
   const plan = readPlan((plans ?? []).find((r) => r.id === 'current'));
   return (
@@ -173,9 +173,11 @@ function Training({ port, env }: { port: WebPort; env: Env }) {
         <button type="button" aria-pressed={screen === 'workout'} onClick={() => { setRoutine(null); setScreen('workout'); }}>Training</button>
         <button type="button" aria-pressed={screen === 'routines'} onClick={() => setScreen('routines')}>Routinen</button>
         <button type="button" aria-pressed={screen === 'history'} onClick={() => setScreen('history')}>Verlauf</button>
+        <button type="button" aria-pressed={screen === 'catalog'} onClick={() => setScreen('catalog')}>Übungen</button>
       </div></div>
       {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
       {screen === 'history' && <HistoryScreen port={port} now={env.now} />}
+      {screen === 'catalog' && <CatalogScreen port={port} now={env.now} newId={env.newId} />}
       {screen === 'routines' && <RoutinesScreen port={port} now={env.now} newId={env.newId} onStart={(r) => { setRoutine(r); setScreen('workout'); }} />}
     </>
   );
