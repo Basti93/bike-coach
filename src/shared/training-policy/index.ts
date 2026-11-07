@@ -40,3 +40,9 @@ export function ruleNumbers(id: string): number[] {
   if (!v) throw new Error(`policy rule ${id} has no number list`);
   return v;
 }
+
+export function ruleRamp(id: string): { pct: number; reps: number }[] {
+  const v = policyRule(id).ramp;
+  if (!v) throw new Error(`policy rule ${id} has no ramp`);
+  return v;
+}

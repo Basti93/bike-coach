@@ -92,8 +92,9 @@ describe('own history', () => {
     expect(h.coach.enabled(ID)).toBe(true);
     await h.coach.tick(ID);
     const e = h.coach.state(ID).next?.workout.exercises.find((x) => x.templateId === BENCH);
-    expect(e?.sets[0].weightKg).toBe(40);
-    expect(e?.sets[0].reps).toBe(9);
+    const work = e?.sets.filter((s) => s.type !== 'warmup');
+    expect(work?.[0].weightKg).toBe(40);
+    expect(work?.[0].reps).toBe(9);
   });
 
   it('an unconfirmed set of an own workout does not count', async () => {
@@ -115,7 +116,8 @@ describe('own history', () => {
     expect(merged.every((w) => w.exercises.every((e) => e.templateId === BENCH))).toBe(true);
     expect(availableExercises(merged, NOW)).toHaveLength(1);
     const e = h.coach.state(ID).next?.workout.exercises.find((x) => x.templateId === BENCH);
-    expect(e?.sets[0].weightKg).toBe(52.5);
+    const work = e?.sets.filter((s) => s.type !== 'warmup');
+    expect(work?.[0].weightKg).toBe(52.5);
     // A linked exercise appears once; an unlinked Hevy one under its Hevy id.
     const list = await h.coach.templateList(ID);
     expect(list.filter((t) => t.id === BENCH || t.id === 'hevy-bench-1')).toHaveLength(1);

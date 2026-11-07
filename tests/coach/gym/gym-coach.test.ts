@@ -714,7 +714,7 @@ describe('final review', () => {
     });
     const ctx = () => ({ workouts: atTop(), templates: [tpl('as', ASSISTED.type, 'machine', 'lats')], nowMs: NOW });
     it('the rule workout and the check hold the weight', () => {
-      expect(ruleWorkout(ctx()).workout.exercises[0].sets[0].weightKg).toBe(20);
+      expect(ruleWorkout(ctx()).workout.exercises[0].sets.find((s) => s.type !== 'warmup')!.weightKg).toBe(20);
       const check = (kg: number) => checkWorkout({ name: 'A', exercises: [ex('as', [set(kg, 12)])] }, ctx()).ok;
       expect(check(20)).toBe(true);
       expect(check(22)).toBe(false);
@@ -926,7 +926,7 @@ describe('final review', () => {
       await h.coach.tick(ID);
       expect(h.calls).toHaveLength(2);
       expect(h.coach.state(ID).next?.source).toBe('rules');
-      expect(h.coach.state(ID).next?.workout.exercises[0].sets[0].weightKg).toBe(35);
+      expect(h.coach.state(ID).next?.workout.exercises[0].sets.find((s) => s.type !== 'warmup')!.weightKg).toBe(35);
     });
     it('the note survives the replan, also when old workouts are still unseen', async () => {
       const h = harness();

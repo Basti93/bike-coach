@@ -257,7 +257,7 @@ describe('time budget', () => {
   });
   it('leaves the rule fallback whole without a budget', () => {
     const r = ruleWorkout(CTX);
-    const sets3 = r.workout.exercises.every((e) => e.sets.length === 3);
+    const sets3 = r.workout.exercises.every((e) => e.sets.filter((s) => s.type !== 'warmup').length === 3);
     expect(sets3).toBe(true);
     expect(r.guard).toBeUndefined();
     expect(r.reason).toMatch(/Dauer ca\. \d+ Min\./);

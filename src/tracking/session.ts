@@ -4,8 +4,9 @@ import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
-import { ladderFrom, snapDown, type LoadStepOverrides } from '../shared/loads';
+import { ladderFrom, snapDown, type Ladder, type LoadStepOverrides } from '../shared/loads';
 import { tidyGroups, contiguousGroups } from '../shared/superset';
+import { warmupRamp, workingWeightOf } from '../shared/warmup';
 import { restAfterSet, restChoices, restExtendS } from '../shared/rest';
 import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
@@ -189,6 +190,20 @@ export const addSet = (w: TrackedWorkout, ex: string): TrackedWorkout =>
     const l = x.sets[x.sets.length - 1];
     return { ...x, sets: [...x.sets, l ? { ...l, rid: newRid(), doneMs: null } : blank()] };
   });
+/**
+ * Inserts the warm-up ramp before the exercise's first work set (the working weight is that set's weight) as normal, editable
+ * sets of type warmup. Nothing is added without a working weight, or when the exercise already has a warm-up or a done set.
+ */
+export function addWarmup(w: TrackedWorkout, ex: string, ladder: Ladder, catalog: readonly Exercise[] = EXERCISES): TrackedWorkout {
+  const e = w.exercises.find((x) => x.rid === ex);
+  if (!e || e.sets.some((s) => s.type === 'warmup' || s.doneMs !== null)) return w;
+  const own = resolveExercise(e, [...catalog]).exercise;
+  const ramp = warmupRamp({ workingKg: workingWeightOf(e), equipment: own?.equipment ?? 'other', ladder, type: own?.type });
+  if (ramp.length === 0) return w;
+  const first = Math.max(0, e.sets.findIndex((s) => s.type !== 'warmup'));
+  const sets = ramp.map((r): TrackedSet => ({ rid: newRid(), type: 'warmup', weightKg: r.weightKg, reps: r.reps, durationS: null, doneMs: null }));
+  return mapEx(w, ex, (x) => ({ ...x, sets: [...x.sets.slice(0, first), ...sets, ...x.sets.slice(first)] }));
+}
 export const removeSet = (w: TrackedWorkout, ex: string, set: string): TrackedWorkout =>
   mapSet(w, ex, set, (s) => s) === w ? w : mapEx(w, ex, (x) => ({ ...x, sets: x.sets.filter((s) => s.rid !== set) }));
 export const addExercise = (w: TrackedWorkout, e: Exercise, history: LoggedWorkout[], studios: StudioState = NO_STUDIOS): TrackedWorkout =>

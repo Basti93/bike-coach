@@ -34,6 +34,8 @@ export type PolicyRule = {
   values?: Record<string, number>;
   /** A plain list of numbers, e.g. the offered weight steps or the plate sizes. */
   numbers?: number[];
+  /** A ramp of steps, each a share of the working weight and its reps, e.g. the warm-up ramp. */
+  ramp?: { pct: number; reps: number }[];
   /** A source id proves neither a threshold nor an individual optimum. */
   sourceIds: string[];
   /** Code paths that apply the rule today or will apply it. */

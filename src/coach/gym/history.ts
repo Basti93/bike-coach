@@ -2,7 +2,7 @@ import type { Effort } from '../../shared/records';
 import type { StrengthWorkout } from '../hevy';
 import type { ExerciseTemplate } from './types';
 import { ruleNumber } from '../../shared/training-policy';
-import { ladderFrom, nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
+import { extendDown, ladderFrom, nextUp, snapDown, type Ladder, type LoadStepOverrides } from '../../shared/loads';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { mainStudio, studioKey, resolveStudio, type Renames } from '../../shared/studio';
 import { COMPARABLE_DAYS, DROP_STEP_BACK, LONG_BREAK_DAYS, MIN_COMPARABLE, RECENT_DAYS, STEP_BACK } from './limits';
@@ -75,8 +75,6 @@ function sessionsOf(templateId: string, workouts: StrengthWorkout[], nowMs: numb
   return out;
 }
 
-const BAR_KG = ruleNumber('load.bar-kg');
-
 /**
  * The weight steps of an exercise in the planned studio: learned from its newest 10 sessions there (the shared `ladderFrom`),
  * then the person's override. The learned anchor is the lightest weight seen, exactly as it is (an off-grid 22.68 stays the
@@ -87,9 +85,7 @@ export function ladderFor(templateId: string, ex: ExerciseInfo | undefined, work
   const sessions = workouts.filter((w) => w.startMs <= nowMs).map((w) => ({ studio: w.studio, startMs: w.startMs, sets: w.exercises.filter((e) => e.templateId === templateId).flatMap((e) => e.workSets), has: w.exercises.some((e) => e.templateId === templateId) }))
     .filter((s) => s.has);
   const { ladder: l } = ladderFrom(sessions, { exerciseId: templateId, studio: plannedKey(workouts, plan), main: mainStudio(workouts, plan?.renames), renames: plan?.renames }, ex?.equipment ?? 'other', plan?.overrides ?? new Map());
-  const floor = ex?.equipment === 'barbell' && l.anchorKg >= BAR_KG ? BAR_KG : 0;
-  const below = floor > 0 ? Math.floor((l.anchorKg - floor) / l.stepKg + 1e-6) : Math.max(0, Math.ceil(l.anchorKg / l.stepKg - 1e-6) - 1);
-  return { ...l, anchorKg: Math.round((l.anchorKg - below * l.stepKg) * 100) / 100 };
+  return extendDown(l, ex?.equipment ?? 'other');
 }
 
 /** "in 5-kg-Stufen", for the prompt. */

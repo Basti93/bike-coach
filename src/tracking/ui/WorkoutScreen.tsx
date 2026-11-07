@@ -1,4 +1,5 @@
 import { restOf, restChoices } from '../../shared/rest';
+import { needsWarmup, warmupRamp, workingWeightOf } from '../../shared/warmup';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
@@ -10,7 +11,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -34,7 +35,7 @@ import { defaultStudio, knownStudios, studioName, studioStateOf } from '../../sh
 import { rememberStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
-import { hereKey, plateLine, stepChange, stepHere } from '../steps';
+import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
 
 const NEW_STUDIO = '\u0000new';
 
@@ -287,6 +288,10 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
             )}
             {e.effort && e.effort !== 'skip' && <p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p>}
             <div className="tk-row">
+              {needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0 && (
+                <button type="button" className="secondary" aria-label={`Aufwärmen hinzufügen ${e.title}`}
+                  onClick={() => act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog))}>Aufwärmen hinzufügen</button>
+              )}
               <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
             </div>
             <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />

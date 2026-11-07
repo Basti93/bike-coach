@@ -1,9 +1,10 @@
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
-import { RECENT_DAYS } from './limits';
-import { repRangeOf } from '../../shared/muscle-targets';
-import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
+import { MAX_SETS, RECENT_DAYS } from './limits';
+import { muscleGroupOf, repRangeOf } from '../../shared/muscle-targets';
+import { LEG_MUSCLES, availableExercises, isRepBased, ladderFor, recentLegWork, suggestNext } from './history';
 import { isExcluded } from '../../shared/excluded';
 import { checkWorkout, type GymContext } from './guardrails';
+import { warmupRamp, workingWeightOf } from '../../shared/warmup';
 import { restOf } from '../../shared/rest';
 import { durationNote, gymLimit, gymMinutes } from '../../shared/duration';
 
@@ -19,6 +20,23 @@ function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   const reps = s.why === 'none' ? Math.min(range.max, Math.max(range.min, START_REPS)) : s.reps;
   const sets = Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps }));
   return { templateId: t.id, title: t.title, restS: restOf({ templateId: t.id, title: t.title, sets }, [t]), supersetId: null, notes: '', sets };
+}
+
+/** The first exercise of each muscle group gets the warm-up ramp before its work sets, when its working weight is known and the set limit allows. */
+function withRamps(templates: ExerciseTemplate[], exercises: GymExercise[], ctx: GymContext): GymExercise[] {
+  const seen = new Set<string>();
+  const plan = { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames };
+  let total = exercises.reduce((n, e) => n + e.sets.length, 0);
+  return exercises.map((e, i) => {
+    const t = templates[i]!;
+    const group = muscleGroupOf(t);
+    if (seen.has(group)) return e;
+    seen.add(group);
+    const ramp = warmupRamp({ workingKg: workingWeightOf(e), equipment: t.equipment, type: t.type, ladder: ladderFor(t.id, t, ctx.workouts, ctx.nowMs, plan) });
+    if (ramp.length === 0 || total + ramp.length > MAX_SETS) return e; // the plan stays within the set limit
+    total += ramp.length;
+    return { ...e, sets: [...ramp.map((r) => ({ type: 'warmup' as const, weightKg: r.weightKg, reps: r.reps })), ...e.sets] };
+  });
 }
 
 type Plan = { workout: GymWorkout; reason: string };
@@ -48,7 +66,7 @@ function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
     .slice(0, CORE_SIZE);
   if (!machinesOnly && core.length > 0) {
     return {
-      workout: { name: HISTORY_NAME, exercises: core.map((t) => exerciseOf(t, ctx)) },
+      workout: { name: HISTORY_NAME, exercises: withRamps(core, core.map((t) => exerciseOf(t, ctx)), ctx) },
       reason: legsTired && !recentLegs
         ? 'Deine häufigsten Übungen der letzten Monate, ohne Beinarbeit, damit die Beine geschont bleiben.'
         : legsTired
@@ -61,7 +79,7 @@ function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
   if (picked.length === 0) {
     return { workout: { name: 'Ganzkörper', exercises: [] }, reason: 'Ich habe keine passenden Übungen gefunden, deshalb gibt es gerade kein Training. Sobald Hevy mehr Übungen liefert, geht es weiter.' };
   }
-  const exercises = picked.map((t) => exerciseOf(t, ctx));
+  const exercises = withRamps(picked, picked.map((t) => exerciseOf(t, ctx)), ctx);
   const hasHistory = ctx.workouts.some((w) => w.startMs <= ctx.nowMs);
   const withWeights = exercises.some((e) => e.sets.some((s) => s.weightKg !== null));
   return {

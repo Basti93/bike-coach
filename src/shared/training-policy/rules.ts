@@ -5,10 +5,10 @@ const active: RuleStatus = { state: 'active' };
 const replace = (task: number, replacement: string): RuleStatus => ({ state: 'to-replace', task, replacement, untilThen: UNTIL_THEN });
 const planned = (task: number): RuleStatus => ({ state: 'planned', task });
 
-type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; lists?: Record<string, string[]>; values?: Record<string, number>; numbers?: number[]; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
+type Opt = { value?: RuleValue; ranges?: Record<string, { min: number; max: number }>; lists?: Record<string, string[]>; values?: Record<string, number>; numbers?: number[]; ramp?: { pct: number; reps: number }[]; unit?: string; sourceIds?: string[]; where?: string[]; scenarioIds?: string[] };
 const r = (id: string, domain: PolicyRule['domain'], cls: RuleClass, enforcement: Enforcement, statement: string, decision: string, status: RuleStatus, o: Opt = {}): PolicyRule => ({
   id, domain, statement, decision, class: cls, enforcement,
-  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.lists ? { lists: o.lists } : {}), ...(o.values ? { values: o.values } : {}), ...(o.numbers ? { numbers: o.numbers } : {}), ...(o.unit ? { unit: o.unit } : {}),
+  ...(o.value !== undefined ? { value: o.value } : {}), ...(o.ranges ? { ranges: o.ranges } : {}), ...(o.lists ? { lists: o.lists } : {}), ...(o.values ? { values: o.values } : {}), ...(o.numbers ? { numbers: o.numbers } : {}), ...(o.ramp ? { ramp: o.ramp } : {}), ...(o.unit ? { unit: o.unit } : {}),
   sourceIds: o.sourceIds ?? [], where: o.where ?? [], status, scenarioIds: o.scenarioIds ?? [],
 });
 
@@ -90,7 +90,8 @@ export const RULES: PolicyRule[] = [
   r('rest.heavy-max-reps', 'rest', 'product', 'checked', 'Ein Satz mit höchstens 5 geplanten Wiederholungen zählt als schwer.', 'Satzpause', active, { value: 5, unit: 'Wiederholungen', where: ['src/shared/rest.ts'] }),
   r('rest.choices', 'rest', 'product', 'checked', 'Die Pause einer Übung kann man auf 30 bis 300 Sekunden stellen.', 'Satzpause', active, { numbers: [30, 45, 60, 90, 120, 150, 180, 240, 300], unit: 's', where: ['src/shared/rest.ts', 'src/tracking/ui/WorkoutScreen.tsx'] }),
   r('rest.extend-s', 'rest', 'product', 'checked', 'Die laufende Pause lässt sich um 30 Sekunden verlängern.', 'Satzpause', active, { value: 30, unit: 's', where: ['src/shared/rest.ts', 'src/tracking/ui/WorkoutScreen.tsx'] }),
-  r('prep.per-movement-block', 'gym', 'product', 'weighed', 'Vorbereitung vor der ersten relevanten Belastung eines Bewegungsblocks, auch spät im Training.', 'Aufwärmen', planned(10), { sourceIds: ['S11'], scenarioIds: ['F10'] }),
+  r('prep.ramp', 'gym', 'product', 'checked', 'Der Aufwärmaufbau: Stange (bei der Langhantel) mit 10 Wiederholungen, dann 40, 60 und 80 % des Arbeitsgewichts mit 5, 3 und 2 Wiederholungen.', 'Aufwärmen', active, { ramp: [{ pct: 40, reps: 5 }, { pct: 60, reps: 3 }, { pct: 80, reps: 2 }], values: { barReps: 10 }, where: ['src/shared/warmup.ts'], sourceIds: ['S11'] }),
+  r('prep.per-movement-block', 'gym', 'product', 'weighed', 'Vorbereitung vor der ersten relevanten Belastung eines Bewegungsblocks, auch spät im Training.', 'Aufwärmen', active, { where: ['src/shared/warmup.ts', 'src/tracking/session.ts', 'src/tracking/ui/WorkoutScreen.tsx', 'src/coach/gym/rules.ts'], sourceIds: ['S11'], scenarioIds: ['F10'] }),
   r('superset.any-partner', 'gym', 'product', 'weighed', 'Beliebige Supersatz-Partner sind bedienbar; der Coach bevorzugt bei Zeitdruck geeignete Paarungen.', 'Gruppierung', active, { sourceIds: ['S10'], where: ['src/tracking/session.ts', 'src/shared/superset.ts'] }),
   r('progression.double', 'gym', 'product', 'checked', 'Doppelte Progression pro Übung mit erreichbarem Lastschritt.', 'Progression', planned(4), { sourceIds: ['S12'], scenarioIds: ['F02'] }),
   r('endurance.no-forced-distribution', 'endurance', 'orientation', 'weighed', 'Keine Pflichtquote für eine Intensitätsverteilung; Mischung nach Ziel, Erfahrung, Zeit und Verträglichkeit.', 'Intensitätsverteilung', planned(6), { sourceIds: ['S16', 'S17', 'S18'], scenarioIds: ['F05'] }),
