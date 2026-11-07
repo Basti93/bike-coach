@@ -90,14 +90,14 @@ describe('web app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Anmelden' }));
     await waitFor(() => expect(a.persist).toHaveBeenCalled());
     fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
-    expect((await screen.findAllByText(/dauerhaften Speicher/)).length).toBe(1);
+    expect((await screen.findAllByText(/Browser kann Daten löschen/)).length).toBe(1);
   });
 
   it('says nothing about storage when persistence is granted', async () => {
     const a = await boot({ seed: [], persist: true });
     await screen.findByRole('navigation');
     await waitFor(() => expect(a.persist).toHaveBeenCalled());
-    expect(screen.queryByText(/dauerhaften Speicher/)).toBeNull();
+    expect(screen.queryByText(/Browser kann Daten löschen/)).toBeNull();
   });
 
   it('offline after the first load the app and an open workout work', async () => {
@@ -338,9 +338,9 @@ describe('web app', () => {
     const again = await boot({ persist: false, seed: [] });
     await screen.findByRole('navigation');
     await waitFor(() => expect(again.persist).toHaveBeenCalled());
-    expect(screen.queryByText(/dauerhaften Speicher/)).toBeNull();
+    expect(screen.queryByText(/Browser kann Daten löschen/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Profil' }));
-    expect(await screen.findByText(/dauerhaften Speicher/)).toBeTruthy();
+    expect(await screen.findByText(/Browser kann Daten löschen/)).toBeTruthy();
   });
 
   it('the workout state is unknown until read, open for a fresh open workout, and none for a stale one', async () => {

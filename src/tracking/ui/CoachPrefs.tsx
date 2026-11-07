@@ -10,7 +10,7 @@ const HOURS = Array.from({ length: 17 }, (_, i) => ({ value: i + 6, label: `${i 
 const DAYS = WEEKDAY_LABEL.map((label, value) => ({ value, label }));
 
 /** When the coach writes by itself. Both off until switched on; pushes need notifications allowed on this device. Lives on Profil. */
-export function CoachPrefs({ port, now }: { port: TrackingPort; now: () => number }) {
+export function CoachPrefs({ port, now, nested = false }: { port: TrackingPort; now: () => number; nested?: boolean }) {
   const q = usePortRecords(port, 'coachprefs');
   const prefs = prefsOf(q.all ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +20,8 @@ export function CoachPrefs({ port, now }: { port: TrackingPort; now: () => numbe
     void port.put({ kind: 'coachprefs', id: COACH_PREFS_ID, updatedMs: nextUpdatedMs(now(), have), deleted: false, body: p }).catch(() => setError('Die Einstellung konnte nicht gespeichert werden.'));
   };
   return (
-    <section aria-label="Wann sich der Coach meldet">
-      <h2 className="tk-section">Wann sich der Coach meldet</h2>
+    <section aria-label="Wann sich der Coach meldet" className={nested ? 'tk-group tk-indent' : 'tk-group'}>
+      {!nested && <h2 className="tk-section">Wann sich der Coach meldet</h2>}
       <Switch label="Wochengespräch" hint="Mit Vorschlag für die nächste Woche." checked={prefs.week.on} onChange={(on) => save({ ...prefs, week: { ...prefs.week, on } })} />
       {prefs.week.on && (
         <>

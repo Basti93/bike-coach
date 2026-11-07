@@ -32,12 +32,14 @@ export function MobilityOffer({ session, hideKey, storage, now, onDone }: { sess
       </RowList>
       {open && (
         <Sheet title="Beweglichkeit" onClose={() => setOpen(false)}
-          actions={<button type="button" onClick={() => { setOpen(false); onDone(); }}>Gemacht</button>}>
+          actions={<>
+            <button type="button" className="primary" onClick={() => { setOpen(false); onDone(); }}>Gemacht</button>
+            <button type="button" className="secondary" onClick={() => { hideToday(storage, hideKey, now()); setHidden(true); }}>Heute nicht</button>
+          </>}>
           <p className="muted">{session.reason}</p>
           <ol className="tk-mob-list">
             {session.exercises.map((e) => <li key={e.id}><b>{e.title}</b><span className="muted">{e.howTo}</span></li>)}
           </ol>
-          <button type="button" className="link" onClick={() => { hideToday(storage, hideKey, now()); setHidden(true); }}>Heute nicht</button>
         </Sheet>
       )}
     </section>

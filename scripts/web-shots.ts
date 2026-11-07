@@ -347,7 +347,7 @@ async function main() {
   await page.waitForTimeout(1500);
 
   await shot('heute');
-  await step('heute-anders', async () => { await page.getByRole('button', { name: /^Anders heute/ }).click(); await shot('heute-anders-heute'); });
+  await step('heute-anders', async () => { await page.getByRole('button', { name: /^Anders heute/ }).click(); await shot('heute-anders-heute'); await closeDialog(); });
   await step('heute-beweglichkeit', async () => { await page.getByRole('button', { name: /^Beweglichkeit/ }).click(); await page.waitForTimeout(300); await shot('heute-beweglichkeit-sheet'); await closeDialog(); });
 
   // Woche: the week and three rows; goal, rules and the coach chat are sheets.
@@ -357,13 +357,14 @@ async function main() {
   const row = (name: RegExp) => page.getByRole('button', { name });
   await step('woche-ziel-sheet', async () => { await row(/^Mein Ziel/).click(); await shot('woche-ziel-sheet'); await closeDialog(); });
   await step('woche-regeln-sheet', async () => { await fresh('Woche'); await row(/^Regeln/).click(); await page.getByRole('button', { name: /Ohne Kreuzheben/ }).click(); await shot('woche-regeln-sheet'); });
-  await step('woche-exclude-picker', async () => { await fresh('Woche'); await row(/^Regeln/).click(); await page.getByRole('button', { name: 'Übung ausschließen' }).click(); await shot('woche-exclude-exercise-picker'); });
+  await step('woche-exclude-picker', async () => { await fresh('Woche'); await row(/^Regeln/).click(); await page.getByRole('button', { name: '+ Hinzufügen' }).click(); await page.getByRole('button', { name: 'Übung ausschließen' }).click(); await shot('woche-exclude-exercise-picker'); });
   await step('woche-chat-sheet', async () => { await fresh('Woche'); await row(/^Coach/).click(); await page.waitForTimeout(500); await shot('woche-chat-sheet'); });
   await step('woche-chat-older', async () => {
     await page.getByRole('button', { name: 'Ältere anzeigen' }).click();
     await page.waitForTimeout(300);
     await shot('woche-chat-older-30');
   });
+  await step('woche-chat-vorschlaege', async () => { await page.getByRole('button', { name: /^\d Vorschl/ }).click(); await page.waitForTimeout(300); await shot('woche-chat-vorschlaege'); await closeDialog(); });
   await step('woche-typing', async () => { await fresh('Woche'); await row(/^Coach/).click(); await page.getByLabel('Nachricht an den Coach').fill('Kannst du mir für nächste Woche etwas mit weniger Beinen vorschlagen?'); await page.getByLabel('Nachricht an den Coach').focus(); await shot('woche-chat-typing'); });
 
   // Kraft.

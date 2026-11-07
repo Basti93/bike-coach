@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage } from '../../shared/chat';
 import { mondayOf, type WeekProposal } from '../../shared/week-plan';
-import { dayHeading, localDayKey } from '../../shared/dates';
+import { dayHeading, dayMonthOfKey, localDayKey, shortDateOfKey } from '../../shared/dates';
 import type { TrackingPort } from '../ports';
 import { takeWeekPlan, undoWeekPlan, weekUndoRefusal } from '../week-take';
 import { DECLINE, DECLINED, TAKE, UNDO } from '../../shared/wording';
 import { NextChangeCard } from './NextChangeCard';
 import { RuleCard } from './RuleCard';
 import { ChatBubble, ChatNote } from './ChatBubble';
-import { Week, dayName } from './WeekList';
+import { Week } from './WeekList';
 import { openProposals, storedWeek, weekAnswer } from './chat-open';
 import { useCatalog, usePortRecords } from './hooks';
 import { Sheet } from './kit';
@@ -22,7 +22,7 @@ const STALE_MS = 2 * 86_400_000;
 
 type WeekEntry = ChatEntry & { proposal: WeekProposal };
 
-const when = (p: WeekProposal) => `ab ${p.weekStart.slice(8, 10)}.${p.weekStart.slice(5, 7)}.`;
+const when = (p: WeekProposal) => `ab ${dayMonthOfKey(p.weekStart)}`;
 
 /** A week plan in the history: one line, with Rückgängig while it can be undone. Open ones are pinned and never get here. */
 function ProposalLine({ m, answer, undoWhy, past, loading, onUndo }: { m: WeekEntry; answer: 'taken' | 'declined' | 'undone' | null; undoWhy: string | null; past: boolean; loading: boolean; onUndo: () => void }) {
@@ -45,7 +45,7 @@ function PinnedWeek({ m, warnings, loading, onTake, onDecline }: { m: WeekEntry;
   return (
     <div className="tk-pin" role="group" aria-label={`Vorschlag Wochenplan ${when(p)}`}>
       <b>Vorschlag: Woche {when(p)}</b>
-      <Week days={p.days} label={`Vorschlag für die Woche ab ${dayName(p.weekStart)}, ${p.weekStart.slice(8, 10)}.${p.weekStart.slice(5, 7)}.`} />
+      <Week days={p.days} label={`Vorschlag für die Woche ab ${shortDateOfKey(p.weekStart)}`} />
       {warnings && warnings.length > 0 && <p className="tk-note">Mehr als unsere Regeln für Erholung empfehlen: {warnings.join(' ')}</p>}
       <div className="tk-row">
         <button type="button" disabled={loading} onClick={onTake}>{TAKE}</button>
@@ -57,7 +57,7 @@ function PinnedWeek({ m, warnings, loading, onTake, onDecline }: { m: WeekEntry;
 
 /**
  * The chat with the coach, full screen: messages oldest to newest, scrolled to the newest on open, the input fixed at the bottom.
- * Proposals that wait for an answer are pinned above the input; once answered they are one line in the history.
+ * Proposals that wait for an answer sit behind one slim strip above the input ("2 Vorschläge ›"); once answered they are one line in the history.
  * Proposals change nothing until the rider takes them.
  */
 export function CoachChat({ port, now, newId, onClose }: { port: TrackingPort; now: () => number; newId: () => string; onClose: () => void }) {
@@ -70,12 +70,14 @@ export function CoachChat({ port, now, newId, onClose }: { port: TrackingPort; n
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(CHAT_PAGE);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
   const grew = useRef<{ top: number; height: number } | null>(null);
   const thread = chatThread(chat ?? []);
   const waiting = waitingMessage(thread);
   const visible = thread.filter((m) => !(m.takes || m.declines || m.undoes));
   const monday = mondayOf(localDayKey(now()));
   const pinned = openProposals(thread, plans ?? [], changeRecs ?? [], ruleRecs ?? [], monday);
+  useEffect(() => { if (pinned.length === 0) setProposalsOpen(false); }, [pinned.length]);
   const scroller = () => endRef.current?.closest('.tk-sheet-body') as HTMLElement | null;
 
   // Opening and a new message scroll to the end; loading older ones keeps what the person was looking at where it was.
@@ -115,19 +117,15 @@ export function CoachChat({ port, now, newId, onClose }: { port: TrackingPort; n
   };
   const decline = (m: ChatEntry) => void write({ role: 'rider', text: 'Nein danke.', atMs: now(), declines: m.id });
 
+  // Open proposals are not stacked above the input: one slim strip opens them in a small sheet, with the same take and decline buttons.
+  const strip = pinned.length > 0 && (
+    <button type="button" className="tk-strip" aria-haspopup="dialog" onClick={() => setProposalsOpen(true)}>
+      <span>{pinned.length === 1 ? '1 Vorschlag' : `${pinned.length} Vorschläge`}</span><span aria-hidden="true">›</span>
+    </button>
+  );
   const pins = (
     <>
-      {pinned.length > 0 && (
-        <div className="tk-pins">
-          {pinned.map((m) => (
-            <Fragment key={m.id}>
-              {m.proposal && <PinnedWeek m={m as WeekEntry} warnings={m.warnings} loading={plans === null} onTake={() => void take(m as WeekEntry)} onDecline={() => decline(m)} />}
-              {m.nextChange && <div className="tk-pin"><NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} /></div>}
-              {m.rule && <div className="tk-pin"><RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} /></div>}
-            </Fragment>
-          ))}
-        </div>
-      )}
+      {strip}
       {error && <p role="alert" className="tk-note">{error}</p>}
       <form className="tk-chat-form" onSubmit={(e) => { e.preventDefault(); void send(); }}>
         <textarea aria-label="Nachricht an den Coach" rows={1} value={text} maxLength={MAX_CHAT_TEXT} onChange={(e) => setText(e.target.value)} placeholder="Nachricht an den Coach" />
@@ -154,6 +152,19 @@ export function CoachChat({ port, now, newId, onClose }: { port: TrackingPort; n
         {waiting && <ChatNote>{now() - waiting.atMs > STALE_MS ? 'Darauf kam keine Antwort mehr. Schreib gern nochmal.' : now() - waiting.atMs > SLOW_MS ? 'Der Coach antwortet, sobald er wieder erreichbar ist.' : 'Der Coach denkt nach …'}</ChatNote>}
         <div ref={endRef} />
       </section>
+      {proposalsOpen && pinned.length > 0 && (
+        <Sheet size="small" title={pinned.length === 1 ? 'Vorschlag' : 'Vorschläge'} onClose={() => setProposalsOpen(false)}>
+          <div className="tk-pins">
+            {pinned.map((m) => (
+              <Fragment key={m.id}>
+                {m.proposal && <PinnedWeek m={m as WeekEntry} warnings={m.warnings} loading={plans === null} onTake={() => void take(m as WeekEntry)} onDecline={() => decline(m)} />}
+                {m.nextChange && <div className="tk-pin"><NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} /></div>}
+                {m.rule && <div className="tk-pin"><RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} /></div>}
+              </Fragment>
+            ))}
+          </div>
+        </Sheet>
+      )}
     </Sheet>
   );
 }

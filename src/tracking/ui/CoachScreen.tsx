@@ -14,7 +14,7 @@ import { Week, dayName, runText } from './WeekList';
 import { openProposals } from './chat-open';
 import { useGoal, usePortRecords } from './hooks';
 import { dayText as runDay, runView } from './run-view';
-import { Row, RowList } from './kit';
+import { PageHead, Row, RowList } from './kit';
 
 /** Woche is the week: seven days, what changed lately, and three rows that open the goal, the rules and the chat with the coach. */
 export function CoachScreen({ port, now, newId, showPrefs = true }: { port: TrackingPort; now: () => number; newId: () => string; showPrefs?: boolean }) {
@@ -23,7 +23,6 @@ export function CoachScreen({ port, now, newId, showPrefs = true }: { port: Trac
   const changeRecs = usePortRecords(port, 'change').all;
   const ruleRecs = usePortRecords(port, 'rule').all;
   const runRecords = usePortRecords(port, 'run').all;
-  const complaintRecords = usePortRecords(port, 'complaint').all;
   const statsRecords = usePortRecords(port, 'stats').all;
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'goal' | 'rules' | 'chat' | null>(null);
@@ -32,10 +31,6 @@ export function CoachScreen({ port, now, newId, showPrefs = true }: { port: Trac
   const { rules, tasks } = useRuleList(port, now());
   const fr = useTodayAdvice(port, now());
   const thread = chatThread(chat ?? []);
-  const complaints = (complaintRecords ?? []).flatMap((r) => {
-    const b = r.body as { text?: unknown; status?: unknown } | null;
-    return !r.deleted && b && typeof b.text === 'string' && b.status !== 'over' ? [b.text] : [];
-  });
 
   const today = localDayKey(now());
   const monday = mondayOf(today);
@@ -53,13 +48,31 @@ export function CoachScreen({ port, now, newId, showPrefs = true }: { port: Trac
   const last = visible[visible.length - 1];
   const asking = waitingMessage(thread) !== null;
   const preview = waiting ? 'Vorschlag wartet' : asking ? 'Der Coach denkt nach …' : last ? <>{last.text} <small>{timeLabel(last.atMs)}</small></> : 'Schreib dem Coach';
+  const coachRow = <Row key="coach" title="Coach" value={<span className={waiting ? 'tk-ellipsis tk-waiting' : 'tk-ellipsis'}>{preview}</span>} onClick={() => setSheet('chat')} />;
   const ruleCount = rules.length + tasks.length;
+  // Keyed, so the Coach row moves to the top when a proposal waits instead of being rebuilt under the finger.
+  const rest = [
+    notes.length > 0 && (
+      <Row key="changed" title="Zuletzt geändert" value={<span className="tk-ellipsis">{notes[0]!.text}</span>} expanded={open === 'changed'} onClick={() => setOpen(open === 'changed' ? null : 'changed')}>
+        <ul className="tk-changes" aria-label="Zuletzt geändert">
+          {notes.map((n, i) => <li key={`${n.atMs}-${i}`}>{dateLabel(n.atMs)} · {n.text}{n.reason ? ` – ${n.reason}` : ''}</li>)}
+        </ul>
+      </Row>
+    ),
+    next && fr.frame.mode !== 'spontaneous' && (
+      <Row key="next" title="Nächste Woche" expanded={open === 'next'} onClick={() => setOpen(open === 'next' ? null : 'next')}>
+        <Week days={next.days} label="Wochenplan nächste Woche" runs={runs} />
+      </Row>
+    ),
+    <Row key="goal" title="Mein Ziel" value={<span className="tk-ellipsis">{goalSummary(goal)}</span>} onClick={() => setSheet('goal')} />,
+    <Row key="rules" title="Regeln" value={ruleCount === 0 ? 'keine' : ruleCount === 1 ? '1 Regel' : `${ruleCount} Regeln`} onClick={() => setSheet('rules')} />,
+  ];
+  const rows = waiting ? [coachRow, ...rest] : [...rest, coachRow];
   const saveFailed = () => setError('Die Einstellung konnte nicht gespeichert werden.');
 
   return (
     <div className="tk-screen tk-coach">
-      <h1 className="tk-title">Woche</h1>
-      {complaints.length > 0 && <p className="muted tk-oneline">Der Coach nimmt Rücksicht auf: {complaints.join(', ')}.</p>}
+      <PageHead title="Woche" />
       {fr.frame.mode === 'spontaneous' ? (
         <section className="card" aria-label="Heute">
           <h2>Heute: {fr.advice.line}</h2>
@@ -75,23 +88,7 @@ export function CoachScreen({ port, now, newId, showPrefs = true }: { port: Trac
           )}
         </section>
       )}
-      <RowList>
-        {notes.length > 0 && (
-          <Row title="Zuletzt geändert" value={<span className="tk-ellipsis">{notes[0]!.text}</span>} expanded={open === 'changed'} onClick={() => setOpen(open === 'changed' ? null : 'changed')}>
-            <ul className="tk-changes" aria-label="Zuletzt geändert">
-              {notes.map((n, i) => <li key={`${n.atMs}-${i}`}>{dateLabel(n.atMs)} · {n.text}{n.reason ? ` – ${n.reason}` : ''}</li>)}
-            </ul>
-          </Row>
-        )}
-        {next && fr.frame.mode !== 'spontaneous' && (
-          <Row title="Nächste Woche" expanded={open === 'next'} onClick={() => setOpen(open === 'next' ? null : 'next')}>
-            <Week days={next.days} label="Wochenplan nächste Woche" runs={runs} />
-          </Row>
-        )}
-        <Row title="Mein Ziel" value={<span className="tk-ellipsis">{goalSummary(goal)}</span>} onClick={() => setSheet('goal')} />
-        <Row title="Regeln" value={ruleCount === 0 ? 'keine' : ruleCount === 1 ? '1 Regel' : `${ruleCount} Regeln`} onClick={() => setSheet('rules')} />
-        <Row title="Coach" value={<span className={waiting ? 'tk-ellipsis tk-waiting' : 'tk-ellipsis'}>{preview}</span>} onClick={() => setSheet('chat')} />
-      </RowList>
+      <RowList>{rows}</RowList>
       {error && <p role="alert" className="tk-note">{error}</p>}
       {showPrefs && <section className="card"><CoachPrefs port={port} now={now} /></section>}
       {sheet === 'goal' && <GoalSheet port={port} now={now} onClose={() => setSheet(null)} frame={fr.frame}

@@ -2,12 +2,13 @@ import { useId, useMemo, useRef, useState } from 'react';
 import type { TrackedRecord } from '../shared/records';
 import {
   addWeeks, changeOwn, CHAT_MAX_CHARS, isOwnKey, newOwnKey, OWN_AMOUNT_MAX, OWN_NAME_MAX, withOwn, cookPortions, isChatRecordId, newChatId, readMealChat, DAY_LONG, DAY_SHORT, dayDate, dayIndex, eatersOf, initialOf, mealKey, readMealPlan, readMealState, recipeAmount,
-  shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS, stateRecordId, weekOf, weekRangeText, withEater, withItem,
+  shoppingList, SLOT_LABEL, SLOT_TIME, SLOTS, stateRecordId, weekOf, withEater, withItem,
   type ItemState, type Meal, type MealChat, type MealPlan, type MealState, type ShopItem,
 } from '../shared/meals';
+import { weekRangeOfKey } from '../shared/dates';
 import type { WebPort } from './webPort';
 import { usePortRecords } from '../tracking/ui/hooks';
-import { ConfirmLink, Row, RowList, Sheet } from '../tracking/ui/kit';
+import { ConfirmLink, PageHead, Row, RowList, Sheet } from '../tracking/ui/kit';
 
 type Week = { plan: MealPlan; state: MealState };
 
@@ -182,7 +183,7 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
   const [chatOpen, setChatOpen] = useState(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const chat = useMemo(() => mealChats(records), [records]);
-  if (!week) return <div className="tk-screen"><h1 className="tk-title">Essen</h1><p className="muted">Noch kein Essensplan da. Der Mac plant samstagmorgens die kommende Woche.</p></div>;
+  if (!week) return <div className="tk-screen"><PageHead title="Essen" /><p className="muted">Noch kein Essensplan da. Der Mac plant samstagmorgens die kommende Woche.</p></div>;
 
   /** One at a time, each on the freshest stored state, so quick taps never undo each other. The newer entry wins on the Mac. */
   const change = (f: (s: MealState, at: number) => MealState) => {
@@ -204,10 +205,7 @@ export function MealsScreen({ port, now }: { port: WebPort; now: () => number })
   const pick = (w: Week) => { setWeekKey(w.plan.week); setDay(w.plan.week === current ? today : 0); setOpenMeal(null); };
   return (
     <div className="tk-screen pm">
-      <div className="pm-head">
-        <h1 className="tk-title">Essen</h1>
-        <span className="muted">{isCurrent ? 'Diese Woche' : 'Nächste Woche'}, {weekRangeText(week.plan.week)}</span>
-      </div>
+      <PageHead title="Essen" subtitle={`${isCurrent ? 'Diese Woche' : 'Nächste Woche'}, ${weekRangeOfKey(week.plan.week)}`} />
       {weeks.length > 1 && (
         <div className="tk-textseg" role="group" aria-label="Woche">
           {weeks.map((w) => <button key={w.plan.week} type="button" className="link" aria-pressed={w === week} onClick={() => pick(w)}>{w.plan.week === current ? 'Diese Woche' : 'Nächste Woche'}</button>)}

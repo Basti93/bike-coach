@@ -27,6 +27,13 @@ const choose = async (label: string | RegExp, option: string) => {
   fireEvent.click(screen.getByRole('button', { name: label }));
   fireEvent.click(await screen.findByRole('button', { name: option }));
 };
+/** "+ Hinzufügen" opens a small sheet with the two ways to add. */
+const addVia = async (c: ReturnType<typeof within>, how: 'Regel schreiben' | 'Übung ausschließen') => {
+  fireEvent.click(c.getByRole('button', { name: '+ Hinzufügen' }));
+  fireEvent.click(await screen.findByRole('button', { name: how }));
+};
+/** The focus row opens the muscle chips. */
+const openFocus = async (c: ReturnType<typeof within>) => { fireEvent.click(await c.findByRole('button', { name: /^Schwerpunkt:/ })); };
 /** A rule row opens to its actions. */
 const openRule = async (c: ReturnType<typeof within>, text: RegExp) => { fireEvent.click(await c.findByRole('button', { name: text })); };
 
@@ -37,6 +44,16 @@ test('lists active and paused rules, not proposed ones', async () => {
   expect(await c.findByText(/Lieber kurze Pausen/)).toBeTruthy();
   expect(c.getByText(/Ohne Übung X/)).toBeTruthy();
   expect(c.queryByText(/Vorgeschlagen/)).toBeNull();
+});
+
+test('the status word sits under the rule text, and a complaint is the first muted line', async () => {
+  const complaint: TrackedRecord = { kind: 'complaint', id: 'k1', updatedMs: 1, deleted: false, body: { text: 'Linke Schulter', status: 'open' } };
+  const { port } = fakePort([...seed(), complaint]);
+  render(<CoachScreen port={port} {...env} />);
+  const c = await rules();
+  expect(await c.findByText('Rücksicht: Linke Schulter')).toBeTruthy();
+  expect(c.getByRole('button', { name: /Ohne Übung X\s*pausiert/ })).toBeTruthy();
+  expect(c.getByRole('button', { name: /Lieber kurze Pausen\s*Wunsch/ })).toBeTruthy();
 });
 
 test('pause, continue and delete write the right records', async () => {
@@ -62,14 +79,14 @@ test('a written wish and an excluded exercise from the picker', async () => {
   const { port, map } = fakePort();
   render(<CoachScreen port={port} {...env} />);
   const c = await rules();
-  fireEvent.click(c.getByRole('button', { name: 'Regel hinzufügen' }));
+  await addVia(c, 'Regel schreiben');
   fireEvent.change(c.getByLabelText('Neue Regel'), { target: { value: 'Keine Sprünge' } });
   fireEvent.click(c.getByRole('button', { name: 'Speichern' }));
   await waitFor(() => expect([...map.values()].find((r) => r.kind === 'rule' && body(map, `rule:${r.id}`).text === 'Keine Sprünge')).toBeTruthy());
   const wish = [...map.values()].find((r) => r.kind === 'rule')!;
   expect(wish.body).toMatchObject({ kind: 'wish', state: 'active', source: 'person', sport: 'all' });
 
-  fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
+  await addVia(c, 'Übung ausschließen');
   fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Kniebeuge' } });
   fireEvent.click((await screen.findAllByRole('button', { name: /^Kniebeuge/ }))[0]!);
   expect(await screen.findByRole('button', { name: /^Alle Varianten \(Kniebeuge\)/ })).toBeTruthy();
@@ -84,7 +101,7 @@ test('an exercise can be excluded with all its variants; an exercise of the othe
   const { port, map } = fakePort();
   render(<CoachScreen port={port} {...env} />);
   const c = await rules();
-  fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
+  await addVia(c, 'Übung ausschließen');
   fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Kniebeuge' } });
   fireEvent.click((await screen.findAllByRole('button', { name: /^Kniebeuge/ }))[0]!);
   fireEvent.click(await screen.findByRole('button', { name: /^Alle Varianten \(Kniebeuge\)/ }));
@@ -97,7 +114,7 @@ test('an exercise can be excluded with all its variants; an exercise of the othe
   fireEvent.click(await c.findByRole('button', { name: /Ohne alle Varianten/ }));
   expect(c.queryByText(/^Alle Varianten: Kniebeuge/)).toBeNull();
 
-  fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
+  await addVia(c, 'Übung ausschließen');
   fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Laufen' } });
   fireEvent.click((await screen.findAllByRole('button', { name: /^Laufen/ }))[0]!);
   expect(await screen.findByRole('button', { name: 'Nur diese Übung' })).toBeTruthy();
@@ -120,6 +137,7 @@ test('at most three focus muscles', async () => {
   const { port, map } = fakePort();
   render(<CoachScreen port={port} {...env} />);
   const c = await goalSheet();
+  await openFocus(c);
   expect(c.getByText('Schwerpunkt: keiner')).toBeTruthy();
   for (const g of ['Brust', 'Rücken', 'Bizeps']) fireEvent.click(await c.findByRole('button', { name: g }));
   await waitFor(() => expect((body(map, 'goal:goal').focus as string[]).length).toBe(3));
@@ -133,6 +151,7 @@ test('"für 4 Wochen" writes a temporary focus and keeps the base; the line name
   const { port, map } = fakePort([goalRecord({ strength: 'muscle', focus: ['chest'], sports: {} }, NOW - 5000)]);
   render(<CoachScreen port={port} {...env} />);
   const c = await goalSheet();
+  await openFocus(c);
   await choose(/^Dauer/, '4 Wochen');
   fireEvent.click(c.getByRole('button', { name: 'Rücken' }));
   await waitFor(() => expect(body(map, 'goal:goal').temporary).toEqual({ focus: ['chest', 'back'], until: '2026-12-02' }));
@@ -157,6 +176,7 @@ test('toggling a muscle in an active temporary focus keeps its end and endedSeen
   const { port, map } = fakePort([activeTemp()]);
   render(<CoachScreen port={port} {...env} />);
   const c = await goalSheet();
+  await openFocus(c);
   fireEvent.click(await c.findByRole('button', { name: 'Bizeps' }));
   await waitFor(() => expect(body(map, 'goal:goal').temporary).toEqual({ focus: ['back', 'biceps'], until: '2026-11-20', endedSeenMs: 7 }));
   expect(body(map, 'goal:goal').focus).toEqual(['chest']);
@@ -178,6 +198,7 @@ test('only picking a duration moves the end of an active temporary focus', async
   const { port, map } = fakePort([activeTemp()]);
   render(<CoachScreen port={port} {...env} />);
   const c = await goalSheet();
+  await openFocus(c);
   await choose(/^Dauer/, '2 Wochen');
   await waitFor(() => expect((body(map, 'goal:goal').temporary as { until: string }).until).toBe('2026-11-18'));
   fireEvent.click(c.getByRole('button', { name: 'Bizeps' }));
@@ -189,6 +210,7 @@ test('"Jetzt beenden" ends the temporary focus without an ended notice', async (
   const { port, map } = fakePort([activeTemp()]);
   render(<CoachScreen port={port} {...env} />);
   const c = await goalSheet();
+  await openFocus(c);
   fireEvent.click(await c.findByRole('button', { name: 'Jetzt beenden' }));
   await waitFor(() => expect(body(map, 'goal:goal').temporary).toBeUndefined());
   expect(await c.findByText('Schwerpunkt: Brust')).toBeTruthy();

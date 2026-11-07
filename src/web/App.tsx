@@ -3,7 +3,7 @@ import type { LoggedWorkout } from '../shared/records';
 import type { GymWorkout } from '../coach/gym/types';
 import { durationNote } from '../shared/duration';
 import { openStoreCount } from '../tracking/registry';
-import { Row, RowList, Switch } from '../tracking/ui/kit';
+import { PageHead, Row, RowList, Switch } from '../tracking/ui/kit';
 import { CoachPrefs } from '../tracking/ui/CoachPrefs';
 import { localDayKey, shortDate, timeLabel } from '../shared/dates';
 import { CatalogScreen, HistoryScreen, RoutinesScreen, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
@@ -164,7 +164,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   if (together && showTogether) return <TogetherPage t={together} now={now} onBack={() => setShowTogether(false)} />;
   return (
     <div className="tk-screen">
-      <h1 className="tk-title">{todayTitle(now)}</h1>
+      <PageHead title={todayTitle(now)} />
       {open && (
         <section className="card" aria-label="Training läuft noch">
           <h2>{(open.body as LoggedWorkout).title} läuft noch – seit {sinceText((open.body as LoggedWorkout).startMs, now)}</h2>
@@ -335,15 +335,16 @@ function Profil({ account, port, now, status, onLogout, onBack, push, persistRef
   return (
     <div className="tk-screen">
       <button type="button" className="link tk-back" onClick={onBack}>‹ Zurück</button>
-      <h1 className="tk-title">Profil</h1>
+      <PageHead title="Profil" />
       <RowList>
         <Row title={`Angemeldet als ${account}`} value={quiet ? sync : undefined} />
       </RowList>
       {!quiet && <p role="status" className="muted">{sync}</p>}
-      {push && <PushSettings push={push} />}
       <RunSettingsCard port={port} now={now} />
-      <CoachPrefs port={port} now={now} />
-      {persistRefused && <p role="status" className="muted">Dein Browser hat dauerhaften Speicher nicht zugesagt. Deine Einträge bleiben trotzdem auf dem Gerät.</p>}
+      {push && <PushSettings push={push} />}
+      {/* The coach's timing is about notifications: it shows under them once they are on (always where the shell has no push at all). */}
+      {(!push || push.on) && <CoachPrefs port={port} now={now} nested />}
+      {persistRefused && <p role="status" className="muted">Dein Browser kann Daten löschen – sie sind aber auf dem Server gesichert.</p>}
       {confirming ? (
         <p role="status" className="tk-note">
           Einiges ist noch nicht gesendet. Es bleibt auf diesem Gerät gespeichert und geht beim nächsten Anmelden raus.

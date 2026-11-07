@@ -5,7 +5,7 @@ import { takeWeekPlan, undoWeekPlan, TAKE_REFUSED, UNDO_REFUSED } from '../../sr
 import type { TrackedRecord } from '../../src/shared/records';
 import { weekDates } from '../../src/shared/week-plan';
 import { fakePort } from './fake-port';
-import { openChat } from './open-chat';
+import { openChat, openProposals } from './open-chat';
 
 afterEach(cleanup);
 const NOW = new Date(2026, 10, 4, 18).getTime();
@@ -63,6 +63,7 @@ test('records without the new fields still read; screen: Rückgängig on the tak
   const { port, map } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(sportOf(map)).toBe('bike'));
@@ -73,6 +74,7 @@ test('screen: a take on a plan changed after the proposal was shown shows the re
   const { port, map, notify } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   await screen.findByRole('button', { name: 'Übernehmen' });
   map.set('weekplan:2026-11-02', { ...old, updatedMs: NOW }); notify();
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
@@ -84,6 +86,7 @@ test('screen: the undone state is remembered in the chat, a reload shows it; a l
   const { port, map } = fakePort([old, coachMsg]);
   const first = render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(sportOf(map)).toBe('bike'));
@@ -106,6 +109,7 @@ test('screen: when the undo is not possible any more the reason stands there ins
   const { port, map, notify } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await screen.findByRole('button', { name: 'Rückgängig' });
   const cur = map.get('weekplan:2026-11-02')!;

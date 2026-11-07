@@ -4,7 +4,7 @@ import { CoachScreen } from '../../src/tracking/ui/CoachScreen';
 import type { TrackedRecord } from '../../src/shared/records';
 import { weekDates } from '../../src/shared/week-plan';
 import { fakePort } from './fake-port';
-import { openChat } from './open-chat';
+import { openChat, openProposals } from './open-chat';
 
 afterEach(cleanup);
 const NOW = new Date(2026, 10, 4, 18).getTime();
@@ -49,16 +49,21 @@ test('the chat opens as a sheet with the input in it, and closes on × and on Es
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
-test('a proposal is pinned above the input until it is decided; then it is one line without buttons', async () => {
+test('open proposals sit behind one slim strip above the input; once decided they are one line without buttons', async () => {
   const { port } = fakePort([riderMsg, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   const chat = within(await openChat());
-  const pin = within(chat.getByRole('group', { name: /^Vorschlag Wochenplan/ }));
-  expect(pin.getByRole('button', { name: 'Übernehmen' })).toBeTruthy();
-  expect(chat.getAllByRole('button', { name: 'Übernehmen' })).toHaveLength(1); // none in the history
-  fireEvent.click(pin.getByRole('button', { name: 'Übernehmen' }));
-  await waitFor(() => expect(chat.queryByRole('group', { name: /^Vorschlag Wochenplan/ })).toBeNull());
+  expect(chat.queryByRole('group', { name: /^Vorschlag Wochenplan/ })).toBeNull(); // not stacked above the input
   expect(chat.queryByRole('button', { name: 'Übernehmen' })).toBeNull();
+  const sheet = within(await openProposals());
+  const pin = within(sheet.getByRole('group', { name: /^Vorschlag Wochenplan/ }));
+  expect(pin.getByRole('button', { name: 'Übernehmen' })).toBeTruthy();
+  expect(screen.getAllByRole('button', { name: 'Übernehmen' })).toHaveLength(1); // none in the history
+  fireEvent.click(pin.getByRole('button', { name: 'Übernehmen' }));
+  await waitFor(() => expect(screen.queryByRole('group', { name: /^Vorschlag Wochenplan/ })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Vorschlag' })).toBeNull()); // the sheet closes with the last one
+  expect(chat.queryByRole('button', { name: /Vorschlag/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Übernehmen' })).toBeNull();
   expect(await chat.findByText(/^Übernommen: Wochenplan/)).toBeTruthy();
 });
 
@@ -86,13 +91,14 @@ test('taking a proposal writes the week plan and shows it; then it cannot be tak
   const { port, map } = fakePort([riderMsg, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(records(map, 'weekplan')).toHaveLength(1));
   expect(records(map, 'weekplan')[0]).toMatchObject({ id: '2026-11-02', body: { fromMessage: 'c1', weekStart: '2026-11-02' } });
   expect(records(map, 'chat').some((r) => (r.body as { takes?: string }).takes === 'c1')).toBe(true);
   expect(await screen.findByText(/Übernommen: Wochenplan/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Übernehmen' })).toBeNull();
-  expect(screen.getByRole('list', { name: 'Wochenplan diese Woche' }).textContent).toContain('Kraft, mittel');
+  expect(screen.getByRole('list', { name: 'Wochenplan diese Woche' }).textContent).toContain('Kraft · mittel');
   expect(screen.queryByRole('status')).toBeNull();
 });
 
@@ -100,6 +106,7 @@ test('declining writes a decline and changes no plan', async () => {
   const { port, map } = fakePort([riderMsg, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
   await openChat();
+  await openProposals();
   fireEvent.click(await screen.findByRole('button', { name: 'Nein danke' }));
   await waitFor(() => expect(records(map, 'chat').some((r) => (r.body as { declines?: string }).declines === 'c1')).toBe(true));
   expect(records(map, 'weekplan')).toHaveLength(0);
@@ -113,13 +120,13 @@ test('the run coach runs sit on their days in the week, and are listed alone wit
     type: 'week', week: '2026-11-02', announce: true, atMs: 1, phase: 1, source: 'rules', reason: 'Ruhig.', note: null, runs: [{ ...run, fp: runFp(run), done: null }], garmin: null } };
   const { port } = fakePort([runWeek]);
   render(<CoachScreen port={port} {...env} />);
-  expect((await screen.findByRole('list', { name: 'Läufe diese Woche' })).textContent).toContain('Laufen, 35 Min. locker · Puls bis 150');
+  expect((await screen.findByRole('list', { name: 'Läufe diese Woche' })).textContent).toContain('Laufen · 35 Min · locker · Puls bis 150');
   cleanup();
   const plan: TrackedRecord = { kind: 'weekplan', id: '2026-11-02', updatedMs: 1, deleted: false, body: { ...proposal, fromMessage: 'c1', acceptedMs: 1 } };
   const two = fakePort([runWeek, plan]);
   render(<CoachScreen port={two.port} {...env} />);
   const wed = (await screen.findByRole('list', { name: 'Wochenplan diese Woche' })).querySelectorAll('li')[2]!;
-  expect(wed.textContent).toContain('Laufen, 35 Min. locker'); expect(wed.textContent?.match(/Laufen/g)).toHaveLength(1);
+  expect(wed.textContent).toContain('Laufen · 35 Min · locker'); expect(wed.textContent?.match(/Laufen/g)).toHaveLength(1);
 });
 
 test('the coach writes by itself only when switched on here; the settings are saved as a record', async () => {

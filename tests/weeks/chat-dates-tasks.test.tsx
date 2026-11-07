@@ -71,8 +71,8 @@ describe('forwarded requests on the week page', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Regeln/ }));
     const list = within(await screen.findByRole('list', { name: 'Regeln' }));
     const row = (re: RegExp) => list.getByRole('button', { name: re });
-    expect(row(/Nur eine Trizepsübung/).textContent).toContain('an Kraft-Coach');
-    expect(row(/Beine schonen/).textContent).toContain('an Lauf-Coach');
+    expect(row(/Nur eine Trizepsübung/).textContent).toContain('für Kraft');
+    expect(row(/Beine schonen/).textContent).toContain('für Laufen');
     expect(list.queryByText(/Uralt/)).toBeNull();
     fireEvent.click(row(/Beine schonen/));
     expect(list.getByText('dauerhaft')).toBeTruthy();
