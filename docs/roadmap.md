@@ -234,6 +234,21 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Familien als Datenfeld der Übung (Basis: beim Import abgeleitet, eingebaute: von Hand, KI-Übungen: im Vorschlag); Bilder der gemeinfreien Basis werden beim Bauen verkleinert aus der lokalen Kopie erzeugt und nicht ins Repo gelegt; Katalog als vierter Unterpunkt unter Kraft (höchstens sechs Haupt-Tabs bleibt).
 
+## Meilenstein L — Brief (07.11.2026)
+
+**Ziel:** Jeder Screen hat eine Hauptaufgabe und ist ruhig: Zeilen statt Kartenstapel, ein Hauptknopf, Zahlen und Einstellungen erst auf Antippen. Die Wochenseite zeigt die Woche; der Chat ist ein eigener Ort mit fester Eingabe.
+
+**Abnahme:**
+1. Alle Web-Screens sind in Handygröße fotografiert (`npm run ui:web-shots`) und von unabhängigen UX-Prüfern vorher und nachher bewertet; nachher liegt kein Screen unter 7/10 bei Ruhe und Hauptaufgabe.
+2. Woche: oben die sieben Tage, darunter je eine Zeile für Zuletzt geändert, Mein Ziel, Regeln und Coach; der Chat öffnet als eigene Ansicht mit Eingabe unten und angehefteten offenen Vorschlägen.
+3. Im Training sieht man den nächsten Satz, die Pause sitzt fest, alles Seltene steckt im Menü der Übung.
+4. Formulare, Auswahllisten und Chats öffnen als Blatt; Löschen ist immer ein roter Textlink mit Rückfrage.
+5. Nichts geht verloren: jede Funktion bleibt erreichbar, gespeichert wird wie bisher.
+
+**Nicht dabei:** neue Funktionen, Symbole in der Tableiste, Gesten.
+
+**Von Claude entschieden (07.11.2026):** sechs Tabs bleiben (größer), keine Langdruck-Gesten, „Wie oft pro Woche“ beim Laufen bleibt; Begriffe: Verlauf = vergangene Trainings, Entwicklung = eine Übung über Zeit, Übungen = Katalog.
+
 ## Parkplatz
 
 - ~~Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).~~ Erledigt mit K.
