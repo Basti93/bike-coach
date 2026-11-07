@@ -60,6 +60,9 @@ export const RULES: PolicyRule[] = [
   r('run.weekly-growth-pct', 'run', 'product', 'checked', 'Die wöchentliche Laufzeit steigt höchstens um 10 %.', 'Laufprogression', replace(12, 'Einzelne Einheit und Wochenänderung unterscheiden; als eigene Vorsicht kennzeichnen.'), { value: 10, unit: '%', sourceIds: ['S25', 'S26'], where: ['src/coach/run/limits.ts'], scenarioIds: ['F13'] }),
   r('run.deload-every-4th', 'run', 'product', 'checked', 'Jede vierte Woche ist mit 70 % leichter.', 'Laufprogression', replace(12, 'Entlastung nach Leistung, Verfügbarkeit und Rückmeldung.'), { value: 0.7, where: ['src/coach/run/limits.ts'] }),
   r('run.test-every-days', 'run', 'product', 'checked', 'Ein Testlauf alle 28 Tage.', 'Laufkalibrierung', replace(12, 'Prüfintervall als Option, keine Schuld.'), { value: 28, unit: 'Tage', where: ['src/coach/run/limits.ts'] }),
+  r('run.feel-hold-count', 'run', 'product', 'checked', 'Haben sich die letzten 2 Läufe mit Rückmeldung beide schwer angefühlt, steigt der nächste Plan nicht: die Woche bleibt, wie sie ist.', 'Laufprogression', active, { value: 2, unit: 'Läufe', where: ['src/coach/run/limits.ts', 'src/coach/run/rules.ts'] }),
+  r('run.feel-window-days', 'run', 'product', 'checked', 'Nur Läufe der letzten 14 Tage zählen für die Rückmeldung.', 'Laufprogression', active, { value: 14, unit: 'Tage', where: ['src/coach/run/limits.ts'] }),
+  r('run.feel-ask-days', 'run', 'product', 'checked', 'Nach dem Lauf wird einmal gefragt, wie er war, bis 3 Tage danach.', 'Laufrückmeldung', active, { value: 3, unit: 'Tage', where: ['src/tracking/ui/RunFeel.tsx'] }),
   r('run.cross-sport-minutes', 'run', 'product', 'checked', 'Rad- und Gymminuten der Woche vermindern den Laufumfang.', 'Sportübergreifende Belastung', replace(6, 'Nachvollziehbare gemeinsame Kontextbewertung statt gleichwertiger Minuten.'), { where: ['src/coach/run'] }),
 
   // Agreed start values, not in effect before their task (foundation §4, §5, §6, §7).

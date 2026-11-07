@@ -10,6 +10,7 @@ import { dateLabel } from './labels';
 import { SetHead, SetRow } from './SetRow';
 import { setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
+import { nextLine, nextOf as nextFor } from './next-line';
 import { readStats, STATS_ID, type NextStep } from '../../shared/stats';
 
 const best = (sets: TrackedSet[], timed: boolean): TrackedSet | null =>
@@ -38,9 +39,6 @@ function Progress({ exerciseId, history }: { exerciseId: string; history: Logged
   );
 }
 
-/** "Nächstes Mal: 62,5 kg × 8 – weil du alle Wiederholungen geschafft hast." */
-const nextLine = (n: NextStep): string => `Nächstes Mal: ${n.weightKg !== null ? `${formatDecimal(n.weightKg)} kg × ${n.reps}` : `${n.reps} Wiederholungen`} – ${n.reason}.`;
-
 function Detail({ port, store, history, onBack, onDeleted, latest, next }: { port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; onBack: () => void; onDeleted: () => void; latest: boolean; next: NextStep[] }) {
   const { workout: w, save } = useStoreView(store);
   useEffect(() => () => releaseStore(port, store), [port, store]);
@@ -49,7 +47,7 @@ function Detail({ port, store, history, onBack, onDeleted, latest, next }: { por
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
   // Only the latest workout has a next step. The coach's steps count for it when they name it (by id or start).
   const mine = latest ? next.filter((n) => n.forWorkoutId === w.id || n.atMs === w.startMs) : [];
-  const nextOf = (e: { exerciseId: string; title: string }) => mine.find((n) => n.exerciseId === e.exerciseId) ?? mine.find((n) => n.title === e.title);
+  const nextOf = (e: { exerciseId: string; title: string }) => nextFor(mine, e);
   return (
     <div className="tk-screen">
       <div className="tk-row"><button type="button" className="ghost" onClick={onBack}>Zurück</button><h1 className="tk-title">{w.title}</h1></div>

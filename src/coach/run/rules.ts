@@ -1,11 +1,11 @@
 import type { DayRating } from '../day-load';
 import { addWeeks, dateKey, dateOf, dayIndex, weekOf } from '../../shared/meals';
-import type { PlannedRun, RunAnswers, RunKind } from '../../shared/run';
+import type { PlannedRun, RunAnswers, RunFeel, RunKind } from '../../shared/run';
 import type { ComplaintMode } from './complaints';
 import type { Run } from './garmin-runs';
 import { capFor, startPoint } from './numbers';
 import {
-  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, MAX_RUN_STEP, DEFAULT_RUNS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_MORE_MIN, LONG_MORE_SHARE, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
+  ANSWER_MAX_RUNS, ANSWER_RUN_MAX_MIN, ANSWER_START_MAX_MIN, DEFAULT_MIN, MAX_RUN_STEP, DEFAULT_RUNS, FEEL_HOLD_COUNT, FEEL_WINDOW_DAYS, GAP_DAYS, HALF, LIGHT_EVERY, LIGHT_FACTOR, LONG_MORE_MIN, LONG_MORE_SHARE, LONG_SHARE, LONG_STEP_MIN, MAX_RAMP, MAX_RUNS, MAX_RUN_MIN,
   MIN_RUN_MIN, PHASE2_OF, PHASE2_RUNS, PHASE2_WEEKS, TEST_COOL_MIN, TEST_EVERY_DAYS, TEST_LOAD, TEST_MAIN_MIN, TEST_WARM_MIN,
 } from './limits';
 
@@ -27,8 +27,10 @@ export type RuleInput = {
   dueAtMs?: number;
   /** Dates of long runs planned before this plan (the week before, earlier days of this week): no test the day after. */
   longDates?: string[];
+  /** The last runs felt hard (see `feelHold`): the week keeps its time, its number of runs and its longest run. */
+  hold?: boolean;
 };
-export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null; light?: boolean;
+export type RuleWeek = { runs: PlannedRun[]; reason: string; phase: 1 | 2; totalMinutes: number; maxRunMinutes: number; testDate: string | null; light?: boolean; held?: boolean;
   /** The week's heart-rate cap for easy runs (null without a max heart rate), and whether the counts text mentions the trend. */
   hrCap: number | null; hasTrend: boolean };
 
@@ -116,6 +118,7 @@ const byDate = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
  */
 export const ruleWeek = (input: RuleInput): RuleWeek => {
   const { phase } = input.phase;
+  const hold = input.hold === true;
   const chosen = weekDates(input.week).filter((d) => input.weekdays.includes(weekdayOf(d)));
   const open = chosen.filter((d) => d >= input.fromDate);
 
@@ -140,12 +143,12 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   if (recent.length > 0) {
     base = recent.reduce((s, r) => s + r.durationS / 60, 0) / Math.max(1, baseWeeks.length);
     // Ramp in whole minutes, rounded down (the epsilon keeps 100 × 1.1 at 110); a few short runs never plan less than a gentle start.
-    total = Math.max(Math.floor(base * (1 + MAX_RAMP) + 1e-9), Math.min(start, DEFAULT_RUNS * DEFAULT_MIN));
+    total = Math.max(Math.floor(base * (hold ? 1 : 1 + MAX_RAMP) + 1e-9), Math.min(start, DEFAULT_RUNS * DEFAULT_MIN));
     longest = Math.max(...recent.map((r) => r.durationS / 60));
     const sorted = recent.map((r) => r.durationS / 60).sort((x, y) => x - y);
     typical = sorted[Math.floor((sorted.length - 1) / 2)]!;
     const lastWeek = addWeeks(input.week, -1);
-    desired = Math.min(input.weekdays.length, past.filter((r) => weekOf(r.startMs) === lastWeek).length + MAX_RUN_STEP);
+    desired = Math.min(input.weekdays.length, Math.max(hold ? 1 : 0, past.filter((r) => weekOf(r.startMs) === lastWeek).length + (hold ? 0 : MAX_RUN_STEP)));
   } else {
     total = start;
     longest = startMin;
@@ -159,12 +162,13 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   if (mode === 'pause') total = 0;
   else if (mode !== null) total *= HALF;
   if (total > 0) total = Math.max(0, total - input.crossCut(total));
-  const rising = base !== null && total > base;
+  const held = hold && base !== null && mode === null;
+  const rising = !held && base !== null && total > base;
   // Switched on or replanned mid-week: only the share of the open days, so missed minutes never move to later days.
   if (chosen.length > 0) total *= open.length / chosen.length;
 
-  // No run longer than 10 minutes over the longest recent one.
-  const cap = Math.min(MAX_RUN_MIN, Math.max(MIN_RUN_MIN, Math.floor(longest + LONG_STEP_MIN)));
+  // No run longer than 10 minutes over the longest recent one (none longer than it when the week is held).
+  const cap = Math.min(MAX_RUN_MIN, Math.max(MIN_RUN_MIN, Math.floor(longest + (hold ? 0 : LONG_STEP_MIN))));
   // In phase 2 only the long run grows; a week without one keeps its runs at the usual recent length.
   const easyCap = phase === 2 ? Math.min(cap, Math.max(MIN_RUN_MIN, Math.floor(typical))) : cap;
   const hard = (d: string): number => (input.days[d]?.hardness === 'hard' ? 1 : 0);
@@ -229,7 +233,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
   return {
     runs,
     reason: reasonText(phase, {
-      mode, light, noDay: open.length === 0, tooFew: open.length > 0 && runs.length === 0, rising,
+      mode, light, held, noDay: open.length === 0, tooFew: open.length > 0 && runs.length === 0, rising,
       long: runs.some((r) => r.kind === 'long') ? 'placed' : longDate === null ? 'noDay' : testDate !== null && !tooEven ? 'test' : 'short',
       test: testDate !== null,
     }),
@@ -238,6 +242,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
     maxRunMinutes: runs.reduce((m, r) => Math.max(m, r.minutes), 0),
     testDate,
     light,
+    held,
     hrCap,
     hasTrend,
   };
@@ -245,7 +250,7 @@ export const ruleWeek = (input: RuleInput): RuleWeek => {
 
 /** Phase 2: the long run was placed, no day could take it, the test took its place, or the time was too short. */
 export type LongFact = 'placed' | 'noDay' | 'test' | 'short';
-export type ReasonFacts = { mode: ComplaintMode; light: boolean; noDay: boolean; tooFew: boolean; rising: boolean; long: LongFact; test: boolean };
+export type ReasonFacts = { mode: ComplaintMode; light: boolean; held?: boolean; noDay: boolean; tooFew: boolean; rising: boolean; long: LongFact; test: boolean };
 
 /** One calm sentence that names the phase. */
 export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
@@ -254,6 +259,7 @@ export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
   if (w.mode !== null) return `${name}: Diese Woche ist der Plan sanft, mit halber Zeit.`;
   if (w.noDay) return `${name}: Für diese Woche ist kein Lauftag mehr frei.`;
   if (w.tooFew) return `${name}: Für den Rest dieser Woche bleibt zu wenig Zeit für einen ganzen Lauf, weiter geht es nächste Woche.`;
+  if (w.held) return `${name}: Die Woche bleibt, wie sie ist, weil sich die letzten Läufe schwer angefühlt haben.`;
   if (w.light) return `${name}: Eine leichtere Woche, damit Erholung Platz hat.`;
   const test = w.test ? ', dazu ein Testlauf als Messpunkt' : '';
   if (phase === 1) return `${name}: Ruhige Läufe, die Wochenzeit ${w.rising ? 'steigt' : 'bleibt'} behutsam${test}.`;
@@ -261,4 +267,19 @@ export const reasonText = (phase: 1 | 2, w: ReasonFacts): string => {
   if (w.long === 'test') return `${name}: Diese Woche ein Testlauf statt des langen Laufs, die anderen Läufe bleiben ruhig.`;
   if (w.long === 'noDay') return `${name}: Diese Woche gibt es nur ruhige Läufe, für den langen Lauf passt kein Tag${test}.`;
   return `${name}: Diese Woche gibt es nur ruhige Läufe, für einen langen Lauf reicht die Zeit nicht${test}.`;
+};
+
+/** The reason that goes into change notes and the focus text when a hard-feeling streak holds the plan. */
+export const HOLD_REASON = 'weil sich die letzten Läufe schwer angefühlt haben';
+
+/**
+ * True when the last `FEEL_HOLD_COUNT` runs of the window that have a feeling were all hard. A skipped question (null) is no
+ * feeling. Fewer such runs hold nothing.
+ */
+export const feelHold = (runs: readonly Run[], feels: ReadonlyMap<string, RunFeel | null>, nowMs: number): boolean => {
+  const last = runs
+    .filter((r) => r.startMs <= nowMs && nowMs - r.startMs <= FEEL_WINDOW_DAYS * DAY && feels.get(r.id) != null)
+    .sort((a, b) => a.startMs - b.startMs)
+    .slice(-FEEL_HOLD_COUNT);
+  return last.length === FEEL_HOLD_COUNT && last.every((r) => feels.get(r.id) === 'hard');
 };

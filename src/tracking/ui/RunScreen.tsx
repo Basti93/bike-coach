@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { feelAsked, RunFeelQuestion } from './RunFeel';
 import type { TrackedRecord } from '../../shared/records';
-import { manualRunId, paceText, runSendId, weekFp, type PlannedRun, type RunGarmin, type RunNumbers, type RunSendBody, type RunWeekBody, type ManualRunBody } from '../../shared/run';
+import { manualRunId, paceText, runSendId, weekFp, type PlannedRun, type RunGarmin, type RunNumbers, type RunSendBody, type RunFeelBody, runFeelId, type RunWeekBody, type ManualRunBody } from '../../shared/run';
 import type { TrackingPort } from '../ports';
 import { usePortRecords } from './hooks';
 import { writeSettings } from './RunSettingsCard';
@@ -192,6 +193,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
   const q = usePortRecords(port, 'run');
   const [editing, setEditing] = useState(false);
   const [savedNote, setSavedNote] = useState(false);
+  const [thanked, setThanked] = useState<string | null>(null);
   const view = runView(q.records ?? [], now());
   if (q.records === null || !view.visible || !view.status) return null;
   const { status, week } = view;
@@ -199,6 +201,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
   const byId = (id: string): TrackedRecord | undefined => all.find((r) => r.id === id);
   const put = (id: string, body: object) => { void port.put({ kind: 'run', id, updatedMs: nextUpdatedMs(now(), byId(id)), deleted: false, body }).catch(() => {}); };
 
+  const answeredFeels = new Set(all.filter((r) => !r.deleted && (r.body as { type?: string }).type === 'feel').map((r) => (r.body as RunFeelBody).runId));
   const paused = status.complaint === 'pause';
   const gentle = status.complaint === 'half' || view.settings?.answers?.pain === true;
   const todayKey = dateKeyOf(now());
@@ -253,6 +256,16 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
           {week.note && <p>{week.note}</p>}
           {status.garmin && <GarminBlock week={week} pending={pending} onSend={send} />}
         </section>
+      )}
+      {status.on && status.card && thanked === status.card.runId && <p role="status" className="muted">Danke – das fließt in den nächsten Laufplan ein.</p>}
+      {status.on && status.card && feelAsked(status.card, answeredFeels, now()) && (
+        <RunFeelQuestion date={status.card.date}
+          onAnswer={(feel) => {
+            const runId = status.card!.runId;
+            if (byId(runFeelId(runId))) return;
+            put(runFeelId(runId), { type: 'feel', runId, feel, atMs: now() } satisfies RunFeelBody);
+            if (feel !== null) setThanked(runId);
+          }} />
       )}
       {status.on && status.card && (
         <section className="card" aria-label="Dein letzter Lauf">

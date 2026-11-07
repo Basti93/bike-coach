@@ -31,6 +31,7 @@ import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
+import { WorkoutSummary, pendingSummary, setPendingSummary } from './WorkoutSummary';
 import { defaultStudio, knownStudios, resolveStudio, studioName, studioStateOf } from '../../shared/studio';
 import { hideStudio, rememberStudio, removeStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
@@ -83,7 +84,7 @@ async function markUsed(port: TrackingPort, workouts: { id: string; changes?: { 
 }
 
 function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice, onLeave }: {
-  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; startNotice?: string | null; onLeave: (message: string) => void;
+  port: TrackingPort; store: WorkoutStore; history: LoggedWorkout[]; now: () => number; newId: () => string; autoEnd: boolean; startNotice?: string | null; onLeave: (message: string, finishedId?: string) => void;
 }) {
   const { workout: w, save } = useStoreView(store);
   const [picker, setPicker] = useState<Picker>(null);
@@ -113,6 +114,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const [notice, setNotice] = useState<string | null>(startNotice ?? null);
   const [effortOn, setEffortOn] = useState(effortQuestionsOn);
   const pendingLeave = useRef<string | null>(null);
+  const finishedMsg = 'Training gespeichert. Gut gemacht.';
   useWakeLock(true);
   useTick(true); // the rest countdown and the total time
   // Leaving the screen: a clean store is let go, a dirty one keeps retrying in the registry until it is clean.
@@ -159,7 +161,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
 
   // A finish that could not be saved at first leaves the screen once a retry succeeds.
   useEffect(() => {
-    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; void markUsed(port, [w], now()); closeStore(port, store); onLeave(m); }
+    if (pendingLeave.current && save === 'saved' && w.endMs !== null) { const m = pendingLeave.current; pendingLeave.current = null; void markUsed(port, [w], now()); closeStore(port, store); onLeave(m, m === finishedMsg ? w.id : undefined); }
   }, [save, w]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (fn: (x: TrackedWorkout) => TrackedWorkout) => void store.apply(fn);
@@ -172,7 +174,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       const r = await store.finish(choice);
       if (r.status === 'ask') { leaving.current = false; setAsk(r); return; }
       setAsk(null);
-      const msg = r.status === 'discard' ? 'Das Training wurde verworfen.' : 'Training gespeichert. Gut gemacht.';
+      const msg = r.status === 'discard' ? 'Das Training wurde verworfen.' : finishedMsg;
       if (!r.saved) {
         if (r.status === 'finished') pendingLeave.current = msg; // stays here, calmly, until a retry works
         else leaving.current = false;
@@ -180,7 +182,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       }
       if (r.status === 'finished') await markUsed(port, [w], now());
       closeStore(port, store);
-      onLeave(msg);
+      onLeave(msg, r.status === 'finished' ? w.id : undefined);
     } finally { ending.current = false; }
   }
   useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -383,6 +385,8 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const excluded = useExcluded(port);
   const [store, setStore] = useState<{ s: WorkoutStore; autoEnd: boolean; notice?: string | null } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [summaryId, setSummaryId] = useState<string | null>(pendingSummary);
+  const statsQ = usePortRecords(port, 'stats').records;
   const starting = useRef(false);
   const started = useRef<GymWorkout | null>(null);
   const history = finishedWorkouts(workouts);
@@ -393,6 +397,11 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const studioRecords = usePortRecords(port, 'studio').records;
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
   const studio = chosen ?? defaultStudio(logged, studios.renames, studios.picks);
+  const summary = summaryId ? logged.find((x) => x.id === summaryId && x.endMs !== null) ?? null : null;
+  const nextSteps = useMemo(() => {
+    const r = (statsQ ?? []).find((x) => x.id === STATS_ID && !x.deleted);
+    return (r && readStats(r.body)?.next) || [];
+  }, [statsQ]);
   const saveFailed = () => setMessage('Gerade nicht gespeichert. Versuch es gleich nochmal.');
   // A studio with workouts is hidden (they keep it), one without is removed. Another known studio takes its place.
   const awayStudio = (name: string, used: boolean) => {
@@ -409,7 +418,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     try {
       const s = acquireStore(port, studio ? { ...w, studio } : w, now);
       await s.apply((x) => x); // saved (or flagged) before the screen shows it
-      setMessage(null);
+      setMessage(null); setPendingSummary(null); setSummaryId(null);
       setStore({ s, autoEnd: false, notice: startNotice });
       return true;
     } finally { starting.current = false; }
@@ -432,7 +441,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     if (routine && workouts && openRecs.length === 0 && !store && started.current !== routine) { started.current = routine; void startPlan(routine); }
   }, [routine, workouts]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} startNotice={store.notice} onLeave={(m) => { setStore(null); setMessage(m); }} />;
+  if (store) return <ActiveWorkout port={port} store={store.s} history={history} now={now} newId={newId} autoEnd={store.autoEnd} startNotice={store.notice} onLeave={(m, finishedId) => { setStore(null); if (finishedId) { setPendingSummary(finishedId); setSummaryId(finishedId); setMessage(null); } else setMessage(m); }} />;
   if (workoutsQ.failed) {
     return (
       <div className="tk-screen">
@@ -465,6 +474,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   return (
     <div className="tk-screen">
       {message && <p role="status" className="tk-note">{message}</p>}
+      {summary && <WorkoutSummary workout={summary} next={nextSteps} onDone={() => { setPendingSummary(null); setSummaryId(null); }} />}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
       <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks, studios.hidden)}
