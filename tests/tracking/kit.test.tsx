@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { ChoiceRow, ConfirmLink, Row, RowList, Sheet, Switch } from '../../src/tracking/ui/kit';
@@ -31,12 +31,12 @@ test('the sheet opens with focus on it, locks the page behind, and closes on × 
   expect(closed).toHaveBeenCalledTimes(2);
 });
 
-test('the browser Back closes the sheet', () => {
+test('the browser Back closes the sheet', async () => {
   render(<Opener />);
   fireEvent.click(screen.getByRole('button', { name: 'Öffnen' }));
   expect(screen.getByRole('dialog')).toBeTruthy();
-  fireEvent.popState(window);
-  expect(screen.queryByRole('dialog')).toBeNull();
+  history.back();
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 });
 
 test('a switch row toggles from its label and states its hint', () => {

@@ -24,3 +24,6 @@ export function dayHeading(ms: number, nowMs: number): string {
   y.setDate(y.getDate() - 1);
   return day === localDayKey(y.getTime()) ? 'Gestern' : shortDate(ms);
 }
+
+/** "November 2026" */
+export const monthLabel = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });

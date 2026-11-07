@@ -196,6 +196,7 @@ describe('picker: info toggle per exercise', () => {
     const { port } = fakePort();
     const onPick = vi.fn();
     render(<ExercisePicker port={port} onPick={onPick} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
     const info = await screen.findByRole('button', { name: 'Ausführung Bankdrücken' });
     expect(info.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('note', { name: 'Ausführung Bankdrücken' })).toBeNull();
@@ -224,12 +225,12 @@ describe('picker: info toggle per exercise', () => {
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'mine-1' }));
   });
 
-  test('each row shows the muscle icon; the picture shows in the opened info', async () => {
+  test('a row is the name only; the muscle icon and the picture show in the opened info', async () => {
     const { port } = fakePort();
     render(<ExercisePicker port={port} onPick={() => {}} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
     const row = (await screen.findByRole('button', { name: 'Bankdrücken' })).closest('.tk-pick-row') as HTMLElement;
-    expect(within(row).getByRole('img', { name: 'Brust' })).toBeTruthy();
+    expect(within(row).queryByRole('img')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Bankdrücken' }));
     expect(screen.getAllByRole('img', { name: 'Bankdrücken, Ausführung' }).length).toBeGreaterThan(0);
   });

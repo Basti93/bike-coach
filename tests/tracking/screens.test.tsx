@@ -8,6 +8,7 @@ import { ExercisePicker } from '../../src/tracking/ui/ExercisePicker';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
 import type { GymWorkout } from '../../src/coach/gym/types';
 import { fakePort } from './fake-port';
+import { EQUIPMENT, MUSCLES, TYPES } from '../../src/tracking/ui/labels';
 
 afterEach(cleanup);
 
@@ -171,11 +172,14 @@ test('past workouts can be edited and deleted', async () => {
   const { port, map } = fakePort([rec(finished())]);
   render(<HistoryScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: /Beine/ }));
+  expect(await screen.findByText('80 kg × 5 · 85 kg × 5')).toBeTruthy(); // read mode first: one line, no fields
+  expect(screen.queryByLabelText('Gewicht Satz 1')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
   fireEvent.change(await screen.findByLabelText('Gewicht Satz 1'), { target: { value: '82,5' } });
   await waitFor(() => expect(bodyOf(map, 'workout:f1').exercises[0].sets[0].weightKg).toBe(82.5));
   fireEvent.click(screen.getByRole('button', { name: 'Training löschen' }));
   expect(map.get('workout:f1')!.deleted).toBe(false);
-  fireEvent.click(await screen.findByRole('button', { name: 'Ja, löschen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Ja' }));
   await waitFor(() => expect(map.get('workout:f1')!.deleted).toBe(true));
 });
 
@@ -183,8 +187,10 @@ test('history shows progress per exercise', async () => {
   const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
   render(<HistoryScreen port={port} {...ids} />);
   fireEvent.click((await screen.findAllByRole('button', { name: /Beine/ }))[0]);
-  fireEvent.click(await screen.findByRole('button', { name: 'Verlauf Kniebeuge' }));
-  expect(await screen.findAllByText(/85 kg/)).not.toHaveLength(0);
+  fireEvent.click(await screen.findByRole('button', { name: /^Kniebeuge/ }));
+  expect(await screen.findByText('Letztes Mal: 85 kg × 5')).toBeTruthy();
+  fireEvent.click(screen.getAllByRole('button', { name: /85 kg × 5/ })[0]!);
+  expect(screen.getByText('80 kg × 5 · 85 kg × 5')).toBeTruthy();
 });
 
 test('a routine can be created, edited and started', async () => {
@@ -194,15 +200,18 @@ test('a routine can be created, edited and started', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Neue Routine' }));
   fireEvent.change(screen.getByLabelText('Name der Routine'), { target: { value: 'Push' } });
   fireEvent.click(screen.getByRole('button', { name: 'Übung hinzufügen' }));
+  fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
   fireEvent.click(await screen.findByRole('button', { name: "Bankdrücken" }));
-  fireEvent.click(screen.getByRole('button', { name: 'Routine speichern' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
   await waitFor(() => expect(map.get('routine:new-id')).toBeTruthy());
   expect((map.get('routine:new-id')!.body as GymWorkout).name).toBe('Push');
-  fireEvent.click(await screen.findByRole('button', { name: 'Push bearbeiten' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Push/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
   fireEvent.change(screen.getByLabelText('Name der Routine'), { target: { value: 'Push A' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Routine speichern' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
   await waitFor(() => expect((map.get('routine:new-id')!.body as GymWorkout).name).toBe('Push A'));
-  fireEvent.click(await screen.findByRole('button', { name: 'Push A starten' }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Push A/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Training starten' }));
   expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ name: 'Push A' }));
 });
 
@@ -210,17 +219,21 @@ test('custom exercises can be added', async () => {
   const { port, map } = fakePort();
   const onPick = vi.fn();
   render(<ExercisePicker port={port} onPick={onPick} onClose={() => {}} {...ids} />);
-  // grouped and searchable
-  expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(3);
+  // muscle groups collapsed, searchable; a search without a hit offers the own exercise
+  expect(screen.getAllByRole('button', { name: /Brust|Rücken|Beine|Quadrizeps/ }).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: 'Kniebeuge' })).toBeNull();
   fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'kniebeuge' } });
   expect(screen.getAllByRole('button', { name: /Kniebeuge/ }).length).toBeGreaterThan(0);
+  fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'zzzz' } });
+  expect(screen.getByText('Nichts gefunden.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Eigene Übung anlegen' }));
   const save = screen.getByRole('button', { name: 'Übung speichern' }) as HTMLButtonElement;
   expect(save.disabled).toBe(true);
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tire Flip' } });
-  fireEvent.change(screen.getByLabelText('Muskelgruppe'), { target: { value: 'quadriceps' } });
-  fireEvent.change(screen.getByLabelText('Equipment'), { target: { value: 'other' } });
-  fireEvent.change(screen.getByLabelText('Art'), { target: { value: 'duration' } });
+  const choose = (row: string, option: string) => { fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${row}`) })); fireEvent.click(screen.getByRole('button', { name: option })); };
+  choose('Muskelgruppe', MUSCLES.quadriceps!);
+  choose('Equipment', EQUIPMENT.other!);
+  choose('Art', TYPES.duration!);
   expect(save.disabled).toBe(false);
   fireEvent.click(save);
   await waitFor(() => expect(map.get('exercise:new-id')).toBeTruthy());
@@ -441,8 +454,7 @@ test('history has a per-exercise view with last values and progress', async () =
   render(<HistoryScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Übungen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Kniebeuge' }));
-  expect(await screen.findByText('Zuletzt')).toBeTruthy();
-  expect(screen.getAllByText(/85 kg × 5/).length).toBeGreaterThan(0);
+  expect(await screen.findByText('Letztes Mal: 85 kg × 5')).toBeTruthy();
 });
 
 test('a Hevy copy of an own session is listed once in the history', async () => {
@@ -582,9 +594,14 @@ test('a double tap on saving a routine makes one routine with one id per draft',
   render(<RoutinesScreen port={port} onStart={() => {}} now={() => 100_000} newId={() => `r${++n}`} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Neue Routine' }));
   fireEvent.change(screen.getByLabelText('Name der Routine'), { target: { value: 'Push' } });
-  const save = screen.getByRole('button', { name: 'Routine speichern' });
+  expect((screen.getByRole('button', { name: 'Speichern' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Name und mindestens eine Übung')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Übung hinzufügen' }));
+  fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'Bankdrücken' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken' }));
+  const save = screen.getByRole('button', { name: 'Speichern' });
   fireEvent.click(save); fireEvent.click(save);
-  await screen.findByRole('button', { name: 'Push starten' });
+  await screen.findByRole('button', { name: /^Push/ });
   expect(state.puts.filter((p) => p.kind === 'routine').map((p) => p.id)).toEqual(['r1']);
 });
 
@@ -818,4 +835,63 @@ describe('Zuletzt geändert on the week page', () => {
     expect(screen.getByRole('list', { name: 'Zuletzt geändert' }).textContent).toContain('Di., 3. Nov. · Bankdrücken 3');
     expect(screen.getByRole('list', { name: 'Zuletzt geändert' }).textContent).not.toContain('–');
   });
+});
+
+// ---- Milestone L, task 5: picker, routines, history ----
+test('the picker offers the last used exercises first, and groups open one at a time', async () => {
+  const { port } = fakePort([rec(finished())]);
+  const onPick = vi.fn();
+  render(<ExercisePicker port={port} onPick={onPick} onClose={() => {}} {...ids} />);
+  const recent = await screen.findByRole('region', { name: 'Zuletzt benutzt' });
+  fireEvent.click(within(recent).getByRole('button', { name: 'Kniebeuge' }));
+  expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'pf-squat' }));
+  const groups = screen.getByRole('list', { name: 'Muskelgruppen' });
+  const heads = within(groups).getAllByRole('button', { expanded: false });
+  fireEvent.click(heads[0]!);
+  fireEvent.click(heads[1]!);
+  expect(within(groups).getAllByRole('button', { expanded: true })).toHaveLength(1);
+});
+
+test('a routine opens in a sheet; deleting needs a confirm', async () => {
+  const routine: TrackedRecord = { kind: 'routine', id: 'r1', updatedMs: 1, deleted: false, body: { name: 'Push', exercises: [{ templateId: 'pf-bench-press', title: 'Bankdrücken', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null }] }] } };
+  const { port, map } = fakePort([routine]);
+  render(<RoutinesScreen port={port} onStart={() => {}} {...ids} />);
+  const row = await screen.findByRole('button', { name: /^Push/ });
+  expect(row.textContent).toMatch(/Bankdrücken/);
+  fireEvent.click(row);
+  fireEvent.click(screen.getByRole('button', { name: 'Löschen' }));
+  expect(map.get('routine:r1')!.deleted).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Ja' }));
+  await waitFor(() => expect(map.get('routine:r1')!.deleted).toBe(true));
+});
+
+test('the routine editor has steppers per exercise and removes an exercise', async () => {
+  const routine: TrackedRecord = { kind: 'routine', id: 'r1', updatedMs: 1, deleted: false, body: { name: 'Push', exercises: [
+    { templateId: 'pf-bench-press', title: 'Bankdrücken', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null }, { type: 'normal', weightKg: null, reps: null }] },
+    { templateId: 'pf-squat', title: 'Kniebeuge', restS: null, supersetId: null, notes: '', sets: [{ type: 'normal', weightKg: null, reps: null }] },
+  ] } };
+  const { port, map } = fakePort([routine]);
+  render(<RoutinesScreen port={port} onStart={() => {}} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: /^Push/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+  expect(document.activeElement).toBe(screen.getByLabelText('Name der Routine'));
+  fireEvent.click(screen.getByRole('button', { name: 'Satz hinzufügen Bankdrücken' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Satz hinzufügen Bankdrücken' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Satz entfernen Bankdrücken' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Übung entfernen Kniebeuge' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+  await waitFor(() => expect((map.get('routine:r1')!.body as GymWorkout).exercises.map((e) => e.sets.length)).toEqual([3]));
+});
+
+test('the history shows 8 weeks by month and the older ones on request', async () => {
+  const day = 24 * 3600 * 1000;
+  const nowMs = Date.UTC(2026, 10, 7, 12);
+  const { port } = fakePort([rec(finished('new', nowMs - day)), rec({ ...finished('old', nowMs - 100 * day), title: 'Alt' })]);
+  render(<HistoryScreen port={port} now={() => nowMs} newId={() => 'x'} />);
+  await screen.findByRole('button', { name: /Beine/ });
+  expect(screen.getByRole('heading', { name: 'November 2026' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /^Alt/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Ältere anzeigen' }));
+  expect(screen.getByRole('button', { name: /^Alt/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Ältere anzeigen' })).toBeNull();
 });

@@ -373,21 +373,33 @@ async function main() {
   await step('kraft-anderes', async () => { await page.getByRole('button', { name: 'Anderes Training' }).click({ timeout: 1000 }); await shot('kraft-training-start-anderes'); await closeDialog(); });
   await seg('Routinen');
   await shot('kraft-routinen');
-  await step('kraft-routine-edit', async () => { await page.getByRole('button', { name: 'Kurz und knapp bearbeiten' }).click(); await shot('kraft-routinen-bearbeiten'); await step('kraft-routine-picker', async () => { await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-routinen-uebung-waehlen'); await closeDialog(); }); await page.getByRole('button', { name: 'Abbrechen' }).first().click(); });
+  await step('kraft-routine-edit', async () => {
+    await page.getByRole('button', { name: /^Kurz und knapp/ }).click(); await shot('kraft-routinen-sheet');
+    await page.getByRole('button', { name: 'Bearbeiten' }).click(); await shot('kraft-routinen-bearbeiten');
+    await step('kraft-routine-picker', async () => {
+      await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-routinen-uebung-waehlen');
+      await page.locator('.tk-sheet .tk-rows .tk-rowbtn[aria-expanded]').first().click(); await shot('kraft-routinen-uebung-waehlen-gruppe');
+      await page.getByLabel('Suchen').fill('zzzz'); await shot('kraft-routinen-uebung-waehlen-leer');
+      await page.getByRole('button', { name: 'Eigene Übung anlegen' }).click(); await shot('kraft-routinen-uebung-eigene');
+      await page.getByRole('button', { name: 'Schließen' }).last().click(); await page.getByRole('button', { name: 'Schließen' }).last().click();
+    });
+    await page.getByRole('button', { name: 'Abbrechen' }).first().click();
+  });
   await step('kraft-routine-new', async () => { await page.getByRole('button', { name: 'Neue Routine' }).click(); await shot('kraft-routinen-neu'); await page.getByRole('button', { name: 'Abbrechen' }).first().click(); });
   await seg('Verlauf');
   await shot('kraft-verlauf');
   await step('kraft-verlauf-detail', async () => {
-    await page.locator('.tk-pick').first().click();
+    await page.locator('.tk-rows .tk-rowbtn').first().click();
     await page.waitForTimeout(500);
     await shot('kraft-verlauf-detail');
-    await step('kraft-verlauf-detail-exercise-history', async () => { await page.getByRole('button', { name: /^Verlauf / }).first().click(); await shot('kraft-verlauf-detail-uebungsverlauf'); });
+    await step('kraft-verlauf-detail-exercise-history', async () => { await page.locator('.tk-rows .tk-rowbtn').first().click(); await shot('kraft-verlauf-detail-uebungsverlauf'); await page.locator('.tk-rows .tk-rowbtn').first().click(); await shot('kraft-verlauf-detail-uebungsverlauf-offen'); await page.getByRole('button', { name: 'Zurück' }).click(); });
+    await step('kraft-verlauf-detail-edit', async () => { await page.getByRole('button', { name: 'Bearbeiten' }).click(); await shot('kraft-verlauf-detail-bearbeiten'); await page.getByRole('button', { name: 'Fertig' }).click(); });
     await page.getByRole('button', { name: 'Zurück' }).click();
   });
   await step('kraft-verlauf-uebungen', async () => {
-    await page.getByRole('button', { name: 'Übungen', exact: true }).nth(1).click();
+    await page.getByRole('group', { name: 'Ansicht' }).getByRole('button', { name: 'Übungen', exact: true }).click();
     await shot('kraft-verlauf-uebungen');
-    await page.locator('.tk-pick').first().click();
+    await page.locator('.tk-rows .tk-rowbtn').first().click();
     await shot('kraft-verlauf-uebung-detail');
   });
   await fresh('Kraft'); await seg('Übungen');

@@ -118,6 +118,7 @@ describe('ExerciseProposals card', () => {
     const f = show([sameProposal]);
     fireEvent.click(await screen.findByRole('button', { name: 'Ändern' }));
     const dialog = await screen.findByRole('dialog', { name: 'Übung wählen' });
+    fireEvent.change(within(dialog).getByLabelText('Suchen'), { target: { value: 'Frontkniebeuge' } });
     fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
     await waitFor(() => expect(f.state.puts).toHaveLength(2));
     expect(f.state.puts[0]).toMatchObject({ id: linkId(TITLE), body: { targetId: 'pf-front-squat' } });
@@ -127,6 +128,7 @@ describe('ExerciseProposals card', () => {
     const f = show([linkRec()]);
     fireEvent.click(await screen.findByRole('button', { name: 'Ändern' }));
     const dialog = await screen.findByRole('dialog', { name: 'Übung wählen' });
+    fireEvent.change(within(dialog).getByLabelText('Suchen'), { target: { value: 'Frontkniebeuge' } });
     fireEvent.click(within(dialog).getAllByRole('button', { name: /Frontkniebeuge/ })[0]!);
     await waitFor(() => expect(f.state.puts).toHaveLength(1));
     expect(f.state.puts[0]).toMatchObject({ id: linkId('Cable Curl'), body: { targetId: 'pf-front-squat', by: 'person' } });

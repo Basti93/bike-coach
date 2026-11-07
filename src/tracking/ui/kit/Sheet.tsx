@@ -6,6 +6,9 @@ import { createPortal } from 'react-dom';
  * The page behind does not scroll. Escape, ×, and the browser's Back all call `onClose`. Focus goes to the sheet and returns afterwards.
  * Render it only while it is open: `{open && <Sheet …/>}`.
  */
+/** Open sheets, the newest last: Escape and Back only close the top one, so a sheet may open another (a picker inside a form). */
+const stack: string[] = [];
+
 export function Sheet({ title, onClose, children, actions }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
   const id = useId();
   const box = useRef<HTMLDivElement>(null);
@@ -16,16 +19,18 @@ export function Sheet({ title, onClose, children, actions }: { title: string; on
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    box.current?.focus();
+    if (!box.current?.contains(document.activeElement)) box.current?.focus(); // an autoFocus field inside keeps the focus
     // Back closes the sheet: it takes one history entry while open, and gives it back when closed by other means.
+    stack.push(id);
     const mark = { sheet: id };
     let popped = false;
     try { history.pushState(mark, ''); } catch { /* no history: Escape and × still work */ }
-    const onPop = () => { popped = true; close.current(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close.current(); } };
+    const onPop = () => { if ((history.state as { sheet?: string } | null)?.sheet === id) return; popped = true; close.current(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && stack[stack.length - 1] === id) { e.stopPropagation(); close.current(); } };
     window.addEventListener('popstate', onPop);
     document.addEventListener('keydown', onKey);
     return () => {
+      stack.splice(stack.indexOf(id), 1);
       window.removeEventListener('popstate', onPop);
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
