@@ -8,6 +8,7 @@ import { DECLINE, DECLINED, gehtNicht, TAKE, UNDO } from '../../shared/wording';
 import { changesOf } from '../../shared/changes';
 import { NextChangeCard } from './NextChangeCard';
 import { RuleCard } from './RuleCard';
+import { timeLabel } from '../../shared/dates';
 import { useExcluded, usePortRecords } from './hooks';
 
 /** One op in plain German, with the exercise names of this workout. */
@@ -80,7 +81,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
       {mine.length === 0 && <p className="muted">Zum Beispiel: „Gerät belegt“, „Schulter zwickt“ oder „nur noch 30 Minuten“.</p>}
       {mine.slice(-6).map((m) => (
         <div key={m.id} className={`tk-msg tk-msg-${m.role}`}>
-          <p>{m.text}</p>
+          <p>{m.text} <small className="muted">{timeLabel(m.atMs)}</small></p>
           {m.nextChange && <NextChangeCard port={port} changeId={m.nextChange} records={changeRecs} now={now} />}
           {m.rule && <RuleCard port={port} ruleId={m.rule} records={ruleRecs} catalog={catalog} now={now} />}
           {m.workoutChange && (

@@ -3,6 +3,8 @@ import { deleteRule, FOCUS_GROUPS, goalRecord, MAX_FOCUS, moveRule, ruleId, rule
 import { MUSCLE_TARGETS } from '../../shared/muscle-targets';
 import { addDays, SPORT_LABEL } from '../../shared/week-plan';
 import { dateKey } from '../../shared/day-rating';
+import { shortDateOfKey as dayLabel, shortDate } from '../../shared/dates';
+import { COACH_LABEL, deleteTask, ONE_OFF_MS, openTasks } from '../../shared/tasks';
 import type { TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
@@ -14,8 +16,6 @@ const PRIO_LABEL: Record<Prio, string> = { focus: 'Schwerpunkt', equal: 'gleichr
 const SPORTS: SportKey[] = ['gym', 'bike', 'run'];
 
 const WEEK_CHOICES = [0, 2, 4, 6, 8];
-/** "Mo., 1. Dez." from a YYYY-MM-DD key. */
-const dayLabel = (key: string): string => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }); };
 const focusLabel = (focus: readonly string[]): string => focus.map((g) => MUSCLE_TARGETS[g as (typeof FOCUS_GROUPS)[number]]?.label ?? g).join(', ');
 
 /** The exercise titles of an exclude rule that its text does not already name; '' when there is nothing to add. */
@@ -34,6 +34,8 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const catalog = useCatalog(port);
   // Only rules the person keeps: proposed ones (orphans of a failed chat write), declined ones and goal proposals stay out.
   const rules = rulesOf(usePortRecords(port, 'rule').all ?? []).filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal');
+  // What was passed on to the coaches and is still open: from the week chat or from one coach to another.
+  const tasks = openTasks(usePortRecords(port, 'task').all ?? [], now());
   const [changingFocus, setChangingFocus] = useState(false);
   const [text, setText] = useState('');
   const [picking, setPicking] = useState(false);
@@ -55,6 +57,10 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
   const remove = (id: string) => attempt(async () => {
     const cur = await current(id);
     if (cur) await port.put(deleteRule(cur, now()));
+  });
+  const removeTask = (id: string) => attempt(async () => {
+    const cur = (await port.list('task')).find((r) => r.id === id);
+    if (cur) await port.put(deleteTask(cur, now()));
   });
   const addWish = () => {
     const t = text.trim().slice(0, RULE_TEXT_MAX);
@@ -142,6 +148,19 @@ export function RulesCard({ port, now, newId }: { port: TrackingPort; now: () =>
             </li>
           ))}
         </ul>
+      )}
+      {tasks.length > 0 && (
+        <>
+          <h3>Weitergegeben</h3>
+          <ul className="tk-rule-list" aria-label="Weitergegeben">
+            {tasks.map((t) => (
+              <li key={t.id} className="tk-rule">
+                <span className="tk-rule-text">An {COACH_LABEL[t.to]}: {t.text}<span className="muted"> · {t.lasting ? 'dauerhaft' : `bis ${shortDate(t.atMs + ONE_OFF_MS)}`}</span></span>
+                <button type="button" className="ghost tk-small" aria-label={`Entfernen ${t.text}`} onClick={() => void removeTask(t.id)}>Entfernen</button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <form className="tk-row" onSubmit={(e) => { e.preventDefault(); addWish(); }}>
         <input aria-label="Neue Regel" value={text} maxLength={RULE_TEXT_MAX} placeholder="Neue Regel oder Wunsch" onChange={(e) => setText(e.target.value)} />

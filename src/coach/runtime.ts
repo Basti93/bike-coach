@@ -286,6 +286,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
+  const taskSeen = new PlanSeen(path.join(coachDir, 'chat', 'task-seen.json'));
   const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'), dateKey(nowMs()));
   // Today's advice changing (a new day, tired legs, a raised pulse) makes the coaches plan again, at most about once a day. The first sighting only counts.
   const adviceSeen = new PlanSeen(path.join(coachDir, 'chat', 'advice-seen.json'));
@@ -327,7 +328,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     };
   };
   /** The shared task board: the week chat and the coaches give each other tasks; the coach in charge plans again at once. */
-  const tasks = new CoachTasks(path.join(coachDir, 'chat', 'tasks.json'));
+  const tasks = new CoachTasks(path.join(coachDir, 'chat', 'tasks.json'), records, nowMs);
   const giveTask = (id: string, from: TaskFrom, t: { to: CoachId; text: string; lasting: boolean }): void => {
     if (!tasks.add(id, { from, ...t }, nowMs()) || from !== 'chat') return;
     // Only the rider's task plans again at once; a coach's task waits for that coach's next plan. The run coach sees it in its plan key.
@@ -635,6 +636,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       if (free) mealsChanged(exportTogether({ store: records, profileIds: list.map((p) => p.id), linked: (id) => opts.links.status(id).state === 'linked', noOpenRide, nowMs: now, together: opts.together }));
       for (const p of list) { try { if (planSeen.changed(p.id, weekPlanKey(records.all(p.id, 'weekplan')))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       for (const p of list) { try { if (personalSeen.changed(p.id, personalKey(p.id))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
+      // A task of the rider or a removal of any task (also from another Mac) makes the bike and gym coach plan again, like a rule change.
+      for (const p of list) { try { if (taskSeen.changed(p.id, `${tasks.version(p.id, 'bike')}|${tasks.version(p.id, 'gym')}`, true)) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       for (const p of list) { try { if ((adviceKey(adviceOf(p.id)) !== '' && adviceSeen.changed(p.id, adviceKey(adviceOf(p.id)), true))) { coach.weekPlanChanged(p.id); gym.weekPlanChanged(p.id); } } catch { /* next scan */ } }
       // Never with a ride open (a ride becomes an activity only once it is closed), and only while coaches may plan.
       if (runs) for (const p of list) {
