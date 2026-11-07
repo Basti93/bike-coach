@@ -353,10 +353,10 @@
 .tk-run .tk-today-line + p, .tk-lastrun p, .tk-weekinfo p { margin: 0; }
 .tk-weekinfo, .tk-lastrun { display: flex; flex-direction: column; gap: .5rem; }
 .tk-feel { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding-top: .25rem; }
-.tk-feel .tk-chips { flex: 1; align-items: center; gap: .4rem; }
+.tk-feel .tk-chips { align-items: center; gap: .4rem; }
 .tk-screen .tk-feel .tk-chips button { min-height: 36px; padding: .2rem .75rem; }
 .tk-feel p { margin: 0; }
-.tk-screen button.tk-skip-feel { min-height: 44px; margin-left: auto; padding-left: .5rem; padding-right: 0; }
+.tk-screen button.tk-skip-feel { min-height: 44px; padding-left: 0; padding-right: 0; }
 .tk-sheet section > .tk-section { margin: .5rem 0 .25rem; }
 .tk-sheet input[type="date"] { width: 100%; }
 .tk-form label.tk-switchrow { flex-direction: row; align-items: center; color: inherit; }
@@ -407,3 +407,4 @@
 .tk-live-head .tk-elapsed { font-size: .95rem; }
 .tk-live .tk-ex-head .tk-row-title { flex: 1 1 50%; overflow-wrap: break-word; hyphens: auto; }
 .tk-live .tk-ex-head .tk-row-value { flex: 0 1 45%; max-width: none; }
+.tk-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }

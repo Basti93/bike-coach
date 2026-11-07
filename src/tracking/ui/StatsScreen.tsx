@@ -113,7 +113,7 @@ function Progress({ rows }: { rows: ProgressRow[] }) {
   return (
     <section className="tk-stats" aria-label="Fortschritt">
       <h3 className="tk-section">Fortschritt</h3>
-      <ul className="tk-progress">{rows.map((r) => <li key={r.text}>{r.text}</li>)}</ul>
+      <ul className="tk-lines">{rows.map((r) => <li key={r.text}>{r.text}</li>)}</ul>
     </section>
   );
 }

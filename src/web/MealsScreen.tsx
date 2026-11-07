@@ -73,15 +73,24 @@ function MealRow({ week, meal, open, onToggle, onEater }: { week: Week; meal: Me
   const reuses = week.plan.meals.filter((m) => m.reuseOf === k);
   const cook = cookPortions(week.plan, week.state, k);
   const note = eaters.length === 0 ? 'Niemand isst mit' : away.length > 0 ? `${listAnd(away.map((p) => p.name))} ${away.length > 1 ? 'essen' : 'isst'} nicht mit` : null;
+  const extras = [meal.takeAlong ? 'zum Mitnehmen' : meal.slot === 'abend' ? 'kleine Portion' : '', meal.reuseOf ? `Rest von ${short(meal.reuseOf)}: nur einpacken` : '', reuses.length > 0 ? `reicht für ${reuses.map((r) => short(mealKey(r.day, r.slot))).join(', ')}` : ''].filter(Boolean);
   const askedBy = meal.askedBy ? week.plan.people.find((p) => p.id === meal.askedBy) : undefined;
   return (
     <Row
       title={<><span className="pm-rowtitle"><b>{SLOT_LABEL[meal.slot]}</b> · {meal.dish.title}</span>{note && <small className="pm-dev">{note}</small>}</>}
       value={meal.reuseOf ? 'Rest' : `${meal.dish.minutes} Min`} expanded={open} onClick={onToggle}>
-      <p className="pm-meta">{SLOT_TIME[meal.slot]}{meal.takeAlong ? ' · zum Mitnehmen' : meal.slot === 'abend' ? ' · kleine Portion' : ''}{meal.reuseOf ? ` · Rest von ${short(meal.reuseOf)}: nur einpacken` : ''}</p>
+      {!meal.reuseOf && cook.total > 0 && (
+        <>
+          <h3 className="tk-section">Rezept für {cook.total} {cook.total === 1 ? 'Portion' : 'Portionen'}</h3>
+          <ul className="pm-ingredients">{meal.dish.ingredients.map((i, n) => <li key={n}><b>{recipeAmount(i, cook.total)}</b> {i.name}</li>)}</ul>
+        </>
+      )}
+      <ol className="pm-steps">{meal.dish.steps.map((s, n) => <li key={n}>{s}</li>)}</ol>
+      <p className="muted pm-meta">{[SLOT_TIME[meal.slot], `${meal.dish.minutes} Min`, `${meal.dish.proteinG} g Eiweiß`, meal.dish.keepsDays === 0 ? 'am besten frisch' : `hält ${meal.dish.keepsDays} ${meal.dish.keepsDays === 1 ? 'Tag' : 'Tage'}`].join(' · ')}</p>
+      {extras.length > 0 && <p className="muted pm-meta">{extras.join(' · ')}</p>}
       {askedBy && <p className="pm-asked">auf Wunsch von {askedBy.name}</p>}
-      <p className="pm-meta"><b>{meal.dish.proteinG} g</b> Eiweiß pro Portion{reuses.length > 0 && <> · reicht für {reuses.map((r) => short(mealKey(r.day, r.slot))).join(', ')}</>}</p>
       <div className="tk-row pm-people" role="group" aria-label="Wer isst mit">
+        <span className="muted">Isst mit:</span>
         {week.plan.people.map((p) => {
           const on = eaters.includes(p.id);
           return (
@@ -91,24 +100,15 @@ function MealRow({ week, meal, open, onToggle, onEater }: { week: Week; meal: Me
           );
         })}
       </div>
-      {!meal.reuseOf && cook.total > 0 && (
-        <>
-          <h3 className="tk-section">Rezept für {cook.total} {cook.total === 1 ? 'Portion' : 'Portionen'}</h3>
-          <ul className="pm-ingredients">{meal.dish.ingredients.map((i, n) => <li key={n}><b>{recipeAmount(i, cook.total)}</b> {i.name}</li>)}</ul>
-        </>
-      )}
-      <ol className="pm-steps">{meal.dish.steps.map((s, n) => <li key={n}>{s}</li>)}</ol>
-      <p className="muted pm-keeps">{meal.dish.keepsDays === 0 ? 'Am besten frisch essen.' : `Hält im Kühlschrank ${meal.dish.keepsDays} ${meal.dish.keepsDays === 1 ? 'Tag' : 'Tage'}.`}</p>
     </Row>
   );
 }
 
 const SECTION_LABEL: Record<string, string> = { Sonstiges: 'Weiteres' };
 
-/** One flat list with small headings. Tick to buy; the amount opens "Haben wir" (or "Entfernen" on an own item). Bought items sink to the end of their group. */
+/** One flat list with small headings. Tick to buy; "Haben wir" (or a confirmed "Entfernen" on an own item) sits at the right of each open row. Bought items sink to the end of their group. */
 function Shopping({ week, onSet, onOwn }: { week: Week; onSet: (item: string, state: ItemState) => void; onOwn: (f: (s: MealState, at: number) => MealState) => void }) {
   const list = shoppingList(week.plan, week.state);
-  const [open, setOpen] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const row = (i: ShopItem) => {
@@ -119,18 +119,11 @@ function Shopping({ week, onSet, onOwn }: { week: Week; onSet: (item: string, st
         <div className="pm-itemline">
           <button type="button" className="pm-check" role="checkbox" aria-checked={bought} aria-label={`${i.name} gekauft`}
             onClick={() => (own ? onOwn((s, at) => changeOwn(s, i.key, { state: bought ? 'offen' : 'gekauft' }, at)) : onSet(i.key, NEXT[i.state]))}>{bought ? '✓' : ''}</button>
-          <span className="pm-name">{i.name}</span>
-          <button type="button" className="pm-amount" aria-expanded={open === i.key} aria-label={`${i.name}: ${own ? 'Entfernen' : i.state === 'da' ? 'Doch kaufen' : 'Haben wir'}`} onClick={() => setOpen(open === i.key ? null : i.key)}>
-            {i.amount === 'aus dem Vorrat' ? 'Vorrat' : i.amount}<span className={`tk-chevron${open === i.key ? ' open' : ''}`} aria-hidden="true">›</span>
-          </button>
+          <span className="pm-name">{i.name}<small className="muted">{i.amount === 'aus dem Vorrat' ? 'Vorrat' : i.amount}</small></span>
+          {own
+            ? <ConfirmLink label="Entfernen" question="Wirklich entfernen?" onConfirm={() => onOwn((s, at) => changeOwn(s, i.key, { removed: true }, at))} />
+            : i.state !== 'gekauft' && <button type="button" className="link pm-have" onClick={() => onSet(i.key, i.state === 'da' ? 'offen' : 'da')}>{i.state === 'da' ? 'Doch kaufen' : 'Haben wir'}</button>}
         </div>
-        {open === i.key && (
-          <div className="pm-itemmore">
-            {own
-              ? <ConfirmLink label="Entfernen" question="Wirklich entfernen?" onConfirm={() => { setOpen(null); onOwn((s, at) => changeOwn(s, i.key, { removed: true }, at)); }} />
-              : <button type="button" className="link" onClick={() => { setOpen(null); onSet(i.key, i.state === 'da' ? 'offen' : 'da'); }}>{i.state === 'da' ? 'Doch kaufen' : 'Haben wir'}</button>}
-          </div>
-        )}
       </li>
     );
   };
@@ -149,9 +142,9 @@ function Shopping({ week, onSet, onOwn }: { week: Week; onSet: (item: string, st
   return (
     <>
       {list.total === 0 && list.own.length === 0 && <p className="muted">Diese Woche gibt es nichts einzukaufen.</p>}
+      {group('Eigenes', list.own)}
       {list.sections.map((s) => group(SECTION_LABEL[s.section] ?? s.section, s.items))}
       {group('Kleine Mengen, kurz prüfen', list.pantry)}
-      {group('Eigenes', list.own)}
       {group('Schon da', list.have, 'pm-have-list')}
       <form className="pm-add" onSubmit={(e) => { e.preventDefault(); add(); }}>
         <div className="pm-addline">

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrackedRecord } from '../../src/shared/records';
@@ -517,7 +517,6 @@ describe('Essen on the phone', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Kaffee gekauft' }));
     await waitFor(async () => expect(Object.values(await stateOf())[0]!.state).toBe('gekauft'));
     // The plan's own items keep "Haben wir"; an own item offers only a confirmed removal.
-    fireEvent.click(screen.getByRole('button', { name: 'Kaffee: Entfernen' }));
     fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }));
     expect(screen.getByText('Wirklich entfernen?')).toBeTruthy();
     await new Promise((r) => setTimeout(r, 30));
@@ -527,14 +526,13 @@ describe('Essen on the phone', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Eigenes' })).toBeNull());
   });
 
-  it('"schon da" moved into the row: the amount opens "Haben wir", and the item moves to "Schon da"', async () => {
+  it('"Haben wir" sits at the right of each open row, and the item moves to "Schon da"', async () => {
     await boot({ account: 'anna', seed: [mealPlan] });
     fireEvent.click(await screen.findByRole('button', { name: 'Essen' }));
     fireEvent.click(await screen.findByRole('button', { name: /^Einkauf/ }));
     expect(screen.queryByText(/von \d+ noch offen/)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Haben wir' })).toBeNull();
-    fireEvent.click(await screen.findByRole('button', { name: 'Skyr: Haben wir' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Haben wir' }));
+    const skyr = (await screen.findByText('Skyr')).closest('li')!;
+    fireEvent.click(within(skyr).getByRole('button', { name: 'Haben wir' }));
     expect(await screen.findByRole('heading', { name: 'Schon da' })).toBeTruthy();
   });
 

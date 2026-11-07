@@ -74,8 +74,10 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 .pm-item { border-top: 1px solid var(--line); }
 .pm-item:first-child { border-top: 0; }
 .pm-itemline { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem; min-height: 52px; }
-.tk-screen button.pm-amount { display: inline-flex; align-items: center; gap: .25rem; min-height: 48px; padding: 0 0 0 .5rem; background: none; border: 0; border-radius: 0; color: var(--muted); font-weight: 400; font-size: .95rem; text-align: right; }
-.pm-itemmore { padding: 0 0 .5rem 52px; }
+.tk-screen button.pm-have, .pm-itemline .danger-link { min-height: 44px; padding: 0 0 0 .5rem; white-space: nowrap; }
+.pm-itemline .tk-confirm { flex-wrap: wrap; justify-content: flex-end; }
+.pm-name small { display: block; font-weight: 400; font-size: .85rem; }
+.tk-screen .pm-add button:disabled { opacity: .75; }
 .pm-add { display: flex; flex-direction: column; gap: .5rem; margin-top: 1rem; }
 .pm-addline { display: grid; grid-template-columns: 1fr 6rem; gap: .5rem; }
 .pm-addline input { min-width: 0; }

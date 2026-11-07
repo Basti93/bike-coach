@@ -431,7 +431,7 @@ async function main() {
   await nav('Statistik');
   await page.waitForTimeout(500);
   await shot('statistik');
-  await step('statistik-muscle', async () => { await page.locator('.tk-rowbtn').first().click(); await shot('statistik-muskel-offen'); await page.getByRole('button', { name: 'Details' }).click(); await shot('statistik-details'); await page.keyboard.press('Escape'); });
+  await step('statistik-muscle', async () => { await page.getByRole('button', { name: 'Muskeln' }).click(); await page.getByRole('dialog', { name: 'Muskeln' }).locator('.tk-rowbtn').first().click(); await shot('statistik-muskel-offen'); await page.keyboard.press('Escape'); await page.getByRole('button', { name: 'Details' }).click(); await shot('statistik-details'); await page.keyboard.press('Escape'); });
   await page.getByRole('button', { name: 'Profil', exact: true }).click();
   await page.waitForTimeout(500);
   await shot('profil');
