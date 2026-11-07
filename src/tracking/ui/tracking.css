@@ -81,11 +81,7 @@
 .tk-tabs { display: flex; gap: .5rem; }
 .tk-open { display: flex; flex-direction: column; gap: .5rem; }
 /* The mobility offer, shared by the Mac and the phone. */
-.tk-mob-line { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
-.tk-mob-text { flex: 1 1 16rem; margin: 0; }
-.tk-mob-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
-.tk-mob-reason { margin: .6rem 0 0; }
-.tk-mob-list { margin: .4rem 0 0; padding-left: 1.5rem; display: flex; flex-direction: column; gap: .6rem; }
+.tk-mob-list { margin: .5rem 0 1rem; padding-left: 1.5rem; display: flex; flex-direction: column; gap: .6rem; }
 .tk-mob-list span { display: block; color: var(--muted, #aebba9); }
 .tk-screen .card p, .tk-screen .card ul, .tk-screen .card ol { margin: 0; }
 /* How to do an exercise: inline, collapsed by default, in the workout and in the picker. */
@@ -297,3 +293,14 @@
 .tk-screen .tk-focus button:disabled { opacity: .45; }
 /* Pinned proposals: several can wait, so none of them is the one orange button; the send button is. */
 .tk-screen .tk-pin button:not(.link) { background: transparent; border: 1px solid var(--muted, #aebba9); color: var(--text, #f6eedd); }
+/* Heute: chips for "Heute nur", the quiet "Anders heute?" toggle. */
+.tk-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tk-screen .tk-chips button { min-height: 44px; padding: .4rem .9rem; border-radius: 999px; font-weight: 500; }
+.tk-screen .tk-chips button[aria-pressed='true'] { border-color: var(--accent, #e8964a); color: var(--accent, #e8964a); font-weight: 700; }
+.tk-today-only { display: flex; flex-direction: column; gap: .5rem; }
+.tk-screen .tk-other { align-self: flex-start; padding-left: 0; }
+.tk-today-card .tk-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tk-details { display: flex; flex-direction: column; gap: .5rem; }
+.tk-details summary { cursor: pointer; color: var(--muted, #aebba9); min-height: 36px; display: flex; align-items: center; }
+/* The mobility row also sits outside .tk-screen (on the Mac): it needs the row-button look on its own. */
+.tk-mob button.tk-rowbtn { background: none; border: 0; border-radius: 0; font-weight: 400; color: inherit; padding: .5rem 0; }

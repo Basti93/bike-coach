@@ -80,7 +80,7 @@ describe('web app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
     expect(await screen.findByRole('switch', { name: /Wochengespräch/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '‹ Zurück' }));
-    expect(await screen.findByRole('heading', { name: 'Heute' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: /^\p{L}+, \d+\. \p{L}+$/u })).toBeTruthy();
   });
 
   it('storage persistence is requested at login, and a refusal gets a single calm line', async () => {
@@ -113,6 +113,14 @@ describe('web app', () => {
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith('open'));
   });
 
+  it('an open workout shows on Heute with "Weitermachen", which leads to the workout', async () => {
+    const open: TrackedRecord = { kind: 'workout', id: 'w-open', updatedMs: NOW - 500, deleted: false, body: { id: 'w-open', title: 'Pull', startMs: NOW - 600_000, endMs: null, source: 'pandafit', exercises: [] } };
+    await boot({ seed: [plan(NOW - 1000), open] });
+    expect(await screen.findByRole('heading', { name: /^Pull läuft noch – seit \d\d:\d\d$/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Weitermachen' }));
+    expect(await screen.findByRole('button', { name: /^Training fortsetzen/ })).toBeTruthy();
+  });
+
   it('an expired login keeps unsent data and asks to log in again', async () => {
     const a = await boot({ syncStatus: 401, seed: [plan(NOW - 1000)] });
     expect(await screen.findByText(/Bitte melde dich neu an/)).toBeTruthy();
@@ -139,8 +147,8 @@ describe('web app', () => {
   it('the mobility card comes from the plan and Gemacht writes the done record', async () => {
     const s = session(NOW - 3600_000);
     const a = await boot({ seed: [plan(NOW - 1000, s)] });
-    expect(await screen.findByText(/etwa 8 Minuten, 1 Übungen/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Ansehen' }));
+    expect(await screen.findByText('8 Min')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Beweglichkeit/ }));
     expect(await screen.findByText('Hüftbeuger dehnen')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Gemacht' }));
     await waitFor(async () => {
@@ -152,14 +160,15 @@ describe('web app', () => {
     await waitFor(() => expect(screen.queryByText('Hüftbeuger dehnen')).toBeNull());
   });
 
-  it('the plan comes first, mobility below it, collapsed; "Heute nicht" hides it for today only, without writing anything', async () => {
+  it('the plan comes first, mobility below it as one row; "Heute nicht" hides it for today only, without writing anything', async () => {
     const s = session(NOW - 3600_000);
     const a = await boot({ seed: [plan(NOW - 1000, s)] });
-    const mob = await screen.findByText(/Beweglichkeit, wenn du magst/);
+    const mob = await screen.findByRole('button', { name: /^Beweglichkeit/ });
     expect(screen.getByText('Beine A').compareDocumentPosition(mob) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText('Hüftbeuger dehnen')).toBeNull();
+    fireEvent.click(mob);
     fireEvent.click(screen.getByRole('button', { name: 'Heute nicht' }));
-    expect(screen.queryByText(/Beweglichkeit, wenn du magst/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Beweglichkeit/ })).toBeNull();
     expect([...a.storage.keys()].some((k) => k.startsWith('pandafit.mobility.notToday'))).toBe(true);
     const st = await openIdb('anna', a.factory);
     expect(await st.list('mobility')).toEqual([]);
@@ -192,7 +201,7 @@ describe('web app', () => {
 
   it('Heute has no complaints box any more: complaints go through the coach chat', async () => {
     await boot({ seed: [{ kind: 'complaint', id: 'c1', updatedMs: 5, deleted: false, body: { text: 'Knie links', status: 'active', atMs: 5 } }] });
-    await screen.findByRole('heading', { name: 'Heute' });
+    await screen.findByRole('heading', { level: 1, name: /^\p{L}+, \d+\. \p{L}+$/u });
     expect(screen.queryByText('Knie links')).toBeNull();
     expect(screen.queryByLabelText('Neue Beschwerde')).toBeNull();
   });

@@ -108,6 +108,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode; onTraining: 
   }
 }
 
+/** "Samstag, 7. November" */
+const todayTitle = (ms: number): string => new Date(ms).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+/** "14:05", or with the day when it was not today. */
+const sinceText = (ms: number, now: number): string => (localDayKey(ms) === localDayKey(now) ? timeLabel(ms) : `${shortDate(ms)} ${timeLabel(ms)}`);
+
 function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: () => void; goRun?: () => void; goCoach: () => void }) {
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
@@ -121,6 +126,9 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   const now = env.now();
   const session = useMemo(() => mobilityToShow(plan, mobility ?? [], now), [plan, mobility, now]);
   const today = todayPlan(weekplans, now);
+  // A workout still open (here or on another device) is the next thing to do: the newest one.
+  const workouts = usePortRecords(port, 'workout').records;
+  const open = (workouts ?? []).filter((r) => (r.body as LoggedWorkout).endMs === null).sort((x, y) => (y.body as LoggedWorkout).startMs - (x.body as LoggedWorkout).startMs)[0];
 
   const markDone = async () => {
     if (!session) return;
@@ -128,34 +136,45 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   };
 
   // The strength plan: on a strength day inside the week plan's card, without a week plan as its own card.
+  // Name and time in one line, the exercises in two; the reason, the sets and the outlook behind "Details".
+  const toTraining = <button type="button" className={open ? 'secondary' : undefined} onClick={goTraining}>Zum Krafttraining</button>;
   const gym = p ? (
     <>
-      <p className="muted">{planDateText(p.atMs)}</p>
+      {p.workout && <p className="muted"><span>{p.workout.name}</span>{p.workout.exercises.length > 0 ? ` · ${durationNote(p.workout)}` : ''}</p>}
+      {p.workout && p.workout.exercises.length > 0 && <p className="muted tk-clamp">{p.workout.exercises.map((e) => e.title).join(', ')}</p>}
       {planIsStale(p.atMs, now) && <p className="muted">Der Plan ist schon etwas älter. Der Coach macht einen neuen, sobald er dazu kommt.</p>}
-      {p.workout && <h2>{p.workout.name}</h2>}
-      {p.workout && p.workout.exercises.length > 0 && <p className="muted">{durationNote(p.workout)}</p>}
-      {p.reason && <p>{p.reason}</p>}
-      {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
-      {p.note && <p>{p.note}</p>}
       {p.questions.length > 0 && <ul>{p.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>}
-      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
-      <GymOutlook outlook={p.outlook} />
+      {toTraining}
+      <details className="tk-details">
+        <summary>Details</summary>
+        <p className="muted">{planDateText(p.atMs)}</p>
+        {p.reason && <p>{p.reason}</p>}
+        {p.workout && <ul>{p.workout.exercises.map((e, i) => <li key={i}>{e.title}, {e.sets.length} Sätze</li>)}</ul>}
+        {p.note && <p>{p.note}</p>}
+        <GymOutlook outlook={p.outlook} />
+      </details>
     </>
   ) : (
     <>
-      <p>Noch kein Krafttraining geplant. Du kannst trotzdem jederzeit trainieren.</p>
-      <button type="button" onClick={goTraining}>Zum Krafttraining</button>
+      <p className="muted">Noch kein Krafttraining geplant. Du kannst trotzdem jederzeit trainieren.</p>
+      {toTraining}
     </>
   );
 
   if (together && showTogether) return <TogetherPage t={together} now={now} onBack={() => setShowTogether(false)} />;
   return (
     <div className="tk-screen">
-      <h1 className="tk-title">Heute</h1>
+      <h1 className="tk-title">{todayTitle(now)}</h1>
+      {open && (
+        <section className="card" aria-label="Training läuft noch">
+          <h2>{(open.body as LoggedWorkout).title} läuft noch – seit {sinceText((open.body as LoggedWorkout).startMs, now)}</h2>
+          <button type="button" onClick={goTraining}>Weitermachen</button>
+        </section>
+      )}
       {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
-      {today ? <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} /> : (
+      {today ? <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} quiet={!!open} /> : (
         <>
-          <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} />
+          <TodayCard port={port} weekplans={weekplans} runs={runs} nowMs={now} gym={gym} onRun={goRun} quiet={!!open} />
           <section className="card">{gym}</section>
           <section className="card">
             <p className="muted">Noch kein Wochenplan für heute. Mit dem Coach plant ihr die Woche über alle Sportarten.</p>

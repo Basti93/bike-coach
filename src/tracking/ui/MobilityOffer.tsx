@@ -1,5 +1,6 @@
 import './tracking.css';
 import { useState } from 'react';
+import { Row, RowList, Sheet } from './kit';
 
 type KeyStore = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
 type Session = { id: string; minutes: number; reason: string; exercises: { id: string; title: string; howTo: string }[] };
@@ -17,7 +18,7 @@ export const hideToday = (storage: KeyStore, key: string, nowMs: number): void =
 };
 
 /**
- * Mobility, offered and never owed. One calm line with the minutes; the exercises on request.
+ * Mobility, offered and never owed. One row with the minutes; the exercises, "Gemacht" and "Heute nicht" in a sheet.
  * "Heute nicht" hides it for today on this device only: nothing is sent and nothing is asked.
  */
 export function MobilityOffer({ session, hideKey, storage, now, onDone }: { session: Session; hideKey: string; storage: KeyStore; now: () => number; onDone: () => void }) {
@@ -25,22 +26,19 @@ export function MobilityOffer({ session, hideKey, storage, now, onDone }: { sess
   const [open, setOpen] = useState(false);
   if (hidden) return null;
   return (
-    <section className="card mobility tk-mob" aria-label="Beweglichkeit">
-      <div className="tk-mob-line">
-        <p className="tk-mob-text"><b>Beweglichkeit, wenn du magst</b> <span className="muted">· etwa {session.minutes} Minuten, {session.exercises.length} Übungen</span></p>
-        <div className="tk-mob-actions">
-          <button type="button" className="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Zuklappen' : 'Ansehen'}</button>
-          <button type="button" className="secondary" onClick={onDone}>Gemacht</button>
-          <button type="button" className="ghost" onClick={() => { hideToday(storage, hideKey, now()); setHidden(true); }}>Heute nicht</button>
-        </div>
-      </div>
+    <section aria-label="Beweglichkeit" className="tk-mob">
+      <RowList>
+        <Row title="Beweglichkeit" value={`${session.minutes} Min`} onClick={() => setOpen(true)} />
+      </RowList>
       {open && (
-        <>
-          <p className="tk-mob-reason">{session.reason}</p>
+        <Sheet title="Beweglichkeit" onClose={() => setOpen(false)}
+          actions={<button type="button" onClick={() => { setOpen(false); onDone(); }}>Gemacht</button>}>
+          <p className="muted">{session.reason}</p>
           <ol className="tk-mob-list">
             {session.exercises.map((e) => <li key={e.id}><b>{e.title}</b><span className="muted">{e.howTo}</span></li>)}
           </ol>
-        </>
+          <button type="button" className="link" onClick={() => { hideToday(storage, hideKey, now()); setHidden(true); }}>Heute nicht</button>
+        </Sheet>
       )}
     </section>
   );

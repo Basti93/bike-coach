@@ -20,18 +20,19 @@ test('nothing without a plan for today', () => {
 });
 test('a strength day shows the strength plan, and tomorrow in a line', () => {
   render(<TodayCard weekplans={[plan(['rest', 'rest', 'gym', 'bike'])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
-  expect(screen.getByRole('heading').textContent).toBe('Heute: Kraft, mittel');
+  expect(screen.getByRole('heading').textContent).toBe('Kraft, mittel');
   expect(screen.getByText('Oberkörper A')).toBeTruthy();
   expect(screen.getByText('Morgen: Rad, mittel')).toBeTruthy();
 });
 test('a rest day hides the strength plan', () => {
   render(<TodayCard weekplans={[plan([])]} runs={[]} nowMs={NOW} gym={<p>Oberkörper A</p>} />);
-  expect(screen.getByRole('heading').textContent).toBe('Heute: Ruhetag');
+  expect(screen.getByRole('heading').textContent).toBe('Ruhetag');
   expect(screen.queryByText('Oberkörper A')).toBeNull();
 });
-test('a run day names the planned run when the run coach has one', () => {
+test('a run day is one line, "Laufen, 35 Minuten", with the button', () => {
   render(<TodayCard weekplans={[plan(['rest', 'rest', 'run'])]} runs={[runWeek]} nowMs={NOW} gym={null} onRun={() => {}} />);
-  expect(screen.getByText("Lauf: 35 Minuten locker")).toBeTruthy();
+  expect(screen.getByRole('heading').textContent).toBe('Laufen, 35 Minuten');
+  expect(screen.queryByText(/^Lauf:/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Zum Laufen' })).toBeTruthy();
 });
 

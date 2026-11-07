@@ -341,12 +341,14 @@ async function main() {
   await page.getByLabel('Name').fill(NAME);
   await page.getByLabel('Passwort').fill(PASSWORD);
   await page.getByRole('button', { name: 'Anmelden' }).click();
-  await page.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
+  await page.getByRole('heading', { level: 1, name: /^\p{L}+, \d+\. \p{L}+$/u }).waitFor();
   await page.getByRole('navigation').getByRole('button', { name: 'Statistik', exact: true }).waitFor({ timeout: 30_000 });
   await page.waitForFunction(() => document.body.innerText.includes('Pull'), null, { timeout: 30_000 }).catch(() => {});
   await page.waitForTimeout(1500);
 
   await shot('heute');
+  await step('heute-anders', async () => { await page.getByRole('button', { name: /^Anders heute/ }).click(); await shot('heute-anders-heute'); });
+  await step('heute-beweglichkeit', async () => { await page.getByRole('button', { name: /^Beweglichkeit/ }).click(); await page.waitForTimeout(300); await shot('heute-beweglichkeit-sheet'); await closeDialog(); });
 
   // Woche: the week and three rows; goal, rules and the coach chat are sheets.
   await nav('Woche');
@@ -417,6 +419,8 @@ async function main() {
   await page.getByRole('navigation').waitFor();
   await page.waitForFunction(() => document.body.innerText.length > 0);
   await page.waitForTimeout(3500);
+  await nav('Heute');
+  await page.getByRole('button', { name: 'Weitermachen' }).waitFor({ timeout: 10_000 }); // the open workout must really be on Heute
   await shot('heute-training-offen');
   await nav('Kraft');
   await page.waitForTimeout(1000);

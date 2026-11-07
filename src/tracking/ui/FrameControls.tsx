@@ -18,12 +18,17 @@ export function PlanningLine({ frame, onMode, onMinutes }: { frame: Frame; onMod
   );
 }
 
-/** "Heute nur [–|20|30|45|60] Min": a lower time for today only. */
+/** "Heute nur" with chips for 20, 30, 45 and 60 Min and "Wie geplant": a lower time for today only. */
 export function TodayOnly({ frame, date, onChange }: { frame: Frame; date: string; onChange: (m: number | null) => void }) {
   const value = frame.today?.date === date ? frame.today.minutes : null;
   return (
-    <label className="tk-today-only muted">Heute nur <select aria-label="Heute nur" value={value ?? ''} onChange={(e) => onChange(parse(e.target.value))}>
-      <option value="">–</option>{minuteChoices().filter((m) => m <= 60).map((m) => <option key={m} value={m}>{m}</option>)}
-    </select> Min</label>
+    <div className="tk-today-only" role="group" aria-label="Heute nur">
+      <span className="muted">Heute nur</span>
+      <div className="tk-chips">
+        {minuteChoices().filter((m) => m <= 60).map((m) => (
+          <button key={m} type="button" className="secondary" aria-pressed={value === m} onClick={() => onChange(value === m ? null : m)}>{m} Min</button>
+        ))}
+      </div>
+    </div>
   );
 }
