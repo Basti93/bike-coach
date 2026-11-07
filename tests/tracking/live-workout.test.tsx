@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { WorkoutScreen } from '../../src/tracking/ui/WorkoutScreen';
 import type { LoggedWorkout, TrackedRecord } from '../../src/shared/records';
 import { fakePort } from './fake-port';
@@ -142,4 +142,73 @@ test('the start screen: studio is a row, the others live behind "Anderes Trainin
   fireEvent.click(screen.getByRole('button', { name: 'Anderes Training' }));
   fireEvent.click(within(screen.getByRole('dialog', { name: 'Anderes Training' })).getByRole('button', { name: 'Leeres Training starten' }));
   await waitFor(() => expect(f.state.puts.some((p) => p.kind === 'workout')).toBe(true));
+});
+
+describe('Reihenfolge by holding a title', () => {
+  const titleBtn = (t: string) => toggle(t);
+  const down = (el: Element, x = 10, y = 100) => fireEvent.pointerDown(el, { clientX: x, clientY: y, pointerId: 1, button: 0, pointerType: 'touch' });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); });
+  afterEach(() => { vi.useRealTimers(); });
+  const order = (m: Map<string, TrackedRecord>) => bodyOf(m).exercises.map((e) => e.title).join(',');
+
+  test('a long press enters the mode, a short tap does not', async () => {
+    vi.useRealTimers();
+    await running();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    down(titleBtn('Kreuzheben'));
+    act(() => { vi.advanceTimersByTime(200); });
+    fireEvent.pointerUp(titleBtn('Kreuzheben'));
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByRole('list', { name: 'Reihenfolge der Übungen' })).toBeNull();
+    down(titleBtn('Kreuzheben'));
+    act(() => { vi.advanceTimersByTime(460); });
+    expect(screen.getByRole('list', { name: 'Reihenfolge der Übungen' })).toBeTruthy();
+  });
+
+  test('moving more than 8 px before the timer cancels the long press', async () => {
+    vi.useRealTimers();
+    await running();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    down(titleBtn('Kreuzheben'));
+    act(() => { vi.advanceTimersByTime(200); });
+    fireEvent.pointerMove(titleBtn('Kreuzheben'), { clientX: 10, clientY: 120, pointerId: 1 });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByRole('list', { name: 'Reihenfolge der Übungen' })).toBeNull();
+  });
+
+  test('dragging the held row writes the new order; Fertig leaves the mode', async () => {
+    vi.useRealTimers();
+    const f = await running(); // Bankdrücken, Kniebeuge, Kreuzheben
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const i = Number((this as HTMLElement).dataset.i ?? -1);
+      return { top: i * 50, height: 50, bottom: i * 50 + 50, left: 0, right: 0, width: 0, x: 0, y: i * 50, toJSON: () => ({}) };
+    });
+    const mark = (el: Element, i: number) => (el as HTMLElement).setAttribute('data-i', String(i));
+    down(titleBtn('Kreuzheben'), 10, 125);
+    act(() => { vi.advanceTimersByTime(460); });
+    const list = screen.getByRole('list', { name: 'Reihenfolge der Übungen' });
+    [...list.children].forEach(mark);
+    // rects are read when a drag begins: grab the grip of the last row again so they are measured with the marks
+    fireEvent.pointerDown(within(list.children[2] as HTMLElement).getByText('⋮⋮'), { clientX: 10, clientY: 125, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 10, pointerId: 1 }); // up to the first place
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 10, pointerId: 1 });
+    spy.mockRestore();
+    vi.useRealTimers();
+    await waitFor(() => expect(order(f.map)).toBe('Kreuzheben,Bankdrücken,Kniebeuge'));
+    expect(bodyOf(f.map).exercises[2]!.sets[0]!.doneMs).toBe(7000); // done sets stay with their exercise
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }));
+    expect(screen.queryByRole('list', { name: 'Reihenfolge der Übungen' })).toBeNull();
+  });
+
+  test('the arrow buttons move one place', async () => {
+    vi.useRealTimers();
+    const f = await running();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    down(titleBtn('Kreuzheben'));
+    act(() => { vi.advanceTimersByTime(460); });
+    vi.useRealTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Kreuzheben nach oben' }));
+    await waitFor(() => expect(order(f.map)).toBe('Bankdrücken,Kreuzheben,Kniebeuge'));
+  });
 });

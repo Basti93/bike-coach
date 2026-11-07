@@ -458,6 +458,21 @@ async function main() {
     await step('kraft-training-active-menu', async () => { await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); await shot('kraft-training-active-uebung-menue'); await page.getByRole('button', { name: 'Mehr', exact: true }).click(); await shot('kraft-training-active-uebung-menue-mehr'); await closeDialog(); });
     await step('kraft-training-active-header-menu', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await shot('kraft-training-active-kopf-menue'); await closeDialog(); });
     await step('kraft-training-active-studio', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await page.getByRole('button', { name: /^Studio wechseln/ }).click(); await shot('kraft-training-active-studio'); await closeDialog(); });
+    await step('kraft-training-active-reorder', async () => {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const box = await page.locator('.tk-hold').nth(1).boundingBox();
+      if (!box) throw new Error('no exercise title');
+      await page.mouse.move(box.x + 60, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700);
+      await page.mouse.move(box.x + 60, box.y + box.height / 2 + 70, { steps: 6 });
+      await page.waitForTimeout(300);
+      await shot('kraft-training-active-reihenfolge');
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      await shot('kraft-training-active-reihenfolge-danach');
+      await page.getByRole('button', { name: 'Fertig' }).click();
+    });
     await step('kraft-training-active-picker', async () => { await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-training-active-uebung-hinzufuegen'); await closeDialog(); });
     await step('kraft-training-active-set-edit', async () => { await page.getByLabel('Gewicht Satz 1').first().focus(); await shot('kraft-training-active-tippen'); await page.getByLabel('Gewicht Satz 1').first().blur(); });
     await step('kraft-training-summary', async () => {
