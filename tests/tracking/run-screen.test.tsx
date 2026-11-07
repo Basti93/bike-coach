@@ -285,6 +285,9 @@ test('Entwicklung is a row; its sheet says the easy pace in one sentence with de
   const sheet = within(await screen.findByRole('dialog', { name: 'Entwicklung' }));
   expect(sheet.getByText(/jetzt 6:12 \/km, vor 4 Wochen 6:24 \/km, vor 12 Wochen 6:40 \/km/)).toBeTruthy();
   expect(document.querySelectorAll('.tk-spark')).toHaveLength(0);
+  expect(sheet.queryByText(/Ein einzelner Lauf/)).toBeNull();
+  expect(sheet.queryByRole('heading', { name: 'Längster Lauf' })).toBeNull();
+  fireEvent.click(sheet.getByRole('button', { name: /^Mehr/ }));
   expect(sheet.getByRole('heading', { name: 'Längster Lauf' }).closest('section')!.textContent).toContain('8,5 km');
   const km = sheet.getByRole('heading', { name: 'Kilometer pro Woche' }).closest('section')!;
   expect(km.textContent).toContain('12,3 km');
@@ -297,8 +300,9 @@ test('the weekly look back sits in the Entwicklung sheet, newest first', async (
   render(<RunScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: /^Entwicklung/ }));
   const sheet = within(await screen.findByRole('dialog', { name: 'Entwicklung' }));
+  fireEvent.click(sheet.getByRole('button', { name: /^Mehr/ }));
   expect(sheet.getByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
-  const items = sheet.getAllByRole('listitem');
+  const items = sheet.getAllByRole('listitem').filter((li) => /km in/.test(li.textContent ?? '') && !li.querySelector('li'));
   expect(items[0]!.textContent).toContain('12,5 km');
   expect(items[1]!.textContent).toContain('9,0 km');
 });

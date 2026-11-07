@@ -58,7 +58,7 @@ void runFp;
 test('the run question is answered once, thanks, and then gone', async () => {
   const { port, state } = fakePort([status('2026-11-03')]);
   render(<RunScreen port={port} now={() => NOW} newId={() => 'u'} />);
-  expect(await screen.findByText(/Wie war der Lauf am Dienstag/)).toBeTruthy();
+  expect(await screen.findByText(/Wie war er\?/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'schwer' }));
   await waitFor(() => expect(state.puts.filter((p) => p.id === 'run-feel-g1')).toHaveLength(1));
   expect(state.puts.find((p) => p.id === 'run-feel-g1')!.body).toMatchObject({ type: 'feel', runId: 'g1', feel: 'hard', atMs: NOW });

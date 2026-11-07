@@ -97,7 +97,6 @@ function Progress({ n }: { n: RunNumbers }) {
     <section>
       <h3 className="tk-section">Dein Fortschritt</h3>
       <p>Ruhiges Tempo bei gleichem Puls: {parts.join(', ')}.</p>
-      <p className="muted">Ein einzelner Lauf sagt dazu nichts.</p>
     </section>
   );
 }
@@ -137,12 +136,20 @@ const hasProgress = (n: RunNumbers) => n.easyPace.now !== null || n.easyPace.wee
 
 /** Everything about how it goes over the weeks, in one sheet: nothing of it is on the page itself. */
 function Development({ n, reviews, onClose }: { n: RunNumbers; reviews: RunReviewBody[]; onClose: () => void }) {
+  const [more, setMore] = useState(false);
+  const hasMore = n.longest.blockKm !== null || reviews.length > 0;
   return (
     <Sheet title="Entwicklung" onClose={onClose}>
       <Progress n={n} />
-      <Longest n={n} />
       <WeeklyKm n={n} />
-      {reviews.length > 0 && <section><h3 className="tk-section">Wochenrückblick</h3><ReviewList reviews={reviews} /></section>}
+      {hasMore && (
+        <RowList>
+          <Row title="Mehr" expanded={more} onClick={() => setMore(!more)}>
+            <Longest n={n} />
+            {reviews.length > 0 && <section><h3 className="tk-section">Wochenrückblick</h3><ReviewList reviews={reviews} /></section>}
+          </Row>
+        </RowList>
+      )}
     </Sheet>
   );
 }
@@ -246,13 +253,13 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
       {status.on && !paused && today && (
         <section className="card" aria-label="Heute">
           <p className="tk-today-line"><b>{KIND[today.kind]}</b> · {today.minutes} Min{today.hrCap !== null ? ` · Puls bis ${today.hrCap}` : ''}</p>
-          <p className="muted">{today.counts}</p>
+          {today.kind !== 'long' && <p className="muted">{today.counts}</p>}
         </section>
       )}
       {showWeek && week && (
         <section className="tk-weekinfo" aria-label="Läufe dieser Woche">
           {week.reason && <p className="muted">{week.reason}</p>}
-          {week.note && <p>{week.note}</p>}
+          {week.note && today?.hrCap == null && <p>{week.note}</p>}
           {status.garmin && <GarminBlock week={week} pending={pending} onSend={send} />}
         </section>
       )}
@@ -264,7 +271,7 @@ export function RunScreen({ port, now, newId }: { port: TrackingPort; now: () =>
           <p><b>{shortDateOfKey(status.card.date)}</b> · {status.card.result}</p>
           <p className="muted">{status.card.sentence}</p>
           {feelAsked(status.card, answeredFeels, now()) && (
-            <RunFeelQuestion date={status.card.date}
+            <RunFeelQuestion
               onAnswer={(feel) => {
                 const runId = status.card!.runId;
                 if (byId(runFeelId(runId))) return;

@@ -1,6 +1,5 @@
 import { ruleNumber } from '../../shared/training-policy';
 import type { RunFeel as Feel } from '../../shared/run';
-import { dayName } from './WeekList';
 
 const DAY = 86_400_000;
 /** The question is asked for the newest run of the last 3 days (register: run.feel-ask-days). */
@@ -15,15 +14,15 @@ export const feelAsked = (card: { runId: string; date: string } | null, answered
 };
 
 /** One line after a run: how was it. One tap, skippable, written once. */
-export function RunFeelQuestion({ date, onAnswer }: { date: string; onAnswer: (feel: Feel | null) => void }) {
+export function RunFeelQuestion({ onAnswer }: { onAnswer: (feel: Feel | null) => void }) {
   const tap = onAnswer;
   return (
     <section className="tk-feel" aria-label="Wie war der Lauf?">
-      <p>Wie war der Lauf am {dayName(date)}?</p>
+      <p>Wie war er?</p>
       <div className="tk-chips">
         {(Object.keys(LABEL) as Feel[]).map((f) => <button key={f} type="button" className="secondary" onClick={() => tap(f)}>{LABEL[f]}</button>)}
+        <button type="button" className="link tk-skip-feel" onClick={() => tap(null)}>Überspringen</button>
       </div>
-      <button type="button" className="link tk-skip-feel" onClick={() => tap(null)}>Überspringen</button>
     </section>
   );
 }

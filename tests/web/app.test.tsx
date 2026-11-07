@@ -662,6 +662,7 @@ describe('Laufen on the phone', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Laufen' }));
     expect(screen.queryByRole('heading', { name: 'Wochenrückblick' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: /^Entwicklung/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Mehr/ }));
     expect(await screen.findByRole('heading', { name: 'Wochenrückblick' })).toBeTruthy();
     expect(screen.getByText(/12,5 km/)).toBeTruthy();
   });
