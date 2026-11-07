@@ -721,3 +721,15 @@ test('the start screen shows what the plan holds before starting', async () => {
   expect([...card.querySelectorAll('li')].map((l) => l.textContent)).toEqual(['Bankdrücken · 3 × 8 · 62,5 kg', 'Kniebeuge · 2 × 8–12']);
   expect(within(card).getByRole('button', { name: 'Oberkörper starten' })).toBeTruthy();
 });
+
+test('the rest timer has +30 s, and the per-exercise Pause select sets the rest', async () => {
+  const w = { ...open(), rest: { startMs: 70_000, durationS: 90 } };
+  const { port, map } = fakePort([rec(w as LoggedWorkout)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: '+30 s' }));
+  await waitFor(() => expect((bodyOf(map, 'workout:open1') as unknown as { rest: { durationS: number } }).rest.durationS).toBe(120));
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
+  fireEvent.change(screen.getByLabelText('Pause Bankdrücken'), { target: { value: '180' } });
+  await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
+});

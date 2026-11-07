@@ -481,7 +481,7 @@ export class GymCoach {
       }
     } else if (how === 'harder') {
       for (const e of w.exercises) {
-        if (w.exercises.reduce((n, x) => n + x.sets.length, 0) >= MAX_SETS) break;
+        if (w.exercises.reduce((n, x) => n + x.sets.filter((s) => s.type !== 'warmup').length, 0) >= MAX_SETS) break;
         const last = e.sets.map((s, i) => ({ s, i })).filter(({ s, i }) => s.type === 'normal' && !isWidowSet(e, i)).pop();
         if (last && !isWidowmaker(e)) e.sets.push({ ...last.s });
       }

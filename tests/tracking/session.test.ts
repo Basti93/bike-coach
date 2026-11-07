@@ -1,6 +1,6 @@
 import {
   addExercise, addSet, confirmSet, editSet, finish, hereKey, lastValues, parseDecimal, formatDecimal, removeExercise, removeSet,
-  durationLabel, linkWith, currentSet, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
+  durationLabel, linkWith, currentSet, supersetPartners, unlinkSuperset, setEffort, startEmpty, startFromPlan, startFromRoutine, swapExercise, restRemainingS, ensureIds, editNotes,
 } from '../../src/tracking/session';
 import type { LoggedWorkout } from '../../src/shared/records';
 import { studioRecord, studioStateOf } from '../../src/shared/studio';
@@ -241,6 +241,30 @@ describe('supersets', () => {
     expect(currentSet(x)).toMatchObject({ ex: b.rid, round: 1 });
     // A skipped: B
     expect(currentSet(setEffort(ab, a.rid, 'skip'))!.ex).toBe(b.rid);
+  });
+
+  it('warm-ups come before the first round and rounds count work sets', () => {
+    const mkEx = (id: string, warm: number, work: number) => ({ templateId: id, title: id, restS: 90, supersetId: null, notes: '', sets: [
+      ...Array.from({ length: warm }, () => ({ type: 'warmup' as const, weightKg: 10, reps: 5 })),
+      ...Array.from({ length: work }, () => ({ type: 'normal' as const, weightKg: 20, reps: 10 })),
+    ] });
+    let w = startFromPlan({ name: 'S', exercises: [mkEx('pf-bench-press', 2, 3), mkEx('pf-squat', 0, 3)] }, [], 1000, 'w1');
+    w = link(w, 0, 1);
+    const label = (rid: string, set: string) => { const e = w.exercises.find((x) => x.rid === rid)!; const s = e.sets.find((x) => x.rid === set)!; return `${e.title === 'pf-bench-press' ? 'A' : 'B'}${s.type === 'warmup' ? 'W' : ''}${e.sets.filter((x) => x.type !== 'warmup').indexOf(s) + 1}`; };
+    const order: string[] = [];
+    for (let k = 0; k < 8; k++) { const c = currentSet(w)!; order.push(label(c.ex, c.set)); w = confirmSet(w, c.ex, c.set, 10 + k); }
+    expect(order).toEqual(['AW0', 'AW0', 'A1', 'B1', 'A2', 'B2', 'A3', 'B3']);
+    expect(currentSet(w)).toBeNull();
+  });
+
+  it('a partner whose group has a done set can not be linked or offered', () => {
+    const ab = link(start(), 0, 1);
+    const [a, b] = ab.exercises;
+    const x = confirmSet(ab, b.rid, b.sets[0].rid, 5000);
+    const c = x.exercises[2];
+    expect(linkWith(x, c.rid, a.rid)).toBe(x);
+    expect(supersetPartners(x, c.rid).map((p) => p.rid)).toEqual([]);
+    expect(supersetPartners(ab, c.rid).map((p) => p.rid).sort()).toEqual([a.rid, b.rid].sort());
   });
 
   it('rest only after the round, whatever order it was trained in', () => {

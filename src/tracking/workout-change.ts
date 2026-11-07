@@ -1,3 +1,4 @@
+import { tidyGroups } from '../shared/superset';
 import type { WorkoutChange, WorkoutOp } from '../shared/chat';
 import type { Exercise } from '../shared/exercises';
 import type { LoggedWorkout } from '../shared/records';
@@ -109,5 +110,5 @@ export function undoChange(w: TrackedWorkout, id: string): { workout: TrackedWor
   });
   const changes = (w.changes ?? []).filter((x) => x.id !== id);
   const { changes: _old, ...rest } = w;
-  return { workout: { ...rest, exercises, ...(changes.length ? { changes } : {}) }, refusal: null };
+  return { workout: { ...rest, exercises: tidyGroups(exercises), ...(changes.length ? { changes } : {}) }, refusal: null };
 }

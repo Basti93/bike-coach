@@ -23,6 +23,8 @@ const workout: GymWorkout = {
       { type: 'normal', weightKg: 60, reps: 8, repRange: { start: 6, end: 10 } },
     ] },
     { templateId: 'T2', title: 'Pull-up', restS: null, supersetId: 0, notes: '', sets: [{ type: 'normal', weightKg: null, reps: 8 }] },
+    { templateId: 'T3', title: 'Dip', restS: 9999, supersetId: 0, notes: '', sets: [{ type: 'normal', weightKg: null, reps: 8 }] },
+    { templateId: 'T4', title: 'Lone', restS: 30, supersetId: 7, notes: '', sets: [{ type: 'normal', weightKg: null, reps: 8 }] },
   ],
 };
 const none = { routineId: null, updatedAt: null };
@@ -141,7 +143,9 @@ describe('HevyRoutines', () => {
           { type: 'warmup', weight_kg: 20, reps: 10, rep_range: null },
           { type: 'normal', weight_kg: 60, reps: 8, rep_range: { start: 6, end: 10 } },
         ] },
-        { exercise_template_id: 'T2', superset_id: 0, rest_seconds: null, notes: '', sets: [{ type: 'normal', weight_kg: null, reps: 8, rep_range: null }] },
+        { exercise_template_id: 'T2', superset_id: 0, rest_seconds: 90, notes: '', sets: [{ type: 'normal', weight_kg: null, reps: 8, rep_range: null }] },
+        { exercise_template_id: 'T3', superset_id: 0, rest_seconds: 600, notes: '', sets: [{ type: 'normal', weight_kg: null, reps: 8, rep_range: null }] },
+        { exercise_template_id: 'T4', superset_id: null, rest_seconds: 30, notes: '', sets: [{ type: 'normal', weight_kg: null, reps: 8, rep_range: null }] },
       ],
     } });
     expect(calls.every((c) => c.key === KEY)).toBe(true);

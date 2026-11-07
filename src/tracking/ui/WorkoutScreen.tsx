@@ -225,7 +225,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
               <span className="tk-ex-icon">{icon}</span>
               <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
               {allDone && <span className="tk-ex-badge">Erledigt</span>}
-              {e.supersetId !== null && <span className="muted">Superset{isCurrent && current ? ` · Runde ${current.round}` : ''}</span>}
+              {e.supersetId !== null && <span className="muted">Superset{isCurrent && current && current.round > 0 ? ` · Runde ${current.round}` : ''}</span>}
               <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
             </div>
             {menu === e.rid && (

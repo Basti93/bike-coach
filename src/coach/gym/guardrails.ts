@@ -126,7 +126,7 @@ export function checkWorkout(raw: unknown, ctx: GymContext): CheckResult {
     if (exercises.some((e) => isExcluded(e, ctx.excluded, ctx.catalog ?? [], ctx.links))) return no('Übung ausgeschlossen (Regel der Person)');
     if (ctx.avoidLegs === true && parsed.some((p) => LEG_MUSCLES.includes(p.template.primaryMuscle))) return no('Beine heute nicht');
     const all = exercises.flatMap((e) => e.sets);
-    if (all.length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
+    if (all.filter((s) => s.type !== 'warmup').length > MAX_SETS) return no(`mehr als ${MAX_SETS} Sätze`);
     if (all.filter((s) => s.type === 'failure').length > MAX_FAILURE_SETS) return no(`mehr als ${MAX_FAILURE_SETS} Sätze bis zum Versagen`);
     if (exercises.filter((e) => isWidowmaker(e.notes)).length > MAX_WIDOWMAKERS) return no(`mehr als ${MAX_WIDOWMAKERS} Widowmaker`);
     const ids = exercises.map((e) => e.supersetId).filter((v): v is number => v !== null);

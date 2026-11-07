@@ -53,6 +53,16 @@ test('undo after a move restores rows next to their anchor', () => {
   expect(titles(u.workout)).toBe('BCDA');
 });
 
+test('undo leaves no group of one member behind', () => {
+  const w = start();
+  const t = taken(w, [{ op: 'drop', ex: rid(w, 1) }]).workout; // A C D
+  const grouped = linkWith(t, rid(t, 0), rid(t, 1)); // A+C
+  const lone = { ...grouped, exercises: grouped.exercises.filter((e) => e.title !== 'C') }; // A alone, still in a group id
+  expect(lone.exercises[0]!.supersetId).not.toBeNull();
+  const u = undoChange(lone, 'c1').workout; // B comes back between A and D
+  expect(u.exercises.map((e) => e.supersetId).every((g) => g === null)).toBe(true);
+});
+
 test('an anchor of null means the start; an entry without anchor uses pos', () => {
   const w = start();
   const t0 = taken(w, [{ op: 'drop', ex: rid(w, 0) }]).workout; // B C D

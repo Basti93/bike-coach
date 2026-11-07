@@ -1,4 +1,5 @@
-import { contiguousGroups } from '../../shared/superset';
+import { tidyGroups } from '../../shared/superset';
+import { restOf } from '../../shared/rest';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ExerciseTemplate, GymWorkout } from './types';
@@ -103,8 +104,8 @@ export class HevyRoutines {
   private body(workout: GymWorkout, folderId: number | null) {
     return { routine: {
       title: workout.name, ...(folderId !== null ? { folder_id: folderId } : {}), notes: '',
-      exercises: contiguousGroups(workout.exercises).map((e) => ({
-        exercise_template_id: e.templateId, superset_id: e.supersetId, rest_seconds: e.restS, notes: e.notes,
+      exercises: tidyGroups(workout.exercises).map((e) => ({
+        exercise_template_id: e.templateId, superset_id: e.supersetId, rest_seconds: Math.max(0, Math.min(600, Math.round(restOf(e)))), notes: e.notes,
         sets: e.sets.map((s) => ({ type: s.type, weight_kg: s.weightKg, reps: s.reps, rep_range: s.repRange ?? null })),
       })),
     } };

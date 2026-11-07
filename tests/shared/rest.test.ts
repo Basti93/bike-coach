@@ -16,8 +16,24 @@ describe('restOf', () => {
     expect(restOf({ exerciseId: 'pf-lateral-raise', sets: sets(10) })).toBe(90);
     expect(restOf({ exerciseId: 'unknown-id', sets: sets(null) })).toBe(90);
   });
+  it('compound means a big group plus a secondary muscle in another group, not the equipment', () => {
+    expect(restOf({ exerciseId: 'pf-leg-curl', sets: sets(10) })).toBe(90);
+    expect(restOf({ exerciseId: 'pf-bench-press', sets: sets(10) })).toBe(150);
+  });
   it('flipped the used rest rules to active', () => {
     for (const id of ['rest.compound-s', 'rest.isolation-s', 'rest.heavy-strength-s']) expect(policyRule(id).status).toEqual({ state: 'active' });
+  });
+});
+
+describe('rest with warm-ups', () => {
+  const mk = (restS: number) => ({ templateId: 'x', title: 'x', restS, supersetId: 1, notes: '', sets: [{ type: 'warmup' as const, weightKg: 10, reps: 5 }, ...sets(10, 2)] });
+  it('a warm-up pairs with nothing; rounds count work sets', () => {
+    const w = startFromPlan({ name: 'S', exercises: [mk(60), { ...ex('b', 120, 10, 1, 2) }] }, [], 10, 'w1');
+    const [a, b] = w.exercises;
+    expect(confirmSet(w, a.rid, a.sets[0].rid, 1000).rest?.durationS).toBe(60);
+    const x = confirmSet(w, a.rid, a.sets[1].rid, 1000);
+    expect(x.rest).toBeNull();
+    expect(confirmSet(x, b.rid, b.sets[0].rid, 2000).rest?.durationS).toBe(120);
   });
 });
 

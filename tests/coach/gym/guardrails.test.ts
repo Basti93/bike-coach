@@ -43,6 +43,16 @@ describe('checkWorkout', () => {
     refused(wo([]));
     refused(wo([ex('cp', [])]));
   });
+  it('warm-up sets do not count toward the set limit', () => {
+    const warm = Array.from({ length: 4 }, () => set(20, 5, 'warmup'));
+    passes(wo([ex('cp', [...warm, ...Array.from({ length: 30 }, () => set(40, 8))])]));
+    refused(wo([ex('cp', [...warm, ...Array.from({ length: 31 }, () => set(40, 8))])]));
+  });
+  it('the plan keeps all its work sets whatever ramps it adds', () => {
+    const plan = ruleWorkout(CTX).workout;
+    expect(plan.exercises.some((e) => e.sets.some((s) => s.type === 'warmup'))).toBe(true);
+    for (const e of plan.exercises) expect(e.sets.filter((s) => s.type !== 'warmup')).toHaveLength(3);
+  });
   it('a weight above suggestNext plus one reachable step is refused', () => {
     passes(wo([ex('cp', [set(40, 9)])]));
     passes(wo([ex('cp', [set(45, 8)])]));

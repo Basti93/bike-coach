@@ -1,5 +1,5 @@
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
-import { MAX_SETS, RECENT_DAYS } from './limits';
+import { RECENT_DAYS } from './limits';
 import { muscleGroupOf, repRangeOf } from '../../shared/muscle-targets';
 import { LEG_MUSCLES, availableExercises, isRepBased, ladderFor, recentLegWork, suggestNext } from './history';
 import { isExcluded } from '../../shared/excluded';
@@ -22,19 +22,17 @@ function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   return { templateId: t.id, title: t.title, restS: restOf({ templateId: t.id, title: t.title, sets }, [t]), supersetId: null, notes: '', sets };
 }
 
-/** The first exercise of each muscle group gets the warm-up ramp before its work sets, when its working weight is known and the set limit allows. */
+/** The first exercise of each muscle group gets the warm-up ramp before its work sets, when its working weight is known. Warm-up sets are outside the set limit. */
 function withRamps(templates: ExerciseTemplate[], exercises: GymExercise[], ctx: GymContext): GymExercise[] {
   const seen = new Set<string>();
   const plan = { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames };
-  let total = exercises.reduce((n, e) => n + e.sets.length, 0);
   return exercises.map((e, i) => {
     const t = templates[i]!;
     const group = muscleGroupOf(t);
     if (seen.has(group)) return e;
     seen.add(group);
     const ramp = warmupRamp({ workingKg: workingWeightOf(e), equipment: t.equipment, type: t.type, ladder: ladderFor(t.id, t, ctx.workouts, ctx.nowMs, plan) });
-    if (ramp.length === 0 || total + ramp.length > MAX_SETS) return e; // the plan stays within the set limit
-    total += ramp.length;
+    if (ramp.length === 0) return e; // warm-ups never count toward the set limit, and never take work sets away
     return { ...e, sets: [...ramp.map((r) => ({ type: 'warmup' as const, weightKg: r.weightKg, reps: r.reps })), ...e.sets] };
   });
 }

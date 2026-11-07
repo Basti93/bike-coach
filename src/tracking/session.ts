@@ -271,7 +271,8 @@ export function durationLabel(ms: number): string {
 export function linkWith(w: TrackedWorkout, ex: string, partner: string): TrackedWorkout {
   const a = w.exercises.find((x) => x.rid === ex), p = w.exercises.find((x) => x.rid === partner);
   if (!a || !p || a === p || (a.supersetId !== null && a.supersetId === p.supersetId)) return w;
-  if (p.sets.some(isDone)) return w;
+  const groupOf = (x: TrackedExercise) => (x.supersetId === null ? [x] : w.exercises.filter((y) => y.supersetId === x.supersetId));
+  if (groupOf(p).some((x) => x.sets.some(isDone))) return w;
   const id = a.supersetId ?? p.supersetId ?? Math.max(-1, ...w.exercises.map((x) => x.supersetId ?? -1)) + 1;
   const moving = (x: TrackedExercise) => x === p || (p.supersetId !== null && x.supersetId === p.supersetId);
   const base = contiguousGroups(w.exercises.filter((x) => !moving(x)));
@@ -285,7 +286,8 @@ export function linkWith(w: TrackedWorkout, ex: string, partner: string): Tracke
 /** The exercises other than `ex` that can be its partner: unstarted and not already in its group. */
 export const supersetPartners = (w: TrackedWorkout, ex: string): TrackedExercise[] => {
   const a = w.exercises.find((x) => x.rid === ex);
-  return a ? w.exercises.filter((x) => x !== a && !x.sets.some(isDone) && (a.supersetId === null || x.supersetId !== a.supersetId)) : [];
+  return a ? w.exercises.filter((x) => x !== a && (a.supersetId === null || x.supersetId !== a.supersetId)
+    && !(x.supersetId === null ? x.sets.some(isDone) : w.exercises.some((y) => y.supersetId === x.supersetId && y.sets.some(isDone)))) : [];
 };
 
 /**
@@ -293,13 +295,20 @@ export const supersetPartners = (w: TrackedWorkout, ex: string): TrackedExercise
  * Members without an open set, or skipped, are passed over. null when nothing is open.
  */
 export function currentSet(w: TrackedWorkout): { ex: string; set: string; round: number } | null {
-  const open = (e: TrackedExercise) => (e.supersetId !== null && e.effort === 'skip' ? -1 : e.sets.findIndex((s) => !isDone(s)));
+  const skipped = (e: TrackedExercise) => e.supersetId !== null && e.effort === 'skip';
+  const work = (e: TrackedExercise) => e.sets.filter((s) => s.type !== 'warmup');
+  /** The index among work sets of the first open work set; -1 when none. */
+  const open = (e: TrackedExercise) => (skipped(e) ? -1 : work(e).findIndex((s) => !isDone(s)));
+  const warm = (e: TrackedExercise) => (skipped(e) ? undefined : e.sets.find((s) => s.type === 'warmup' && !isDone(s)));
   for (const e of w.exercises) {
-    if (open(e) < 0) continue;
-    const members = e.supersetId === null ? [e] : w.exercises.filter((x) => x.supersetId === e.supersetId && open(x) >= 0);
-    const best = members.reduce((m, x) => (open(x) < open(m) ? x : m), members[0]!);
+    const members = e.supersetId === null ? [e] : w.exercises.filter((x) => x.supersetId === e.supersetId);
+    // Warm-ups come before the first round and pair with nothing.
+    for (const x of members) { const s = warm(x); if (s) return { ex: x.rid, set: s.rid, round: 0 }; }
+    const live = members.filter((x) => open(x) >= 0);
+    if (live.length === 0) continue;
+    const best = live.reduce((m, x) => (open(x) < open(m) ? x : m), live[0]!);
     const k = open(best);
-    return { ex: best.rid, set: best.sets[k]!.rid, round: k + 1 };
+    return { ex: best.rid, set: work(best)[k]!.rid, round: k + 1 };
   }
   return null;
 }
