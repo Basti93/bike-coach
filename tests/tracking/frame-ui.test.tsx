@@ -15,14 +15,17 @@ const plan = (sports: string[]): TrackedRecord => ({ kind: 'weekplan', id: '2026
 const frames = (m: Map<string, TrackedRecord>) => [...m.values()].filter((r) => r.kind === 'frame');
 const frameBody = (m: Map<string, TrackedRecord>) => frames(m)[0]!.body;
 
-test('the mode and minutes selects write the frame, stamped above a stored one', async () => {
+test('the planning and time rows in the goal sheet write the frame, stamped above a stored one', async () => {
   const stored = { ...frameRecord({ mode: 'week', minutes: null }, NOW + 5000), updatedMs: NOW + 9000 };
   const { port, map } = fakePort([stored]);
   render(<CoachScreen port={port} {...env} />);
-  fireEvent.change(await screen.findByLabelText('Planung'), { target: { value: 'spontaneous' } });
+  fireEvent.click(await screen.findByRole('button', { name: /^Mein Ziel/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Planung/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Spontan' }));
   await waitFor(() => expect(frameBody(map)).toMatchObject({ mode: 'spontaneous', minutes: null }));
   expect(frames(map)[0]!.updatedMs).toBeGreaterThan(NOW + 9000);
-  fireEvent.change(screen.getByLabelText('Zeit pro Einheit'), { target: { value: '45' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Zeit pro Einheit/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '45 Min' }));
   await waitFor(() => expect(frameBody(map)).toMatchObject({ mode: 'spontaneous', minutes: 45 }));
 });
 

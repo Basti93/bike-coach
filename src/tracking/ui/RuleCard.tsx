@@ -24,7 +24,7 @@ const readGoalField = (body: unknown, key: 'prior' | 'applied'): Goal | null => 
   return typeof o.strength === 'string' && Array.isArray(o.focus) && typeof o.sports === 'object' && o.sports !== null ? (g as Goal) : null;
 };
 
-export function RuleCard({ port, ruleId, records, catalog, now }: { port: TrackingPort; ruleId: string; records: TrackedRecord[] | null; catalog: readonly Exercise[]; now: () => number }) {
+export function RuleCard({ port, ruleId, records, catalog, now, history }: { port: TrackingPort; ruleId: string; records: TrackedRecord[] | null; catalog: readonly Exercise[]; now: () => number; /** In the chat history: one line, no buttons except Rückgängig; a proposal still open is pinned elsewhere. */ history?: boolean }) {
   const [failed, setFailed] = useState(false);
   const [undone, setUndone] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -62,7 +62,21 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       setFailed(false);
     } catch { setFailed(true); }
   };
-  const titles = [...(rule.exerciseIds ?? []).map((id) => catalog.find((e) => e.id === id)?.title ?? id), ...(familyLine(rule) ? [familyLine(rule)] : [])];
+  const family = familyLine(rule);
+  const titles = [...(rule.exerciseIds ?? []).map((id) => catalog.find((e) => e.id === id)?.title ?? id), ...(family && !rule.text.toLowerCase().includes(family.toLowerCase()) ? [family] : [])];
+  if (history) {
+    if (rule.state === 'proposed') return null;
+    const undoable = (rule.state === 'active' || rule.state === 'paused') && (rule.kind !== 'goal' || (rule.state === 'active' && !blocked && readGoalField(rec?.body, 'prior')));
+    const line = rule.state === 'declined' ? DECLINED : `${rule.kind === 'goal' ? 'Ziel geändert' : rule.state === 'paused' ? 'Pausiert' : 'Übernommen'}: ${rule.text}`;
+    return (
+      <div className="tk-histline">
+        <span className="muted">{line}</span>
+        {undoable && <button type="button" className="link" onClick={() => void undo()}>{UNDO}</button>}
+        {blocked && <span className="muted">Geht nicht mehr, weil das Ziel danach geändert wurde.</span>}
+        {failed && <span role="status" className="tk-note">Gerade nicht gespeichert. Versuch es gleich nochmal.</span>}
+      </div>
+    );
+  }
   return (
     <div className="tk-nextchange">
       <p>{rule.state === 'proposed' ? (rule.kind === 'goal' ? `Neues Ziel: ${rule.text}` : `Neue Regel: ${rule.text}`) : rule.text}</p>
@@ -70,13 +84,13 @@ export function RuleCard({ port, ruleId, records, catalog, now }: { port: Tracki
       {rule.state === 'proposed' && (
         <div className="tk-row">
           <button type="button" onClick={() => void go('active')}>{TAKE}</button>
-          <button type="button" className="ghost" onClick={() => void go('declined')}>{DECLINE}</button>
+          <button type="button" className="link" onClick={() => void go('declined')}>{DECLINE}</button>
         </div>
       )}
       {(rule.state === 'active' || rule.state === 'paused') && (
         <div className="tk-row">
           <span className="muted">{rule.kind === 'goal' ? 'Ziel geändert.' : rule.state === 'paused' ? 'Pausiert.' : 'Gilt ab jetzt.'}</span>
-          {(rule.kind !== 'goal' || (rule.state === 'active' && !blocked && readGoalField(rec?.body, 'prior'))) && <button type="button" className="ghost" onClick={() => void undo()}>{UNDO}</button>}
+          {(rule.kind !== 'goal' || (rule.state === 'active' && !blocked && readGoalField(rec?.body, 'prior'))) && <button type="button" className="link" onClick={() => void undo()}>{UNDO}</button>}
         </div>
       )}
       {blocked && <p className="muted">Geht nicht mehr, weil das Ziel danach geändert wurde.</p>}

@@ -8,6 +8,7 @@ import { goalRecord } from '../../src/shared/personal';
 import type { TrackedRecord } from '../../src/shared/records';
 import { CoachScreen } from '../../src/tracking/ui/CoachScreen';
 import { fakePort } from '../tracking/fake-port';
+import { openChat } from '../tracking/open-chat';
 
 afterEach(cleanup);
 const NOW = new Date(2026, 10, 4, 18).getTime();
@@ -35,10 +36,12 @@ test('a rider message becomes a proposed exclude rule with valid ids; taking it 
 
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   expect(await screen.findByText(/Betrifft: Kniebeuge, Frontkniebeuge/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
-  expect(await screen.findByText('Gilt ab jetzt.')).toBeTruthy();
+  expect(await screen.findByText(/^Übernommen: Keine Kniebeugen mehr/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Übernehmen' })).toBeNull(); // it left the pin
   const excluded = excludedOf({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p', EXERCISES);
   expect([...excluded].sort()).toEqual(['pf-front-squat', 'pf-squat']);
   // Task 2 enforcement: a swap into it is refused
@@ -48,6 +51,7 @@ test('a rider message becomes a proposed exclude rule with valid ids; taking it 
   // reload keeps the state, and Rückgängig deletes the rule
   cleanup();
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(map.get('rule:rule-m1')!.deleted).toBe(true));
 });
@@ -57,6 +61,7 @@ test('Nein danke declines', async () => {
   await coach.tick('p');
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Nein danke' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('declined'));
 });
@@ -94,6 +99,7 @@ test('a goal proposal writes the goal record on take, merged into the current go
   expect(goalOfProfile(store as never, 'p', '2026-11-04').strength).toBe('muscle');
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
   const g = goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p', '2026-11-04');
@@ -109,6 +115,7 @@ test('a goal Rückgängig is refused once the goal changed since', async () => {
   await coach.tick('p');
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
   await port.put(goalRecord({ strength: 'fitness', focus: [], sports: {} }, NOW + 99_000, map.get('goal:goal')));
@@ -129,6 +136,7 @@ test('a rule deleted elsewhere reads Gelöscht', async () => {
   const r = recs.get('rule:rule-m1')!;
   const { port } = fakePort([...recs.values()].map((x) => (x === r ? { ...r, deleted: true, updatedMs: r.updatedMs + 5 } : x)));
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   expect(await screen.findByText('Gelöscht.')).toBeTruthy();
 });
 
@@ -145,6 +153,7 @@ test('a goal proposal with weeks writes a temporary focus and leaves the base; R
   expect(recs.get('rule:rule-m1')!.body).toMatchObject({ kind: 'goal', goal: { focus: ['back'], weeks: 4 } });
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
   const all = { all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never;

@@ -5,6 +5,7 @@ import { takeWeekPlan, undoWeekPlan, TAKE_REFUSED, UNDO_REFUSED } from '../../sr
 import type { TrackedRecord } from '../../src/shared/records';
 import { weekDates } from '../../src/shared/week-plan';
 import { fakePort } from './fake-port';
+import { openChat } from './open-chat';
 
 afterEach(cleanup);
 const NOW = new Date(2026, 10, 4, 18).getTime();
@@ -61,6 +62,7 @@ test('a take compares the stored plan with the time of the proposal message', as
 test('records without the new fields still read; screen: Rückgängig on the taken message, refusal line when changed', async () => {
   const { port, map } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(sportOf(map)).toBe('bike'));
@@ -70,6 +72,7 @@ test('records without the new fields still read; screen: Rückgängig on the tak
 test('screen: a take on a plan changed after the proposal was shown shows the reason', async () => {
   const { port, map, notify } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   await screen.findByRole('button', { name: 'Übernehmen' });
   map.set('weekplan:2026-11-02', { ...old, updatedMs: NOW }); notify();
   fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
@@ -80,11 +83,13 @@ test('screen: a take on a plan changed after the proposal was shown shows the re
 test('screen: the undone state is remembered in the chat, a reload shows it; a lost "Übernommen." note still shows taken', async () => {
   const { port, map } = fakePort([old, coachMsg]);
   const first = render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(sportOf(map)).toBe('bike'));
   first.unmount();
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   expect(await screen.findByText(/Wochenplan rückgängig gemacht/)).toBeTruthy();
   expect([...map.values()].some((r) => r.kind === 'chat' && (r.body as { undoes?: string }).undoes === 'c1')).toBe(true);
   cleanup();
@@ -92,13 +97,15 @@ test('screen: the undone state is remembered in the chat, a reload shows it; a l
   const lost = fakePort([old, coachMsg]);
   await takeWeekPlan(lost.port, { proposal, changeId: 'c1', shownMs: 5, now: NOW });
   render(<CoachScreen port={lost.port} {...env} />);
-  expect(await screen.findByText(/Wochenplan übernommen/)).toBeTruthy();
+  await openChat();
+  expect(await screen.findByText(/Übernommen: Wochenplan/)).toBeTruthy();
   expect(await screen.findByRole('button', { name: 'Rückgängig' })).toBeTruthy();
 });
 
 test('screen: when the undo is not possible any more the reason stands there instead of a missing button', async () => {
   const { port, map, notify } = fakePort([old, coachMsg]);
   render(<CoachScreen port={port} {...env} />);
+  await openChat();
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await screen.findByRole('button', { name: 'Rückgängig' });
   const cur = map.get('weekplan:2026-11-02')!;

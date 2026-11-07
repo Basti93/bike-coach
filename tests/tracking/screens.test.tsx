@@ -784,8 +784,8 @@ describe('Zuletzt geändert on the week page', () => {
   it('shows up to 5 lines with date, text and reason', async () => {
     const { port } = fakePort([stats([1, 2, 3, 4, 5, 6, 7].map((i) => note(i)))]);
     render(<CoachScreen port={port} now={() => at(8)} newId={() => 'x'} />);
-    const card = await screen.findByLabelText('Zuletzt geändert');
-    const lines = within(card).getAllByRole('listitem');
+    fireEvent.click(await screen.findByRole('button', { name: /^Zuletzt geändert/ }));
+    const lines = within(screen.getByRole('list', { name: 'Zuletzt geändert' })).getAllByRole('listitem');
     expect(lines).toHaveLength(5);
     expect(lines[0]!.textContent).toBe('Sa., 7. Nov. · Bankdrücken 7 – weil du alle Wiederholungen geschafft hast');
   });
@@ -793,9 +793,11 @@ describe('Zuletzt geändert on the week page', () => {
     const { port } = fakePort([]);
     render(<CoachScreen port={port} now={() => at(8)} newId={() => 'x'} />);
     await screen.findByText('Woche');
-    expect(screen.queryByLabelText('Zuletzt geändert')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Zuletzt geändert/ })).toBeNull();
     const second = fakePort([stats([note(3, { reason: '' })])]);
     render(<CoachScreen port={second.port} now={() => at(8)} newId={() => 'x'} />);
-    expect((await screen.findByLabelText('Zuletzt geändert')).textContent).toContain('Di., 3. Nov. · Bankdrücken 3');
+    fireEvent.click(await screen.findByRole('button', { name: /^Zuletzt geändert/ }));
+    expect(screen.getByRole('list', { name: 'Zuletzt geändert' }).textContent).toContain('Di., 3. Nov. · Bankdrücken 3');
+    expect(screen.getByRole('list', { name: 'Zuletzt geändert' }).textContent).not.toContain('–');
   });
 });
