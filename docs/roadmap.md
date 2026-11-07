@@ -32,7 +32,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **E Meine Regeln und Ziele wirken** | „Künftig keine Kniebeugen“ wird als Regel vorgeschlagen, bestätigt, angezeigt und wirkt in jeder Planung; Löschen hebt die Wirkung auf. | Auftrag 5 |
 | ✅ | **F Planung ist flexibel** | Feste Woche oder spontan, Kombination an einem Tag, Zeitrahmen; „was heute geht“ mit Grund in einem Satz. | Auftrag 6–7 |
 | ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
-| **H** | **Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
+| ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 
 Die Reihenfolge folgt dem Nutzen: A–C machen die Kraftdaten verlässlich, D ist die Voraussetzung dafür, dass E–H dem Coach mehr erlauben.
 
@@ -176,7 +176,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Verschieben mit „Nach oben/unten“ im Übungsmenü statt Ziehen (leicht, sicher auf dem Handy); Bewegungsblock = Muskelgruppe der Übung (B-Gruppen); Aufwärmen in der App nur als Angebot, im einfachen Coach-Plan automatisch; Steigerung 40 %×5, 60 %×3, 80 %×2, bei Langhantel zuerst die leere Stange (Werte im Regelregister).
 
-## Meilenstein H — Brief
+## Meilenstein H — Brief (umgesetzt 07.11.2026)
 
 **Ziel:** Über Wochen bleibt nachvollziehbar, was der Coach tut und warum: Schwerpunkte haben ein Ende, deine Rückmeldung zeigt sichtbar Wirkung, und der Chat ist ein Verlauf mit Datum und Uhrzeit.
 
@@ -238,3 +238,8 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Pausen pro einzelnem Satz und Aufwärmen nach Erfahrung der Person.
   - Verschieben per Ziehen statt über das Menü.
   - Eigene Pausen-Einstellung geht beim Tauschen einer Übung verloren (die neue Übung bekommt ihre eigene Pause).
+- Aus Meilenstein H:
+  - „Nächstes Mal“ steht nur im Verlauf beim letzten Training; eine eigene Zusammenfassung nach dem Training fehlt.
+  - Rad-Änderungen ohne eigenen Grund erscheinen in „Zuletzt geändert“ ohne „– Grund“.
+  - Chat-Nachrichten werden weiter nach 90 Tagen gelöscht (alte Regel, bewusst beibehalten).
+  - Läufe haben keine eigene Rückfrage nach dem Training.

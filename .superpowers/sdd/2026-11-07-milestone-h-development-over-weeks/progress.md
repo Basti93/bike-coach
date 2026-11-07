@@ -12,3 +12,5 @@ Branch: milestone-h-development-over-weeks
 - Chat retention stays 90 days; only display changes.
 
 ## Tasks
+- T1 temporary focus: 9752a5d. Review, for final fix (RulesCard): spread old temporary instead of rebuilding (keep endedSeenMs); while a temporary is active, the sport-priority select and focus toggles edit the temporary (until stays; does not extend on each toggle); add "Jetzt beenden" that removes temporary.
+- T2 35e5202, T3 4aa5d4b, T4 eaf5c05; RulesCard fixes 5aa85d2; Opus review → change notes written once (76b94c6). 2767 tests green. Merged.
