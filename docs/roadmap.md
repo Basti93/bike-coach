@@ -35,7 +35,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 | ✅ | **I Alltag glätten** | Gewichte passen zum gewählten Studio, Zusammenfassung nach dem Training, Übernommenes wirkt sofort, Studios verwalten, „Heute erledigt“, Rückfrage nach dem Lauf. | Parkplatz C, D, F, G, H |
 | ✅ | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
-| | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
+| ✅ | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
 | | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
 | | **M Wochenübersicht per E-Mail** | Jede Person bekommt ihre Wochenübersicht per E-Mail an die Adresse aus ihrem Profil (selbst änderbar). | Wunsch 07.11.2026 |
 
@@ -236,21 +236,21 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 ## Parkplatz
 
-- Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
+- ~~Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).~~ Erledigt mit K.
 - Ohne Statistik-Record zählen manche deutschen Hevy-Varianten als „Sonstiges“ (löst sich mit A).
 - Eigene Übung mit gleichem Titel wie eine eingebaute verliert gegen die eingebaute (löst sich mit A).
-- Harmlose doppelte Titelformen wie „Seitheben am Kabel (Kabel)“.
-- Zweitnamen „Dip“/„Single Arm Dumbbell Row“ prüfen, ob gewichtet/ungewichtet zusammenpasst.
+- ~~Harmlose doppelte Titelformen wie „Seitheben am Kabel (Kabel)“.~~ Erledigt mit K.
+- ~~Zweitnamen „Dip“/„Single Arm Dumbbell Row“ prüfen, ob gewichtet/ungewichtet zusammenpasst.~~ Erledigt mit K.
 - Aus Meilenstein A:
-  - Bilder der Übungsbasis fehlen noch (nur für genutzte Übungen nachladen).
-  - Eigene Seite „Übungskatalog“ zum Stöbern? (Heute nur über die Übungsauswahl.)
-  - Chat-Coach und Mobilität kennen nur die eingebauten Übungen.
+  - ~~Bilder der Übungsbasis fehlen noch (nur für genutzte Übungen nachladen).~~ Erledigt mit J.
+  - ~~Eigene Seite „Übungskatalog“ zum Stöbern? (Heute nur über die Übungsauswahl.)~~ Erledigt mit J.
+  - ~~Chat-Coach und Mobilität kennen nur die eingebauten Übungen.~~ Erledigt mit J.
   - Englische Namen der Basis können Hevy-Titel ohne Vorschlag verknüpfen (heute keine Kollision).
-  - Karte „Übungen einordnen“ zeigt doppelte Vorschläge, wenn zwei Coaches gleichzeitig fragen; Vorschläge mit gelöschtem Ziel bleiben unsichtbar und werden nie neu gefragt.
-  - Rückgängig nach „Neue Übung bestätigen“ lässt die ungenutzte Übung im Katalog.
-  - Einige übersetzte Anleitungen sind lang (>90 Wörter); wenige Originaltexte passen nicht zum Titel.
-  - `src/shared/catalog.ts` importiert Muskelnamen aus `src/tracking/ui/labels` (Schichtung).
-  - Eigene Übungs-Records: Muskel/Gerät/Typ werden nicht gegen die erlaubten Werte geprüft.
+  - ~~Karte „Übungen einordnen“ zeigt doppelte Vorschläge, wenn zwei Coaches gleichzeitig fragen; Vorschläge mit gelöschtem Ziel bleiben unsichtbar und werden nie neu gefragt.~~ Erledigt mit K.
+  - ~~Rückgängig nach „Neue Übung bestätigen“ lässt die ungenutzte Übung im Katalog.~~ Erledigt mit K.
+  - ~~Einige übersetzte Anleitungen sind lang (>90 Wörter)~~ (gekürzt mit „mehr“, Erledigt mit K); wenige Originaltexte passen nicht zum Titel.
+  - ~~`src/shared/catalog.ts` importiert Muskelnamen aus `src/tracking/ui/labels` (Schichtung).~~ Erledigt mit K.
+  - ~~Eigene Übungs-Records: Muskel/Gerät/Typ werden nicht gegen die erlaubten Werte geprüft.~~ Erledigt mit K.
 - Aus Meilenstein B:
   - Körperbild/Muskelkarte statt Liste? (Frage an die Person offen.)
   - Zielbereiche Gesäß + Oberschenkel hinten und Schulter seitlich + hinten summieren sich höher als früher; beobachten, ob der Coach dort zu viele Sätze plant.
@@ -261,34 +261,34 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - Coach plant immer fürs zuletzt genutzte Studio; wer vor dem Start ein anderes Studio wählt, bekommt Gewichte des alten Studios aus dem Plan.
   - Eigenes Inventar pro Studio (Stangengewicht, begrenzte Scheiben, Hantelsätze).
   - Gewichtsstufen und Studios werden nicht zwischen Profilen geteilt.
-  - Eine eigene Gewichtsstufe geht beim Umbenennen eines Studios verloren; ein Studio lässt sich noch nicht entfernen.
+  - ~~Eine eigene Gewichtsstufe geht beim Umbenennen eines Studios verloren; ein Studio lässt sich noch nicht entfernen.~~ Erledigt mit I.
 - Aus Meilenstein D:
-  - Übernehmen einer Änderung fürs nächste Training plant nicht sofort neu; „Berücksichtigt: …“ erscheint erst beim nächsten Neuplanen.
-  - Der Wochen-Chat kennt keinen Übungskatalog und kann fürs nächste Training nicht zuverlässig tauschen.
+  - ~~Übernehmen einer Änderung fürs nächste Training plant nicht sofort neu; „Berücksichtigt: …“ erscheint erst beim nächsten Neuplanen.~~ Erledigt mit I.
+  - ~~Der Wochen-Chat kennt keinen Übungskatalog und kann fürs nächste Training nicht zuverlässig tauschen.~~ Erledigt mit J.
   - Keine Konflikterkennung auf dem Server; ein Wochenvorschlag wird nur gegen die Zeit des Vorschlags geprüft.
   - Rückgängig eines schon an Garmin gesendeten Wochenplans: prüfen, ob Garmin-Einheiten verwaist bleiben.
 - Aus Meilenstein E:
-  - Ausschluss ganzer Bewegungsfamilien ohne Übungsliste (heute: Liste konkreter Varianten).
-  - Sportarten in der Zielkarte immer alle drei; später nur die genutzten zeigen.
+  - ~~Ausschluss ganzer Bewegungsfamilien ohne Übungsliste (heute: Liste konkreter Varianten).~~ Erledigt mit J.
+  - ~~Sportarten in der Zielkarte immer alle drei; später nur die genutzten zeigen.~~ Erledigt mit I.
   - ~~Schwerpunkt-Muskeln wirken im Coach-Prompt, noch nicht in der Bilanz-Anzeige.~~ Erledigt mit H.
 - Aus Meilenstein F:
   - Die Handy-App kennt keine Radfahrten; ohne veröffentlichte Empfehlung des Coaches rechnet sie nur mit Kraft und Laufen.
   - Ein Plantag kann nicht „nur Beine“ markieren; nach harten Beinen wird Kraft immer zu „Kraft ohne Beine“.
-  - Die Empfehlung kennt keine Uhrzeit; abends gilt noch die Empfehlung des Tages.
+  - ~~Die Empfehlung kennt keine Uhrzeit; abends gilt noch die Empfehlung des Tages.~~ Erledigt mit I.
 - Aus Meilenstein G:
   - Pausen pro einzelnem Satz und Aufwärmen nach Erfahrung der Person.
   - Verschieben per Ziehen statt über das Menü.
-  - Eigene Pausen-Einstellung geht beim Tauschen einer Übung verloren (die neue Übung bekommt ihre eigene Pause).
+  - ~~Eigene Pausen-Einstellung geht beim Tauschen einer Übung verloren (die neue Übung bekommt ihre eigene Pause).~~ Erledigt mit I.
 - Aus Meilenstein H:
-  - „Nächstes Mal“ steht nur im Verlauf beim letzten Training; eine eigene Zusammenfassung nach dem Training fehlt.
+  - ~~„Nächstes Mal“ steht nur im Verlauf beim letzten Training; eine eigene Zusammenfassung nach dem Training fehlt.~~ Erledigt mit I.
   - Rad-Änderungen ohne eigenen Grund erscheinen in „Zuletzt geändert“ ohne „– Grund“.
   - Chat-Nachrichten werden weiter nach 90 Tagen gelöscht (alte Regel, bewusst beibehalten).
-  - Läufe haben keine eigene Rückfrage nach dem Training.
+  - ~~Läufe haben keine eigene Rückfrage nach dem Training.~~ Erledigt mit I.
 - Aus Meilenstein I:
   - Ausblenden/Entfernen eines Studios nur auf dem Startbildschirm, nicht im laufenden Training.
   - Eine schwere Laufwoche hält nur, wenn es eine Basis gibt; ohne Läufe der letzten Wochen wirkt sie nicht.
 - Aus Meilenstein J:
   - Bilder der Übungsbasis machen App und Server-Paket ~50 MB größer; ggf. kleiner rechnen.
   - „Wieder erlauben“ pausiert eine Regel ganz, auch wenn sie mehrere Übungen betrifft; der Knopf sagt das nicht.
-  - Titel-Auflösung beim Tausch per Chat unterscheidet Groß-/Kleinschreibung.
+  - ~~Titel-Auflösung beim Tausch per Chat unterscheidet Groß-/Kleinschreibung.~~ Erledigt mit K.
   - Einordnung einzelner Basis-Übungen (enges Bankdrücken bei Bankdrücken, Hyperextensions bei Sonstige).
