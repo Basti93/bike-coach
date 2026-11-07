@@ -1,4 +1,5 @@
 import type { TrackedRecord } from '../../shared/records';
+import type { Exercise } from '../../shared/exercises';
 import { excludedIds, goalOf, migratedRuleId, priorityLine, ruleRecord, wishes, wishLine, RULE_TEXT_MAX, type SportKey, type RuleSport } from '../../shared/personal';
 
 type Reader = { all(profileId: string, kind?: 'rule' | 'goal'): TrackedRecord[] };
@@ -8,8 +9,8 @@ type Writer = Reader & { put(profileId: string, r: TrackedRecord): unknown };
 export function goalOfProfile(store: Reader, profileId: string, today: string) {
   try { return goalOf(store.all(profileId, 'goal'), today); } catch { return goalOf([], today); }
 }
-export function excludedOf(store: Reader, profileId: string): Set<string> {
-  try { return excludedIds(store.all(profileId, 'rule')); } catch { return new Set(); }
+export function excludedOf(store: Reader, profileId: string, catalog: readonly Pick<Exercise, 'id' | 'family'>[]): Set<string> {
+  try { return excludedIds(store.all(profileId, 'rule'), catalog); } catch { return new Set(); }
 }
 export function wishesOf(store: Reader, profileId: string, sport: SportKey): string[] {
   try { return wishes(store.all(profileId, 'rule'), sport); } catch { return []; }

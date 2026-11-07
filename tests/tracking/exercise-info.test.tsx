@@ -157,6 +157,18 @@ describe('ExerciseInfo pictures', () => {
   });
 });
 
+describe('ExerciseInfo base-catalog pictures', () => {
+  test('credits the public-domain source, and a picture that fails to load hides its frame', () => {
+    const images = [{ file: 'exercises/fedb/fedb-x-1.jpg', author: 'free-exercise-db (gemeinfrei)', licence: 'Unlicense', sourceUrl: 'https://example.invalid/fedb' }];
+    render(<ExerciseInfo title="Übung" description={null} images={images} video="https://example.invalid/v" />);
+    const note = screen.getByRole('note', { name: 'Ausführung Übung' });
+    expect(note.textContent).toContain('Bild: free-exercise-db (gemeinfrei)');
+    const img = screen.getByRole('img', { name: 'Übung, Ausführung' });
+    fireEvent.error(img);
+    expect(img.closest('figure')!.hidden).toBe(true);
+  });
+});
+
 describe('MuscleIcon', () => {
   test('with null is labelled as unknown and highlights nothing', () => {
     render(<MuscleIcon group={null} />);

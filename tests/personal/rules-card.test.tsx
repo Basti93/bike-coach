@@ -52,10 +52,33 @@ test('a written wish and an excluded exercise from the picker', async () => {
   fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
   fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Kniebeuge' } });
   fireEvent.click((await screen.findAllByRole('button', { name: /^Kniebeuge/ }))[0]!);
+  expect(await screen.findByRole('button', { name: /^Alle Varianten \(Kniebeuge\)/ })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Nur diese Übung' }));
   await waitFor(() => expect([...map.values()].some((r) => r.kind === 'rule' && body(map, `rule:${r.id}`).kind === 'exclude')).toBe(true));
   const ex = [...map.values()].find((r) => r.kind === 'rule' && (r.body as { kind: string }).kind === 'exclude')!;
   expect(ex.body).toMatchObject({ state: 'active', source: 'person', sport: 'gym' });
   expect((ex.body as { exerciseIds: string[] }).exerciseIds).toHaveLength(1);
+});
+
+test('an exercise can be excluded with all its variants; an exercise of the other family has no such button', async () => {
+  const { port, map } = fakePort();
+  render(<CoachScreen port={port} {...env} />);
+  const c = await card();
+  fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
+  fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Kniebeuge' } });
+  fireEvent.click((await screen.findAllByRole('button', { name: /^Kniebeuge/ }))[0]!);
+  fireEvent.click(await screen.findByRole('button', { name: /^Alle Varianten \(Kniebeuge\)/ }));
+  await waitFor(() => expect([...map.values()].some((r) => r.kind === 'rule')).toBe(true));
+  const ex = [...map.values()].find((r) => r.kind === 'rule')!;
+  expect(ex.body).toMatchObject({ kind: 'exclude', state: 'active', sport: 'gym', families: ['squat'] });
+  expect((ex.body as { exerciseIds?: string[] }).exerciseIds).toBeUndefined();
+  expect(await c.findByText(/Alle Varianten: Kniebeuge/)).toBeTruthy();
+
+  fireEvent.click(c.getByRole('button', { name: 'Übung ausschließen' }));
+  fireEvent.change(await screen.findByLabelText('Suchen'), { target: { value: 'Laufen' } });
+  fireEvent.click((await screen.findAllByRole('button', { name: /^Laufen/ }))[0]!);
+  expect(await screen.findByRole('button', { name: 'Nur diese Übung' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /^Alle Varianten \(/ })).toBeNull();
 });
 
 test('the goal selects write the goal record, stamped above the stored one', async () => {

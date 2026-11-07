@@ -228,3 +228,53 @@ describe('the chat and the other coaches', () => {
     expect(given).toEqual([]);
   });
 });
+
+describe('a swap for the next workout is resolved against the whole catalog', () => {
+  const swap = (toId: string | undefined, toTitle?: string) => ({ text: 'Okay.', nextChange: { reason: 'Wunsch', ops: [{ op: 'swap', exerciseId: 'pf-squat', ...(toId ? { toId } : {}), ...(toTitle ? { toTitle } : {}) }] } });
+  const exclude: TrackedRecord = { kind: 'rule', id: 'rule-x', updatedMs: 1, deleted: false, body: { kind: 'exclude', text: 'ohne', sport: 'gym', state: 'active', source: 'chat', atMs: 1, exerciseIds: ['pf-goblet-squat'] } };
+
+  test('an unknown id gets one retry with the catalog, then a valid change record', async () => {
+    const s = store([rider('r1', 'Tausch die Kniebeuge')]);
+    const prompts: string[] = [];
+    const c = coach(s, async ({ prompt }) => { prompts.push(prompt); return prompts.length === 1 ? swap('gibt-es-nicht') : swap('pf-goblet-squat'); });
+    await c.tick('p');
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('katalog');
+    expect(prompts[0]).not.toContain('<katalog');
+    const m = replies(s)[0]!;
+    expect(m.text).not.toContain('Geht nicht');
+    expect(m.nextChange).toMatch(/^chg-/);
+    expect(s.recs.get(`change:${m.nextChange}`)!.body).toMatchObject({ ops: [{ op: 'swap', exerciseId: 'pf-squat', toId: 'pf-goblet-squat' }] });
+  });
+
+  test('a toTitle resolves without a retry', async () => {
+    const s = store([rider('r1', 'Tausch die Kniebeuge')]);
+    let calls = 0;
+    const c = coach(s, async () => { calls++; return swap(undefined, 'Goblet Squat'); });
+    await c.tick('p');
+    expect(calls).toBe(1);
+    expect(replies(s)[0]!.nextChange).toBeDefined();
+    expect([...s.recs.values()].find((r) => r.kind === 'change')!.body).toMatchObject({ ops: [{ op: 'swap', toId: 'pf-goblet-squat' }] });
+  });
+
+  test('an excluded target is refused, without a retry', async () => {
+    const s = store([rider('r1', 'Tausch die Kniebeuge'), exclude]);
+    let calls = 0;
+    const c = coach(s, async () => { calls++; return swap(undefined, 'Goblet Squat'); });
+    await c.tick('p');
+    expect(calls).toBe(1);
+    expect(replies(s)[0]!.text).toMatch(/Geht nicht, weil du .* ausgeschlossen hast\./);
+    expect([...s.recs.values()].some((r) => r.kind === 'change')).toBe(false);
+  });
+
+  test('still unknown after the retry: the "Geht nicht" line, not a silent drop', async () => {
+    const s = store([rider('r1', 'Tausch die Kniebeuge')]);
+    let calls = 0;
+    const c = coach(s, async () => { calls++; return swap('gibt-es-nicht'); });
+    await c.tick('p');
+    expect(calls).toBe(2);
+    const m = replies(s)[0]!;
+    expect(m.text).toContain('Geht nicht, weil die Übung nicht im Katalog steht.');
+    expect(m.nextChange).toBeUndefined();
+  });
+});

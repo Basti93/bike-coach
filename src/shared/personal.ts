@@ -4,6 +4,8 @@ import { titleHash, above } from './exercise-links';
 import { addDays } from './week-plan';
 import { ruleNumber } from './training-policy';
 import { takenChanges } from './changes';
+import type { Exercise } from './exercises';
+import { familyLabel, familyOf, isExcludableFamily, MAX_FAMILIES } from './families';
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
@@ -98,7 +100,7 @@ export type RuleKind = 'exclude' | 'wish' | 'goal';
 export type RuleSport = SportKey | 'all';
 export type RuleState = 'proposed' | 'active' | 'paused' | 'declined';
 export type RuleSource = 'chat' | 'person' | 'migrated';
-export type Rule = { id: string; kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; goal?: Partial<Omit<GoalBody, 'atMs' | 'temporary'>> & { weeks?: number }; state: RuleState; source: RuleSource; atMs: number };
+export type Rule = { id: string; kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; families?: string[]; goal?: Partial<Omit<GoalBody, 'atMs' | 'temporary'>> & { weeks?: number }; state: RuleState; source: RuleSource; atMs: number };
 
 const KINDS: RuleKind[] = ['exclude', 'wish', 'goal'];
 const RULE_STATES: RuleState[] = ['proposed', 'active', 'paused', 'declined'];
@@ -115,10 +117,19 @@ export function readRule(id: string, body: unknown): Rule | null {
   if (body.sport !== 'all' && !SPORT_KEYS.includes(body.sport as SportKey)) return null;
   const kind = body.kind as RuleKind;
   let exerciseIds: string[] | undefined;
+  let families: string[] | undefined;
   if (kind === 'exclude') {
     const ids = body.exerciseIds;
-    if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_EXCLUDED || !ids.every((x) => typeof x === 'string' && x !== '')) return null;
-    exerciseIds = ids as string[];
+    if (ids !== undefined) {
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_EXCLUDED || !ids.every((x) => typeof x === 'string' && x !== '')) return null;
+      exerciseIds = ids as string[];
+    }
+    const fams = body.families;
+    if (fams !== undefined) {
+      if (!Array.isArray(fams) || fams.length < 1 || fams.length > MAX_FAMILIES || !fams.every(isExcludableFamily)) return null;
+      families = [...new Set(fams as string[])];
+    }
+    if (!exerciseIds && !families) return null;
   }
   let goal: Rule['goal'];
   if (kind === 'goal') {
@@ -137,14 +148,14 @@ export function readRule(id: string, body: unknown): Rule | null {
       goal.weeks = g.weeks;
     }
   }
-  return { id, kind, text: body.text, sport: body.sport as RuleSport, ...(exerciseIds ? { exerciseIds } : {}), ...(goal ? { goal } : {}), state: body.state as RuleState, source: body.source as RuleSource, atMs: body.atMs };
+  return { id, kind, text: body.text, sport: body.sport as RuleSport, ...(exerciseIds ? { exerciseIds } : {}), ...(families ? { families } : {}), ...(goal ? { goal } : {}), state: body.state as RuleState, source: body.source as RuleSource, atMs: body.atMs };
 }
 
-export type RuleDraft = { kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; goal?: Rule['goal'] };
+export type RuleDraft = { kind: RuleKind; text: string; sport: RuleSport; exerciseIds?: string[]; families?: string[]; goal?: Rule['goal'] };
 
 /** Migrated records are stamped 1, so any later person edit (pause, delete) wins over a migration run on another Mac. */
 export const ruleRecord = (id: string, d: RuleDraft, state: RuleState, source: RuleSource, nowMs: number): TrackedRecord =>
-  ({ kind: 'rule', id, updatedMs: source === 'migrated' ? 1 : nowMs, deleted: false, body: { kind: d.kind, text: d.text, sport: d.sport, ...(d.exerciseIds ? { exerciseIds: d.exerciseIds } : {}), ...(d.goal ? { goal: d.goal } : {}), state, source, atMs: nowMs } });
+  ({ kind: 'rule', id, updatedMs: source === 'migrated' ? 1 : nowMs, deleted: false, body: { kind: d.kind, text: d.text, sport: d.sport, ...(d.exerciseIds ? { exerciseIds: d.exerciseIds } : {}), ...(d.families ? { families: d.families } : {}), ...(d.goal ? { goal: d.goal } : {}), state, source, atMs: nowMs } });
 
 const ALLOWED: Record<RuleState, RuleState[]> = { proposed: ['active', 'declined'], active: ['paused'], paused: ['active'], declined: [] };
 
@@ -167,9 +178,24 @@ export function activeRules(records: readonly TrackedRecord[], sport: SportKey, 
   return rulesOf(records).filter((r) => r.state === 'active' && r.kind !== 'goal' && (r.sport === sport || r.sport === 'all'));
 }
 
-/** The union of the exercises named by active exclude rules, whatever the rule's sport. */
-export function excludedIds(records: readonly TrackedRecord[]): Set<string> {
-  return new Set(rulesOf(records).filter((r) => r.state === 'active' && r.kind === 'exclude').flatMap((r) => r.exerciseIds ?? []));
+/** The rule a person writes to rule out one exercise, or with `wholeFamily` all variants of a family. The one writer for RulesCard and the catalog page. */
+export const excludeRuleRecord = (e: { id: string; title: string }, wholeFamily: string | undefined, newId: string, nowMs: number): TrackedRecord => {
+  const text = wholeFamily ? `Ohne alle Varianten: ${familyLabel(wholeFamily)}` : `Ohne ${e.title}`;
+  return ruleRecord(ruleId(newId), { kind: 'exclude', text: text.slice(0, RULE_TEXT_MAX), sport: 'gym', ...(wholeFamily ? { families: [wholeFamily] } : { exerciseIds: [e.id] }) }, 'active', 'person', nowMs);
+};
+
+/** The active exclude rules that rule an exercise out by id or by its family. */
+export const rulesExcluding = (records: readonly TrackedRecord[], e: Pick<Exercise, 'id' | 'family'>): Rule[] =>
+  rulesOf(records).filter((r) => r.state === 'active' && r.kind === 'exclude' && ((r.exerciseIds ?? []).includes(e.id) || (isExcludableFamily(familyOf(e)) && (r.families ?? []).includes(familyOf(e)))));
+
+/**
+ * The union of the exercises named by active exclude rules, whatever the rule's sport. The one resolver everywhere: a rule's
+ * families are expanded against the given catalog, so a variant added later (with the family) is excluded without a new rule.
+ */
+export function excludedIds(records: readonly TrackedRecord[], catalog: readonly Pick<Exercise, 'id' | 'family'>[]): Set<string> {
+  const rules = rulesOf(records).filter((r) => r.state === 'active' && r.kind === 'exclude');
+  const families = new Set(rules.flatMap((r) => r.families ?? []).filter(isExcludableFamily));
+  return new Set([...rules.flatMap((r) => r.exerciseIds ?? []), ...(families.size ? catalog.filter((e) => families.has(familyOf(e))).map((e) => e.id) : [])]);
 }
 
 /** The texts of the active wishes for a sport. */
@@ -196,7 +222,7 @@ export const wishLine = (texts: readonly string[]): string | null =>
 export function personalKeyOf(ruleRecords: readonly TrackedRecord[], goalRecords: readonly TrackedRecord[], frameRecords: readonly TrackedRecord[] = [], today?: string, changeRecords: readonly TrackedRecord[] = []): string {
   const parts = rulesOf(ruleRecords)
     .filter((r) => (r.state === 'active' || r.state === 'paused') && r.kind !== 'goal')
-    .map((r) => `${r.id}:${r.state}:${(r.exerciseIds ?? []).join(',')}:${r.text}`);
+    .map((r) => `${r.id}:${r.state}:${(r.exerciseIds ?? []).join(',')}:${(r.families ?? []).join(',')}:${r.text}`);
   for (const g of goalRecords) parts.push(`goal:${g.id}:${g.updatedMs}:${g.deleted ? 1 : 0}`);
   // A temporary focus that runs out changes the goal without a new record.
   const until = today ? storedGoalOf(goalRecords).temporary?.until : undefined;

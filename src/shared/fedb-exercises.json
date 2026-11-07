@@ -8,7 +8,12 @@
   "source": "fedb",
   "aliases": [
    "3/4 Sit-Up"
-  ]
+  ],
+  "images": [
+   "3_4_Sit-Up/0.jpg",
+   "3_4_Sit-Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-ab-crunch-machine",
@@ -19,7 +24,12 @@
   "source": "fedb",
   "aliases": [
    "Ab Crunch Machine"
-  ]
+  ],
+  "images": [
+   "Ab_Crunch_Machine/0.jpg",
+   "Ab_Crunch_Machine/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-advanced-kettlebell-windmill",
@@ -35,7 +45,12 @@
    "glutes",
    "hamstrings",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Advanced_Kettlebell_Windmill/0.jpg",
+   "Advanced_Kettlebell_Windmill/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-alternate-hammer-curl",
@@ -49,7 +64,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Alternate_Hammer_Curl/0.jpg",
+   "Alternate_Hammer_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-alternate-heel-touchers",
@@ -60,7 +80,12 @@
   "source": "fedb",
   "aliases": [
    "Alternate Heel Touchers"
-  ]
+  ],
+  "images": [
+   "Alternate_Heel_Touchers/0.jpg",
+   "Alternate_Heel_Touchers/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-alternate-incline-dumbbell-curl",
@@ -74,7 +99,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Alternate_Incline_Dumbbell_Curl/0.jpg",
+   "Alternate_Incline_Dumbbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-alternate-leg-diagonal-bound",
@@ -92,6 +122,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Alternate_Leg_Diagonal_Bound/0.jpg",
+   "Alternate_Leg_Diagonal_Bound/1.jpg"
   ]
  },
  {
@@ -106,7 +140,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Alternating_Cable_Shoulder_Press/0.jpg",
+   "Alternating_Cable_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-alternating-deltoid-raise",
@@ -120,7 +159,12 @@
   ],
   "secondaryMuscles": [
    "side_delts"
-  ]
+  ],
+  "images": [
+   "Alternating_Deltoid_Raise/0.jpg",
+   "Alternating_Deltoid_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-alternating-floor-press",
@@ -136,7 +180,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Alternating_Floor_Press/0.jpg",
+   "Alternating_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-alternating-hang-clean",
@@ -155,6 +204,10 @@
    "glutes",
    "lower_back",
    "traps"
+  ],
+  "images": [
+   "Alternating_Hang_Clean/0.jpg",
+   "Alternating_Hang_Clean/1.jpg"
   ]
  },
  {
@@ -169,7 +222,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Alternating_Kettlebell_Press/0.jpg",
+   "Alternating_Kettlebell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-alternating-kettlebell-row",
@@ -184,7 +242,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Alternating_Kettlebell_Row/0.jpg",
+   "Alternating_Kettlebell_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-alternating-renegade-row",
@@ -202,7 +265,12 @@
    "chest",
    "lats",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Alternating_Renegade_Row/0.jpg",
+   "Alternating_Renegade_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-anti-gravity-press",
@@ -218,7 +286,12 @@
    "upper_back",
    "traps",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Anti-Gravity_Press/0.jpg",
+   "Anti-Gravity_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-around-the-worlds",
@@ -232,6 +305,10 @@
   ],
   "secondaryMuscles": [
    "front_delts"
+  ],
+  "images": [
+   "Around_The_Worlds/0.jpg",
+   "Around_The_Worlds/1.jpg"
   ]
  },
  {
@@ -250,6 +327,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Atlas_Stone_Trainer/0.jpg",
+   "Atlas_Stone_Trainer/1.jpg"
   ]
  },
  {
@@ -273,6 +354,10 @@
    "upper_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Atlas_Stones/0.jpg",
+   "Atlas_Stones/1.jpg"
   ]
  },
  {
@@ -292,7 +377,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Axle_Deadlift/0.jpg",
+   "Axle_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-back-flyes-with-bands",
@@ -307,7 +397,12 @@
   "secondaryMuscles": [
    "upper_back",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Back_Flyes_-_With_Bands/0.jpg",
+   "Back_Flyes_-_With_Bands/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-backward-drag",
@@ -325,6 +420,10 @@
    "glutes",
    "hamstrings",
    "lower_back"
+  ],
+  "images": [
+   "Backward_Drag/0.jpg",
+   "Backward_Drag/1.jpg"
   ]
  },
  {
@@ -336,6 +435,10 @@
   "source": "fedb",
   "aliases": [
    "Backward Medicine Ball Throw"
+  ],
+  "images": [
+   "Backward_Medicine_Ball_Throw/0.jpg",
+   "Backward_Medicine_Ball_Throw/1.jpg"
   ]
  },
  {
@@ -351,6 +454,10 @@
   "secondaryMuscles": [
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Balance_Board/0.jpg",
+   "Balance_Board/1.jpg"
   ]
  },
  {
@@ -366,7 +473,12 @@
   "secondaryMuscles": [
    "calves",
    "glutes"
-  ]
+  ],
+  "images": [
+   "Ball_Leg_Curl/0.jpg",
+   "Ball_Leg_Curl/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-band-assisted-pull-up",
@@ -382,7 +494,12 @@
    "abdominals",
    "forearms",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Band_Assisted_Pull-Up/0.jpg",
+   "Band_Assisted_Pull-Up/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-band-good-morning",
@@ -397,7 +514,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Band_Good_Morning/0.jpg",
+   "Band_Good_Morning/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-band-good-morning-pull-through",
@@ -412,7 +534,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Band_Good_Morning_Pull_Through/0.jpg",
+   "Band_Good_Morning_Pull_Through/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-band-hip-adductions",
@@ -423,6 +550,10 @@
   "source": "fedb",
   "aliases": [
    "Band Hip Adductions"
+  ],
+  "images": [
+   "Band_Hip_Adductions/0.jpg",
+   "Band_Hip_Adductions/1.jpg"
   ]
  },
  {
@@ -438,7 +569,12 @@
   "secondaryMuscles": [
    "upper_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Band_Pull_Apart/0.jpg",
+   "Band_Pull_Apart/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-band-skull-crusher",
@@ -449,7 +585,12 @@
   "source": "fedb",
   "aliases": [
    "Band Skull Crusher"
-  ]
+  ],
+  "images": [
+   "Band_Skull_Crusher/0.jpg",
+   "Band_Skull_Crusher/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-barbell-ab-rollout",
@@ -464,7 +605,12 @@
   "secondaryMuscles": [
    "lower_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Barbell_Ab_Rollout/0.jpg",
+   "Barbell_Ab_Rollout/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-barbell-ab-rollout-on-knees",
@@ -479,7 +625,12 @@
   "secondaryMuscles": [
    "lower_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Barbell_Ab_Rollout_-_On_Knees/0.jpg",
+   "Barbell_Ab_Rollout_-_On_Knees/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-barbell-curls-lying-against-an-incline",
@@ -490,7 +641,12 @@
   "source": "fedb",
   "aliases": [
    "Barbell Curls Lying Against An Incline"
-  ]
+  ],
+  "images": [
+   "Barbell_Curls_Lying_Against_An_Incline/0.jpg",
+   "Barbell_Curls_Lying_Against_An_Incline/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-barbell-full-squat",
@@ -507,7 +663,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Full_Squat/0.jpg",
+   "Barbell_Full_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-barbell-guillotine-bench-press",
@@ -522,7 +683,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Barbell_Guillotine_Bench_Press/0.jpg",
+   "Barbell_Guillotine_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-barbell-hack-squat",
@@ -538,7 +704,12 @@
    "calves",
    "forearms",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Barbell_Hack_Squat/0.jpg",
+   "Barbell_Hack_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-barbell-incline-shoulder-raise",
@@ -552,6 +723,10 @@
   ],
   "secondaryMuscles": [
    "chest"
+  ],
+  "images": [
+   "Barbell_Incline_Shoulder_Raise/0.jpg",
+   "Barbell_Incline_Shoulder_Raise/1.jpg"
   ]
  },
  {
@@ -568,7 +743,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Barbell_Lunge/0.jpg",
+   "Barbell_Lunge/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-barbell-rear-delt-row",
@@ -584,7 +764,12 @@
    "biceps",
    "lats",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Rear_Delt_Row/0.jpg",
+   "Barbell_Rear_Delt_Row/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-barbell-rollout-from-bench",
@@ -601,7 +786,12 @@
    "hamstrings",
    "lats",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Barbell_Rollout_from_Bench/0.jpg",
+   "Barbell_Rollout_from_Bench/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-barbell-seated-calf-raise",
@@ -612,7 +802,12 @@
   "source": "fedb",
   "aliases": [
    "Barbell Seated Calf Raise"
-  ]
+  ],
+  "images": [
+   "Barbell_Seated_Calf_Raise/0.jpg",
+   "Barbell_Seated_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-barbell-shrug",
@@ -623,7 +818,12 @@
   "source": "fedb",
   "aliases": [
    "Barbell Shrug"
-  ]
+  ],
+  "images": [
+   "Barbell_Shrug/0.jpg",
+   "Barbell_Shrug/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-barbell-shrug-behind-the-back",
@@ -638,7 +838,12 @@
   "secondaryMuscles": [
    "forearms",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Shrug_Behind_The_Back/0.jpg",
+   "Barbell_Shrug_Behind_The_Back/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-barbell-side-bend",
@@ -652,7 +857,12 @@
   ],
   "secondaryMuscles": [
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Side_Bend/0.jpg",
+   "Barbell_Side_Bend/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-barbell-side-split-squat",
@@ -668,7 +878,12 @@
    "calves",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Side_Split_Squat/0.jpg",
+   "Barbell_Side_Split_Squat/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-barbell-squat-to-a-bench",
@@ -685,7 +900,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Barbell_Squat_To_A_Bench/0.jpg",
+   "Barbell_Squat_To_A_Bench/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-barbell-step-ups",
@@ -701,7 +921,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Barbell_Step_Ups/0.jpg",
+   "Barbell_Step_Ups/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-barbell-walking-lunge",
@@ -717,7 +942,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Barbell_Walking_Lunge/0.jpg",
+   "Barbell_Walking_Lunge/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-battling-ropes",
@@ -733,6 +963,10 @@
    "side_delts",
    "chest",
    "forearms"
+  ],
+  "images": [
+   "Battling_Ropes/0.jpg",
+   "Battling_Ropes/1.jpg"
   ]
  },
  {
@@ -749,6 +983,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Bear_Crawl_Sled_Drags/0.jpg",
+   "Bear_Crawl_Sled_Drags/1.jpg"
   ]
  },
  {
@@ -765,6 +1003,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Bench_Jump/0.jpg",
+   "Bench_Jump/1.jpg"
   ]
  },
  {
@@ -782,7 +1024,12 @@
    "forearms",
    "lats",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Bench_Press_-_Powerlifting/0.jpg",
+   "Bench_Press_-_Powerlifting/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-bench-press-with-bands",
@@ -797,7 +1044,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Bench_Press_-_With_Bands/0.jpg",
+   "Bench_Press_-_With_Bands/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-bench-press-with-chains",
@@ -813,7 +1065,12 @@
    "chest",
    "lats",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Bench_Press_with_Chains/0.jpg",
+   "Bench_Press_with_Chains/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-bench-sprint",
@@ -829,6 +1086,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Bench_Sprint/0.jpg",
+   "Bench_Sprint/1.jpg"
   ]
  },
  {
@@ -845,6 +1106,10 @@
    "chest",
    "rear_delts",
    "triceps"
+  ],
+  "images": [
+   "Bent-Arm_Barbell_Pullover/0.jpg",
+   "Bent-Arm_Barbell_Pullover/1.jpg"
   ]
  },
  {
@@ -861,6 +1126,10 @@
    "lats",
    "rear_delts",
    "triceps"
+  ],
+  "images": [
+   "Bent-Arm_Dumbbell_Pullover/0.jpg",
+   "Bent-Arm_Dumbbell_Pullover/1.jpg"
   ]
  },
  {
@@ -872,7 +1141,12 @@
   "source": "fedb",
   "aliases": [
    "Bent-Knee Hip Raise"
-  ]
+  ],
+  "images": [
+   "Bent-Knee_Hip_Raise/0.jpg",
+   "Bent-Knee_Hip_Raise/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-bent-over-dumbbell-rear-delt-raise-with-head-on-bench",
@@ -883,7 +1157,12 @@
   "source": "fedb",
   "aliases": [
    "Bent Over Dumbbell Rear Delt Raise With Head On Bench"
-  ]
+  ],
+  "images": [
+   "Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench/0.jpg",
+   "Bent_Over_Dumbbell_Rear_Delt_Raise_With_Head_On_Bench/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-bent-over-low-pulley-side-lateral",
@@ -899,7 +1178,12 @@
    "lower_back",
    "upper_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Bent_Over_Low-Pulley_Side_Lateral/0.jpg",
+   "Bent_Over_Low-Pulley_Side_Lateral/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-bent-over-one-arm-long-bar-row",
@@ -916,7 +1200,12 @@
    "lats",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Bent_Over_One-Arm_Long_Bar_Row/0.jpg",
+   "Bent_Over_One-Arm_Long_Bar_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-bent-over-two-arm-long-bar-row",
@@ -931,7 +1220,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Bent_Over_Two-Arm_Long_Bar_Row/0.jpg",
+   "Bent_Over_Two-Arm_Long_Bar_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-bent-over-two-dumbbell-row",
@@ -947,7 +1241,12 @@
    "biceps",
    "lats",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Bent_Over_Two-Dumbbell_Row/0.jpg",
+   "Bent_Over_Two-Dumbbell_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-bent-over-two-dumbbell-row-with-palms-in",
@@ -962,7 +1261,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Bent_Over_Two-Dumbbell_Row_With_Palms_In/0.jpg",
+   "Bent_Over_Two-Dumbbell_Row_With_Palms_In/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-bent-press",
@@ -981,7 +1285,12 @@
    "quadriceps",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Bent_Press/0.jpg",
+   "Bent_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-board-press",
@@ -998,7 +1307,12 @@
    "forearms",
    "lats",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Board_Press/0.jpg",
+   "Board_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-body-up",
@@ -1013,7 +1327,12 @@
   "secondaryMuscles": [
    "abdominals",
    "forearms"
-  ]
+  ],
+  "images": [
+   "Body-Up/0.jpg",
+   "Body-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-body-tricep-press",
@@ -1024,7 +1343,12 @@
   "source": "fedb",
   "aliases": [
    "Body Tricep Press"
-  ]
+  ],
+  "images": [
+   "Body_Tricep_Press/0.jpg",
+   "Body_Tricep_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-bodyweight-flyes",
@@ -1040,7 +1364,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Bodyweight_Flyes/0.jpg",
+   "Bodyweight_Flyes/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-bodyweight-mid-row",
@@ -1055,7 +1384,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Bodyweight_Mid_Row/0.jpg",
+   "Bodyweight_Mid_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-bodyweight-walking-lunge",
@@ -1071,7 +1405,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Bodyweight_Walking_Lunge/0.jpg",
+   "Bodyweight_Walking_Lunge/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-bosu-ball-cable-crunch-with-side-bends",
@@ -1082,7 +1421,12 @@
   "source": "fedb",
   "aliases": [
    "Bosu Ball Cable Crunch With Side Bends"
-  ]
+  ],
+  "images": [
+   "Bosu_Ball_Cable_Crunch_With_Side_Bends/0.jpg",
+   "Bosu_Ball_Cable_Crunch_With_Side_Bends/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-bottoms-up-clean-from-the-hang-position",
@@ -1097,6 +1441,10 @@
   "secondaryMuscles": [
    "biceps",
    "front_delts"
+  ],
+  "images": [
+   "Bottoms-Up_Clean_From_The_Hang_Position/0.jpg",
+   "Bottoms-Up_Clean_From_The_Hang_Position/1.jpg"
   ]
  },
  {
@@ -1108,7 +1456,12 @@
   "source": "fedb",
   "aliases": [
    "Bottoms Up"
-  ]
+  ],
+  "images": [
+   "Bottoms_Up/0.jpg",
+   "Bottoms_Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-box-jump-multiple-response",
@@ -1126,6 +1479,10 @@
    "calves",
    "glutes",
    "quadriceps"
+  ],
+  "images": [
+   "Box_Jump_Multiple_Response/0.jpg",
+   "Box_Jump_Multiple_Response/1.jpg"
   ]
  },
  {
@@ -1144,6 +1501,10 @@
    "calves",
    "glutes",
    "quadriceps"
+  ],
+  "images": [
+   "Box_Skip/0.jpg",
+   "Box_Skip/1.jpg"
   ]
  },
  {
@@ -1162,7 +1523,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Box_Squat/0.jpg",
+   "Box_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-box-squat-with-bands",
@@ -1181,7 +1547,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Box_Squat_with_Bands/0.jpg",
+   "Box_Squat_with_Bands/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-box-squat-with-chains",
@@ -1200,7 +1571,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Box_Squat_with_Chains/0.jpg",
+   "Box_Squat_with_Chains/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-bradford-rocky-presses",
@@ -1214,7 +1590,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Bradford_Rocky_Presses/0.jpg",
+   "Bradford_Rocky_Presses/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-butt-ups",
@@ -1225,7 +1606,12 @@
   "source": "fedb",
   "aliases": [
    "Butt-Ups"
-  ]
+  ],
+  "images": [
+   "Butt-Ups/0.jpg",
+   "Butt-Ups/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-butt-lift-bridge",
@@ -1239,7 +1625,12 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Butt_Lift_Bridge/0.jpg",
+   "Butt_Lift_Bridge/1.jpg"
+  ],
+  "family": "hip-thrust"
  },
  {
   "id": "fedb-cable-chest-press",
@@ -1254,7 +1645,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Cable_Chest_Press/0.jpg",
+   "Cable_Chest_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-cable-deadlifts",
@@ -1271,7 +1667,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Cable_Deadlifts/0.jpg",
+   "Cable_Deadlifts/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-cable-hammer-curls-rope-attachment",
@@ -1282,7 +1683,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Hammer Curls - Rope Attachment"
-  ]
+  ],
+  "images": [
+   "Cable_Hammer_Curls_-_Rope_Attachment/0.jpg",
+   "Cable_Hammer_Curls_-_Rope_Attachment/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-cable-hip-adduction",
@@ -1293,6 +1699,10 @@
   "source": "fedb",
   "aliases": [
    "Cable Hip Adduction"
+  ],
+  "images": [
+   "Cable_Hip_Adduction/0.jpg",
+   "Cable_Hip_Adduction/1.jpg"
   ]
  },
  {
@@ -1304,7 +1714,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Incline Pushdown"
-  ]
+  ],
+  "images": [
+   "Cable_Incline_Pushdown/0.jpg",
+   "Cable_Incline_Pushdown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-cable-incline-triceps-extension",
@@ -1315,7 +1730,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Incline Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Cable_Incline_Triceps_Extension/0.jpg",
+   "Cable_Incline_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-cable-internal-rotation",
@@ -1326,6 +1746,10 @@
   "source": "fedb",
   "aliases": [
    "Cable Internal Rotation"
+  ],
+  "images": [
+   "Cable_Internal_Rotation/0.jpg",
+   "Cable_Internal_Rotation/1.jpg"
   ]
  },
  {
@@ -1337,6 +1761,10 @@
   "source": "fedb",
   "aliases": [
    "Cable Iron Cross"
+  ],
+  "images": [
+   "Cable_Iron_Cross/0.jpg",
+   "Cable_Iron_Cross/1.jpg"
   ]
  },
  {
@@ -1348,6 +1776,10 @@
   "source": "fedb",
   "aliases": [
    "Cable Judo Flip"
+  ],
+  "images": [
+   "Cable_Judo_Flip/0.jpg",
+   "Cable_Judo_Flip/1.jpg"
   ]
  },
  {
@@ -1359,7 +1791,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Lying Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Cable_Lying_Triceps_Extension/0.jpg",
+   "Cable_Lying_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-cable-one-arm-tricep-extension",
@@ -1370,7 +1807,12 @@
   "source": "fedb",
   "aliases": [
    "Cable One Arm Tricep Extension"
-  ]
+  ],
+  "images": [
+   "Cable_One_Arm_Tricep_Extension/0.jpg",
+   "Cable_One_Arm_Tricep_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-cable-preacher-curl",
@@ -1384,7 +1826,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Cable_Preacher_Curl/0.jpg",
+   "Cable_Preacher_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-cable-rear-delt-fly",
@@ -1395,7 +1842,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Rear Delt Fly"
-  ]
+  ],
+  "images": [
+   "Cable_Rear_Delt_Fly/0.jpg",
+   "Cable_Rear_Delt_Fly/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-cable-reverse-crunch",
@@ -1406,7 +1858,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Reverse Crunch"
-  ]
+  ],
+  "images": [
+   "Cable_Reverse_Crunch/0.jpg",
+   "Cable_Reverse_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-cable-rope-overhead-triceps-extension",
@@ -1417,7 +1874,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Rope Overhead Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Cable_Rope_Overhead_Triceps_Extension/0.jpg",
+   "Cable_Rope_Overhead_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-cable-rope-rear-delt-rows",
@@ -1432,7 +1894,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Cable_Rope_Rear-Delt_Rows/0.jpg",
+   "Cable_Rope_Rear-Delt_Rows/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-cable-russian-twists",
@@ -1443,7 +1910,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Russian Twists"
-  ]
+  ],
+  "images": [
+   "Cable_Russian_Twists/0.jpg",
+   "Cable_Russian_Twists/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-cable-seated-crunch",
@@ -1454,7 +1926,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Seated Crunch"
-  ]
+  ],
+  "images": [
+   "Cable_Seated_Crunch/0.jpg",
+   "Cable_Seated_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-cable-seated-lateral-raise",
@@ -1469,7 +1946,12 @@
   "secondaryMuscles": [
    "upper_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Cable_Seated_Lateral_Raise/0.jpg",
+   "Cable_Seated_Lateral_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-cable-shoulder-press",
@@ -1483,7 +1965,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Cable_Shoulder_Press/0.jpg",
+   "Cable_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-cable-shrugs",
@@ -1494,7 +1981,12 @@
   "source": "fedb",
   "aliases": [
    "Cable Shrugs"
-  ]
+  ],
+  "images": [
+   "Cable_Shrugs/0.jpg",
+   "Cable_Shrugs/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-cable-wrist-curl",
@@ -1505,6 +1997,10 @@
   "source": "fedb",
   "aliases": [
    "Cable Wrist Curl"
+  ],
+  "images": [
+   "Cable_Wrist_Curl/0.jpg",
+   "Cable_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -1516,7 +2012,12 @@
   "source": "fedb",
   "aliases": [
    "Calf-Machine Shoulder Shrug"
-  ]
+  ],
+  "images": [
+   "Calf-Machine_Shoulder_Shrug/0.jpg",
+   "Calf-Machine_Shoulder_Shrug/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-calf-press",
@@ -1527,7 +2028,12 @@
   "source": "fedb",
   "aliases": [
    "Calf Press"
-  ]
+  ],
+  "images": [
+   "Calf_Press/0.jpg",
+   "Calf_Press/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-calf-press-on-the-leg-press-machine",
@@ -1538,7 +2044,12 @@
   "source": "fedb",
   "aliases": [
    "Calf Press On The Leg Press Machine"
-  ]
+  ],
+  "images": [
+   "Calf_Press_On_The_Leg_Press_Machine/0.jpg",
+   "Calf_Press_On_The_Leg_Press_Machine/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-calf-raise-on-a-dumbbell",
@@ -1549,7 +2060,12 @@
   "source": "fedb",
   "aliases": [
    "Calf Raise On A Dumbbell"
-  ]
+  ],
+  "images": [
+   "Calf_Raise_On_A_Dumbbell/0.jpg",
+   "Calf_Raise_On_A_Dumbbell/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-calf-raises-with-bands",
@@ -1560,7 +2076,12 @@
   "source": "fedb",
   "aliases": [
    "Calf Raises - With Bands"
-  ]
+  ],
+  "images": [
+   "Calf_Raises_-_With_Bands/0.jpg",
+   "Calf_Raises_-_With_Bands/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-car-deadlift",
@@ -1578,7 +2099,12 @@
    "hamstrings",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Car_Deadlift/0.jpg",
+   "Car_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-car-drivers",
@@ -1592,6 +2118,10 @@
   ],
   "secondaryMuscles": [
    "forearms"
+  ],
+  "images": [
+   "Car_Drivers/0.jpg",
+   "Car_Drivers/1.jpg"
   ]
  },
  {
@@ -1611,6 +2141,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Carioca_Quick_Step/0.jpg",
+   "Carioca_Quick_Step/1.jpg"
   ]
  },
  {
@@ -1627,6 +2161,10 @@
    "abdominals",
    "chest",
    "front_delts"
+  ],
+  "images": [
+   "Catch_and_Overhead_Throw/0.jpg",
+   "Catch_and_Overhead_Throw/1.jpg"
   ]
  },
  {
@@ -1638,7 +2176,12 @@
   "source": "fedb",
   "aliases": [
    "Chain Handle Extension"
-  ]
+  ],
+  "images": [
+   "Chain_Handle_Extension/0.jpg",
+   "Chain_Handle_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-chain-press",
@@ -1653,7 +2196,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Chain_Press/0.jpg",
+   "Chain_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-chair-squat",
@@ -1669,7 +2217,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Chair_Squat/0.jpg",
+   "Chair_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-chest-push-from-3-point-stance",
@@ -1685,6 +2238,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Chest_Push_from_3_point_stance/0.jpg",
+   "Chest_Push_from_3_point_stance/1.jpg"
   ]
  },
  {
@@ -1701,6 +2258,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Chest_Push_multiple_response/0.jpg",
+   "Chest_Push_multiple_response/1.jpg"
   ]
  },
  {
@@ -1717,6 +2278,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Chest_Push_single_response/0.jpg",
+   "Chest_Push_single_response/1.jpg"
   ]
  },
  {
@@ -1733,6 +2298,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Chest_Push_with_Run_Release/0.jpg",
+   "Chest_Push_with_Run_Release/1.jpg"
   ]
  },
  {
@@ -1752,6 +2321,10 @@
    "lower_back",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Circus_Bell/0.jpg",
+   "Circus_Bell/1.jpg"
   ]
  },
  {
@@ -1772,6 +2345,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Clean/0.jpg",
+   "Clean/1.jpg"
   ]
  },
  {
@@ -1791,6 +2368,10 @@
    "upper_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Clean_Deadlift/0.jpg",
+   "Clean_Deadlift/1.jpg"
   ]
  },
  {
@@ -1809,6 +2390,10 @@
    "hamstrings",
    "lower_back",
    "traps"
+  ],
+  "images": [
+   "Clean_Pull/0.jpg",
+   "Clean_Pull/1.jpg"
   ]
  },
  {
@@ -1824,6 +2409,10 @@
   "secondaryMuscles": [
    "forearms",
    "side_delts"
+  ],
+  "images": [
+   "Clean_Shrug/0.jpg",
+   "Clean_Shrug/1.jpg"
   ]
  },
  {
@@ -1844,6 +2433,10 @@
    "quadriceps",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Clean_and_Jerk/0.jpg",
+   "Clean_and_Jerk/1.jpg"
   ]
  },
  {
@@ -1862,6 +2455,10 @@
    "hamstrings",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Clean_from_Blocks/0.jpg",
+   "Clean_from_Blocks/1.jpg"
   ]
  },
  {
@@ -1877,7 +2474,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Clock_Push-Up/0.jpg",
+   "Clock_Push-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-close-grip-dumbbell-press",
@@ -1892,7 +2494,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Close-Grip_Dumbbell_Press/0.jpg",
+   "Close-Grip_Dumbbell_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-close-grip-ez-bar-curl-with-band",
@@ -1906,7 +2513,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Close-Grip_EZ-Bar_Curl_with_Band/0.jpg",
+   "Close-Grip_EZ-Bar_Curl_with_Band/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-close-grip-ez-bar-press",
@@ -1921,7 +2533,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Close-Grip_EZ-Bar_Press/0.jpg",
+   "Close-Grip_EZ-Bar_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-close-grip-ez-bar-curl",
@@ -1935,7 +2552,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Close-Grip_EZ_Bar_Curl/0.jpg",
+   "Close-Grip_EZ_Bar_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-close-grip-front-lat-pulldown",
@@ -1951,7 +2573,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Close-Grip_Front_Lat_Pulldown/0.jpg",
+   "Close-Grip_Front_Lat_Pulldown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-close-grip-push-up-off-of-a-dumbbell",
@@ -1967,7 +2594,12 @@
    "abdominals",
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Close-Grip_Push-Up_off_of_a_Dumbbell/0.jpg",
+   "Close-Grip_Push-Up_off_of_a_Dumbbell/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-close-grip-standing-barbell-curl",
@@ -1981,7 +2613,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Close-Grip_Standing_Barbell_Curl/0.jpg",
+   "Close-Grip_Standing_Barbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-cocoons",
@@ -1992,7 +2629,12 @@
   "source": "fedb",
   "aliases": [
    "Cocoons"
-  ]
+  ],
+  "images": [
+   "Cocoons/0.jpg",
+   "Cocoons/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-conans-wheel",
@@ -2012,6 +2654,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Conans_Wheel/0.jpg",
+   "Conans_Wheel/1.jpg"
   ]
  },
  {
@@ -2026,7 +2672,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Concentration_Curls/0.jpg",
+   "Concentration_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-cross-body-crunch",
@@ -2037,7 +2688,12 @@
   "source": "fedb",
   "aliases": [
    "Cross-Body Crunch"
-  ]
+  ],
+  "images": [
+   "Cross-Body_Crunch/0.jpg",
+   "Cross-Body_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-cross-body-hammer-curl",
@@ -2051,7 +2707,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Cross_Body_Hammer_Curl/0.jpg",
+   "Cross_Body_Hammer_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-cross-over-with-bands",
@@ -2066,7 +2727,12 @@
   "secondaryMuscles": [
    "biceps",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Cross_Over_-_With_Bands/0.jpg",
+   "Cross_Over_-_With_Bands/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-crucifix",
@@ -2080,7 +2746,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Crucifix/0.jpg",
+   "Crucifix/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-crunch-hands-overhead",
@@ -2091,7 +2762,12 @@
   "source": "fedb",
   "aliases": [
    "Crunch - Hands Overhead"
-  ]
+  ],
+  "images": [
+   "Crunch_-_Hands_Overhead/0.jpg",
+   "Crunch_-_Hands_Overhead/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-crunch-legs-on-exercise-ball",
@@ -2102,7 +2778,12 @@
   "source": "fedb",
   "aliases": [
    "Crunch - Legs On Exercise Ball"
-  ]
+  ],
+  "images": [
+   "Crunch_-_Legs_On_Exercise_Ball/0.jpg",
+   "Crunch_-_Legs_On_Exercise_Ball/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-cuban-press",
@@ -2117,7 +2798,12 @@
   "secondaryMuscles": [
    "rear_delts",
    "traps"
-  ]
+  ],
+  "images": [
+   "Cuban_Press/0.jpg",
+   "Cuban_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-deadlift-with-bands",
@@ -2136,7 +2822,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Deadlift_with_Bands/0.jpg",
+   "Deadlift_with_Bands/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-deadlift-with-chains",
@@ -2155,7 +2846,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Deadlift_with_Chains/0.jpg",
+   "Deadlift_with_Chains/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-decline-barbell-bench-press",
@@ -2170,7 +2866,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Decline_Barbell_Bench_Press/0.jpg",
+   "Decline_Barbell_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-decline-close-grip-bench-to-skull-crusher",
@@ -2185,7 +2886,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Decline_Close-Grip_Bench_To_Skull_Crusher/0.jpg",
+   "Decline_Close-Grip_Bench_To_Skull_Crusher/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-decline-crunch",
@@ -2196,7 +2902,12 @@
   "source": "fedb",
   "aliases": [
    "Decline Crunch"
-  ]
+  ],
+  "images": [
+   "Decline_Crunch/0.jpg",
+   "Decline_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-decline-dumbbell-bench-press",
@@ -2211,7 +2922,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Decline_Dumbbell_Bench_Press/0.jpg",
+   "Decline_Dumbbell_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-decline-dumbbell-flyes",
@@ -2222,7 +2938,12 @@
   "source": "fedb",
   "aliases": [
    "Decline Dumbbell Flyes"
-  ]
+  ],
+  "images": [
+   "Decline_Dumbbell_Flyes/0.jpg",
+   "Decline_Dumbbell_Flyes/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-decline-dumbbell-triceps-extension",
@@ -2233,7 +2954,12 @@
   "source": "fedb",
   "aliases": [
    "Decline Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Decline_Dumbbell_Triceps_Extension/0.jpg",
+   "Decline_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-decline-ez-bar-triceps-extension",
@@ -2244,7 +2970,12 @@
   "source": "fedb",
   "aliases": [
    "Decline EZ Bar Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Decline_EZ_Bar_Triceps_Extension/0.jpg",
+   "Decline_EZ_Bar_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-decline-oblique-crunch",
@@ -2255,7 +2986,12 @@
   "source": "fedb",
   "aliases": [
    "Decline Oblique Crunch"
-  ]
+  ],
+  "images": [
+   "Decline_Oblique_Crunch/0.jpg",
+   "Decline_Oblique_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-decline-push-up",
@@ -2270,7 +3006,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Decline_Push-Up/0.jpg",
+   "Decline_Push-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-decline-reverse-crunch",
@@ -2281,7 +3022,12 @@
   "source": "fedb",
   "aliases": [
    "Decline Reverse Crunch"
-  ]
+  ],
+  "images": [
+   "Decline_Reverse_Crunch/0.jpg",
+   "Decline_Reverse_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-decline-smith-press",
@@ -2296,7 +3042,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Decline_Smith_Press/0.jpg",
+   "Decline_Smith_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-deficit-deadlift",
@@ -2315,7 +3066,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Deficit_Deadlift/0.jpg",
+   "Deficit_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-depth-jump-leap",
@@ -2333,6 +3089,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Depth_Jump_Leap/0.jpg",
+   "Depth_Jump_Leap/1.jpg"
   ]
  },
  {
@@ -2348,7 +3108,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Dip_Machine/0.jpg",
+   "Dip_Machine/1.jpg"
+  ],
+  "family": "dip"
  },
  {
   "id": "fedb-dips-chest-version",
@@ -2363,7 +3128,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Dips_-_Chest_Version/0.jpg",
+   "Dips_-_Chest_Version/1.jpg"
+  ],
+  "family": "dip"
  },
  {
   "id": "fedb-donkey-calf-raises",
@@ -2374,7 +3144,12 @@
   "source": "fedb",
   "aliases": [
    "Donkey Calf Raises"
-  ]
+  ],
+  "images": [
+   "Donkey_Calf_Raises/0.jpg",
+   "Donkey_Calf_Raises/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-double-kettlebell-alternating-hang-clean",
@@ -2394,6 +3169,10 @@
    "lower_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Double_Kettlebell_Alternating_Hang_Clean/0.jpg",
+   "Double_Kettlebell_Alternating_Hang_Clean/1.jpg"
   ]
  },
  {
@@ -2410,6 +3189,10 @@
    "calves",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Double_Kettlebell_Jerk/0.jpg",
+   "Double_Kettlebell_Jerk/1.jpg"
   ]
  },
  {
@@ -2426,7 +3209,12 @@
    "calves",
    "quadriceps",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Double_Kettlebell_Push_Press/0.jpg",
+   "Double_Kettlebell_Push_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-double-kettlebell-snatch",
@@ -2442,6 +3230,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Double_Kettlebell_Snatch/0.jpg",
+   "Double_Kettlebell_Snatch/1.jpg"
   ]
  },
  {
@@ -2459,7 +3251,12 @@
    "hamstrings",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Double_Kettlebell_Windmill/0.jpg",
+   "Double_Kettlebell_Windmill/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-double-leg-butt-kick",
@@ -2477,6 +3274,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Double_Leg_Butt_Kick/0.jpg",
+   "Double_Leg_Butt_Kick/1.jpg"
   ]
  },
  {
@@ -2492,6 +3293,10 @@
   "secondaryMuscles": [
    "abdominals",
    "hamstrings"
+  ],
+  "images": [
+   "Downward_Facing_Balance/0.jpg",
+   "Downward_Facing_Balance/1.jpg"
   ]
  },
  {
@@ -2506,7 +3311,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Drag_Curl/0.jpg",
+   "Drag_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-drop-push",
@@ -2521,6 +3331,10 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Drop_Push/0.jpg",
+   "Drop_Push/1.jpg"
   ]
  },
  {
@@ -2535,7 +3349,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Alternate_Bicep_Curl/0.jpg",
+   "Dumbbell_Alternate_Bicep_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-dumbbell-bench-press-with-neutral-grip",
@@ -2550,7 +3369,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Bench_Press_with_Neutral_Grip/0.jpg",
+   "Dumbbell_Bench_Press_with_Neutral_Grip/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-dumbbell-clean",
@@ -2570,6 +3394,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Dumbbell_Clean/0.jpg",
+   "Dumbbell_Clean/1.jpg"
   ]
  },
  {
@@ -2585,7 +3413,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Floor_Press/0.jpg",
+   "Dumbbell_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-dumbbell-incline-shoulder-raise",
@@ -2599,6 +3432,10 @@
   ],
   "secondaryMuscles": [
    "triceps"
+  ],
+  "images": [
+   "Dumbbell_Incline_Shoulder_Raise/0.jpg",
+   "Dumbbell_Incline_Shoulder_Raise/1.jpg"
   ]
  },
  {
@@ -2613,7 +3450,12 @@
   ],
   "secondaryMuscles": [
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Lying_One-Arm_Rear_Lateral_Raise/0.jpg",
+   "Dumbbell_Lying_One-Arm_Rear_Lateral_Raise/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-dumbbell-lying-pronation",
@@ -2624,6 +3466,10 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Lying Pronation"
+  ],
+  "images": [
+   "Dumbbell_Lying_Pronation/0.jpg",
+   "Dumbbell_Lying_Pronation/1.jpg"
   ]
  },
  {
@@ -2635,7 +3481,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Lying Rear Lateral Raise"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Lying_Rear_Lateral_Raise/0.jpg",
+   "Dumbbell_Lying_Rear_Lateral_Raise/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-dumbbell-lying-supination",
@@ -2646,6 +3497,10 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Lying Supination"
+  ],
+  "images": [
+   "Dumbbell_Lying_Supination/0.jpg",
+   "Dumbbell_Lying_Supination/1.jpg"
   ]
  },
  {
@@ -2660,7 +3515,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Dumbbell_One-Arm_Shoulder_Press/0.jpg",
+   "Dumbbell_One-Arm_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-dumbbell-one-arm-triceps-extension",
@@ -2671,7 +3531,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell One-Arm Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Dumbbell_One-Arm_Triceps_Extension/0.jpg",
+   "Dumbbell_One-Arm_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-dumbbell-one-arm-upright-row",
@@ -2686,6 +3551,10 @@
   "secondaryMuscles": [
    "biceps",
    "traps"
+  ],
+  "images": [
+   "Dumbbell_One-Arm_Upright_Row/0.jpg",
+   "Dumbbell_One-Arm_Upright_Row/1.jpg"
   ]
  },
  {
@@ -2697,7 +3566,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Prone Incline Curl"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Prone_Incline_Curl/0.jpg",
+   "Dumbbell_Prone_Incline_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-dumbbell-raise",
@@ -2711,7 +3585,12 @@
   ],
   "secondaryMuscles": [
    "biceps"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Raise/0.jpg",
+   "Dumbbell_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-dumbbell-scaption",
@@ -2726,6 +3605,10 @@
   "secondaryMuscles": [
    "side_delts",
    "traps"
+  ],
+  "images": [
+   "Dumbbell_Scaption/0.jpg",
+   "Dumbbell_Scaption/1.jpg"
   ]
  },
  {
@@ -2742,6 +3625,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Dumbbell_Seated_Box_Jump/0.jpg",
+   "Dumbbell_Seated_Box_Jump/1.jpg"
   ]
  },
  {
@@ -2753,7 +3640,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Seated One-Leg Calf Raise"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Seated_One-Leg_Calf_Raise/0.jpg",
+   "Dumbbell_Seated_One-Leg_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-dumbbell-side-bend",
@@ -2764,7 +3656,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Side Bend"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Side_Bend/0.jpg",
+   "Dumbbell_Side_Bend/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-dumbbell-squat",
@@ -2781,7 +3678,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Squat/0.jpg",
+   "Dumbbell_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-dumbbell-squat-to-a-bench",
@@ -2798,7 +3700,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Squat_To_A_Bench/0.jpg",
+   "Dumbbell_Squat_To_A_Bench/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-dumbbell-tricep-extension-pronated-grip",
@@ -2809,7 +3716,12 @@
   "source": "fedb",
   "aliases": [
    "Dumbbell Tricep Extension -Pronated Grip"
-  ]
+  ],
+  "images": [
+   "Dumbbell_Tricep_Extension_-Pronated_Grip/0.jpg",
+   "Dumbbell_Tricep_Extension_-Pronated_Grip/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-ez-bar-curl",
@@ -2820,7 +3732,12 @@
   "source": "fedb",
   "aliases": [
    "EZ-Bar Curl"
-  ]
+  ],
+  "images": [
+   "EZ-Bar_Curl/0.jpg",
+   "EZ-Bar_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-ez-bar-skullcrusher",
@@ -2834,7 +3751,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "EZ-Bar_Skullcrusher/0.jpg",
+   "EZ-Bar_Skullcrusher/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-elbow-to-knee",
@@ -2845,7 +3767,12 @@
   "source": "fedb",
   "aliases": [
    "Elbow to Knee"
-  ]
+  ],
+  "images": [
+   "Elbow_to_Knee/0.jpg",
+   "Elbow_to_Knee/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-elevated-back-lunge",
@@ -2860,7 +3787,12 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Elevated_Back_Lunge/0.jpg",
+   "Elevated_Back_Lunge/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-elevated-cable-rows",
@@ -2875,7 +3807,12 @@
   "secondaryMuscles": [
    "upper_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Elevated_Cable_Rows/0.jpg",
+   "Elevated_Cable_Rows/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-exercise-ball-crunch",
@@ -2886,7 +3823,12 @@
   "source": "fedb",
   "aliases": [
    "Exercise Ball Crunch"
-  ]
+  ],
+  "images": [
+   "Exercise_Ball_Crunch/0.jpg",
+   "Exercise_Ball_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-exercise-ball-pull-in",
@@ -2897,7 +3839,12 @@
   "source": "fedb",
   "aliases": [
    "Exercise Ball Pull-In"
-  ]
+  ],
+  "images": [
+   "Exercise_Ball_Pull-In/0.jpg",
+   "Exercise_Ball_Pull-In/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-extended-range-one-arm-kettlebell-floor-press",
@@ -2912,7 +3859,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Extended_Range_One-Arm_Kettlebell_Floor_Press/0.jpg",
+   "Extended_Range_One-Arm_Kettlebell_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-external-rotation",
@@ -2923,6 +3875,10 @@
   "source": "fedb",
   "aliases": [
    "External Rotation"
+  ],
+  "images": [
+   "External_Rotation/0.jpg",
+   "External_Rotation/1.jpg"
   ]
  },
  {
@@ -2934,6 +3890,10 @@
   "source": "fedb",
   "aliases": [
    "External Rotation with Band"
+  ],
+  "images": [
+   "External_Rotation_with_Band/0.jpg",
+   "External_Rotation_with_Band/1.jpg"
   ]
  },
  {
@@ -2945,6 +3905,10 @@
   "source": "fedb",
   "aliases": [
    "External Rotation with Cable"
+  ],
+  "images": [
+   "External_Rotation_with_Cable/0.jpg",
+   "External_Rotation_with_Cable/1.jpg"
   ]
  },
  {
@@ -2964,7 +3928,12 @@
    "lower_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Farmers_Walk/0.jpg",
+   "Farmers_Walk/1.jpg"
+  ],
+  "family": "carry"
  },
  {
   "id": "fedb-fast-skipping",
@@ -2982,6 +3951,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Fast_Skipping/0.jpg",
+   "Fast_Skipping/1.jpg"
   ]
  },
  {
@@ -2993,6 +3966,10 @@
   "source": "fedb",
   "aliases": [
    "Finger Curls"
+  ],
+  "images": [
+   "Finger_Curls/0.jpg",
+   "Finger_Curls/1.jpg"
   ]
  },
  {
@@ -3004,7 +3981,12 @@
   "source": "fedb",
   "aliases": [
    "Flat Bench Cable Flyes"
-  ]
+  ],
+  "images": [
+   "Flat_Bench_Cable_Flyes/0.jpg",
+   "Flat_Bench_Cable_Flyes/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-flat-bench-leg-pull-in",
@@ -3015,7 +3997,12 @@
   "source": "fedb",
   "aliases": [
    "Flat Bench Leg Pull-In"
-  ]
+  ],
+  "images": [
+   "Flat_Bench_Leg_Pull-In/0.jpg",
+   "Flat_Bench_Leg_Pull-In/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-flat-bench-lying-leg-raise",
@@ -3026,7 +4013,12 @@
   "source": "fedb",
   "aliases": [
    "Flat Bench Lying Leg Raise"
-  ]
+  ],
+  "images": [
+   "Flat_Bench_Lying_Leg_Raise/0.jpg",
+   "Flat_Bench_Lying_Leg_Raise/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-flexor-incline-dumbbell-curls",
@@ -3037,7 +4029,12 @@
   "source": "fedb",
   "aliases": [
    "Flexor Incline Dumbbell Curls"
-  ]
+  ],
+  "images": [
+   "Flexor_Incline_Dumbbell_Curls/0.jpg",
+   "Flexor_Incline_Dumbbell_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-floor-glute-ham-raise",
@@ -3052,7 +4049,12 @@
   "secondaryMuscles": [
    "calves",
    "glutes"
-  ]
+  ],
+  "images": [
+   "Floor_Glute-Ham_Raise/0.jpg",
+   "Floor_Glute-Ham_Raise/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-floor-press",
@@ -3067,7 +4069,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Floor_Press/0.jpg",
+   "Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-floor-press-with-chains",
@@ -3082,7 +4089,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Floor_Press_with_Chains/0.jpg",
+   "Floor_Press_with_Chains/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-flutter-kicks",
@@ -3096,6 +4108,10 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
+  ],
+  "images": [
+   "Flutter_Kicks/0.jpg",
+   "Flutter_Kicks/1.jpg"
   ]
  },
  {
@@ -3115,6 +4131,10 @@
    "quadriceps",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Forward_Drag_with_Press/0.jpg",
+   "Forward_Drag_with_Press/1.jpg"
   ]
  },
  {
@@ -3132,7 +4152,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Frankenstein_Squat/0.jpg",
+   "Frankenstein_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-freehand-jump-squat",
@@ -3148,7 +4173,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Freehand_Jump_Squat/0.jpg",
+   "Freehand_Jump_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-frog-sit-ups",
@@ -3159,7 +4189,12 @@
   "source": "fedb",
   "aliases": [
    "Frog Sit-Ups"
-  ]
+  ],
+  "images": [
+   "Frog_Sit-Ups/0.jpg",
+   "Frog_Sit-Ups/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-front-barbell-squat-to-a-bench",
@@ -3175,7 +4210,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Front_Barbell_Squat_To_A_Bench/0.jpg",
+   "Front_Barbell_Squat_To_A_Bench/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-front-box-jump",
@@ -3193,6 +4233,10 @@
    "calves",
    "glutes",
    "quadriceps"
+  ],
+  "images": [
+   "Front_Box_Jump/0.jpg",
+   "Front_Box_Jump/1.jpg"
   ]
  },
  {
@@ -3204,6 +4248,10 @@
   "source": "fedb",
   "aliases": [
    "Front Cable Raise"
+  ],
+  "images": [
+   "Front_Cable_Raise/0.jpg",
+   "Front_Cable_Raise/1.jpg"
   ]
  },
  {
@@ -3222,6 +4270,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Front_Cone_Hops_or_hurdle_hops/0.jpg",
+   "Front_Cone_Hops_or_hurdle_hops/1.jpg"
   ]
  },
  {
@@ -3233,6 +4285,10 @@
   "source": "fedb",
   "aliases": [
    "Front Incline Dumbbell Raise"
+  ],
+  "images": [
+   "Front_Incline_Dumbbell_Raise/0.jpg",
+   "Front_Incline_Dumbbell_Raise/1.jpg"
   ]
  },
  {
@@ -3244,6 +4300,10 @@
   "source": "fedb",
   "aliases": [
    "Front Plate Raise"
+  ],
+  "images": [
+   "Front_Plate_Raise/0.jpg",
+   "Front_Plate_Raise/1.jpg"
   ]
  },
  {
@@ -3260,6 +4320,10 @@
    "lats",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Front_Raise_And_Pullover/0.jpg",
+   "Front_Raise_And_Pullover/1.jpg"
   ]
  },
  {
@@ -3276,7 +4340,12 @@
    "abdominals",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Front_Squat_Clean_Grip/0.jpg",
+   "Front_Squat_Clean_Grip/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-front-squats-with-two-kettlebells",
@@ -3291,7 +4360,12 @@
   "secondaryMuscles": [
    "calves",
    "glutes"
-  ]
+  ],
+  "images": [
+   "Front_Squats_With_Two_Kettlebells/0.jpg",
+   "Front_Squats_With_Two_Kettlebells/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-front-two-dumbbell-raise",
@@ -3302,6 +4376,10 @@
   "source": "fedb",
   "aliases": [
    "Front Two-Dumbbell Raise"
+  ],
+  "images": [
+   "Front_Two-Dumbbell_Raise/0.jpg",
+   "Front_Two-Dumbbell_Raise/1.jpg"
   ]
  },
  {
@@ -3318,7 +4396,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Full_Range-Of-Motion_Lat_Pulldown/0.jpg",
+   "Full_Range-Of-Motion_Lat_Pulldown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-gironda-sternum-chins",
@@ -3333,7 +4416,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Gironda_Sternum_Chins/0.jpg",
+   "Gironda_Sternum_Chins/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-glute-ham-raise",
@@ -3348,7 +4436,12 @@
   "secondaryMuscles": [
    "calves",
    "glutes"
-  ]
+  ],
+  "images": [
+   "Glute_Ham_Raise/0.jpg",
+   "Glute_Ham_Raise/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-glute-kickback",
@@ -3362,6 +4455,10 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
+  ],
+  "images": [
+   "Glute_Kickback/0.jpg",
+   "Glute_Kickback/1.jpg"
   ]
  },
  {
@@ -3376,7 +4473,12 @@
    "glutes",
    "hamstrings",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Goblet_Squat/0.jpg",
+   "Goblet_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-good-morning-off-pins",
@@ -3392,7 +4494,12 @@
    "abdominals",
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Good_Morning_off_Pins/0.jpg",
+   "Good_Morning_off_Pins/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-gorilla-chin-crunch",
@@ -3407,7 +4514,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Gorilla_Chin_Crunch/0.jpg",
+   "Gorilla_Chin_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-hammer-grip-incline-db-bench-press",
@@ -3422,7 +4534,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Hammer_Grip_Incline_DB_Bench_Press/0.jpg",
+   "Hammer_Grip_Incline_DB_Bench_Press/1.jpg"
+  ],
+  "family": "incline-press"
  },
  {
   "id": "fedb-handstand-push-ups",
@@ -3436,7 +4553,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Handstand_Push-Ups/0.jpg",
+   "Handstand_Push-Ups/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-hang-clean",
@@ -3456,6 +4578,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Hang_Clean/0.jpg",
+   "Hang_Clean/1.jpg"
   ]
  },
  {
@@ -3476,6 +4602,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Hang_Clean_-_Below_the_Knees/0.jpg",
+   "Hang_Clean_-_Below_the_Knees/1.jpg"
   ]
  },
  {
@@ -3497,6 +4627,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Hang_Snatch/0.jpg",
+   "Hang_Snatch/1.jpg"
   ]
  },
  {
@@ -3518,6 +4652,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Hang_Snatch_-_Below_Knees/0.jpg",
+   "Hang_Snatch_-_Below_Knees/1.jpg"
   ]
  },
  {
@@ -3534,7 +4672,12 @@
    "abdominals",
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Hanging_Bar_Good_Morning/0.jpg",
+   "Hanging_Bar_Good_Morning/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-hanging-pike",
@@ -3545,7 +4688,12 @@
   "source": "fedb",
   "aliases": [
    "Hanging Pike"
-  ]
+  ],
+  "images": [
+   "Hanging_Pike/0.jpg",
+   "Hanging_Pike/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-heaving-snatch-balance",
@@ -3564,6 +4712,10 @@
    "hamstrings",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Heaving_Snatch_Balance/0.jpg",
+   "Heaving_Snatch_Balance/1.jpg"
   ]
  },
  {
@@ -3580,6 +4732,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Heavy_Bag_Thrust/0.jpg",
+   "Heavy_Bag_Thrust/1.jpg"
   ]
  },
  {
@@ -3591,7 +4747,12 @@
   "source": "fedb",
   "aliases": [
    "High Cable Curls"
-  ]
+  ],
+  "images": [
+   "High_Cable_Curls/0.jpg",
+   "High_Cable_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-hip-extension-with-bands",
@@ -3605,6 +4766,10 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
+  ],
+  "images": [
+   "Hip_Extension_with_Bands/0.jpg",
+   "Hip_Extension_with_Bands/1.jpg"
   ]
  },
  {
@@ -3616,6 +4781,10 @@
   "source": "fedb",
   "aliases": [
    "Hip Flexion with Band"
+  ],
+  "images": [
+   "Hip_Flexion_with_Band/0.jpg",
+   "Hip_Flexion_with_Band/1.jpg"
   ]
  },
  {
@@ -3631,7 +4800,12 @@
   "secondaryMuscles": [
    "calves",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Hip_Lift_with_Band/0.jpg",
+   "Hip_Lift_with_Band/1.jpg"
+  ],
+  "family": "hip-thrust"
  },
  {
   "id": "fedb-hurdle-hops",
@@ -3648,6 +4822,10 @@
    "adductors",
    "calves",
    "glutes"
+  ],
+  "images": [
+   "Hurdle_Hops/0.jpg",
+   "Hurdle_Hops/1.jpg"
   ]
  },
  {
@@ -3663,6 +4841,10 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Hyperextensions_With_No_Hyperextension_Bench/0.jpg",
+   "Hyperextensions_With_No_Hyperextension_Bench/1.jpg"
   ]
  },
  {
@@ -3677,7 +4859,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Incline_Barbell_Triceps_Extension/0.jpg",
+   "Incline_Barbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-incline-bench-pull",
@@ -3692,7 +4879,12 @@
   "secondaryMuscles": [
    "lats",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Incline_Bench_Pull/0.jpg",
+   "Incline_Bench_Pull/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-incline-cable-chest-press",
@@ -3707,7 +4899,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Cable_Chest_Press/0.jpg",
+   "Incline_Cable_Chest_Press/1.jpg"
+  ],
+  "family": "incline-press"
  },
  {
   "id": "fedb-incline-cable-flye",
@@ -3721,7 +4918,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Incline_Cable_Flye/0.jpg",
+   "Incline_Cable_Flye/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-incline-dumbbell-bench-with-palms-facing-in",
@@ -3736,7 +4938,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Dumbbell_Bench_With_Palms_Facing_In/0.jpg",
+   "Incline_Dumbbell_Bench_With_Palms_Facing_In/1.jpg"
+  ],
+  "family": "incline-press"
  },
  {
   "id": "fedb-incline-dumbbell-flyes",
@@ -3750,7 +4957,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Incline_Dumbbell_Flyes/0.jpg",
+   "Incline_Dumbbell_Flyes/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-incline-dumbbell-flyes-with-a-twist",
@@ -3764,7 +4976,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Incline_Dumbbell_Flyes_-_With_A_Twist/0.jpg",
+   "Incline_Dumbbell_Flyes_-_With_A_Twist/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-incline-hammer-curls",
@@ -3775,7 +4992,12 @@
   "source": "fedb",
   "aliases": [
    "Incline Hammer Curls"
-  ]
+  ],
+  "images": [
+   "Incline_Hammer_Curls/0.jpg",
+   "Incline_Hammer_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-incline-inner-biceps-curl",
@@ -3786,7 +5008,12 @@
   "source": "fedb",
   "aliases": [
    "Incline Inner Biceps Curl"
-  ]
+  ],
+  "images": [
+   "Incline_Inner_Biceps_Curl/0.jpg",
+   "Incline_Inner_Biceps_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-incline-push-up",
@@ -3801,7 +5028,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Push-Up/0.jpg",
+   "Incline_Push-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-incline-push-up-close-grip",
@@ -3816,7 +5048,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Incline_Push-Up_Close-Grip/0.jpg",
+   "Incline_Push-Up_Close-Grip/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-incline-push-up-depth-jump",
@@ -3831,6 +5068,10 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Incline_Push-Up_Depth_Jump/0.jpg",
+   "Incline_Push-Up_Depth_Jump/1.jpg"
   ]
  },
  {
@@ -3847,7 +5088,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Push-Up_Medium/0.jpg",
+   "Incline_Push-Up_Medium/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-incline-push-up-reverse-grip",
@@ -3863,7 +5109,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Push-Up_Reverse_Grip/0.jpg",
+   "Incline_Push-Up_Reverse_Grip/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-incline-push-up-wide",
@@ -3879,7 +5130,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Incline_Push-Up_Wide/0.jpg",
+   "Incline_Push-Up_Wide/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-internal-rotation-with-band",
@@ -3890,6 +5146,10 @@
   "source": "fedb",
   "aliases": [
    "Internal Rotation with Band"
+  ],
+  "images": [
+   "Internal_Rotation_with_Band/0.jpg",
+   "Internal_Rotation_with_Band/1.jpg"
   ]
  },
  {
@@ -3905,7 +5165,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Inverted_Row_with_Straps/0.jpg",
+   "Inverted_Row_with_Straps/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-iron-cross",
@@ -3924,6 +5189,10 @@
    "lower_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Iron_Cross/0.jpg",
+   "Iron_Cross/1.jpg"
   ]
  },
  {
@@ -3939,6 +5208,10 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Isometric_Chest_Squeezes/0.jpg",
+   "Isometric_Chest_Squeezes/1.jpg"
   ]
  },
  {
@@ -3950,6 +5223,10 @@
   "source": "fedb",
   "aliases": [
    "Isometric Neck Exercise - Front And Back"
+  ],
+  "images": [
+   "Isometric_Neck_Exercise_-_Front_And_Back/0.jpg",
+   "Isometric_Neck_Exercise_-_Front_And_Back/1.jpg"
   ]
  },
  {
@@ -3961,6 +5238,10 @@
   "source": "fedb",
   "aliases": [
    "Isometric Neck Exercise - Sides"
+  ],
+  "images": [
+   "Isometric_Neck_Exercise_-_Sides/0.jpg",
+   "Isometric_Neck_Exercise_-_Sides/1.jpg"
   ]
  },
  {
@@ -3977,6 +5258,10 @@
    "abdominals",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Isometric_Wipers/0.jpg",
+   "Isometric_Wipers/1.jpg"
   ]
  },
  {
@@ -3992,7 +5277,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "JM_Press/0.jpg",
+   "JM_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-jackknife-sit-up",
@@ -4003,7 +5293,12 @@
   "source": "fedb",
   "aliases": [
    "Jackknife Sit-Up"
-  ]
+  ],
+  "images": [
+   "Jackknife_Sit-Up/0.jpg",
+   "Jackknife_Sit-Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-janda-sit-up",
@@ -4014,7 +5309,12 @@
   "source": "fedb",
   "aliases": [
    "Janda Sit-Up"
-  ]
+  ],
+  "images": [
+   "Janda_Sit-Up/0.jpg",
+   "Janda_Sit-Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-jefferson-squats",
@@ -4032,7 +5332,12 @@
    "hamstrings",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Jefferson_Squats/0.jpg",
+   "Jefferson_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-jerk-balance",
@@ -4049,6 +5354,10 @@
    "hamstrings",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Jerk_Balance/0.jpg",
+   "Jerk_Balance/1.jpg"
   ]
  },
  {
@@ -4064,6 +5373,10 @@
   "secondaryMuscles": [
    "abdominals",
    "calves"
+  ],
+  "images": [
+   "Jerk_Dip_Squat/0.jpg",
+   "Jerk_Dip_Squat/1.jpg"
   ]
  },
  {
@@ -4087,6 +5400,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Keg_Load/0.jpg",
+   "Keg_Load/1.jpg"
   ]
  },
  {
@@ -4101,7 +5418,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Kettlebell_Arnold_Press/0.jpg",
+   "Kettlebell_Arnold_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-kettlebell-dead-clean",
@@ -4119,6 +5441,10 @@
    "lower_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Kettlebell_Dead_Clean/0.jpg",
+   "Kettlebell_Dead_Clean/1.jpg"
   ]
  },
  {
@@ -4134,6 +5460,10 @@
   "secondaryMuscles": [
    "hamstrings",
    "front_delts"
+  ],
+  "images": [
+   "Kettlebell_Figure_8/0.jpg",
+   "Kettlebell_Figure_8/1.jpg"
   ]
  },
  {
@@ -4187,6 +5517,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Kettlebell_Hang_Clean/0.jpg",
+   "Kettlebell_Hang_Clean/1.jpg"
   ]
  },
  {
@@ -4202,7 +5536,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Kettlebell_One-Legged_Deadlift/0.jpg",
+   "Kettlebell_One-Legged_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-kettlebell-overhead-triceps-extension",
@@ -4217,7 +5556,8 @@
   "secondaryMuscles": [
    "front_delts",
    "abdominals"
-  ]
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-kettlebell-pass-between-the-legs",
@@ -4233,6 +5573,10 @@
    "glutes",
    "hamstrings",
    "front_delts"
+  ],
+  "images": [
+   "Kettlebell_Pass_Between_The_Legs/0.jpg",
+   "Kettlebell_Pass_Between_The_Legs/1.jpg"
   ]
  },
  {
@@ -4248,6 +5592,10 @@
   "secondaryMuscles": [
    "side_delts",
    "abdominals"
+  ],
+  "images": [
+   "Kettlebell_Pirate_Ships/0.jpg",
+   "Kettlebell_Pirate_Ships/1.jpg"
   ]
  },
  {
@@ -4265,7 +5613,12 @@
    "glutes",
    "hamstrings",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Kettlebell_Pistol_Squat/0.jpg",
+   "Kettlebell_Pistol_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-kettlebell-seated-press",
@@ -4279,7 +5632,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Kettlebell_Seated_Press/0.jpg",
+   "Kettlebell_Seated_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-kettlebell-seesaw-press",
@@ -4293,7 +5651,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Kettlebell_Seesaw_Press/0.jpg",
+   "Kettlebell_Seesaw_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-kettlebell-sumo-high-pull",
@@ -4311,6 +5674,10 @@
    "hamstrings",
    "quadriceps",
    "side_delts"
+  ],
+  "images": [
+   "Kettlebell_Sumo_High_Pull/0.jpg",
+   "Kettlebell_Sumo_High_Pull/1.jpg"
   ]
  },
  {
@@ -4326,6 +5693,10 @@
   "secondaryMuscles": [
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Kettlebell_Thruster/0.jpg",
+   "Kettlebell_Thruster/1.jpg"
   ]
  },
  {
@@ -4343,6 +5714,10 @@
    "hamstrings",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Kettlebell_Turkish_Get-Up_Lunge_style/0.jpg",
+   "Kettlebell_Turkish_Get-Up_Lunge_style/1.jpg"
   ]
  },
  {
@@ -4361,6 +5736,10 @@
    "hamstrings",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Kettlebell_Turkish_Get-Up_Squat_style/0.jpg",
+   "Kettlebell_Turkish_Get-Up_Squat_style/1.jpg"
   ]
  },
  {
@@ -4378,7 +5757,12 @@
    "hamstrings",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Kettlebell_Windmill/0.jpg",
+   "Kettlebell_Windmill/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-kipping-muscle-up",
@@ -4398,6 +5782,10 @@
    "rear_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Kipping_Muscle_Up/0.jpg",
+   "Kipping_Muscle_Up/1.jpg"
   ]
  },
  {
@@ -4409,7 +5797,12 @@
   "source": "fedb",
   "aliases": [
    "Knee/Hip Raise On Parallel Bars"
-  ]
+  ],
+  "images": [
+   "Knee_Hip_Raise_On_Parallel_Bars/0.jpg",
+   "Knee_Hip_Raise_On_Parallel_Bars/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-knee-tuck-jump",
@@ -4427,6 +5820,10 @@
    "calves",
    "glutes",
    "quadriceps"
+  ],
+  "images": [
+   "Knee_Tuck_Jump/0.jpg",
+   "Knee_Tuck_Jump/1.jpg"
   ]
  },
  {
@@ -4441,6 +5838,10 @@
   ],
   "secondaryMuscles": [
    "abdominals"
+  ],
+  "images": [
+   "Kneeling_Arm_Drill/0.jpg",
+   "Kneeling_Arm_Drill/1.jpg"
   ]
  },
  {
@@ -4452,7 +5853,12 @@
   "source": "fedb",
   "aliases": [
    "Kneeling Cable Crunch With Alternating Oblique Twists"
-  ]
+  ],
+  "images": [
+   "Kneeling_Cable_Crunch_With_Alternating_Oblique_Twists/0.jpg",
+   "Kneeling_Cable_Crunch_With_Alternating_Oblique_Twists/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-kneeling-cable-triceps-extension",
@@ -4463,7 +5869,12 @@
   "source": "fedb",
   "aliases": [
    "Kneeling Cable Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Kneeling_Cable_Triceps_Extension/0.jpg",
+   "Kneeling_Cable_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-kneeling-high-pulley-row",
@@ -4478,7 +5889,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Kneeling_High_Pulley_Row/0.jpg",
+   "Kneeling_High_Pulley_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-kneeling-jump-squat",
@@ -4494,7 +5910,12 @@
    "calves",
    "hamstrings",
    "quadriceps"
-  ]
+  ],
+  "images": [
+   "Kneeling_Jump_Squat/0.jpg",
+   "Kneeling_Jump_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-kneeling-single-arm-high-pulley-row",
@@ -4509,7 +5930,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Kneeling_Single-Arm_High_Pulley_Row/0.jpg",
+   "Kneeling_Single-Arm_High_Pulley_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-kneeling-squat",
@@ -4525,7 +5951,12 @@
    "abdominals",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Kneeling_Squat/0.jpg",
+   "Kneeling_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-landmine-180s",
@@ -4541,7 +5972,12 @@
    "glutes",
    "lower_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Landmine_180s/0.jpg",
+   "Landmine_180s/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-landmine-linear-jammer",
@@ -4560,6 +5996,10 @@
    "hamstrings",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Landmine_Linear_Jammer/0.jpg",
+   "Landmine_Linear_Jammer/1.jpg"
   ]
  },
  {
@@ -4578,6 +6018,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Lateral_Bound/0.jpg",
+   "Lateral_Bound/1.jpg"
   ]
  },
  {
@@ -4596,6 +6040,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Lateral_Box_Jump/0.jpg",
+   "Lateral_Box_Jump/1.jpg"
   ]
  },
  {
@@ -4614,6 +6062,10 @@
    "glutes",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Lateral_Cone_Hops/0.jpg",
+   "Lateral_Cone_Hops/1.jpg"
   ]
  },
  {
@@ -4625,7 +6077,12 @@
   "source": "fedb",
   "aliases": [
    "Lateral Raise - With Bands"
-  ]
+  ],
+  "images": [
+   "Lateral_Raise_-_With_Bands/0.jpg",
+   "Lateral_Raise_-_With_Bands/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-leg-over-floor-press",
@@ -4640,7 +6097,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Leg-Over_Floor_Press/0.jpg",
+   "Leg-Over_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-leg-lift",
@@ -4654,6 +6116,10 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
+  ],
+  "images": [
+   "Leg_Lift/0.jpg",
+   "Leg_Lift/1.jpg"
   ]
  },
  {
@@ -4665,7 +6131,12 @@
   "source": "fedb",
   "aliases": [
    "Leg Pull-In"
-  ]
+  ],
+  "images": [
+   "Leg_Pull-In/0.jpg",
+   "Leg_Pull-In/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-leverage-chest-press",
@@ -4680,7 +6151,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Leverage_Chest_Press/0.jpg",
+   "Leverage_Chest_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-leverage-deadlift",
@@ -4695,7 +6171,12 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Leverage_Deadlift/0.jpg",
+   "Leverage_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-leverage-decline-chest-press",
@@ -4710,7 +6191,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Leverage_Decline_Chest_Press/0.jpg",
+   "Leverage_Decline_Chest_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-leverage-high-row",
@@ -4724,7 +6210,12 @@
   ],
   "secondaryMuscles": [
    "lats"
-  ]
+  ],
+  "images": [
+   "Leverage_High_Row/0.jpg",
+   "Leverage_High_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-leverage-incline-chest-press",
@@ -4739,7 +6230,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Leverage_Incline_Chest_Press/0.jpg",
+   "Leverage_Incline_Chest_Press/1.jpg"
+  ],
+  "family": "incline-press"
  },
  {
   "id": "fedb-leverage-iso-row",
@@ -4754,7 +6250,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Leverage_Iso_Row/0.jpg",
+   "Leverage_Iso_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-leverage-shoulder-press",
@@ -4768,7 +6269,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Leverage_Shoulder_Press/0.jpg",
+   "Leverage_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-leverage-shrug",
@@ -4782,7 +6288,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Leverage_Shrug/0.jpg",
+   "Leverage_Shrug/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-linear-3-part-start-technique",
@@ -4797,6 +6308,10 @@
   "secondaryMuscles": [
    "calves",
    "quadriceps"
+  ],
+  "images": [
+   "Linear_3-Part_Start_Technique/0.jpg",
+   "Linear_3-Part_Start_Technique/1.jpg"
   ]
  },
  {
@@ -4813,6 +6328,10 @@
    "calves",
    "glutes",
    "quadriceps"
+  ],
+  "images": [
+   "Linear_Acceleration_Wall_Drill/0.jpg",
+   "Linear_Acceleration_Wall_Drill/1.jpg"
   ]
  },
  {
@@ -4829,6 +6348,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Linear_Depth_Jump/0.jpg",
+   "Linear_Depth_Jump/1.jpg"
   ]
  },
  {
@@ -4851,6 +6374,10 @@
    "quadriceps",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Log_Lift/0.jpg",
+   "Log_Lift/1.jpg"
   ]
  },
  {
@@ -4867,6 +6394,10 @@
    "biceps",
    "forearms",
    "upper_back"
+  ],
+  "images": [
+   "London_Bridges/0.jpg",
+   "London_Bridges/1.jpg"
   ]
  },
  {
@@ -4881,7 +6412,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Low_Cable_Crossover/0.jpg",
+   "Low_Cable_Crossover/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-low-cable-triceps-extension",
@@ -4892,7 +6428,12 @@
   "source": "fedb",
   "aliases": [
    "Low Cable Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Low_Cable_Triceps_Extension/0.jpg",
+   "Low_Cable_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-low-pulley-row-to-neck",
@@ -4909,7 +6450,12 @@
    "biceps",
    "upper_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Low_Pulley_Row_To_Neck/0.jpg",
+   "Low_Pulley_Row_To_Neck/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-lunge-pass-through",
@@ -4925,7 +6471,12 @@
    "calves",
    "glutes",
    "quadriceps"
-  ]
+  ],
+  "images": [
+   "Lunge_Pass_Through/0.jpg",
+   "Lunge_Pass_Through/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-lunge-sprint",
@@ -4941,6 +6492,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Lunge_Sprint/0.jpg",
+   "Lunge_Sprint/1.jpg"
   ]
  },
  {
@@ -4952,7 +6507,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Cable Curl"
-  ]
+  ],
+  "images": [
+   "Lying_Cable_Curl/0.jpg",
+   "Lying_Cable_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-lying-cambered-barbell-row",
@@ -4968,7 +6528,12 @@
    "biceps",
    "lats",
    "traps"
-  ]
+  ],
+  "images": [
+   "Lying_Cambered_Barbell_Row/0.jpg",
+   "Lying_Cambered_Barbell_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-lying-close-grip-bar-curl-on-high-pulley",
@@ -4979,7 +6544,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Close-Grip Bar Curl On High Pulley"
-  ]
+  ],
+  "images": [
+   "Lying_Close-Grip_Bar_Curl_On_High_Pulley/0.jpg",
+   "Lying_Close-Grip_Bar_Curl_On_High_Pulley/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-lying-close-grip-barbell-triceps-extension-behind-the-head",
@@ -4990,7 +6560,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Close-Grip Barbell Triceps Extension Behind The Head"
-  ]
+  ],
+  "images": [
+   "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head/0.jpg",
+   "Lying_Close-Grip_Barbell_Triceps_Extension_Behind_The_Head/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-lying-close-grip-barbell-triceps-press-to-chin",
@@ -5001,7 +6576,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Close-Grip Barbell Triceps Press To Chin"
-  ]
+  ],
+  "images": [
+   "Lying_Close-Grip_Barbell_Triceps_Press_To_Chin/0.jpg",
+   "Lying_Close-Grip_Barbell_Triceps_Press_To_Chin/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-lying-dumbbell-tricep-extension",
@@ -5016,7 +6596,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Lying_Dumbbell_Tricep_Extension/0.jpg",
+   "Lying_Dumbbell_Tricep_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-lying-face-down-plate-neck-resistance",
@@ -5027,6 +6612,10 @@
   "source": "fedb",
   "aliases": [
    "Lying Face Down Plate Neck Resistance"
+  ],
+  "images": [
+   "Lying_Face_Down_Plate_Neck_Resistance/0.jpg",
+   "Lying_Face_Down_Plate_Neck_Resistance/1.jpg"
   ]
  },
  {
@@ -5038,6 +6627,10 @@
   "source": "fedb",
   "aliases": [
    "Lying Face Up Plate Neck Resistance"
+  ],
+  "images": [
+   "Lying_Face_Up_Plate_Neck_Resistance/0.jpg",
+   "Lying_Face_Up_Plate_Neck_Resistance/1.jpg"
   ]
  },
  {
@@ -5049,7 +6642,12 @@
   "source": "fedb",
   "aliases": [
    "Lying High Bench Barbell Curl"
-  ]
+  ],
+  "images": [
+   "Lying_High_Bench_Barbell_Curl/0.jpg",
+   "Lying_High_Bench_Barbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-lying-machine-squat",
@@ -5065,7 +6663,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Lying_Machine_Squat/0.jpg",
+   "Lying_Machine_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-lying-one-arm-lateral-raise",
@@ -5076,7 +6679,12 @@
   "source": "fedb",
   "aliases": [
    "Lying One-Arm Lateral Raise"
-  ]
+  ],
+  "images": [
+   "Lying_One-Arm_Lateral_Raise/0.jpg",
+   "Lying_One-Arm_Lateral_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-lying-rear-delt-raise",
@@ -5087,7 +6695,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Rear Delt Raise"
-  ]
+  ],
+  "images": [
+   "Lying_Rear_Delt_Raise/0.jpg",
+   "Lying_Rear_Delt_Raise/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-lying-supine-dumbbell-curl",
@@ -5098,7 +6711,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Supine Dumbbell Curl"
-  ]
+  ],
+  "images": [
+   "Lying_Supine_Dumbbell_Curl/0.jpg",
+   "Lying_Supine_Dumbbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-lying-t-bar-row",
@@ -5113,7 +6731,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Lying_T-Bar_Row/0.jpg",
+   "Lying_T-Bar_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-lying-triceps-press",
@@ -5124,7 +6747,12 @@
   "source": "fedb",
   "aliases": [
    "Lying Triceps Press"
-  ]
+  ],
+  "images": [
+   "Lying_Triceps_Press/0.jpg",
+   "Lying_Triceps_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-machine-bicep-curl",
@@ -5135,7 +6763,12 @@
   "source": "fedb",
   "aliases": [
    "Machine Bicep Curl"
-  ]
+  ],
+  "images": [
+   "Machine_Bicep_Curl/0.jpg",
+   "Machine_Bicep_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-machine-preacher-curls",
@@ -5146,7 +6779,12 @@
   "source": "fedb",
   "aliases": [
    "Machine Preacher Curls"
-  ]
+  ],
+  "images": [
+   "Machine_Preacher_Curls/0.jpg",
+   "Machine_Preacher_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-machine-shoulder-military-press",
@@ -5160,7 +6798,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Machine_Shoulder_Military_Press/0.jpg",
+   "Machine_Shoulder_Military_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-machine-triceps-extension",
@@ -5171,7 +6814,12 @@
   "source": "fedb",
   "aliases": [
    "Machine Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Machine_Triceps_Extension/0.jpg",
+   "Machine_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-medicine-ball-chest-pass",
@@ -5186,6 +6834,10 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Medicine_Ball_Chest_Pass/0.jpg",
+   "Medicine_Ball_Chest_Pass/1.jpg"
   ]
  },
  {
@@ -5200,7 +6852,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Medicine_Ball_Full_Twist/0.jpg",
+   "Medicine_Ball_Full_Twist/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-medicine-ball-scoop-throw",
@@ -5216,6 +6873,10 @@
    "abdominals",
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "Medicine_Ball_Scoop_Throw/0.jpg",
+   "Medicine_Ball_Scoop_Throw/1.jpg"
   ]
  },
  {
@@ -5227,7 +6888,12 @@
   "source": "fedb",
   "aliases": [
    "Middle Back Shrug"
-  ]
+  ],
+  "images": [
+   "Middle_Back_Shrug/0.jpg",
+   "Middle_Back_Shrug/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-mixed-grip-chin",
@@ -5242,7 +6908,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Mixed_Grip_Chin/0.jpg",
+   "Mixed_Grip_Chin/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-monster-walk",
@@ -5253,6 +6924,10 @@
   "source": "fedb",
   "aliases": [
    "Monster Walk"
+  ],
+  "images": [
+   "Monster_Walk/0.jpg",
+   "Monster_Walk/1.jpg"
   ]
  },
  {
@@ -5268,6 +6943,10 @@
   "secondaryMuscles": [
    "calves",
    "quadriceps"
+  ],
+  "images": [
+   "Moving_Claw_Series/0.jpg",
+   "Moving_Claw_Series/1.jpg"
   ]
  },
  {
@@ -5286,6 +6965,10 @@
    "quadriceps",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Muscle_Snatch/0.jpg",
+   "Muscle_Snatch/1.jpg"
   ]
  },
  {
@@ -5306,6 +6989,10 @@
    "rear_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Muscle_Up/0.jpg",
+   "Muscle_Up/1.jpg"
   ]
  },
  {
@@ -5322,7 +7009,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Narrow_Stance_Hack_Squats/0.jpg",
+   "Narrow_Stance_Hack_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-narrow-stance-leg-press",
@@ -5338,7 +7030,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Narrow_Stance_Leg_Press/0.jpg",
+   "Narrow_Stance_Leg_Press/1.jpg"
+  ],
+  "family": "leg-press"
  },
  {
   "id": "fedb-narrow-stance-squats",
@@ -5355,7 +7052,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Narrow_Stance_Squats/0.jpg",
+   "Narrow_Stance_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-natural-glute-ham-raise",
@@ -5371,7 +7073,12 @@
    "calves",
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Natural_Glute_Ham_Raise/0.jpg",
+   "Natural_Glute_Ham_Raise/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-neck-press",
@@ -5386,7 +7093,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Neck_Press/0.jpg",
+   "Neck_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-oblique-crunches",
@@ -5397,7 +7109,12 @@
   "source": "fedb",
   "aliases": [
    "Oblique Crunches"
-  ]
+  ],
+  "images": [
+   "Oblique_Crunches/0.jpg",
+   "Oblique_Crunches/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-oblique-crunches-on-the-floor",
@@ -5408,7 +7125,12 @@
   "source": "fedb",
   "aliases": [
    "Oblique Crunches - On The Floor"
-  ]
+  ],
+  "images": [
+   "Oblique_Crunches_-_On_The_Floor/0.jpg",
+   "Oblique_Crunches_-_On_The_Floor/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-olympic-squat",
@@ -5424,7 +7146,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Olympic_Squat/0.jpg",
+   "Olympic_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-one-arm-flat-bench-dumbbell-flye",
@@ -5435,7 +7162,12 @@
   "source": "fedb",
   "aliases": [
    "One-Arm Flat Bench Dumbbell Flye"
-  ]
+  ],
+  "images": [
+   "One-Arm_Flat_Bench_Dumbbell_Flye/0.jpg",
+   "One-Arm_Flat_Bench_Dumbbell_Flye/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-one-arm-high-pulley-cable-side-bends",
@@ -5446,7 +7178,12 @@
   "source": "fedb",
   "aliases": [
    "One-Arm High-Pulley Cable Side Bends"
-  ]
+  ],
+  "images": [
+   "One-Arm_High-Pulley_Cable_Side_Bends/0.jpg",
+   "One-Arm_High-Pulley_Cable_Side_Bends/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-one-arm-incline-lateral-raise",
@@ -5457,7 +7194,12 @@
   "source": "fedb",
   "aliases": [
    "One-Arm Incline Lateral Raise"
-  ]
+  ],
+  "images": [
+   "One-Arm_Incline_Lateral_Raise/0.jpg",
+   "One-Arm_Incline_Lateral_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-one-arm-kettlebell-clean",
@@ -5474,6 +7216,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Clean/0.jpg",
+   "One-Arm_Kettlebell_Clean/1.jpg"
   ]
  },
  {
@@ -5485,6 +7231,10 @@
   "source": "fedb",
   "aliases": [
    "One-Arm Kettlebell Clean and Jerk"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Clean_and_Jerk/0.jpg",
+   "One-Arm_Kettlebell_Clean_and_Jerk/1.jpg"
   ]
  },
  {
@@ -5499,7 +7249,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Floor_Press/0.jpg",
+   "One-Arm_Kettlebell_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-one-arm-kettlebell-jerk",
@@ -5515,6 +7270,10 @@
    "calves",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Jerk/0.jpg",
+   "One-Arm_Kettlebell_Jerk/1.jpg"
   ]
  },
  {
@@ -5529,7 +7288,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Military_Press_To_The_Side/0.jpg",
+   "One-Arm_Kettlebell_Military_Press_To_The_Side/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-one-arm-kettlebell-para-press",
@@ -5543,7 +7307,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Para_Press/0.jpg",
+   "One-Arm_Kettlebell_Para_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-one-arm-kettlebell-push-press",
@@ -5559,7 +7328,12 @@
    "calves",
    "quadriceps",
    "triceps"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Push_Press/0.jpg",
+   "One-Arm_Kettlebell_Push_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-one-arm-kettlebell-row",
@@ -5574,7 +7348,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Row/0.jpg",
+   "One-Arm_Kettlebell_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-one-arm-kettlebell-snatch",
@@ -5593,6 +7372,10 @@
    "lower_back",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Snatch/0.jpg",
+   "One-Arm_Kettlebell_Snatch/1.jpg"
   ]
  },
  {
@@ -5610,6 +7393,10 @@
    "hamstrings",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Split_Jerk/0.jpg",
+   "One-Arm_Kettlebell_Split_Jerk/1.jpg"
   ]
  },
  {
@@ -5625,6 +7412,10 @@
   "secondaryMuscles": [
    "hamstrings",
    "quadriceps"
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Split_Snatch/0.jpg",
+   "One-Arm_Kettlebell_Split_Snatch/1.jpg"
   ]
  },
  {
@@ -5642,7 +7433,12 @@
    "glutes",
    "lower_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "One-Arm_Kettlebell_Swings/0.jpg",
+   "One-Arm_Kettlebell_Swings/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-one-arm-long-bar-row",
@@ -5657,7 +7453,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "One-Arm_Long_Bar_Row/0.jpg",
+   "One-Arm_Long_Bar_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-one-arm-medicine-ball-slam",
@@ -5672,6 +7473,10 @@
   "secondaryMuscles": [
    "lats",
    "front_delts"
+  ],
+  "images": [
+   "One-Arm_Medicine_Ball_Slam/0.jpg",
+   "One-Arm_Medicine_Ball_Slam/1.jpg"
   ]
  },
  {
@@ -5690,6 +7495,10 @@
    "lower_back",
    "quadriceps",
    "front_delts"
+  ],
+  "images": [
+   "One-Arm_Open_Palm_Kettlebell_Clean/0.jpg",
+   "One-Arm_Open_Palm_Kettlebell_Clean/1.jpg"
   ]
  },
  {
@@ -5707,7 +7516,12 @@
    "glutes",
    "hamstrings",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "One-Arm_Overhead_Kettlebell_Squats/0.jpg",
+   "One-Arm_Overhead_Kettlebell_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-one-arm-side-deadlift",
@@ -5726,7 +7540,12 @@
    "hamstrings",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "One-Arm_Side_Deadlift/0.jpg",
+   "One-Arm_Side_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-one-arm-side-laterals",
@@ -5737,7 +7556,12 @@
   "source": "fedb",
   "aliases": [
    "One-Arm Side Laterals"
-  ]
+  ],
+  "images": [
+   "One-Arm_Side_Laterals/0.jpg",
+   "One-Arm_Side_Laterals/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-one-legged-cable-kickback",
@@ -5751,6 +7575,10 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
+  ],
+  "images": [
+   "One-Legged_Cable_Kickback/0.jpg",
+   "One-Legged_Cable_Kickback/1.jpg"
   ]
  },
  {
@@ -5767,7 +7595,12 @@
    "biceps",
    "forearms",
    "lats"
-  ]
+  ],
+  "images": [
+   "One_Arm_Chin-Up/0.jpg",
+   "One_Arm_Chin-Up/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-one-arm-dumbbell-bench-press",
@@ -5782,7 +7615,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "One_Arm_Dumbbell_Bench_Press/0.jpg",
+   "One_Arm_Dumbbell_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-one-arm-dumbbell-preacher-curl",
@@ -5793,7 +7631,12 @@
   "source": "fedb",
   "aliases": [
    "One Arm Dumbbell Preacher Curl"
-  ]
+  ],
+  "images": [
+   "One_Arm_Dumbbell_Preacher_Curl/0.jpg",
+   "One_Arm_Dumbbell_Preacher_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-one-arm-floor-press",
@@ -5808,7 +7651,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "One_Arm_Floor_Press/0.jpg",
+   "One_Arm_Floor_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-one-arm-lat-pulldown",
@@ -5823,7 +7671,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "One_Arm_Lat_Pulldown/0.jpg",
+   "One_Arm_Lat_Pulldown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-one-arm-pronated-dumbbell-triceps-extension",
@@ -5834,7 +7687,12 @@
   "source": "fedb",
   "aliases": [
    "One Arm Pronated Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "One_Arm_Pronated_Dumbbell_Triceps_Extension/0.jpg",
+   "One_Arm_Pronated_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-one-arm-supinated-dumbbell-triceps-extension",
@@ -5845,7 +7703,12 @@
   "source": "fedb",
   "aliases": [
    "One Arm Supinated Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "One_Arm_Supinated_Dumbbell_Triceps_Extension/0.jpg",
+   "One_Arm_Supinated_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-one-leg-barbell-squat",
@@ -5861,7 +7724,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "One_Leg_Barbell_Squat/0.jpg",
+   "One_Leg_Barbell_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-open-palm-kettlebell-clean",
@@ -5878,6 +7746,10 @@
    "lower_back",
    "quadriceps",
    "front_delts"
+  ],
+  "images": [
+   "Open_Palm_Kettlebell_Clean/0.jpg",
+   "Open_Palm_Kettlebell_Clean/1.jpg"
   ]
  },
  {
@@ -5894,7 +7766,12 @@
    "chest",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Otis-Up/0.jpg",
+   "Otis-Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-overhead-cable-curl",
@@ -5905,7 +7782,12 @@
   "source": "fedb",
   "aliases": [
    "Overhead Cable Curl"
-  ]
+  ],
+  "images": [
+   "Overhead_Cable_Curl/0.jpg",
+   "Overhead_Cable_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-overhead-slam",
@@ -5916,6 +7798,10 @@
   "source": "fedb",
   "aliases": [
    "Overhead Slam"
+  ],
+  "images": [
+   "Overhead_Slam/0.jpg",
+   "Overhead_Slam/1.jpg"
   ]
  },
  {
@@ -5936,7 +7822,12 @@
    "lower_back",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Overhead_Squat/0.jpg",
+   "Overhead_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-pallof-press-with-rotation",
@@ -5952,7 +7843,12 @@
    "chest",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Pallof_Press_With_Rotation/0.jpg",
+   "Pallof_Press_With_Rotation/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-palms-down-dumbbell-wrist-curl-over-a-bench",
@@ -5963,6 +7859,10 @@
   "source": "fedb",
   "aliases": [
    "Palms-Down Dumbbell Wrist Curl Over A Bench"
+  ],
+  "images": [
+   "Palms-Down_Dumbbell_Wrist_Curl_Over_A_Bench/0.jpg",
+   "Palms-Down_Dumbbell_Wrist_Curl_Over_A_Bench/1.jpg"
   ]
  },
  {
@@ -5974,6 +7874,10 @@
   "source": "fedb",
   "aliases": [
    "Palms-Down Wrist Curl Over A Bench"
+  ],
+  "images": [
+   "Palms-Down_Wrist_Curl_Over_A_Bench/0.jpg",
+   "Palms-Down_Wrist_Curl_Over_A_Bench/1.jpg"
   ]
  },
  {
@@ -5985,6 +7889,10 @@
   "source": "fedb",
   "aliases": [
    "Palms-Up Barbell Wrist Curl Over A Bench"
+  ],
+  "images": [
+   "Palms-Up_Barbell_Wrist_Curl_Over_A_Bench/0.jpg",
+   "Palms-Up_Barbell_Wrist_Curl_Over_A_Bench/1.jpg"
   ]
  },
  {
@@ -5996,6 +7904,10 @@
   "source": "fedb",
   "aliases": [
    "Palms-Up Dumbbell Wrist Curl Over A Bench"
+  ],
+  "images": [
+   "Palms-Up_Dumbbell_Wrist_Curl_Over_A_Bench/0.jpg",
+   "Palms-Up_Dumbbell_Wrist_Curl_Over_A_Bench/1.jpg"
   ]
  },
  {
@@ -6011,7 +7923,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Parallel_Bar_Dip/0.jpg",
+   "Parallel_Bar_Dip/1.jpg"
+  ],
+  "family": "dip"
  },
  {
   "id": "fedb-physioball-hip-bridge",
@@ -6025,7 +7942,12 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Physioball_Hip_Bridge/0.jpg",
+   "Physioball_Hip_Bridge/1.jpg"
+  ],
+  "family": "hip-thrust"
  },
  {
   "id": "fedb-pin-presses",
@@ -6043,7 +7965,12 @@
    "lats",
    "upper_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Pin_Presses/0.jpg",
+   "Pin_Presses/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-plate-pinch",
@@ -6054,6 +7981,10 @@
   "source": "fedb",
   "aliases": [
    "Plate Pinch"
+  ],
+  "images": [
+   "Plate_Pinch/0.jpg",
+   "Plate_Pinch/1.jpg"
   ]
  },
  {
@@ -6065,7 +7996,12 @@
   "source": "fedb",
   "aliases": [
    "Plate Twist"
-  ]
+  ],
+  "images": [
+   "Plate_Twist/0.jpg",
+   "Plate_Twist/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-platform-hamstring-slides",
@@ -6079,7 +8015,12 @@
   ],
   "secondaryMuscles": [
    "glutes"
-  ]
+  ],
+  "images": [
+   "Platform_Hamstring_Slides/0.jpg",
+   "Platform_Hamstring_Slides/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-plie-dumbbell-squat",
@@ -6096,7 +8037,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Plie_Dumbbell_Squat/0.jpg",
+   "Plie_Dumbbell_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-plyo-kettlebell-pushups",
@@ -6111,7 +8057,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Plyo_Kettlebell_Pushups/0.jpg",
+   "Plyo_Kettlebell_Pushups/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-plyo-push-up",
@@ -6126,7 +8077,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Plyo_Push-up/0.jpg",
+   "Plyo_Push-up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-power-clean",
@@ -6148,6 +8104,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Power_Clean/0.jpg",
+   "Power_Clean/1.jpg"
   ]
  },
  {
@@ -6162,6 +8122,10 @@
   ],
   "secondaryMuscles": [
    "quadriceps"
+  ],
+  "images": [
+   "Power_Clean_from_Blocks/0.jpg",
+   "Power_Clean_from_Blocks/1.jpg"
   ]
  },
  {
@@ -6181,6 +8145,10 @@
    "hamstrings",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Power_Jerk/0.jpg",
+   "Power_Jerk/1.jpg"
   ]
  },
  {
@@ -6192,7 +8160,12 @@
   "source": "fedb",
   "aliases": [
    "Power Partials"
-  ]
+  ],
+  "images": [
+   "Power_Partials/0.jpg",
+   "Power_Partials/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-power-snatch",
@@ -6212,6 +8185,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Power_Snatch/0.jpg",
+   "Power_Snatch/1.jpg"
   ]
  },
  {
@@ -6233,6 +8210,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Power_Snatch_from_Blocks/0.jpg",
+   "Power_Snatch_from_Blocks/1.jpg"
   ]
  },
  {
@@ -6253,6 +8234,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Power_Stairs/0.jpg",
+   "Power_Stairs/1.jpg"
   ]
  },
  {
@@ -6267,7 +8252,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Preacher_Hammer_Dumbbell_Curl/0.jpg",
+   "Preacher_Hammer_Dumbbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-press-sit-up",
@@ -6283,7 +8273,12 @@
    "chest",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Press_Sit-Up/0.jpg",
+   "Press_Sit-Up/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-prone-manual-hamstring",
@@ -6294,6 +8289,10 @@
   "source": "fedb",
   "aliases": [
    "Prone Manual Hamstring"
+  ],
+  "images": [
+   "Prone_Manual_Hamstring/0.jpg",
+   "Prone_Manual_Hamstring/1.jpg"
   ]
  },
  {
@@ -6309,7 +8308,12 @@
   "secondaryMuscles": [
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Pull_Through/0.jpg",
+   "Pull_Through/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-push-up-wide",
@@ -6325,7 +8329,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push-Up_Wide/0.jpg",
+   "Push-Up_Wide/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-push-ups-close-triceps-position",
@@ -6340,7 +8349,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Push-Ups_-_Close_Triceps_Position/0.jpg",
+   "Push-Ups_-_Close_Triceps_Position/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-push-ups-with-feet-elevated",
@@ -6355,7 +8369,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push-Ups_With_Feet_Elevated/0.jpg",
+   "Push-Ups_With_Feet_Elevated/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-push-ups-with-feet-on-an-exercise-ball",
@@ -6370,7 +8389,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push-Ups_With_Feet_On_An_Exercise_Ball/0.jpg",
+   "Push-Ups_With_Feet_On_An_Exercise_Ball/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-push-press",
@@ -6385,7 +8409,12 @@
   "secondaryMuscles": [
    "quadriceps",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push_Press/0.jpg",
+   "Push_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-push-press-behind-the-neck",
@@ -6401,7 +8430,12 @@
    "calves",
    "quadriceps",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push_Press_-_Behind_the_Neck/0.jpg",
+   "Push_Press_-_Behind_the_Neck/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-push-up-to-side-plank",
@@ -6417,7 +8451,12 @@
    "abdominals",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Push_Up_to_Side_Plank/0.jpg",
+   "Push_Up_to_Side_Plank/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-pushups-close-and-wide-hand-positions",
@@ -6432,7 +8471,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Pushups_Close_and_Wide_Hand_Positions/0.jpg",
+   "Pushups_Close_and_Wide_Hand_Positions/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-quick-leap",
@@ -6447,6 +8491,10 @@
   "secondaryMuscles": [
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Quick_Leap/0.jpg",
+   "Quick_Leap/1.jpg"
   ]
  },
  {
@@ -6462,6 +8510,10 @@
   "secondaryMuscles": [
    "forearms",
    "traps"
+  ],
+  "images": [
+   "Rack_Delivery/0.jpg",
+   "Rack_Delivery/1.jpg"
   ]
  },
  {
@@ -6480,7 +8532,12 @@
    "hamstrings",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Rack_Pull_with_Bands/0.jpg",
+   "Rack_Pull_with_Bands/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-rack-pulls",
@@ -6497,7 +8554,12 @@
    "glutes",
    "hamstrings",
    "traps"
-  ]
+  ],
+  "images": [
+   "Rack_Pulls/0.jpg",
+   "Rack_Pulls/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-return-push-from-stance",
@@ -6512,6 +8574,10 @@
   "secondaryMuscles": [
    "chest",
    "triceps"
+  ],
+  "images": [
+   "Return_Push_from_Stance/0.jpg",
+   "Return_Push_from_Stance/1.jpg"
   ]
  },
  {
@@ -6530,7 +8596,12 @@
    "lats",
    "upper_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Reverse_Band_Bench_Press/0.jpg",
+   "Reverse_Band_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-reverse-band-box-squat",
@@ -6550,7 +8621,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Reverse_Band_Box_Squat/0.jpg",
+   "Reverse_Band_Box_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-reverse-band-deadlift",
@@ -6569,7 +8645,12 @@
    "glutes",
    "hamstrings",
    "quadriceps"
-  ]
+  ],
+  "images": [
+   "Reverse_Band_Deadlift/0.jpg",
+   "Reverse_Band_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-reverse-band-power-squat",
@@ -6587,7 +8668,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Reverse_Band_Power_Squat/0.jpg",
+   "Reverse_Band_Power_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-reverse-band-sumo-deadlift",
@@ -6608,7 +8694,12 @@
    "lower_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Reverse_Band_Sumo_Deadlift/0.jpg",
+   "Reverse_Band_Sumo_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-reverse-barbell-curl",
@@ -6622,7 +8713,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Reverse_Barbell_Curl/0.jpg",
+   "Reverse_Barbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-reverse-barbell-preacher-curls",
@@ -6636,7 +8732,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Reverse_Barbell_Preacher_Curls/0.jpg",
+   "Reverse_Barbell_Preacher_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-reverse-cable-curl",
@@ -6650,7 +8751,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Reverse_Cable_Curl/0.jpg",
+   "Reverse_Cable_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-reverse-crunch",
@@ -6661,7 +8767,12 @@
   "source": "fedb",
   "aliases": [
    "Reverse Crunch"
-  ]
+  ],
+  "images": [
+   "Reverse_Crunch/0.jpg",
+   "Reverse_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-reverse-flyes-with-external-rotation",
@@ -6672,7 +8783,12 @@
   "source": "fedb",
   "aliases": [
    "Reverse Flyes With External Rotation"
-  ]
+  ],
+  "images": [
+   "Reverse_Flyes_With_External_Rotation/0.jpg",
+   "Reverse_Flyes_With_External_Rotation/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-reverse-grip-bent-over-rows",
@@ -6688,7 +8804,12 @@
    "biceps",
    "lats",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Reverse_Grip_Bent-Over_Rows/0.jpg",
+   "Reverse_Grip_Bent-Over_Rows/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-reverse-grip-triceps-pushdown",
@@ -6699,7 +8820,12 @@
   "source": "fedb",
   "aliases": [
    "Reverse Grip Triceps Pushdown"
-  ]
+  ],
+  "images": [
+   "Reverse_Grip_Triceps_Pushdown/0.jpg",
+   "Reverse_Grip_Triceps_Pushdown/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-reverse-hyperextension",
@@ -6714,6 +8840,10 @@
   "secondaryMuscles": [
    "calves",
    "glutes"
+  ],
+  "images": [
+   "Reverse_Hyperextension/0.jpg",
+   "Reverse_Hyperextension/1.jpg"
   ]
  },
  {
@@ -6728,7 +8858,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Reverse_Plate_Curls/0.jpg",
+   "Reverse_Plate_Curls/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-reverse-triceps-bench-press",
@@ -6743,7 +8878,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Reverse_Triceps_Bench_Press/0.jpg",
+   "Reverse_Triceps_Bench_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-rickshaw-carry",
@@ -6763,7 +8903,12 @@
    "lower_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Rickshaw_Carry/0.jpg",
+   "Rickshaw_Carry/1.jpg"
+  ],
+  "family": "carry"
  },
  {
   "id": "fedb-rickshaw-deadlift",
@@ -6781,7 +8926,12 @@
    "hamstrings",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Rickshaw_Deadlift/0.jpg",
+   "Rickshaw_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-ring-dips",
@@ -6796,7 +8946,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Ring_Dips/0.jpg",
+   "Ring_Dips/1.jpg"
+  ],
+  "family": "dip"
  },
  {
   "id": "fedb-rocket-jump",
@@ -6811,6 +8966,10 @@
   "secondaryMuscles": [
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Rocket_Jump/0.jpg",
+   "Rocket_Jump/1.jpg"
   ]
  },
  {
@@ -6822,7 +8981,12 @@
   "source": "fedb",
   "aliases": [
    "Rocking Standing Calf Raise"
-  ]
+  ],
+  "images": [
+   "Rocking_Standing_Calf_Raise/0.jpg",
+   "Rocking_Standing_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-rocky-pull-ups-pulldowns",
@@ -6838,7 +9002,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Rocky_Pull-Ups_Pulldowns/0.jpg",
+   "Rocky_Pull-Ups_Pulldowns/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-romanian-deadlift-from-deficit",
@@ -6855,7 +9024,12 @@
    "glutes",
    "lower_back",
    "traps"
-  ]
+  ],
+  "images": [
+   "Romanian_Deadlift_from_Deficit/0.jpg",
+   "Romanian_Deadlift_from_Deficit/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-rope-climb",
@@ -6872,6 +9046,10 @@
    "forearms",
    "upper_back",
    "rear_delts"
+  ],
+  "images": [
+   "Rope_Climb/0.jpg",
+   "Rope_Climb/1.jpg"
   ]
  },
  {
@@ -6883,7 +9061,12 @@
   "source": "fedb",
   "aliases": [
    "Rope Crunch"
-  ]
+  ],
+  "images": [
+   "Rope_Crunch/0.jpg",
+   "Rope_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-rope-straight-arm-pulldown",
@@ -6894,7 +9077,12 @@
   "source": "fedb",
   "aliases": [
    "Rope Straight-Arm Pulldown"
-  ]
+  ],
+  "images": [
+   "Rope_Straight-Arm_Pulldown/0.jpg",
+   "Rope_Straight-Arm_Pulldown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-sandbag-load",
@@ -6917,6 +9105,10 @@
    "upper_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Sandbag_Load/0.jpg",
+   "Sandbag_Load/1.jpg"
   ]
  },
  {
@@ -6932,7 +9124,12 @@
   "secondaryMuscles": [
    "lats",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Scapular_Pull-Up/0.jpg",
+   "Scapular_Pull-Up/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-scissors-jump",
@@ -6947,6 +9144,10 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Scissors_Jump/0.jpg",
+   "Scissors_Jump/1.jpg"
   ]
  },
  {
@@ -6958,7 +9159,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Band Hamstring Curl"
-  ]
+  ],
+  "images": [
+   "Seated_Band_Hamstring_Curl/0.jpg",
+   "Seated_Band_Hamstring_Curl/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-seated-barbell-military-press",
@@ -6972,7 +9178,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Seated_Barbell_Military_Press/0.jpg",
+   "Seated_Barbell_Military_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-seated-barbell-twist",
@@ -6983,7 +9194,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Barbell Twist"
-  ]
+  ],
+  "images": [
+   "Seated_Barbell_Twist/0.jpg",
+   "Seated_Barbell_Twist/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-seated-bent-over-one-arm-dumbbell-triceps-extension",
@@ -6994,7 +9210,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Bent-Over One-Arm Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Seated_Bent-Over_One-Arm_Dumbbell_Triceps_Extension/0.jpg",
+   "Seated_Bent-Over_One-Arm_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-seated-bent-over-rear-delt-raise",
@@ -7005,7 +9226,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Bent-Over Rear Delt Raise"
-  ]
+  ],
+  "images": [
+   "Seated_Bent-Over_Rear_Delt_Raise/0.jpg",
+   "Seated_Bent-Over_Rear_Delt_Raise/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-seated-bent-over-two-arm-dumbbell-triceps-extension",
@@ -7016,7 +9242,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Bent-Over Two-Arm Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Seated_Bent-Over_Two-Arm_Dumbbell_Triceps_Extension/0.jpg",
+   "Seated_Bent-Over_Two-Arm_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-seated-cable-shoulder-press",
@@ -7030,7 +9261,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Seated_Cable_Shoulder_Press/0.jpg",
+   "Seated_Cable_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-seated-close-grip-concentration-barbell-curl",
@@ -7041,7 +9277,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Close-Grip Concentration Barbell Curl"
-  ]
+  ],
+  "images": [
+   "Seated_Close-Grip_Concentration_Barbell_Curl/0.jpg",
+   "Seated_Close-Grip_Concentration_Barbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-seated-dumbbell-curl",
@@ -7052,7 +9293,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Dumbbell Curl"
-  ]
+  ],
+  "images": [
+   "Seated_Dumbbell_Curl/0.jpg",
+   "Seated_Dumbbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-seated-dumbbell-inner-biceps-curl",
@@ -7063,7 +9309,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Dumbbell Inner Biceps Curl"
-  ]
+  ],
+  "images": [
+   "Seated_Dumbbell_Inner_Biceps_Curl/0.jpg",
+   "Seated_Dumbbell_Inner_Biceps_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-seated-dumbbell-palms-down-wrist-curl",
@@ -7074,6 +9325,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Dumbbell Palms-Down Wrist Curl"
+  ],
+  "images": [
+   "Seated_Dumbbell_Palms-Down_Wrist_Curl/0.jpg",
+   "Seated_Dumbbell_Palms-Down_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7085,6 +9340,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Dumbbell Palms-Up Wrist Curl"
+  ],
+  "images": [
+   "Seated_Dumbbell_Palms-Up_Wrist_Curl/0.jpg",
+   "Seated_Dumbbell_Palms-Up_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7099,7 +9358,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Seated_Dumbbell_Press/0.jpg",
+   "Seated_Dumbbell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-seated-flat-bench-leg-pull-in",
@@ -7110,7 +9374,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Flat Bench Leg Pull-In"
-  ]
+  ],
+  "images": [
+   "Seated_Flat_Bench_Leg_Pull-In/0.jpg",
+   "Seated_Flat_Bench_Leg_Pull-In/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-seated-good-mornings",
@@ -7124,7 +9393,12 @@
   ],
   "secondaryMuscles": [
    "glutes"
-  ]
+  ],
+  "images": [
+   "Seated_Good_Mornings/0.jpg",
+   "Seated_Good_Mornings/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-seated-head-harness-neck-resistance",
@@ -7135,6 +9409,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Head Harness Neck Resistance"
+  ],
+  "images": [
+   "Seated_Head_Harness_Neck_Resistance/0.jpg",
+   "Seated_Head_Harness_Neck_Resistance/1.jpg"
   ]
  },
  {
@@ -7146,7 +9424,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Leg Tucks"
-  ]
+  ],
+  "images": [
+   "Seated_Leg_Tucks/0.jpg",
+   "Seated_Leg_Tucks/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-seated-one-arm-dumbbell-palms-down-wrist-curl",
@@ -7157,6 +9440,10 @@
   "source": "fedb",
   "aliases": [
    "Seated One-Arm Dumbbell Palms-Down Wrist Curl"
+  ],
+  "images": [
+   "Seated_One-Arm_Dumbbell_Palms-Down_Wrist_Curl/0.jpg",
+   "Seated_One-Arm_Dumbbell_Palms-Down_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7168,6 +9455,10 @@
   "source": "fedb",
   "aliases": [
    "Seated One-Arm Dumbbell Palms-Up Wrist Curl"
+  ],
+  "images": [
+   "Seated_One-Arm_Dumbbell_Palms-Up_Wrist_Curl/0.jpg",
+   "Seated_One-Arm_Dumbbell_Palms-Up_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7184,7 +9475,12 @@
    "biceps",
    "lats",
    "traps"
-  ]
+  ],
+  "images": [
+   "Seated_One-arm_Cable_Pulley_Rows/0.jpg",
+   "Seated_One-arm_Cable_Pulley_Rows/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-seated-palm-up-barbell-wrist-curl",
@@ -7195,6 +9491,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Palm-Up Barbell Wrist Curl"
+  ],
+  "images": [
+   "Seated_Palm-Up_Barbell_Wrist_Curl/0.jpg",
+   "Seated_Palm-Up_Barbell_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7206,6 +9506,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Palms-Down Barbell Wrist Curl"
+  ],
+  "images": [
+   "Seated_Palms-Down_Barbell_Wrist_Curl/0.jpg",
+   "Seated_Palms-Down_Barbell_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7217,7 +9521,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Side Lateral Raise"
-  ]
+  ],
+  "images": [
+   "Seated_Side_Lateral_Raise/0.jpg",
+   "Seated_Side_Lateral_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-seated-triceps-press",
@@ -7228,7 +9537,12 @@
   "source": "fedb",
   "aliases": [
    "Seated Triceps Press"
-  ]
+  ],
+  "images": [
+   "Seated_Triceps_Press/0.jpg",
+   "Seated_Triceps_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-seated-two-arm-palms-up-low-pulley-wrist-curl",
@@ -7239,6 +9553,10 @@
   "source": "fedb",
   "aliases": [
    "Seated Two-Arm Palms-Up Low-Pulley Wrist Curl"
+  ],
+  "images": [
+   "Seated_Two-Arm_Palms-Up_Low-Pulley_Wrist_Curl/0.jpg",
+   "Seated_Two-Arm_Palms-Up_Low-Pulley_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -7254,7 +9572,12 @@
   "secondaryMuscles": [
    "abdominals",
    "triceps"
-  ]
+  ],
+  "images": [
+   "See-Saw_Press_Alternating_Side_Press/0.jpg",
+   "See-Saw_Press_Alternating_Side_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-shotgun-row",
@@ -7269,7 +9592,12 @@
   "secondaryMuscles": [
    "biceps",
    "upper_back"
-  ]
+  ],
+  "images": [
+   "Shotgun_Row/0.jpg",
+   "Shotgun_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-shoulder-press-with-bands",
@@ -7283,7 +9611,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Shoulder_Press_-_With_Bands/0.jpg",
+   "Shoulder_Press_-_With_Bands/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-side-hop-sprint",
@@ -7300,6 +9633,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Side_Hop-Sprint/0.jpg",
+   "Side_Hop-Sprint/1.jpg"
   ]
  },
  {
@@ -7311,7 +9648,12 @@
   "source": "fedb",
   "aliases": [
    "Side Jackknife"
-  ]
+  ],
+  "images": [
+   "Side_Jackknife/0.jpg",
+   "Side_Jackknife/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-side-laterals-to-front-raise",
@@ -7326,7 +9668,12 @@
   "secondaryMuscles": [
    "front_delts",
    "traps"
-  ]
+  ],
+  "images": [
+   "Side_Laterals_to_Front_Raise/0.jpg",
+   "Side_Laterals_to_Front_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-side-standing-long-jump",
@@ -7342,6 +9689,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Side_Standing_Long_Jump/0.jpg",
+   "Side_Standing_Long_Jump/1.jpg"
   ]
  },
  {
@@ -7359,7 +9710,12 @@
    "forearms",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Side_To_Side_Chins/0.jpg",
+   "Side_To_Side_Chins/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-side-to-side-box-shuffle",
@@ -7376,6 +9732,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Side_to_Side_Box_Shuffle/0.jpg",
+   "Side_to_Side_Box_Shuffle/1.jpg"
   ]
  },
  {
@@ -7387,7 +9747,12 @@
   "source": "fedb",
   "aliases": [
    "Single-Arm Cable Crossover"
-  ]
+  ],
+  "images": [
+   "Single-Arm_Cable_Crossover/0.jpg",
+   "Single-Arm_Cable_Crossover/1.jpg"
+  ],
+  "family": "fly"
  },
  {
   "id": "fedb-single-arm-linear-jammer",
@@ -7402,6 +9767,10 @@
   "secondaryMuscles": [
    "chest",
    "triceps"
+  ],
+  "images": [
+   "Single-Arm_Linear_Jammer/0.jpg",
+   "Single-Arm_Linear_Jammer/1.jpg"
   ]
  },
  {
@@ -7417,7 +9786,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Single-Arm_Push-Up/0.jpg",
+   "Single-Arm_Push-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-single-cone-sprint-drill",
@@ -7433,6 +9807,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Single-Cone_Sprint_Drill/0.jpg",
+   "Single-Cone_Sprint_Drill/1.jpg"
   ]
  },
  {
@@ -7448,7 +9826,12 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Single-Leg_High_Box_Squat/0.jpg",
+   "Single-Leg_High_Box_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-single-leg-hop-progression",
@@ -7465,6 +9848,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Single-Leg_Hop_Progression/0.jpg",
+   "Single-Leg_Hop_Progression/1.jpg"
   ]
  },
  {
@@ -7482,6 +9869,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Single-Leg_Lateral_Hop/0.jpg",
+   "Single-Leg_Lateral_Hop/1.jpg"
   ]
  },
  {
@@ -7493,7 +9884,12 @@
   "source": "fedb",
   "aliases": [
    "Single-Leg Leg Extension"
-  ]
+  ],
+  "images": [
+   "Single-Leg_Leg_Extension/0.jpg",
+   "Single-Leg_Leg_Extension/1.jpg"
+  ],
+  "family": "leg-extension"
  },
  {
   "id": "fedb-single-leg-stride-jump",
@@ -7510,6 +9906,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Single-Leg_Stride_Jump/0.jpg",
+   "Single-Leg_Stride_Jump/1.jpg"
   ]
  },
  {
@@ -7525,6 +9925,10 @@
   "secondaryMuscles": [
    "forearms",
    "traps"
+  ],
+  "images": [
+   "Single_Dumbbell_Raise/0.jpg",
+   "Single_Dumbbell_Raise/1.jpg"
   ]
  },
  {
@@ -7540,6 +9944,10 @@
   "secondaryMuscles": [
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Single_Leg_Butt_Kick/0.jpg",
+   "Single_Leg_Butt_Kick/1.jpg"
   ]
  },
  {
@@ -7554,7 +9962,12 @@
   ],
   "secondaryMuscles": [
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Single_Leg_Glute_Bridge/0.jpg",
+   "Single_Leg_Glute_Bridge/1.jpg"
+  ],
+  "family": "hip-thrust"
  },
  {
   "id": "fedb-single-leg-push-off",
@@ -7569,6 +9982,10 @@
   "secondaryMuscles": [
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Single_Leg_Push-off/0.jpg",
+   "Single_Leg_Push-off/1.jpg"
   ]
  },
  {
@@ -7585,6 +10002,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Sled_Drag_-_Harness/0.jpg",
+   "Sled_Drag_-_Harness/1.jpg"
   ]
  },
  {
@@ -7601,6 +10022,10 @@
    "calves",
    "upper_back",
    "quadriceps"
+  ],
+  "images": [
+   "Sled_Overhead_Backward_Walk/0.jpg",
+   "Sled_Overhead_Backward_Walk/1.jpg"
   ]
  },
  {
@@ -7612,7 +10037,12 @@
   "source": "fedb",
   "aliases": [
    "Sled Overhead Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Sled_Overhead_Triceps_Extension/0.jpg",
+   "Sled_Overhead_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-sled-reverse-flye",
@@ -7623,7 +10053,12 @@
   "source": "fedb",
   "aliases": [
    "Sled Reverse Flye"
-  ]
+  ],
+  "images": [
+   "Sled_Reverse_Flye/0.jpg",
+   "Sled_Reverse_Flye/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-sled-row",
@@ -7638,7 +10073,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Sled_Row/0.jpg",
+   "Sled_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-sledgehammer-swings",
@@ -7656,6 +10096,10 @@
    "lats",
    "upper_back",
    "front_delts"
+  ],
+  "images": [
+   "Sledgehammer_Swings/0.jpg",
+   "Sledgehammer_Swings/1.jpg"
   ]
  },
  {
@@ -7670,6 +10114,10 @@
   ],
   "secondaryMuscles": [
    "chest"
+  ],
+  "images": [
+   "Smith_Incline_Shoulder_Raise/0.jpg",
+   "Smith_Incline_Shoulder_Raise/1.jpg"
   ]
  },
  {
@@ -7684,7 +10132,12 @@
   ],
   "secondaryMuscles": [
    "side_delts"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Behind_the_Back_Shrug/0.jpg",
+   "Smith_Machine_Behind_the_Back_Shrug/1.jpg"
+  ],
+  "family": "shrug"
  },
  {
   "id": "fedb-smith-machine-bench-press",
@@ -7699,7 +10152,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Bench_Press/0.jpg",
+   "Smith_Machine_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-smith-machine-bent-over-row",
@@ -7715,7 +10173,12 @@
    "biceps",
    "lats",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Bent_Over_Row/0.jpg",
+   "Smith_Machine_Bent_Over_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-smith-machine-calf-raise",
@@ -7726,7 +10189,12 @@
   "source": "fedb",
   "aliases": [
    "Smith Machine Calf Raise"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Calf_Raise/0.jpg",
+   "Smith_Machine_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-smith-machine-close-grip-bench-press",
@@ -7741,7 +10209,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Close-Grip_Bench_Press/0.jpg",
+   "Smith_Machine_Close-Grip_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-smith-machine-decline-press",
@@ -7756,7 +10229,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Decline_Press/0.jpg",
+   "Smith_Machine_Decline_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-smith-machine-hang-power-clean",
@@ -7774,6 +10252,10 @@
    "quadriceps",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Smith_Machine_Hang_Power_Clean/0.jpg",
+   "Smith_Machine_Hang_Power_Clean/1.jpg"
   ]
  },
  {
@@ -7785,7 +10267,12 @@
   "source": "fedb",
   "aliases": [
    "Smith Machine Hip Raise"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Hip_Raise/0.jpg",
+   "Smith_Machine_Hip_Raise/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-smith-machine-incline-bench-press",
@@ -7800,7 +10287,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Incline_Bench_Press/0.jpg",
+   "Smith_Machine_Incline_Bench_Press/1.jpg"
+  ],
+  "family": "incline-press"
  },
  {
   "id": "fedb-smith-machine-leg-press",
@@ -7816,7 +10308,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Leg_Press/0.jpg",
+   "Smith_Machine_Leg_Press/1.jpg"
+  ],
+  "family": "leg-press"
  },
  {
   "id": "fedb-smith-machine-one-arm-upright-row",
@@ -7831,6 +10328,10 @@
   "secondaryMuscles": [
    "biceps",
    "traps"
+  ],
+  "images": [
+   "Smith_Machine_One-Arm_Upright_Row/0.jpg",
+   "Smith_Machine_One-Arm_Upright_Row/1.jpg"
   ]
  },
  {
@@ -7845,7 +10346,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Overhead_Shoulder_Press/0.jpg",
+   "Smith_Machine_Overhead_Shoulder_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-smith-machine-pistol-squat",
@@ -7861,7 +10367,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Pistol_Squat/0.jpg",
+   "Smith_Machine_Pistol_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-smith-machine-reverse-calf-raises",
@@ -7872,7 +10383,12 @@
   "source": "fedb",
   "aliases": [
    "Smith Machine Reverse Calf Raises"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Reverse_Calf_Raises/0.jpg",
+   "Smith_Machine_Reverse_Calf_Raises/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-smith-machine-squat",
@@ -7889,7 +10405,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Squat/0.jpg",
+   "Smith_Machine_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-smith-machine-stiff-legged-deadlift",
@@ -7904,7 +10425,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Smith_Machine_Stiff-Legged_Deadlift/0.jpg",
+   "Smith_Machine_Stiff-Legged_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-smith-machine-upright-row",
@@ -7920,6 +10446,10 @@
    "biceps",
    "upper_back",
    "side_delts"
+  ],
+  "images": [
+   "Smith_Machine_Upright_Row/0.jpg",
+   "Smith_Machine_Upright_Row/1.jpg"
   ]
  },
  {
@@ -7936,7 +10466,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Smith_Single-Leg_Split_Squat/0.jpg",
+   "Smith_Single-Leg_Split_Squat/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-snatch",
@@ -7956,6 +10491,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Snatch/0.jpg",
+   "Snatch/1.jpg"
   ]
  },
  {
@@ -7974,6 +10513,10 @@
    "hamstrings",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Snatch_Balance/0.jpg",
+   "Snatch_Balance/1.jpg"
   ]
  },
  {
@@ -7992,6 +10535,10 @@
    "lower_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Snatch_Deadlift/0.jpg",
+   "Snatch_Deadlift/1.jpg"
   ]
  },
  {
@@ -8010,6 +10557,10 @@
    "lower_back",
    "quadriceps",
    "traps"
+  ],
+  "images": [
+   "Snatch_Pull/0.jpg",
+   "Snatch_Pull/1.jpg"
   ]
  },
  {
@@ -8025,6 +10576,10 @@
   "secondaryMuscles": [
    "forearms",
    "side_delts"
+  ],
+  "images": [
+   "Snatch_Shrug/0.jpg",
+   "Snatch_Shrug/1.jpg"
   ]
  },
  {
@@ -8046,6 +10601,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Snatch_from_Blocks/0.jpg",
+   "Snatch_from_Blocks/1.jpg"
   ]
  },
  {
@@ -8057,7 +10616,12 @@
   "source": "fedb",
   "aliases": [
    "Speed Band Overhead Triceps"
-  ]
+  ],
+  "images": [
+   "Speed_Band_Overhead_Triceps/0.jpg",
+   "Speed_Band_Overhead_Triceps/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-speed-box-squat",
@@ -8073,7 +10637,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Speed_Box_Squat/0.jpg",
+   "Speed_Box_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-speed-squats",
@@ -8090,7 +10659,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Speed_Squats/0.jpg",
+   "Speed_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-spell-caster",
@@ -8105,7 +10679,12 @@
   "secondaryMuscles": [
    "glutes",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Spell_Caster/0.jpg",
+   "Spell_Caster/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-spider-crawl",
@@ -8121,7 +10700,12 @@
    "chest",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Spider_Crawl/0.jpg",
+   "Spider_Crawl/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-spider-curl",
@@ -8132,7 +10716,12 @@
   "source": "fedb",
   "aliases": [
    "Spider Curl"
-  ]
+  ],
+  "images": [
+   "Spider_Curl/0.jpg",
+   "Spider_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-split-clean",
@@ -8152,6 +10741,10 @@
    "lower_back",
    "front_delts",
    "traps"
+  ],
+  "images": [
+   "Split_Clean/0.jpg",
+   "Split_Clean/1.jpg"
   ]
  },
  {
@@ -8169,6 +10762,10 @@
    "hamstrings",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Split_Jerk/0.jpg",
+   "Split_Jerk/1.jpg"
   ]
  },
  {
@@ -8185,6 +10782,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Split_Jump/0.jpg",
+   "Split_Jump/1.jpg"
   ]
  },
  {
@@ -8206,6 +10807,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Split_Snatch/0.jpg",
+   "Split_Snatch/1.jpg"
   ]
  },
  {
@@ -8224,6 +10829,10 @@
    "hamstrings",
    "front_delts",
    "triceps"
+  ],
+  "images": [
+   "Squat_Jerk/0.jpg",
+   "Squat_Jerk/1.jpg"
   ]
  },
  {
@@ -8242,7 +10851,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Squat_with_Bands/0.jpg",
+   "Squat_with_Bands/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-squat-with-chains",
@@ -8260,7 +10874,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Squat_with_Chains/0.jpg",
+   "Squat_with_Chains/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-squat-with-plate-movers",
@@ -8278,7 +10897,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Squat_with_Plate_Movers/0.jpg",
+   "Squat_with_Plate_Movers/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-squats-with-bands",
@@ -8295,7 +10919,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Squats_-_With_Bands/0.jpg",
+   "Squats_-_With_Bands/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-standing-alternating-dumbbell-press",
@@ -8309,7 +10938,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Alternating_Dumbbell_Press/0.jpg",
+   "Standing_Alternating_Dumbbell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-barbell-calf-raise",
@@ -8320,7 +10954,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Barbell Calf Raise"
-  ]
+  ],
+  "images": [
+   "Standing_Barbell_Calf_Raise/0.jpg",
+   "Standing_Barbell_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-standing-barbell-press-behind-neck",
@@ -8334,7 +10973,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Barbell_Press_Behind_Neck/0.jpg",
+   "Standing_Barbell_Press_Behind_Neck/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-bent-over-one-arm-dumbbell-triceps-extension",
@@ -8348,7 +10992,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_Bent-Over_One-Arm_Dumbbell_Triceps_Extension/0.jpg",
+   "Standing_Bent-Over_One-Arm_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-bent-over-two-arm-dumbbell-triceps-extension",
@@ -8359,7 +11008,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Bent-Over Two-Arm Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Standing_Bent-Over_Two-Arm_Dumbbell_Triceps_Extension/0.jpg",
+   "Standing_Bent-Over_Two-Arm_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-bradford-press",
@@ -8373,7 +11027,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Bradford_Press/0.jpg",
+   "Standing_Bradford_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-cable-chest-press",
@@ -8388,7 +11047,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Cable_Chest_Press/0.jpg",
+   "Standing_Cable_Chest_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-standing-cable-lift",
@@ -8402,7 +11066,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_Cable_Lift/0.jpg",
+   "Standing_Cable_Lift/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-standing-cable-wood-chop",
@@ -8416,7 +11085,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_Cable_Wood_Chop/0.jpg",
+   "Standing_Cable_Wood_Chop/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-standing-concentration-curl",
@@ -8430,7 +11104,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Standing_Concentration_Curl/0.jpg",
+   "Standing_Concentration_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-standing-dumbbell-calf-raise",
@@ -8441,7 +11120,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Dumbbell Calf Raise"
-  ]
+  ],
+  "images": [
+   "Standing_Dumbbell_Calf_Raise/0.jpg",
+   "Standing_Dumbbell_Calf_Raise/1.jpg"
+  ],
+  "family": "calf"
  },
  {
   "id": "fedb-standing-dumbbell-press",
@@ -8455,7 +11139,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Dumbbell_Press/0.jpg",
+   "Standing_Dumbbell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-dumbbell-reverse-curl",
@@ -8469,7 +11158,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Standing_Dumbbell_Reverse_Curl/0.jpg",
+   "Standing_Dumbbell_Reverse_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-standing-dumbbell-straight-arm-front-delt-raise-above-head",
@@ -8480,6 +11174,10 @@
   "source": "fedb",
   "aliases": [
    "Standing Dumbbell Straight-Arm Front Delt Raise Above Head"
+  ],
+  "images": [
+   "Standing_Dumbbell_Straight-Arm_Front_Delt_Raise_Above_Head/0.jpg",
+   "Standing_Dumbbell_Straight-Arm_Front_Delt_Raise_Above_Head/1.jpg"
   ]
  },
  {
@@ -8491,7 +11189,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Dumbbell Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Standing_Dumbbell_Triceps_Extension/0.jpg",
+   "Standing_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-dumbbell-upright-row",
@@ -8506,6 +11209,10 @@
   "secondaryMuscles": [
    "biceps",
    "side_delts"
+  ],
+  "images": [
+   "Standing_Dumbbell_Upright_Row/0.jpg",
+   "Standing_Dumbbell_Upright_Row/1.jpg"
   ]
  },
  {
@@ -8517,6 +11224,10 @@
   "source": "fedb",
   "aliases": [
    "Standing Front Barbell Raise Over Head"
+  ],
+  "images": [
+   "Standing_Front_Barbell_Raise_Over_Head/0.jpg",
+   "Standing_Front_Barbell_Raise_Over_Head/1.jpg"
   ]
  },
  {
@@ -8528,7 +11239,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Inner-Biceps Curl"
-  ]
+  ],
+  "images": [
+   "Standing_Inner-Biceps_Curl/0.jpg",
+   "Standing_Inner-Biceps_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-standing-leg-curl",
@@ -8539,7 +11255,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Leg Curl"
-  ]
+  ],
+  "images": [
+   "Standing_Leg_Curl/0.jpg",
+   "Standing_Leg_Curl/1.jpg"
+  ],
+  "family": "leg-curl"
  },
  {
   "id": "fedb-standing-long-jump",
@@ -8555,6 +11276,10 @@
    "calves",
    "glutes",
    "hamstrings"
+  ],
+  "images": [
+   "Standing_Long_Jump/0.jpg",
+   "Standing_Long_Jump/1.jpg"
   ]
  },
  {
@@ -8569,7 +11294,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Standing_Low-Pulley_Deltoid_Raise/0.jpg",
+   "Standing_Low-Pulley_Deltoid_Raise/1.jpg"
+  ],
+  "family": "lateral-raise"
  },
  {
   "id": "fedb-standing-low-pulley-one-arm-triceps-extension",
@@ -8584,7 +11314,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_Low-Pulley_One-Arm_Triceps_Extension/0.jpg",
+   "Standing_Low-Pulley_One-Arm_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-military-press",
@@ -8598,7 +11333,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Military_Press/0.jpg",
+   "Standing_Military_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-olympic-plate-hand-squeeze",
@@ -8612,6 +11352,10 @@
   ],
   "secondaryMuscles": [
    "biceps"
+  ],
+  "images": [
+   "Standing_Olympic_Plate_Hand_Squeeze/0.jpg",
+   "Standing_Olympic_Plate_Hand_Squeeze/1.jpg"
   ]
  },
  {
@@ -8623,7 +11367,12 @@
   "source": "fedb",
   "aliases": [
    "Standing One-Arm Cable Curl"
-  ]
+  ],
+  "images": [
+   "Standing_One-Arm_Cable_Curl/0.jpg",
+   "Standing_One-Arm_Cable_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-standing-one-arm-dumbbell-curl-over-incline-bench",
@@ -8634,7 +11383,12 @@
   "source": "fedb",
   "aliases": [
    "Standing One-Arm Dumbbell Curl Over Incline Bench"
-  ]
+  ],
+  "images": [
+   "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench/0.jpg",
+   "Standing_One-Arm_Dumbbell_Curl_Over_Incline_Bench/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-standing-one-arm-dumbbell-triceps-extension",
@@ -8649,7 +11403,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_One-Arm_Dumbbell_Triceps_Extension/0.jpg",
+   "Standing_One-Arm_Dumbbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-overhead-barbell-triceps-extension",
@@ -8663,7 +11422,12 @@
   ],
   "secondaryMuscles": [
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Standing_Overhead_Barbell_Triceps_Extension/0.jpg",
+   "Standing_Overhead_Barbell_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-palm-in-one-arm-dumbbell-press",
@@ -8677,7 +11441,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Palm-In_One-Arm_Dumbbell_Press/0.jpg",
+   "Standing_Palm-In_One-Arm_Dumbbell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-palms-in-dumbbell-press",
@@ -8691,7 +11460,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Standing_Palms-In_Dumbbell_Press/0.jpg",
+   "Standing_Palms-In_Dumbbell_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-standing-palms-up-barbell-behind-the-back-wrist-curl",
@@ -8702,6 +11476,10 @@
   "source": "fedb",
   "aliases": [
    "Standing Palms-Up Barbell Behind The Back Wrist Curl"
+  ],
+  "images": [
+   "Standing_Palms-Up_Barbell_Behind_The_Back_Wrist_Curl/0.jpg",
+   "Standing_Palms-Up_Barbell_Behind_The_Back_Wrist_Curl/1.jpg"
   ]
  },
  {
@@ -8713,7 +11491,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Rope Crunch"
-  ]
+  ],
+  "images": [
+   "Standing_Rope_Crunch/0.jpg",
+   "Standing_Rope_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-standing-towel-triceps-extension",
@@ -8724,7 +11507,12 @@
   "source": "fedb",
   "aliases": [
    "Standing Towel Triceps Extension"
-  ]
+  ],
+  "images": [
+   "Standing_Towel_Triceps_Extension/0.jpg",
+   "Standing_Towel_Triceps_Extension/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-standing-two-arm-overhead-throw",
@@ -8739,6 +11527,10 @@
   "secondaryMuscles": [
    "chest",
    "lats"
+  ],
+  "images": [
+   "Standing_Two-Arm_Overhead_Throw/0.jpg",
+   "Standing_Two-Arm_Overhead_Throw/1.jpg"
   ]
  },
  {
@@ -8756,6 +11548,10 @@
    "glutes",
    "hamstrings",
    "front_delts"
+  ],
+  "images": [
+   "Star_Jump/0.jpg",
+   "Star_Jump/1.jpg"
   ]
  },
  {
@@ -8771,7 +11567,12 @@
   "secondaryMuscles": [
    "hamstrings",
    "quadriceps"
-  ]
+  ],
+  "images": [
+   "Step-up_with_Knee_Raise/0.jpg",
+   "Step-up_with_Knee_Raise/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-stiff-legged-barbell-deadlift",
@@ -8786,7 +11587,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Stiff-Legged_Barbell_Deadlift/0.jpg",
+   "Stiff-Legged_Barbell_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-stiff-legged-dumbbell-deadlift",
@@ -8801,7 +11607,12 @@
   "secondaryMuscles": [
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Stiff-Legged_Dumbbell_Deadlift/0.jpg",
+   "Stiff-Legged_Dumbbell_Deadlift/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-stiff-leg-barbell-good-morning",
@@ -8816,7 +11627,12 @@
   "secondaryMuscles": [
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Stiff_Leg_Barbell_Good_Morning/0.jpg",
+   "Stiff_Leg_Barbell_Good_Morning/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-straight-arm-dumbbell-pullover",
@@ -8832,6 +11648,10 @@
    "lats",
    "rear_delts",
    "triceps"
+  ],
+  "images": [
+   "Straight-Arm_Dumbbell_Pullover/0.jpg",
+   "Straight-Arm_Dumbbell_Pullover/1.jpg"
   ]
  },
  {
@@ -8847,7 +11667,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Straight_Bar_Bench_Mid_Rows/0.jpg",
+   "Straight_Bar_Bench_Mid_Rows/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-straight-raises-on-incline-bench",
@@ -8861,7 +11686,12 @@
   ],
   "secondaryMuscles": [
    "traps"
-  ]
+  ],
+  "images": [
+   "Straight_Raises_on_Incline_Bench/0.jpg",
+   "Straight_Raises_on_Incline_Bench/1.jpg"
+  ],
+  "family": "rear-delt"
  },
  {
   "id": "fedb-stride-jump-crossover",
@@ -8878,6 +11708,10 @@
    "adductors",
    "calves",
    "hamstrings"
+  ],
+  "images": [
+   "Stride_Jump_Crossover/0.jpg",
+   "Stride_Jump_Crossover/1.jpg"
   ]
  },
  {
@@ -8898,7 +11732,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Sumo_Deadlift_with_Bands/0.jpg",
+   "Sumo_Deadlift_with_Bands/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-sumo-deadlift-with-chains",
@@ -8919,7 +11758,12 @@
    "upper_back",
    "quadriceps",
    "traps"
-  ]
+  ],
+  "images": [
+   "Sumo_Deadlift_with_Chains/0.jpg",
+   "Sumo_Deadlift_with_Chains/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-supine-chest-throw",
@@ -8934,6 +11778,10 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
+  ],
+  "images": [
+   "Supine_Chest_Throw/0.jpg",
+   "Supine_Chest_Throw/1.jpg"
   ]
  },
  {
@@ -8950,6 +11798,10 @@
    "chest",
    "lats",
    "front_delts"
+  ],
+  "images": [
+   "Supine_One-Arm_Overhead_Throw/0.jpg",
+   "Supine_One-Arm_Overhead_Throw/1.jpg"
   ]
  },
  {
@@ -8966,6 +11818,10 @@
    "chest",
    "lats",
    "front_delts"
+  ],
+  "images": [
+   "Supine_Two-Arm_Overhead_Throw/0.jpg",
+   "Supine_Two-Arm_Overhead_Throw/1.jpg"
   ]
  },
  {
@@ -8982,7 +11838,12 @@
    "chest",
    "lower_back",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Suspended_Fallout/0.jpg",
+   "Suspended_Fallout/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-suspended-push-up",
@@ -8997,7 +11858,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Suspended_Push-Up/0.jpg",
+   "Suspended_Push-Up/1.jpg"
+  ],
+  "family": "push-up"
  },
  {
   "id": "fedb-suspended-reverse-crunch",
@@ -9008,7 +11874,12 @@
   "source": "fedb",
   "aliases": [
    "Suspended Reverse Crunch"
-  ]
+  ],
+  "images": [
+   "Suspended_Reverse_Crunch/0.jpg",
+   "Suspended_Reverse_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-suspended-row",
@@ -9023,7 +11894,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Suspended_Row/0.jpg",
+   "Suspended_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-suspended-split-squat",
@@ -9041,7 +11917,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Suspended_Split_Squat/0.jpg",
+   "Suspended_Split_Squat/1.jpg"
+  ],
+  "family": "lunge"
  },
  {
   "id": "fedb-svend-press",
@@ -9057,7 +11938,12 @@
    "forearms",
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Svend_Press/0.jpg",
+   "Svend_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-tate-press",
@@ -9072,7 +11958,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Tate_Press/0.jpg",
+   "Tate_Press/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-tire-flip",
@@ -9094,6 +11985,10 @@
    "front_delts",
    "traps",
    "triceps"
+  ],
+  "images": [
+   "Tire_Flip/0.jpg",
+   "Tire_Flip/1.jpg"
   ]
  },
  {
@@ -9105,7 +12000,12 @@
   "source": "fedb",
   "aliases": [
    "Tricep Dumbbell Kickback"
-  ]
+  ],
+  "images": [
+   "Tricep_Dumbbell_Kickback/0.jpg",
+   "Tricep_Dumbbell_Kickback/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-triceps-overhead-extension-with-rope",
@@ -9116,7 +12016,12 @@
   "source": "fedb",
   "aliases": [
    "Triceps Overhead Extension with Rope"
-  ]
+  ],
+  "images": [
+   "Triceps_Overhead_Extension_with_Rope/0.jpg",
+   "Triceps_Overhead_Extension_with_Rope/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-triceps-pushdown-v-bar-attachment",
@@ -9127,7 +12032,12 @@
   "source": "fedb",
   "aliases": [
    "Triceps Pushdown - V-Bar Attachment"
-  ]
+  ],
+  "images": [
+   "Triceps_Pushdown_-_V-Bar_Attachment/0.jpg",
+   "Triceps_Pushdown_-_V-Bar_Attachment/1.jpg"
+  ],
+  "family": "triceps"
  },
  {
   "id": "fedb-tuck-crunch",
@@ -9138,7 +12048,12 @@
   "source": "fedb",
   "aliases": [
    "Tuck Crunch"
-  ]
+  ],
+  "images": [
+   "Tuck_Crunch/0.jpg",
+   "Tuck_Crunch/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-two-arm-dumbbell-preacher-curl",
@@ -9149,7 +12064,12 @@
   "source": "fedb",
   "aliases": [
    "Two-Arm Dumbbell Preacher Curl"
-  ]
+  ],
+  "images": [
+   "Two-Arm_Dumbbell_Preacher_Curl/0.jpg",
+   "Two-Arm_Dumbbell_Preacher_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-two-arm-kettlebell-clean",
@@ -9167,6 +12087,10 @@
    "hamstrings",
    "lower_back",
    "traps"
+  ],
+  "images": [
+   "Two-Arm_Kettlebell_Clean/0.jpg",
+   "Two-Arm_Kettlebell_Clean/1.jpg"
   ]
  },
  {
@@ -9183,6 +12107,10 @@
    "calves",
    "quadriceps",
    "triceps"
+  ],
+  "images": [
+   "Two-Arm_Kettlebell_Jerk/0.jpg",
+   "Two-Arm_Kettlebell_Jerk/1.jpg"
   ]
  },
  {
@@ -9197,7 +12125,12 @@
   ],
   "secondaryMuscles": [
    "triceps"
-  ]
+  ],
+  "images": [
+   "Two-Arm_Kettlebell_Military_Press/0.jpg",
+   "Two-Arm_Kettlebell_Military_Press/1.jpg"
+  ],
+  "family": "overhead-press"
  },
  {
   "id": "fedb-two-arm-kettlebell-row",
@@ -9212,7 +12145,12 @@
   "secondaryMuscles": [
    "biceps",
    "lats"
-  ]
+  ],
+  "images": [
+   "Two-Arm_Kettlebell_Row/0.jpg",
+   "Two-Arm_Kettlebell_Row/1.jpg"
+  ],
+  "family": "row"
  },
  {
   "id": "fedb-underhand-cable-pulldowns",
@@ -9228,7 +12166,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Underhand_Cable_Pulldowns/0.jpg",
+   "Underhand_Cable_Pulldowns/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-upright-cable-row",
@@ -9242,6 +12185,10 @@
   ],
   "secondaryMuscles": [
    "side_delts"
+  ],
+  "images": [
+   "Upright_Cable_Row/0.jpg",
+   "Upright_Cable_Row/1.jpg"
   ]
  },
  {
@@ -9256,6 +12203,10 @@
   ],
   "secondaryMuscles": [
    "side_delts"
+  ],
+  "images": [
+   "Upright_Row_-_With_Bands/0.jpg",
+   "Upright_Row_-_With_Bands/1.jpg"
   ]
  },
  {
@@ -9272,7 +12223,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "V-Bar_Pulldown/0.jpg",
+   "V-Bar_Pulldown/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-v-bar-pullup",
@@ -9288,7 +12244,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "V-Bar_Pullup/0.jpg",
+   "V-Bar_Pullup/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-vertical-swing",
@@ -9304,6 +12265,10 @@
    "glutes",
    "quadriceps",
    "front_delts"
+  ],
+  "images": [
+   "Vertical_Swing/0.jpg",
+   "Vertical_Swing/1.jpg"
   ]
  },
  {
@@ -9320,6 +12285,10 @@
    "glutes",
    "hamstrings",
    "upper_back"
+  ],
+  "images": [
+   "Weighted_Ball_Hyperextension/0.jpg",
+   "Weighted_Ball_Hyperextension/1.jpg"
   ]
  },
  {
@@ -9331,7 +12300,12 @@
   "source": "fedb",
   "aliases": [
    "Weighted Ball Side Bend"
-  ]
+  ],
+  "images": [
+   "Weighted_Ball_Side_Bend/0.jpg",
+   "Weighted_Ball_Side_Bend/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-weighted-bench-dip",
@@ -9346,7 +12320,12 @@
   "secondaryMuscles": [
    "chest",
    "front_delts"
-  ]
+  ],
+  "images": [
+   "Weighted_Bench_Dip/0.jpg",
+   "Weighted_Bench_Dip/1.jpg"
+  ],
+  "family": "dip"
  },
  {
   "id": "fedb-weighted-crunches",
@@ -9357,7 +12336,12 @@
   "source": "fedb",
   "aliases": [
    "Weighted Crunches"
-  ]
+  ],
+  "images": [
+   "Weighted_Crunches/0.jpg",
+   "Weighted_Crunches/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-weighted-jump-squat",
@@ -9374,7 +12358,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Weighted_Jump_Squat/0.jpg",
+   "Weighted_Jump_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-weighted-sissy-squat",
@@ -9390,7 +12379,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Weighted_Sissy_Squat/0.jpg",
+   "Weighted_Sissy_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-weighted-sit-ups-with-bands",
@@ -9401,7 +12395,12 @@
   "source": "fedb",
   "aliases": [
    "Weighted Sit-Ups - With Bands"
-  ]
+  ],
+  "images": [
+   "Weighted_Sit-Ups_-_With_Bands/0.jpg",
+   "Weighted_Sit-Ups_-_With_Bands/1.jpg"
+  ],
+  "family": "core"
  },
  {
   "id": "fedb-weighted-squat",
@@ -9417,7 +12416,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Weighted_Squat/0.jpg",
+   "Weighted_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-wide-grip-barbell-bench-press",
@@ -9432,7 +12436,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Wide-Grip_Barbell_Bench_Press/0.jpg",
+   "Wide-Grip_Barbell_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-wide-grip-decline-barbell-bench-press",
@@ -9447,7 +12456,12 @@
   "secondaryMuscles": [
    "front_delts",
    "triceps"
-  ]
+  ],
+  "images": [
+   "Wide-Grip_Decline_Barbell_Bench_Press/0.jpg",
+   "Wide-Grip_Decline_Barbell_Bench_Press/1.jpg"
+  ],
+  "family": "bench-press"
  },
  {
   "id": "fedb-wide-grip-decline-barbell-pullover",
@@ -9462,6 +12476,10 @@
   "secondaryMuscles": [
    "rear_delts",
    "triceps"
+  ],
+  "images": [
+   "Wide-Grip_Decline_Barbell_Pullover/0.jpg",
+   "Wide-Grip_Decline_Barbell_Pullover/1.jpg"
   ]
  },
  {
@@ -9478,7 +12496,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Wide-Grip_Pulldown_Behind_The_Neck/0.jpg",
+   "Wide-Grip_Pulldown_Behind_The_Neck/1.jpg"
+  ],
+  "family": "pulldown"
  },
  {
   "id": "fedb-wide-grip-rear-pull-up",
@@ -9494,7 +12517,12 @@
    "biceps",
    "upper_back",
    "rear_delts"
-  ]
+  ],
+  "images": [
+   "Wide-Grip_Rear_Pull-Up/0.jpg",
+   "Wide-Grip_Rear_Pull-Up/1.jpg"
+  ],
+  "family": "pull-up"
  },
  {
   "id": "fedb-wide-grip-standing-barbell-curl",
@@ -9505,7 +12533,12 @@
   "source": "fedb",
   "aliases": [
    "Wide-Grip Standing Barbell Curl"
-  ]
+  ],
+  "images": [
+   "Wide-Grip_Standing_Barbell_Curl/0.jpg",
+   "Wide-Grip_Standing_Barbell_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-wide-stance-barbell-squat",
@@ -9522,7 +12555,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Wide_Stance_Barbell_Squat/0.jpg",
+   "Wide_Stance_Barbell_Squat/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-wide-stance-stiff-legs",
@@ -9538,7 +12576,12 @@
    "adductors",
    "glutes",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Wide_Stance_Stiff_Legs/0.jpg",
+   "Wide_Stance_Stiff_Legs/1.jpg"
+  ],
+  "family": "hinge"
  },
  {
   "id": "fedb-wind-sprints",
@@ -9549,6 +12592,10 @@
   "source": "fedb",
   "aliases": [
    "Wind Sprints"
+  ],
+  "images": [
+   "Wind_Sprints/0.jpg",
+   "Wind_Sprints/1.jpg"
   ]
  },
  {
@@ -9563,6 +12610,10 @@
   ],
   "secondaryMuscles": [
    "front_delts"
+  ],
+  "images": [
+   "Wrist_Roller/0.jpg",
+   "Wrist_Roller/1.jpg"
   ]
  },
  {
@@ -9574,6 +12625,10 @@
   "source": "fedb",
   "aliases": [
    "Wrist Rotations with Straight Bar"
+  ],
+  "images": [
+   "Wrist_Rotations_with_Straight_Bar/0.jpg",
+   "Wrist_Rotations_with_Straight_Bar/1.jpg"
   ]
  },
  {
@@ -9594,7 +12649,12 @@
    "glutes",
    "hamstrings",
    "lower_back"
-  ]
+  ],
+  "images": [
+   "Yoke_Walk/0.jpg",
+   "Yoke_Walk/1.jpg"
+  ],
+  "family": "carry"
  },
  {
   "id": "fedb-zercher-squats",
@@ -9610,7 +12670,12 @@
    "calves",
    "glutes",
    "hamstrings"
-  ]
+  ],
+  "images": [
+   "Zercher_Squats/0.jpg",
+   "Zercher_Squats/1.jpg"
+  ],
+  "family": "squat"
  },
  {
   "id": "fedb-zottman-curl",
@@ -9624,7 +12689,12 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Zottman_Curl/0.jpg",
+   "Zottman_Curl/1.jpg"
+  ],
+  "family": "curl"
  },
  {
   "id": "fedb-zottman-preacher-curl",
@@ -9638,6 +12708,11 @@
   ],
   "secondaryMuscles": [
    "forearms"
-  ]
+  ],
+  "images": [
+   "Zottman_Preacher_Curl/0.jpg",
+   "Zottman_Preacher_Curl/1.jpg"
+  ],
+  "family": "curl"
  }
 ]

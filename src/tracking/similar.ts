@@ -1,5 +1,6 @@
 import { descriptionOf, type ExerciseDescription } from '../shared/exercise-descriptions';
 import type { Exercise } from '../shared/exercises';
+import { familyOf } from '../shared/families';
 import { resolveExercise } from './exercise-identity';
 import { muscleLabel } from './ui/labels';
 
@@ -16,7 +17,7 @@ export function matchesSearch(e: Exercise, needle: string): boolean {
 }
 
 /**
- * What fits in place of an exercise: the same muscle on top, and within it the same movement first (any equipment).
+ * What fits in place of an exercise: the same muscle on top, and within it the same movement first (any equipment; the same movement family counts as the same movement).
  * Within that: done before first, then own and built-in before base entries, then the closer movement, then more shared
  * secondary muscles, then by title. Equipment plays no role: a machine that is taken is replaced by anything for the same muscle.
  * Another muscle only appears for the exact same movement. Works for Hevy titles too, whose template ids are not in
@@ -25,13 +26,15 @@ export function matchesSearch(e: Exercise, needle: string): boolean {
 export function similarExercises(current: { title: string; exerciseId: string }, catalog: Exercise[], done: ReadonlySet<string> = new Set(), excluded: ReadonlySet<string> = new Set()): Exercise[] {
   const want = base(current.title);
   const word = lastWord(want);
+  const self = catalog.find((e) => e.id === current.exerciseId || names(e).includes(current.title));
+  const family = self ? familyOf(self) : 'other';
   const movement = (e: Exercise) => {
+    if (family !== 'other' && familyOf(e) === family) return 2;
     const bases = names(e).map(base);
     if (bases.includes(want)) return 2;
     if (word.length > 3 && bases.some((b) => lastWord(b) === word)) return 1;
     return 0;
   };
-  const self = catalog.find((e) => e.id === current.exerciseId || names(e).includes(current.title));
   const muscle = self?.primaryMuscle ?? catalog.find((e) => movement(e) === 2)?.primaryMuscle ?? mostCommon(catalog.filter((e) => movement(e) === 1).map((e) => e.primaryMuscle));
   const secondary = self?.secondaryMuscles ?? catalog.find((e) => movement(e) === 2)?.secondaryMuscles ?? [];
   const overlap = (e: Exercise) => (e.secondaryMuscles ?? []).filter((m) => secondary.includes(m)).length;

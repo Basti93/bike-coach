@@ -34,7 +34,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **G Training ist veränderbar** | Reihenfolge ändern, beliebige Supersatz-Partner, Aufwärmen pro Bewegungsblock, Pausen aus einer Quelle. | Auftrag 9–10 |
 | ✅ | **H Entwicklung über Wochen** | Befristete Schwerpunkte, Rückmeldung nach dem Training wirkt nachvollziehbar, Chat mit Datum/Zeit. | Auftrag 11–12 |
 | ✅ | **I Alltag glätten** | Gewichte passen zum gewählten Studio, Zusammenfassung nach dem Training, Übernommenes wirkt sofort, Studios verwalten, „Heute erledigt“, Rückfrage nach dem Lauf. | Parkplatz C, D, F, G, H |
-| | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
+| ✅ | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
 | | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
 | | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
 | | **M Wochenübersicht per E-Mail** | Jede Person bekommt ihre Wochenübersicht per E-Mail an die Adresse aus ihrem Profil (selbst änderbar). | Wunsch 07.11.2026 |
@@ -218,6 +218,22 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Plan merkt sich sein Studio; ein abweichendes Studio nimmt eigene Werte, sonst den Plan auf seine Stufen abgerundet. Ausblenden statt Löschen, sobald Trainings dranhängen. „Heute erledigt“ ab 18 Uhr (Regelregister). „In letzter Zeit“ = 90 Tage.
 
+## Meilenstein J — Brief (umgesetzt 07.11.2026)
+
+**Ziel:** Der Coach kennt jede Übung, die die App kennt: Tauschen und Ausschließen klappen aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, und man kann die Übungen mit Bild in Ruhe ansehen.
+
+**Abnahme:**
+1. Schlägt der Wochen-Chat fürs nächste Training einen Tausch vor, ist die neue Übung eine echte Katalog-Übung; kennt er sie nicht sicher, schaut er einmal im Katalog nach statt den Vorschlag zu verwerfen.
+2. Jede Übung gehört zu einer Bewegungsfamilie (z. B. Kniebeuge, Kreuzheben, Bankdrücken, Rudern). „Künftig keine Kniebeugen“ kann als ganze Familie ausgeschlossen werden – das trifft auch Varianten, die später dazukommen.
+3. Übungen aus der Übungsbasis zeigen ihre Bilder, geladen erst beim Ansehen.
+4. Unter Kraft gibt es „Übungen“: suchen, nach Muskel stöbern, Info mit Bild und Anleitung, und von dort „Ausschließen“ (Übung oder Familie).
+
+**Fällt weg:** Ausschluss nur über aufgezählte Varianten; Wochen-Chat ohne Katalog.
+
+**Nicht dabei:** Bilder offline, eigene Bilder hochladen, Mobilitätsübungen im Kraftkatalog (Mobilität bleibt eine eigene, kleine Liste).
+
+**Von Claude entschieden (07.11.2026):** Familien als Datenfeld der Übung (Basis: beim Import abgeleitet, eingebaute: von Hand, KI-Übungen: im Vorschlag); Bilder der gemeinfreien Basis werden beim Bauen verkleinert aus der lokalen Kopie erzeugt und nicht ins Repo gelegt; Katalog als vierter Unterpunkt unter Kraft (höchstens sechs Haupt-Tabs bleibt).
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
@@ -271,3 +287,8 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 - Aus Meilenstein I:
   - Ausblenden/Entfernen eines Studios nur auf dem Startbildschirm, nicht im laufenden Training.
   - Eine schwere Laufwoche hält nur, wenn es eine Basis gibt; ohne Läufe der letzten Wochen wirkt sie nicht.
+- Aus Meilenstein J:
+  - Bilder der Übungsbasis machen App und Server-Paket ~50 MB größer; ggf. kleiner rechnen.
+  - „Wieder erlauben“ pausiert eine Regel ganz, auch wenn sie mehrere Übungen betrifft; der Knopf sagt das nicht.
+  - Titel-Auflösung beim Tausch per Chat unterscheidet Groß-/Kleinschreibung.
+  - Einordnung einzelner Basis-Übungen (enges Bankdrücken bei Bankdrücken, Hyperextensions bei Sonstige).

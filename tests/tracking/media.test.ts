@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { EXERCISE_IMAGES } from '../../src/shared/exercise-images';
+import { FEDB_EXERCISES } from '../../src/shared/fedb';
 import { exerciseImages, imageSrc, videoSearchUrl } from '../../src/tracking/media';
 
 describe('exerciseImages', () => {
@@ -14,6 +15,13 @@ describe('exerciseImages', () => {
   it('gives nothing for an exercise without pictures', () => {
     expect(exerciseImages('pf-squat')).toEqual([]);
     expect(exerciseImages('hevy-unknown')).toEqual([]);
+  });
+
+  it('gives a base-catalog entry its generated pictures with the public-domain credit', () => {
+    const e = FEDB_EXERCISES.find((x) => (x.images?.length ?? 0) > 0)!;
+    const imgs = exerciseImages(e.id);
+    expect(imgs.map((i) => i.file)).toEqual(e.images!.map((_, i) => `exercises/fedb/${e.id}-${i + 1}.jpg`));
+    expect(imgs[0]!.author).toBe('free-exercise-db (gemeinfrei)');
   });
 
   it('every listed picture exists, at most two per exercise, under 3 MB together', () => {

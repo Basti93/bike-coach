@@ -75,6 +75,19 @@ describe('ExerciseMapper', () => {
     expect(b).toMatchObject({ title: 'Zorbo-Zug', primaryMuscle: 'lats', secondaryMuscles: ['biceps'], equipment: 'machine', type: 'weight_reps', source: 'ai', proposal: { kind: 'new', forTitle: TITLE } });
   });
 
+  it('new: keeps a known movement family', async () => {
+    const h = harness([() => fresh(TITLE, { family: 'pulldown' })]);
+    await h.mapper.run(ID);
+    expect(exRecords(h.store)[0]!.body).toMatchObject({ family: 'pulldown' });
+  });
+
+  it('new: drops an unknown movement family', async () => {
+    const h = harness([() => fresh(TITLE, { family: 'zzz' })]);
+    await h.mapper.run(ID);
+    expect(exRecords(h.store)).toHaveLength(1);
+    expect(exRecords(h.store)[0]!.body).not.toHaveProperty('family');
+  });
+
   it('drops invalid items: unknown exerciseId, bad muscle', async () => {
     const h = harness([() => same('high', 'pf-nope')]);
     await h.mapper.run(ID);

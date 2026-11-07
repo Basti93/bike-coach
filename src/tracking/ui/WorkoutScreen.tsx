@@ -429,7 +429,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   // The start notice (ops that no longer fit) is for the rider's screen only; it is not workout data.
   const startPlan = async (g: GymWorkout) => {
     let changeRecs: TrackedRecord[] = [], all: LoggedWorkout[] = [], overrides = loadStepOverrides([], studios.renames), excludedNow: ReadonlySet<string> = new Set();
-    try { excludedNow = excludedIds(await port.list('rule')); } catch { /* start without them */ }
+    try { excludedNow = excludedIds(await port.list('rule'), catalog); } catch { /* start without them */ }
     try { overrides = loadStepOverrides(await port.list('loadstep'), studios.renames); changeRecs = await port.list('change'); all = (await port.list('workout')).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout); } catch { /* start without them: they stay taken for the next time */ }
     let skipped: string[] = [];
     const w = startFromPlan(g, history, now(), newId(), catalog, studio, studios, { changes: takenChanges(changeRecs), workouts: all, overrides, excluded: excludedNow, onSkipped: (l) => { skipped = l; } });

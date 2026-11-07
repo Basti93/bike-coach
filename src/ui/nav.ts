@@ -1,7 +1,7 @@
 import type { GymWorkout } from '../coach/gym/types';
 import type { HealthRange } from './views/HealthView';
 
-export type TrackScreen = 'workout' | 'routines' | 'history';
+export type TrackScreen = 'workout' | 'routines' | 'history' | 'catalog';
 /** Which screen is open besides the home screen. Profile-bound choices name their profile and lapse with it. */
 export type Views = {
   profile: boolean;

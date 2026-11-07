@@ -76,8 +76,11 @@ describe('swap ranking with the base catalog', () => {
   it('ranks built-ins and done exercises before base entries', async () => {
     const { similarExercises } = await import('../../src/tracking/similar');
     const cat = mergeCatalog(EXERCISES, FEDB_EXERCISES, []);
-    const got = similarExercises({ title: 'Bankdrücken', exerciseId: 'pf-bench-press' }, cat).slice(0, 6);
-    expect(got.every((e) => e.source !== 'fedb')).toBe(true);
+    const got = similarExercises({ title: 'Bankdrücken', exerciseId: 'pf-bench-press' }, cat);
+    // The same movement family leads; within it the built-ins come before the base entries.
+    const own = cat.filter((e) => e.family === 'bench-press' && e.primaryMuscle === 'chest' && e.source !== 'fedb' && e.id !== 'pf-bench-press').length;
+    expect(own).toBeGreaterThan(0);
+    expect(got.slice(0, own).every((e) => e.source !== 'fedb' && e.family === 'bench-press')).toBe(true);
     const base = cat.find((e) => e.source === 'fedb' && e.primaryMuscle === 'chest')!;
     const withDone = similarExercises({ title: 'Bankdrücken', exerciseId: 'pf-bench-press' }, cat, new Set([base.id]));
     expect(withDone[0]!.id).toBe(base.id);

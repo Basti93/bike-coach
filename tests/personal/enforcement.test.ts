@@ -102,10 +102,10 @@ describe('an excluded exercise never comes back', () => {
 
   it('has no effect while paused or after delete', () => {
     const active = exclude('rule-a', ['cp']);
-    expect([...excludedIds([active])]).toEqual(['cp']);
+    expect([...excludedIds([active], [])]).toEqual(['cp']);
     const paused = moveRule(active, 'paused', NOW + 1)!;
-    expect(excludedIds([paused]).size).toBe(0);
-    expect(excludedIds([deleteRule(active, NOW + 1)]).size).toBe(0);
+    expect(excludedIds([paused], []).size).toBe(0);
+    expect(excludedIds([deleteRule(active, NOW + 1)], []).size).toBe(0);
   });
 });
 
