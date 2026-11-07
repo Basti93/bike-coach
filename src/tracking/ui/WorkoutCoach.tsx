@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { chatThread, proposalAnswer, waitingMessage, MAX_CHAT_TEXT, type ChatEntry, type ChatMessage, type WorkoutChange, type WorkoutOp } from '../../shared/chat';
 import type { Exercise } from '../../shared/exercises';
 import type { TrackingPort } from '../ports';
@@ -26,7 +26,9 @@ export function opText(o: WorkoutOp, w: TrackedWorkout, catalog: Exercise[]): st
  * Talking to the coach during a workout: "Gerät belegt", "Schulter zwickt", "nur noch 30 Minuten". The coach answers in the
  * same chat (it needs a connection); a proposed change applies only on "Übernehmen" and never touches done sets.
  */
-export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUndo }: {
+export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUndo, openSignal }: {
+  /** Raised each time the rider picks "Coach fragen" elsewhere (the workout menu). Without it, the panel brings its own button. */
+  openSignal?: number;
   port: TrackingPort; workout: TrackedWorkout; catalog: Exercise[]; now: () => number; newId: () => string; /** One workout write that applies the ops and lists `id`; `onUndo` restores the rows in one write. */
   onTake: (id: string, c: WorkoutChange) => void; onUndo: (id: string) => void;
 }) {
@@ -47,6 +49,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
   // A taken change stays visible (with "Rückgängig") until the panel is closed, also after a reload.
   const [closed, setClosed] = useState(false);
   const kept = mine.some((m) => m.workoutChange && changeTaken(workout, key(m)));
+  useEffect(() => { if (openSignal) { setOpen(true); setClosed(false); } }, [openSignal]);
   const shown = open || pending || proposedNext || waiting || (kept && !closed);
 
   const write = async (m: ChatMessage) => {
@@ -75,7 +78,7 @@ export function WorkoutCoach({ port, workout, catalog, now, newId, onTake, onUnd
     if (!why) onUndo(key(m));
   };
 
-  if (!shown) return <button type="button" className="ghost tk-coach-open" onClick={() => { setOpen(true); setClosed(false); }}>Coach fragen</button>;
+  if (!shown) return openSignal !== undefined ? null : <button type="button" className="ghost tk-coach-open" onClick={() => { setOpen(true); setClosed(false); }}>Coach fragen</button>;
   return (
     <section className="card tk-coach-panel" aria-label="Coach im Training">
       {mine.length === 0 && <p className="muted">Zum Beispiel: „Gerät belegt“, „Schulter zwickt“ oder „nur noch 30 Minuten“.</p>}

@@ -23,7 +23,7 @@ const ids = { newId: () => 'new-id', now: () => 100_000 };
 async function running() {
   const { port } = fakePort([rec(open)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findByText('Kniebeuge');
 }
 
@@ -101,7 +101,7 @@ describe('workout: imported exercises resolve by identity', () => {
   async function runningWith(extra: TrackedRecord[]) {
     const { port } = fakePort([rec(imported), ...extra]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     await screen.findByText('Cable Row Custom');
   }
   const iconOf = (title: string) => within(within(screen.getByRole('region', { name: title })).getByRole('img').closest('.tk-ex-head') as HTMLElement).getByRole('img');

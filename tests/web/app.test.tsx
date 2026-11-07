@@ -104,6 +104,7 @@ describe('web app', () => {
     const a = await boot({ offline: true, account: 'anna', seed: [plan(NOW - 1000)] });
     expect(await screen.findByText('Beine A')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Anderes Training' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Leeres Training starten' }));
     await waitFor(async () => {
       const s = await openIdb('anna', a.factory);
@@ -118,7 +119,10 @@ describe('web app', () => {
     await boot({ seed: [plan(NOW - 1000), open] });
     expect(await screen.findByRole('heading', { name: /^Pull läuft noch – seit \d\d:\d\d$/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Weitermachen' }));
-    expect(await screen.findByRole('button', { name: /^Training fortsetzen/ })).toBeTruthy();
+    // one tap: the workout itself opens, not the start screen with its card
+    expect(await screen.findByRole('button', { name: 'Training beenden' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Weitermachen' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Kraft' })).toBeNull()); // the Kraft sub-navigation is gone while a workout runs
   });
 
   it('an expired login keeps unsent data and asks to log in again', async () => {
@@ -267,7 +271,7 @@ describe('web app', () => {
     await boot({ me: 401, account: 'anna', seed: [open], syncStatus: 401 });
     expect(await screen.findByText(/Bitte melde dich neu an/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Kraft' }));
-    expect(await screen.findByText(/Training fortsetzen/)).toBeTruthy();
+    expect(await screen.findByText(/Weitermachen/)).toBeTruthy();
   });
 
   it('a hanging /me never blocks the UI', async () => {
@@ -402,7 +406,9 @@ describe('web app', () => {
   it('a note typed in the last 400 ms survives logging out (the real store and port are flushed before the port stops)', async () => {
     const a = await boot({ account: 'anna', seed: [openRec(60_000)] });
     fireEvent.click(await screen.findByRole('button', { name: 'Kraft' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Weitermachen/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Notiz hinzufügen Kniebeuge' }));
     const note = await screen.findByLabelText('Notiz zu Kniebeuge');
     fireEvent.focus(note);
     fireEvent.change(note, { target: { value: 'Rechtes Knie ziept' } });
@@ -439,7 +445,7 @@ describe('web app', () => {
     const a = await boot({ account: 'anna', seed: [openRec(13 * 3600_000)] });
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenCalledWith('none'));
     fireEvent.click(await screen.findByRole('button', { name: 'Kraft' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Training fortsetzen/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Weitermachen/ }));
     await waitFor(() => expect(a.onWorkoutOpen).toHaveBeenLastCalledWith('open'));
   });
 });

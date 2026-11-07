@@ -16,7 +16,7 @@ const ids = { newId: () => 'new-id', now: () => 100_000 };
 async function running(open: LoggedWorkout, past: LoggedWorkout[] = []) {
   const f = fakePort([rec(open), ...past.map(rec)]);
   render(<WorkoutScreen port={f.port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findAllByRole('heading', { level: 2 });
   return f;
 }
@@ -104,7 +104,8 @@ describe('studio line', () => {
     const f = fakePort([]);
     render(<WorkoutScreen port={f.port} {...ids} />);
     await screen.findByRole('heading', { name: 'Training starten' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Studio' }), { target: { value: '\u0000new' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Studio/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Neues Studio …' }));
     const input = await screen.findByLabelText('Name des neuen Studios');
     fireEvent.change(input, { target: { value: 'Testhalle' } });
     fireEvent.keyDown(input, { key: 'Enter' });

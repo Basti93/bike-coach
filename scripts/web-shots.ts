@@ -369,7 +369,8 @@ async function main() {
   // Kraft.
   await fresh('Kraft');
   await shot('kraft-training-start');
-  await step('kraft-studio', async () => { await page.getByText('Studio', { exact: false }).first().click({ timeout: 1000 }).catch(() => {}); });
+  await step('kraft-studio', async () => { await page.getByRole('button', { name: /^Studio/ }).click({ timeout: 1000 }); await shot('kraft-training-start-studio'); await closeDialog(); });
+  await step('kraft-anderes', async () => { await page.getByRole('button', { name: 'Anderes Training' }).click({ timeout: 1000 }); await shot('kraft-training-start-anderes'); await closeDialog(); });
   await seg('Routinen');
   await shot('kraft-routinen');
   await step('kraft-routine-edit', async () => { await page.getByRole('button', { name: 'Kurz und knapp bearbeiten' }).click(); await shot('kraft-routinen-bearbeiten'); await step('kraft-routine-picker', async () => { await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-routinen-uebung-waehlen'); await closeDialog(); }); await page.getByRole('button', { name: 'Abbrechen' }).first().click(); });
@@ -426,17 +427,21 @@ async function main() {
   await page.waitForTimeout(1000);
   await shot('kraft-training-offen-karte');
   await step('kraft-training-active', async () => {
-    await page.getByRole('button', { name: 'Training fortsetzen' }).click();
+    await page.getByRole('button', { name: 'Weitermachen' }).click();
     await page.waitForTimeout(800);
     await shot('kraft-training-active');
+    await step('kraft-training-active-menu', async () => { await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); await shot('kraft-training-active-uebung-menue'); await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); });
+    await step('kraft-training-active-header-menu', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await shot('kraft-training-active-kopf-menue'); await closeDialog(); });
+    await step('kraft-training-active-studio', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await page.getByRole('button', { name: /^Studio wechseln/ }).click(); await shot('kraft-training-active-studio'); await closeDialog(); });
     await step('kraft-training-active-picker', async () => { await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-training-active-uebung-hinzufuegen'); await closeDialog(); });
     await step('kraft-training-active-set-edit', async () => { await page.getByLabel('Gewicht Satz 1').first().focus(); await shot('kraft-training-active-tippen'); await page.getByLabel('Gewicht Satz 1').first().blur(); });
     await step('kraft-training-summary', async () => {
       await page.getByRole('button', { name: 'Training beenden' }).click();
       await page.waitForTimeout(800);
       await shot('kraft-training-beendet');
-      const yes = page.getByRole('button', { name: /^Ja|beenden|Fertig/ });
-      if (await yes.count()) { await yes.first().click(); await page.waitForTimeout(800); await shot('kraft-training-zusammenfassung'); }
+      await page.getByRole('button', { name: 'Weglassen' }).click();
+      await page.waitForTimeout(1200);
+      await shot('kraft-training-zusammenfassung');
     });
   });
   await ctx.close();

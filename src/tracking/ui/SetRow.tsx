@@ -31,18 +31,20 @@ function NumField({ label, value, placeholder, integer, onCommit, onValidity }: 
 }
 
 /** Column headers above the sets of one exercise. Same grid as the rows, so everything lines up. */
-export function SetHead({ timed }: { timed: boolean }) {
+export function SetHead({ timed, editing }: { timed: boolean; editing?: boolean }) {
   return (
-    <div className="tk-set tk-head" aria-hidden="true">
-      <span /><span>Satz</span><span>{timed ? '' : 'kg'}</span><span>{timed ? 'Sek.' : 'Wdh'}</span><span />
+    <div className={`tk-set tk-head${editing ? ' tk-edit' : ''}`} aria-hidden="true">
+      {editing && <span />}<span>Satz</span><span>{timed ? '' : 'kg'}</span><span>{timed ? 'Sek.' : 'Wdh'}</span><span />
     </div>
   );
 }
 
 const CHIP_CLASS: Record<TrackedSet['type'], string> = { warmup: ' tk-chip-warm', normal: '', failure: ' tk-chip-fail', dropset: ' tk-chip-drop' };
 
-export function SetRow({ index, set, timed, label, hint, plates, confirmedNow, onEdit, onToggle, onRemove }: {
+export function SetRow({ index, set, timed, label, hint, plates, editing, confirmedNow, onEdit, onToggle, onRemove }: {
   index: number; set: TrackedSet; timed: boolean;
+  /** Edit mode (from the exercise menu): each set gets its remove button. */
+  editing?: boolean;
   /** The short chip: A, F, D or the set's number. Defaults to the row number. */
   label?: string;
   /** A muted line under the values: target range and last time. */
@@ -60,9 +62,9 @@ export function SetRow({ index, set, timed, label, hint, plates, confirmedNow, o
   const [asking, setAsking] = useState(false);
   const blocked = bad.w || bad.r;
   return (
-    <div className={`tk-set${done ? ' tk-done' : ''}`}>
-      <button type="button" className="tk-del" aria-label={`Satz ${n} entfernen`} onClick={() => ((confirmedNow ? confirmedNow() : done) ? setAsking(true) : onRemove())}>×</button>
-      <span className="tk-chip-wrap">
+    <div className={`tk-set${done ? ' tk-done' : ''}${editing ? ' tk-edit' : ''}`}>
+      {editing && <button type="button" className="tk-del" aria-label={`Satz ${n} entfernen`} onClick={() => ((confirmedNow ? confirmedNow() : done) ? setAsking(true) : onRemove())}>×</button>}
+      <span className="tk-chip-wrap" title={set.type === 'warmup' ? 'Aufwärmen' : undefined}>
         <span className={`tk-chip${CHIP_CLASS[set.type]}`} aria-hidden="true">{label ?? String(n)}</span>
         <select className="tk-type" aria-label={`Satztyp Satz ${n}`} value={set.type} onChange={(e) => onEdit({ type: e.target.value as TrackedSet['type'] })}>
           {Object.entries(TYPE_NAMES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}

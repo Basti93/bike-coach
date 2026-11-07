@@ -113,7 +113,7 @@ const todayTitle = (ms: number): string => new Date(ms).toLocaleDateString('de-D
 /** "14:05", or with the day when it was not today. */
 const sinceText = (ms: number, now: number): string => (localDayKey(ms) === localDayKey(now) ? timeLabel(ms) : `${shortDate(ms)} ${timeLabel(ms)}`);
 
-function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: () => void; goRun?: () => void; goCoach: () => void }) {
+function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPort; env: Env; account: string; goTraining: (resume?: boolean) => void; goRun?: () => void; goCoach: () => void }) {
   const plans = usePortRecords(port, 'plan').records;
   const mobility = usePortRecords(port, 'mobility').records;
   const weekplans = usePortRecords(port, 'weekplan').records;
@@ -137,7 +137,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
 
   // The strength plan: on a strength day inside the week plan's card, without a week plan as its own card.
   // Name and time in one line, the exercises in two; the reason, the sets and the outlook behind "Details".
-  const toTraining = <button type="button" className={open ? 'secondary' : undefined} onClick={goTraining}>Zum Krafttraining</button>;
+  const toTraining = <button type="button" className={open ? 'secondary' : undefined} onClick={() => goTraining()}>Zum Krafttraining</button>;
   const gym = p ? (
     <>
       {p.workout && <p className="muted"><span>{p.workout.name}</span>{p.workout.exercises.length > 0 ? ` · ${durationNote(p.workout)}` : ''}</p>}
@@ -168,7 +168,7 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
       {open && (
         <section className="card" aria-label="Training läuft noch">
           <h2>{(open.body as LoggedWorkout).title} läuft noch – seit {sinceText((open.body as LoggedWorkout).startMs, now)}</h2>
-          <button type="button" onClick={goTraining}>Weitermachen</button>
+          <button type="button" onClick={() => goTraining(true)}>Weitermachen</button>
         </section>
       )}
       {together && <TogetherCard t={together} now={now} onOpen={() => setShowTogether(true)} />}
@@ -187,20 +187,22 @@ function Heute({ port, env, account, goTraining, goRun, goCoach }: { port: WebPo
   );
 }
 
-function Training({ port, env }: { port: WebPort; env: Env }) {
+function Training({ port, env, resume }: { port: WebPort; env: Env; resume: boolean }) {
+  const [running, setRunning] = useState(false);
   const plans = usePortRecords(port, 'plan').records;
   const [screen, setScreen] = useState<'workout' | 'routines' | 'history' | 'catalog'>('workout');
   const [routine, setRoutine] = useState<GymWorkout | null>(null);
   const plan = readPlan((plans ?? []).find((r) => r.id === 'current'));
   return (
     <>
-      <div className="tk-screen"><div className="tk-seg" role="group" aria-label="Kraft">
+      {/* A running workout has the whole screen: no sub-navigation until it is done. */}
+      {!(running && screen === 'workout') && <div className="tk-screen"><div className="tk-seg" role="group" aria-label="Kraft">
         <button type="button" aria-pressed={screen === 'workout'} onClick={() => { setRoutine(null); setScreen('workout'); }}>Training</button>
         <button type="button" aria-pressed={screen === 'routines'} onClick={() => setScreen('routines')}>Routinen</button>
         <button type="button" aria-pressed={screen === 'history'} onClick={() => setScreen('history')}>Verlauf</button>
         <button type="button" aria-pressed={screen === 'catalog'} onClick={() => setScreen('catalog')}>Übungen</button>
-      </div></div>
-      {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
+      </div></div>}
+      {screen === 'workout' && <WorkoutScreen key={routine ? 'routine' : 'plan'} port={port} resume={resume} onActive={setRunning} plan={routine ? null : plan?.workout ?? null} routine={routine} now={env.now} newId={env.newId} />}
       {screen === 'history' && <HistoryScreen port={port} now={env.now} />}
       {screen === 'catalog' && <CatalogScreen port={port} now={env.now} newId={env.newId} />}
       {screen === 'routines' && <RoutinesScreen port={port} now={env.now} newId={env.newId} onStart={(r) => { setRoutine(r); setScreen('workout'); }} />}
@@ -355,6 +357,8 @@ function Profil({ account, port, now, status, onLogout, onBack, push, persistRef
 
 function Shell({ account, env, port, onLogout, onRelogin }: { account: string; env: Env; port: WebPort; onLogout: () => void; onRelogin: (name: string) => void }) {
   const [back, setBack] = useState<Tab>('heute');
+  // "Weitermachen" on Heute opens the open workout itself, once; every other way into Kraft shows the start screen.
+  const [resume, setResume] = useState(false);
   const [tab, setTab] = useState<Tab>(env.startTab === 'essen' ? 'essen' : env.startTab === 'laufen' ? 'laufen' : env.startTab === 'coach' ? 'coach' : 'heute');
   const push = usePush(env, account);
   useEffect(() => env.onOpenTab?.((t) => { if (t === 'essen') setTab('essen'); else if (t === 'laufen') setTab('laufen'); else if (t === 'coach') setTab('coach'); }), [env]);
@@ -425,8 +429,8 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
         {push.msg && <div className="tk-screen"><p role="status" className="tk-note">{push.msg}</p></div>}
         {hint && !(push.state?.showCard && push.state.env.support === 'install') && <div className="tk-screen"><p role="status" className="tk-note">Tipp: Tippe unten auf Teilen und dann auf „Zum Home-Bildschirm“, dann öffnet sich Pandafit wie eine App.</p></div>}
         <ErrorBoundary key={tab} onTraining={() => setTab('training')}>
-          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={() => setTab('training')} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
-          {tab === 'training' && <Training port={port} env={env} />}
+          {tab === 'heute' && <Heute port={port} env={env} account={account} goTraining={(r) => { setResume(!!r); setTab('training'); }} goRun={hasRun ? () => setTab('laufen') : undefined} goCoach={() => setTab('coach')} />}
+          {tab === 'training' && <Training port={port} env={env} resume={resume} />}
           {tab === 'essen' && hasMeals && <MealsScreen port={port} now={env.now} />}
           {tab === 'laufen' && hasRun && <><RunScreen port={port} now={env.now} newId={env.newId} /><RunLookBack port={port} now={env.now} /></>}
           {tab === 'coach' && <CoachScreen port={port} now={env.now} newId={env.newId} showPrefs={false} />}
@@ -436,7 +440,7 @@ function Shell({ account, env, port, onLogout, onRelogin }: { account: string; e
       </main>
       <nav aria-label="Seiten" className={`web-nav${typing ? ' web-nav-away' : ''}`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map(([t, label]) => (
-          <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => setTab(t)}>{label}</button>
+          <button key={t} type="button" aria-current={tab === t ? 'page' : undefined} aria-pressed={tab === t} onClick={() => { setResume(false); setTab(t); }}>{label}</button>
         ))}
       </nav>
     </>

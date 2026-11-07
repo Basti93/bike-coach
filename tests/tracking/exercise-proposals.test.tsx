@@ -163,7 +163,7 @@ describe('ExerciseProposals card', () => {
     const f = fakePort([linkRec(NOW - DAY, TITLE), { kind: 'workout', id: 'o1', updatedMs: 1, deleted: false, body: w }]);
     const open = async () => {
       render(<WorkoutScreen port={f.port} now={() => NOW} newId={() => 'x'} />);
-      fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
       return (await screen.findByRole('region', { name: TITLE })).querySelector('.tk-ex-head [role="img"]')!.getAttribute('aria-label');
     };
     expect(await open()).not.toBe('Muskel unbekannt');

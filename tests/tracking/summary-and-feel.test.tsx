@@ -17,7 +17,7 @@ const ids = { newId: () => 'new', now: () => 100_000 };
 async function finish(seed: TrackedRecord[]) {
   const r = fakePort([wrec(open), ...seed]);
   render(<WorkoutScreen port={r.port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
   return r;
 }
@@ -25,10 +25,11 @@ async function finish(seed: TrackedRecord[]) {
 test('after the finish the summary lists the next step per exercise, and Fertig dismisses it for good', async () => {
   const next = { exerciseId: 'pf-squat', title: 'Kniebeuge', weightKg: 82.5, reps: 5, why: 'progress', reason: 'weil du alle Wiederholungen geschafft hast', forWorkoutId: 'o1', atMs: 1000 };
   await finish([stats([next])]);
-  expect((await screen.findByText(/Training gespeichert · ca\. 2 Min · 2 Sätze/))).toBeTruthy();
-  expect(screen.getByText(/Nächstes Mal: 82,5 kg × 5 – weil du alle/)).toBeTruthy();
+  expect((await screen.findByText(/Fertig · 1 Übung · 2 Min/))).toBeTruthy();
+  expect(screen.getByText('2 Sätze gespeichert')).toBeTruthy();
+  expect(screen.getByText(/Kniebeuge · Nächstes Mal: 82,5 kg × 5 – weil du alle/).className).toContain('muted');
   fireEvent.click(screen.getByRole('button', { name: 'Fertig' }));
-  expect(screen.queryByText(/Training gespeichert/)).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Zusammenfassung' })).toBeNull();
   expect(localStorage.getItem('pandafit-summary-pending')).toBeNull();
 });
 
@@ -37,12 +38,12 @@ test('before the publish the summary says the next step comes after the evaluati
   expect(await screen.findByText('Nächstes Mal: kommt nach der Auswertung')).toBeTruthy();
   cleanup();
   render(<WorkoutScreen port={port} {...ids} />);
-  expect(await screen.findByText(/Training gespeichert · ca\./)).toBeTruthy();
+  expect(await screen.findByText(/^Fertig · 1 Übung/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Fertig' }));
   cleanup();
   render(<WorkoutScreen port={port} {...ids} />);
   await screen.findByRole('heading', { name: 'Training starten' });
-  expect(screen.queryByText(/Training gespeichert/)).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Zusammenfassung' })).toBeNull();
 });
 
 // ---- feel ----

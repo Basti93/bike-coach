@@ -28,14 +28,14 @@ const bodyOf = (m: Map<string, TrackedRecord>, key: string) => m.get(key)!.body 
 test('reopening with an open workout offers to continue it', async () => {
   const { port } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   expect(await screen.findByText('Bankdrücken')).toBeTruthy();
 });
 
 test('shows 62,5 kg, and accepts comma or dot, with a short placeholder only', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   const w1 = (await screen.findByLabelText('Gewicht Satz 1')) as HTMLInputElement;
   expect(w1.value).toBe('62,5');
   const w2 = screen.getByLabelText('Gewicht Satz 2') as HTMLInputElement;
@@ -56,7 +56,7 @@ test('the rest timer survives a reload through its stored start', async () => {
   const w = { ...open(), rest: { startMs: 70_000, durationS: 90 } };
   const { port } = fakePort([rec(w as LoggedWorkout)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   expect((await screen.findByRole('timer', { name: 'Satzpause' })).textContent).toContain('1:00');
 });
 
@@ -66,7 +66,7 @@ test('the rest end is armed once with the end time, and skipping or unmounting c
   const restAlarm = vi.fn();
   port.restAlarm = restAlarm;
   const view = render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findByRole('timer', { name: 'Satzpause' });
   expect(restAlarm.mock.calls).toEqual([[160_000]]);
   fireEvent.click(screen.getByRole('button', { name: 'Pause überspringen' }));
@@ -82,13 +82,13 @@ test('a rest that is already over arms nothing, and a port without restAlarm wor
   const restAlarm = vi.fn();
   port.restAlarm = restAlarm;
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findByText('Bankdrücken');
   expect(restAlarm.mock.calls.every((c) => c[0] === null)).toBe(true);
   cleanup();
   const plain = fakePort([rec({ ...open(), rest: { startMs: 70_000, durationS: 90 } } as LoggedWorkout)]);
   render(<WorkoutScreen port={plain.port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   expect(await screen.findByRole('timer', { name: 'Satzpause' })).toBeTruthy();
 });
 
@@ -105,12 +105,13 @@ test('starting from the plan prefills the range and saves at once', async () => 
 test('finish with open sets asks, and leaving them out keeps them unconfirmed', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets[0].doneMs).toBe(100_000));
   fireEvent.click(screen.getByRole('button', { name: 'Training beenden' }));
-  expect(await screen.findByRole('button', { name: 'Offene Sätze als erledigt markieren' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Offene Sätze weglassen' }));
+  expect(await screen.findByRole('button', { name: 'Als erledigt zählen' })).toBeTruthy();
+  expect((await screen.findByRole('dialog', { name: 'Ein Satz offen' })).textContent).toContain('Weglassen');
+  fireEvent.click(screen.getByRole('button', { name: 'Weglassen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').endMs).toBe(100_000));
   expect(bodyOf(map, 'workout:open1').exercises[0].sets[1].doneMs).toBeNull();
 });
@@ -118,20 +119,22 @@ test('finish with open sets asks, and leaving them out keeps them unconfirmed', 
 test('finish without confirmed sets asks first and never deletes silently', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
   expect(map.get('workout:open1')!.deleted).toBe(false);
   fireEvent.click(await screen.findByRole('button', { name: 'Weiter trainieren' }));
   expect(map.get('workout:open1')!.deleted).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Training beenden' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Training verwerfen' }));
+  expect(map.get('workout:open1')!.deleted).toBe(false); // the link asks once more
+  fireEvent.click(await screen.findByRole('button', { name: 'Ja' }));
   await waitFor(() => expect(map.get('workout:open1')!.deleted).toBe(true)); // tombstone, record still there
 });
 
 test('a failing save shows a calm message, keeps the set, and the next action saves it', async () => {
   const { port, map, state } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   state.failPuts = true;
   fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' }));
   expect((await screen.findByRole('status')).textContent).toMatch(/nicht gespeichert/);
@@ -144,7 +147,7 @@ test('a failing save shows a calm message, keeps the set, and the next action sa
 test('an exercise can be swapped from the workout screen', async () => {
   const { port, map } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
   const similar = await screen.findByRole('region', { name: 'Ähnliche Übungen' });
@@ -156,7 +159,7 @@ test('an exercise can be swapped from the workout screen', async () => {
 test('a search in the picker finds the English Hevy name', async () => {
   const { port } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Bankdrücken tauschen' }));
   fireEvent.change(screen.getByLabelText('Suchen'), { target: { value: 'squat' } });
@@ -229,7 +232,7 @@ test('own exercises show up in the picker, timed ones get a seconds field', asyn
   const w = { ...open(), exercises: [{ exerciseId: 'own-1', title: 'Plank Eigen', supersetId: null, notes: '', timed: true, sets: [set(null, null, null)] }] };
   const { port } = fakePort([{ kind: 'exercise', id: 'own-1', updatedMs: 1, deleted: false, body: own }, rec(w as unknown as LoggedWorkout)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   expect(await screen.findByLabelText('Sekunden Satz 1')).toBeTruthy();
   expect(screen.queryByLabelText('Wiederholungen Satz 1')).toBeNull();
 });
@@ -250,12 +253,17 @@ const twoEx = (): LoggedWorkout => open({ exercises: [
   { exerciseId: 'pf-bench-press', title: 'Bankdrücken', supersetId: null, notes: '', sets: [set(60, 8, null), set(60, 8, null)] },
   { exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [set(80, 5, null)] },
 ] });
-const resume = async () => fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+const resume = async () => fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
+// The exercise menu ("⋯"): sets are removed in edit mode, a note appears on request.
+const openMenu = async (title: string) => fireEvent.click(await screen.findByRole('button', { name: `Mehr zu ${title}` }));
+const editSets = async (title: string) => { await openMenu(title); fireEvent.click(screen.getByRole('button', { name: `Sätze bearbeiten ${title}` })); };
+const noteField = async (title: string) => { await openMenu(title); fireEvent.click(screen.getByRole('button', { name: `Notiz hinzufügen ${title}` })); return (await screen.findByLabelText(`Notiz zu ${title}`)) as HTMLTextAreaElement; };
 
 test('a double tap on remove never removes the next row', async () => {
   const { port, map } = fakePort([rec(twoEx())]);
   render(<WorkoutScreen port={port} {...ids} />);
   await resume();
+  await editSets('Bankdrücken');
   const btn = (await screen.findAllByRole('button', { name: 'Satz 1 entfernen' }))[0];
   fireEvent.click(btn); fireEvent.click(btn);
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
@@ -270,6 +278,7 @@ test('removing a confirmed set asks first, an unconfirmed one does not', async (
   const { port, map } = fakePort([rec(w)]);
   render(<WorkoutScreen port={port} {...ids} />);
   await resume();
+  await editSets('Bankdrücken');
   fireEvent.click(await screen.findByRole('button', { name: 'Satz 2 entfernen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
   fireEvent.click(screen.getByRole('button', { name: 'Satz 1 entfernen' }));
@@ -319,7 +328,7 @@ test('notes keep what is typed and save after a short pause and on blur', async 
     const { port, map } = fakePort([rec(open())]);
     render(<WorkoutScreen port={port} {...ids} />);
     await resume();
-    const n = (await screen.findByLabelText('Notiz zu Bankdrücken')) as HTMLInputElement;
+    const n = await noteField('Bankdrücken');
     fireEvent.focus(n);
     for (const v of ['S', 'Sc', 'Sch']) fireEvent.change(n, { target: { value: v } });
     expect(n.value).toBe('Sch');
@@ -338,7 +347,7 @@ test('a note typed right before finishing is in the finished record', async () =
   const { port, state } = fakePort([rec(w)]);
   render(<WorkoutScreen port={port} {...ids} />);
   await resume();
-  const n = (await screen.findByLabelText('Notiz zu Bankdrücken')) as HTMLInputElement;
+  const n = await noteField('Bankdrücken');
   fireEvent.focus(n);
   fireEvent.change(n, { target: { value: 'Schluss' } });
   fireEvent.click(screen.getByRole('button', { name: 'Training beenden' }));
@@ -360,9 +369,9 @@ test('an old open workout shows its date and can be continued, ended or discarde
   const older = { ...open({ id: 'old', title: 'Gestern', startMs: 5000 }) };
   const { port, map } = fakePort([rec(open({ startMs: 90_000 })), rec(older)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  expect(await screen.findByRole('button', { name: 'Training fortsetzen' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Weitermachen' })).toBeTruthy();
   expect(screen.getAllByRole('button', { name: /Training verwerfen/ })).toHaveLength(2);
-  expect(screen.getAllByText(/gestartet/).length).toBe(2); // both visible
+  expect(screen.getAllByText(/Gestartet/).length).toBe(2); // both visible
   fireEvent.click(screen.getByRole('button', { name: /Training verwerfen Gestern/ }));
   expect(map.get('workout:old')!.deleted).toBe(false);
   fireEvent.click(await screen.findByRole('button', { name: 'Ja, verwerfen' }));
@@ -394,7 +403,7 @@ test('a copy finished on another device is announced, not reopened', async () =>
   map.set('workout:open1', { ...rec(open({ endMs: 99_999 })), updatedMs: 5_000_000 });
   notify();
   expect((await screen.findByRole('status')).textContent).toMatch(/anderen Gerät beendet/);
-  expect(screen.queryByRole('button', { name: 'Training fortsetzen' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Weitermachen' })).toBeNull();
 });
 
 test('a newer remote copy of an open workout is continued from', async () => {
@@ -416,7 +425,7 @@ test('a failed first read shows a calm message with a retry, not the start scree
   expect(screen.queryByRole('button', { name: 'Leeres Training starten' })).toBeNull();
   state.failList = false;
   fireEvent.click(screen.getByRole('button', { name: 'Nochmal versuchen' }));
-  expect(await screen.findByRole('button', { name: 'Training fortsetzen' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Weitermachen' })).toBeTruthy();
 });
 
 test('WorkoutScreen starts a given routine', async () => {
@@ -518,7 +527,7 @@ test('a failed discard from the open-workout card does not retry; the workout ca
     await vi.advanceTimersByTimeAsync(30_000);
     expect(map.get('workout:open1')!.deleted).toBe(false);
     expect(state.puts.some((p) => p.deleted)).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Weitermachen' }));
     expect(await screen.findByLabelText('Gewicht Satz 1')).toBeTruthy();
   } finally { vi.useRealTimers(); }
 });
@@ -543,6 +552,7 @@ test('removing a set asks when it is confirmed in the newest state, even if the 
   const { port, map, state } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
   await resume();
+  await editSets('Bankdrücken');
   let release!: () => void; state.gate = new Promise<void>((r) => { release = r; });
   fireEvent.click(await screen.findByRole('button', { name: 'Satz 1 erledigt' })); // display not updated until put answers
   fireEvent.click(screen.getByRole('button', { name: 'Satz 1 entfernen' }));
@@ -558,7 +568,7 @@ test('after a failed finish, a successful retry leaves the screen', async () => 
   await resume();
   fireEvent.click(await screen.findByRole('button', { name: 'Training beenden' }));
   state.failPuts = true;
-  fireEvent.click(await screen.findByRole('button', { name: 'Offene Sätze weglassen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weglassen' }));
   await screen.findByRole('status');
   state.failPuts = false;
   fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
@@ -582,19 +592,23 @@ test('the workout rows: headers, chips, one grid, a clear done box and last time
   const w = open({ exercises: [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [{ ...set(20, 10, null), type: 'warmup' }, set(40, 8, null), { ...set(40, 6, null), type: 'failure' }] }] });
   const { port } = fakePort([rec(w), rec(finished())]);
   const { container } = render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   await screen.findByLabelText('Gewicht Satz 1');
+  expect(screen.queryByRole('button', { name: 'Satz 1 entfernen' })).toBeNull(); // no × per set outside edit mode
   const head = container.querySelector('.tk-head')!;
   expect(head.textContent).toBe('SatzkgWdh');
   const rows = [...container.querySelectorAll('.tk-set:not(.tk-head)')];
   expect(rows.map((r) => r.querySelector('.tk-chip')!.textContent)).toEqual(['A', '1', 'F']);
-  // every row and the header have the same five cells, whatever the set type
-  for (const r of [head, ...rows]) expect([...r.children].filter((c) => !c.matches('.tk-hint, .tk-plates, .tk-wide')).length).toBe(5);
+  // every row and the header have the same four cells, whatever the set type
+  for (const r of [head, ...rows]) expect([...r.children].filter((c) => !c.matches('.tk-hint, .tk-plates, .tk-wide')).length).toBe(4);
   // full names in the choice
   expect([...(screen.getByLabelText('Satztyp Satz 1') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Aufwärmen', 'Normaler Satz', 'Bis zum Versagen', 'Dropset']);
+  // the hints belong to the next open set only (the warm-up has no earlier one); once it is done the first working set carries them
+  expect(screen.queryByText(/zuletzt/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
   // last time: the finished session had 80 × 5 and 85 × 5 as working sets
-  expect(screen.getByText(/zuletzt 80 kg × 5$/)).toBeTruthy();
-  expect(screen.getByText(/zuletzt 85 kg × 5$/)).toBeTruthy();
+  expect(await screen.findByText(/zuletzt 80 kg × 5$/)).toBeTruthy();
+  expect(screen.queryByText(/zuletzt 85 kg × 5$/)).toBeNull();
   const check = screen.getByRole('button', { name: 'Satz 2 erledigt' });
   expect(check.textContent).toBe('✓');
   expect(check.getAttribute('aria-pressed')).toBe('false');
@@ -603,7 +617,9 @@ test('the workout rows: headers, chips, one grid, a clear done box and last time
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
   expect(screen.getByRole('button', { name: 'Kniebeuge tauschen' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Kniebeuge entfernen' })).toBeTruthy();
-  // the note is a growing text field
+  // the note is a growing text field, there when asked for
+  expect(screen.queryByLabelText('Notiz zu Kniebeuge')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Notiz hinzufügen Kniebeuge' }));
   expect(screen.getByLabelText('Notiz zu Kniebeuge').tagName).toBe('TEXTAREA');
 });
 
@@ -619,7 +635,7 @@ test('a plan without weights says "Gewicht nach Gefühl" once, under the title',
 test('the workout shows how long it has been running', async () => {
   const { port } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   expect((await screen.findByRole('timer', { name: 'Trainingsdauer' })).textContent).toBe('1:39');
 });
 
@@ -637,7 +653,7 @@ test('continuing a workout scrolls to the exercise with the next open set', asyn
   try {
     const { port } = fakePort([rec(twoExercises())]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     await screen.findByRole('region', { name: 'Kniebeuge' });
     await waitFor(() => expect(scrolled).toEqual(['Kniebeuge']));
     // confirming more sets later does not scroll again
@@ -649,11 +665,11 @@ test('continuing a workout scrolls to the exercise with the next open set', asyn
 test('finished exercises and the current one are marked', async () => {
   const { port } = fakePort([rec(twoExercises())]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   const bench = await screen.findByRole('region', { name: 'Bankdrücken' });
   const squat = screen.getByRole('region', { name: 'Kniebeuge' });
   expect(bench.className).toContain('tk-ex-done');
-  expect(within(bench).getByText('Erledigt')).toBeTruthy();
+  expect(within(bench).getByText('2/2 ✓')).toBeTruthy();
   expect(bench.getAttribute('aria-current')).toBeNull();
   expect(squat.getAttribute('aria-current')).toBe('step');
   expect(squat.className).not.toContain('tk-ex-done');
@@ -666,19 +682,19 @@ test('two exercises can be joined to a superset and taken apart again from the m
   ] });
   const { port, map } = fakePort([rec(w)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
-  const pick = screen.getByRole('combobox', { name: 'Bankdrücken als Superset mit …' });
-  fireEvent.change(pick, { target: { value: (within(pick).getByRole('option', { name: 'Kniebeuge' }) as HTMLOptionElement).value } });
+  fireEvent.click(screen.getByRole('button', { name: /^Supersatz mit/ }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Supersatz mit' })).getByRole('button', { name: 'Kniebeuge' }));
   await waitFor(() => {
     const g = bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId);
     expect(g[0]).not.toBeNull();
     expect(g[0]).toBe(g[1]);
   });
   expect(screen.getAllByText(/^Superset/)).toHaveLength(2);
-  expect(screen.getByText('Superset · Runde 1')).toBeTruthy();
+  expect(screen.getByText(/^Superset · Runde 1/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
-  expect(screen.queryByRole('combobox', { name: /als Superset mit/ })).toBeNull(); // no partner left
+  expect(screen.queryByRole('button', { name: /^Supersatz mit/ })).toBeNull(); // no partner left
   fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge aus dem Superset lösen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId)).toEqual([null, null]));
 });
@@ -689,7 +705,7 @@ describe('effort question after an exercise', () => {
   it('asks after the last set when the plan was hit, and stores the answer', async () => {
     const { port, map } = fakePort([rec(planned())]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     expect(screen.queryByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
     const q = await screen.findByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' });
@@ -701,7 +717,7 @@ describe('effort question after an exercise', () => {
   it('thanks for the answer and says it goes into the next suggestion', async () => {
     const { port } = fakePort([rec(planned())]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     expect(screen.queryByText('Danke – das fließt in den nächsten Vorschlag ein.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
     fireEvent.click(within(await screen.findByRole('group', { name: 'Wie viele hättest du bei Bankdrücken noch geschafft?' })).getByRole('button', { name: '1–2' }));
@@ -710,7 +726,7 @@ describe('effort question after an exercise', () => {
   it('can be skipped, and switched off on this device', async () => {
     const { port, map } = fakePort([rec(planned())]);
     render(<WorkoutScreen port={port} {...ids} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
     fireEvent.click(screen.getByRole('button', { name: 'Satz 1 erledigt' }));
     fireEvent.click(within(await screen.findByRole('group', { name: /noch geschafft/ })).getByRole('button', { name: 'Nicht mehr fragen' }));
     await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].effort).toBe('skip'));
@@ -728,7 +744,8 @@ test('the start screen shows what the plan holds before starting', async () => {
   ] };
   render(<WorkoutScreen port={port} plan={plan} {...ids} />);
   const card = await screen.findByRole('region', { name: 'Heutiger Plan' });
-  expect([...card.querySelectorAll('li')].map((l) => l.textContent)).toEqual(['Bankdrücken · 3 × 8 · 62,5 kg', 'Kniebeuge · 2 × 8–12']);
+  expect(within(card).getByText('Bankdrücken, Kniebeuge')).toBeTruthy(); // names only
+  expect(card.querySelector('li')).toBeNull();
   expect(within(card).getByRole('button', { name: 'Oberkörper starten' })).toBeTruthy();
 });
 
@@ -736,11 +753,12 @@ test('the rest timer has +30 s, and the per-exercise Pause select sets the rest'
   const w = { ...open(), rest: { startMs: 70_000, durationS: 90 } };
   const { port, map } = fakePort([rec(w as LoggedWorkout)]);
   render(<WorkoutScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: '+30 s' }));
   await waitFor(() => expect((bodyOf(map, 'workout:open1') as unknown as { rest: { durationS: number } }).rest.durationS).toBe(120));
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
-  fireEvent.change(screen.getByLabelText('Pause Bankdrücken'), { target: { value: '180' } });
+  fireEvent.click(within(screen.getByRole('list', { name: 'Menü Bankdrücken' })).getByRole('button', { name: /^Pause/ }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Pause' })).getByRole('button', { name: '180 s' }));
   await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
 });
 

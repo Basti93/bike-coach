@@ -31,49 +31,14 @@ import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
 import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
 import { SyncNote } from './SyncNote';
+import { StudioRow, StudioSheet } from './StudioSheet';
+import { ChoiceRow, ConfirmLink, Sheet } from './kit';
 import { WorkoutSummary, pendingSummary, setPendingSummary } from './WorkoutSummary';
 import { defaultStudio, knownStudios, resolveStudio, studioName, studioStateOf } from '../../shared/studio';
 import { hideStudio, rememberStudio, removeStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
 import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
-
-const NEW_STUDIO = '\u0000new';
-
-/** One light line: "Studio: <Name>" with a select of the known names and "Neues Studio …", which opens a text input. */
-function StudioLine({ value, known, onChange, onRename, onAway }: {
-  value: string | undefined; known: string[]; onChange: (name: string | undefined, created?: boolean) => void; onRename: (from: string, to: string) => void;
-  /** Takes the studio out of the picker: removed for good when `used` is false (no workout has it), else only hidden. Without it, no such button. */
-  onAway?: { used: boolean; run: (name: string, used: boolean) => void };
-}) {
-  const [typing, setTyping] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const names = value && !known.includes(value) ? [value, ...known] : known;
-  const match = (typed: string) => known.find((k) => k.toLowerCase() === typed.toLowerCase());
-  const commit = (raw: string) => { setTyping(false); const typed = studioName(raw); const n = typed && (match(typed) ?? typed); if (n) onChange(n, !match(typed)); };
-  const commitRename = (raw: string) => { setRenaming(false); const typed = studioName(raw); if (typed && value && typed !== value) { const to = match(typed) ?? typed; onRename(value, to); } };
-  return (
-    <p className="muted tk-studio">
-      <label htmlFor="tk-studio-select">Studio:</label>
-      <select id="tk-studio-select" aria-label="Studio" value={typing ? NEW_STUDIO : (value ?? '')}
-          onChange={(e) => (e.target.value === NEW_STUDIO ? setTyping(true) : onChange(e.target.value || undefined))}>
-          {!value && <option value="">–</option>}
-          {names.map((n) => <option key={n} value={n}>{n}</option>)}
-          <option value={NEW_STUDIO}>Neues Studio …</option>
-        </select>
-      {value && !typing && !renaming && <button type="button" className="secondary" onClick={() => setRenaming(true)}>Umbenennen</button>}
-      {value && !typing && !renaming && onAway && <button type="button" className="secondary" onClick={() => onAway.run(value, onAway.used)}>{onAway.used ? 'Ausblenden' : 'Entfernen'}</button>}
-      {renaming && (
-        <input type="text" aria-label="Neuer Name des Studios" maxLength={40} autoFocus defaultValue={value}
-          onBlur={(e) => commitRename(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); if (e.key === 'Escape') setRenaming(false); }} />
-      )}
-      {typing && (
-        <input type="text" aria-label="Name des neuen Studios" maxLength={40} autoFocus
-          onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); }} />
-      )}
-    </p>
-  );
-}
 
 type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
 type Ask = { question: 'nothing-confirmed' } | { question: 'open-sets'; open: number } | null;
@@ -91,6 +56,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const [ask, setAsk] = useState<Ask>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [topMenu, setTopMenu] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [coachAsk, setCoachAsk] = useState(0);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [notesOpen, setNotesOpen] = useState<ReadonlySet<string>>(new Set());
   const [info, setInfo] = useState<ReadonlySet<string>>(new Set());
   const toggleInfo = (rid: string) => setInfo((s) => { const n = new Set(s); if (!n.delete(rid)) n.add(rid); return n; });
   const ending = useRef(false);
@@ -124,6 +94,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   // Opening (or continuing) a workout scrolls once to the exercise with the next open set.
   const current = currentSet(w);
   const currentRid = current?.ex ?? null;
+  // Only the current exercise is open; tapping another opens it and closes the previous one. The open one follows the next open set.
+  const [openRid, setOpenRid] = useState<string | null>(currentRid);
+  useEffect(() => { if (currentRid) setOpenRid(currentRid); }, [currentRid]);
   const screenRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = screenRef.current?.querySelector('[aria-current="step"]');
@@ -187,12 +160,28 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   }
   useEffect(() => { if (autoEnd) void end(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Throw the workout away on purpose, after the confirm: the same one-shot delete as "Verwerfen" on the open card.
+  async function discard() {
+    if (ending.current) return;
+    ending.current = true; leaving.current = true;
+    try {
+      store.flushDrafts();
+      if (!(await store.remove())) { leaving.current = false; setNotice('Gerade nicht gespeichert. Das Training bleibt offen, versuch es gleich nochmal.'); return; }
+      closeStore(port, store);
+      onLeave('Das Training wurde verworfen.');
+    } finally { ending.current = false; }
+  }
+
+  const known = knownStudios([...history, w], studios.renames, studios.picks, studios.hidden);
+  const toggleNote = (rid: string) => setNotesOpen((s) => { const n = new Set(s); if (!n.delete(rid)) n.add(rid); return n; });
+
   return (
-    <div className="tk-screen" ref={screenRef}>
-      <h1 className="tk-title">{w.title}</h1>
-      <p className="muted">Gestartet {dateLabel(w.startMs)} · <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed">{durationLabel(now() - w.startMs)}</span></p>
-      <StudioLine value={w.studio} known={knownStudios([...history, w], studios.renames, studios.picks, studios.hidden)} onChange={(n, created) => { act((x) => setStudio(x, n ?? '', { history, catalog, studios, overrides })); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
-        onRename={(from, to) => { void renameStudio(port, from, to, now()).then(() => act((x) => setStudio(x, to))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }} />
+    <div className="tk-screen tk-live" ref={screenRef}>
+      <div className="tk-live-head">
+        <h1 className="tk-title">{w.title}</h1>
+        <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed muted">{durationLabel(now() - w.startMs)}</span>
+        <button type="button" className="link tk-more" aria-label="Mehr zum Training" onClick={() => setTopMenu(true)}>⋯</button>
+      </div>
       {save === 'unsaved' && (
         <p role="status" className="tk-note">
           Gerade nicht gespeichert. Dein Training bleibt hier offen und wird mit dem nächsten Schritt erneut gespeichert.
@@ -200,19 +189,12 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         </p>
       )}
       {notice && <p role="note" className="tk-note">{notice}</p>}
-      <WorkoutCoach port={port} workout={w} catalog={catalog} now={now} newId={newId}
+      <WorkoutCoach port={port} workout={w} catalog={catalog} now={now} newId={newId} openSignal={coachAsk}
         onTake={(id, c) => act((x) => takeChange(x, id, c, history, catalog, studios, now(), excluded).workout)} onUndo={(id) => act((x) => undoChange(x, id).workout)} />
-      {w.rest && remaining > 0 && (
-        <div role="timer" aria-label="Satzpause" className="tk-rest">
-          <span>Pause {clock(remaining)}</span>
-          <button type="button" className="tk-skip" onClick={() => act((x) => extendRest(x))}>+30 s</button>
-          <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
-        </div>
-      )}
       {w.exercises.map((e) => {
         const partners = supersetPartners(w, e.rid);
         const labels = setLabels(e.sets);
-        const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
+        const nextOpen = e.sets.findIndex((x) => x.doneMs === null);
         const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere, studios));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
@@ -225,109 +207,130 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
         const isCurrent = e.rid === currentRid;
+        const isOpen = openRid === e.rid;
+        const counted = e.sets.filter((x) => x.type !== 'warmup');
+        const doneCount = counted.filter((x) => x.doneMs !== null).length;
+        const superset = e.supersetId !== null ? `Superset${isCurrent && current && current.round > 0 ? ` · Runde ${current.round}` : ''}` : null;
+        const value = [superset, counted.length > 0 ? `${doneCount}/${counted.length}${allDone ? ' ✓' : ''}` : null].filter(Boolean).join(' · ');
+        const warmupOffered = needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0;
+        const note = notesOpen.has(e.rid) || e.notes !== '';
+        const item = (label: string, onClick: () => void, opts: { aria?: string; disabled?: boolean; expanded?: boolean } = {}) => (
+          <li className="tk-rowitem"><button type="button" className="tk-rowbtn" aria-label={opts.aria} aria-expanded={opts.expanded} disabled={opts.disabled} onClick={onClick}><span className="tk-row-title">{label}</span></button></li>
+        );
         return (
-          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${isCurrent ? ' tk-ex-current' : ''}`} aria-label={e.title}
+          <section key={e.rid} className={`tk-ex${allDone ? ' tk-ex-done' : ''}${isCurrent ? ' tk-ex-current' : ''}${isOpen ? ' tk-ex-open' : ''}`} aria-label={e.title}
             aria-current={isCurrent ? 'step' : undefined}>
             <div className="tk-ex-head">
-              <span className="tk-ex-icon">{icon}</span>
-              <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
-              {allDone && <span className="tk-ex-badge">Erledigt</span>}
-              {e.supersetId !== null && <span className="muted">Superset{isCurrent && current && current.round > 0 ? ` · Runde ${current.round}` : ''}</span>}
-              <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
+              <h2>
+                <button type="button" className="tk-rowbtn" aria-expanded={isOpen} onClick={() => setOpenRid(isOpen ? null : e.rid)}>
+                  <span className="tk-ex-icon">{icon}</span>
+                  <span className="tk-row-title">{e.title}</span>
+                  {value && <span className="tk-row-value muted">{value}</span>}
+                  <span className={`tk-chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
+                </button>
+              </h2>
+              <button type="button" className="link tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => { if (menu !== e.rid) setOpenRid(e.rid); setMenu(menu === e.rid ? null : e.rid); }}>⋯</button>
             </div>
             {menu === e.rid && (
-              <div className="tk-row tk-menu">
-                <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
-                  onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
-                <button type="button" className="secondary" aria-label={`${e.title} nach oben`} disabled={moveExercise(w, e.rid, -1) === w}
-                  onClick={() => act((x) => moveExercise(x, e.rid, -1))}>Nach oben</button>
-                <button type="button" className="secondary" aria-label={`${e.title} nach unten`} disabled={moveExercise(w, e.rid, 1) === w}
-                  onClick={() => act((x) => moveExercise(x, e.rid, 1))}>Nach unten</button>
-                {partners.length > 0 && (
-                  <label className="tk-rest-pick">Supersatz mit{' '}
-                    <select aria-label={`${e.title} als Superset mit …`} value="" onChange={(ev) => { const p = ev.target.value; if (p) { setMenu(null); act((x) => linkWith(x, e.rid, p)); } }}>
-                      <option value="">…</option>
-                      {partners.map((p) => <option key={p.rid} value={p.rid}>{p.title}</option>)}
-                    </select>
-                  </label>
-                )}
-                {e.supersetId !== null && (
-                  <button type="button" className="secondary" aria-label={`${e.title} aus dem Superset lösen`}
-                    onClick={() => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }}>Aus Superset lösen</button>
-                )}
-                <label className="tk-rest-pick">Pause{' '}
-                  <select aria-label={`Pause ${e.title}`} value={restOf(e, catalog)} onChange={(ev) => act((x) => setRest(x, e.rid, Number(ev.target.value)))}>
-                    {[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n} s</option>)}
-                  </select>
-                </label>
-                <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
-                <button type="button" className="secondary" aria-label={`${e.title} entfernen`}
-                  onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
-              </div>
+              <ul className="tk-rows tk-menu" aria-label={`Menü ${e.title}`}>
+                {item('Satz hinzufügen', () => { setMenu(null); act((x) => addSet(x, e.rid)); }, { aria: `Satz hinzufügen ${e.title}` })}
+                {warmupOffered && item('Aufwärmen hinzufügen', () => { setMenu(null); act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog)); }, { aria: `Aufwärmen hinzufügen ${e.title}` })}
+                {!note && item('Notiz', () => { setMenu(null); toggleNote(e.rid); }, { aria: `Notiz hinzufügen ${e.title}` })}
+                {item(editing === e.rid ? 'Sätze fertig bearbeiten' : 'Sätze bearbeiten', () => { setMenu(null); setEditing(editing === e.rid ? null : e.rid); }, { aria: `Sätze bearbeiten ${e.title}` })}
+                <li className="tk-rowitem"><ChoiceRow label="Pause" value={restOf(e, catalog)} onChange={(n) => act((x) => setRest(x, e.rid, n))}
+                  options={[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => ({ value: n, label: `${n} s` }))} /></li>
+                {item('Ausführung', () => { setMenu(null); toggleInfo(e.rid); }, { aria: `Ausführung ${e.title}`, expanded: showInfo })}
+                {item('Nach oben', () => act((x) => moveExercise(x, e.rid, -1)), { aria: `${e.title} nach oben`, disabled: moveExercise(w, e.rid, -1) === w })}
+                {item('Nach unten', () => act((x) => moveExercise(x, e.rid, 1)), { aria: `${e.title} nach unten`, disabled: moveExercise(w, e.rid, 1) === w })}
+                {partners.length > 0 && <li className="tk-rowitem"><ChoiceRow label="Supersatz mit" value="" onChange={(p) => { if (p) { setMenu(null); act((x) => linkWith(x, e.rid, p)); } }}
+                  options={[{ value: '', label: '…' }, ...partners.map((p) => ({ value: p.rid, label: p.title }))]} /></li>}
+                {e.supersetId !== null && item('Aus Superset lösen', () => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }, { aria: `${e.title} aus dem Superset lösen` })}
+                {item('Tauschen', () => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }, { aria: `${e.title} tauschen` })}
+                <li className="tk-rowitem"><button type="button" className="danger-link" aria-label={`${e.title} entfernen`}
+                  onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button></li>
+              </ul>
             )}
-            {showInfo && (
-              <ExerciseInfo title={e.title} description={description} icon={icon}
-                images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: own?.hevyTitle })}>
-                <StepLine title={e.title} step={stepHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames)} onChoose={(kg) => chooseStep(e.exerciseId, kg)} />
-                <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
-              </ExerciseInfo>
-            )}
-            {exerciseHasNoWeight(e) && <p className="muted tk-sub">Gewicht nach Gefühl</p>}
             {removing === e.rid && (
               <p className="tk-note">
                 Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?{' '}
-                <button type="button" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
-                <button type="button" className="ghost" onClick={() => setRemoving(null)}>Behalten</button>
+                <button type="button" className="danger-link" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
+                <button type="button" className="link" onClick={() => setRemoving(null)}>Behalten</button>
               </p>
             )}
-            {e.sets.length > 0 && <SetHead timed={timed} />}
-            {e.sets.map((s, si) => (
-              <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} hint={setHint(s, before[si] ?? null, timed, range, si === firstWork)}
-                plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
-                confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
-                onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
-                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now(), catalog) : unconfirmSet(x, e.rid, s.rid)))}
-                onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
-            ))}
-            {effortOn && asksEffort(w, e.rid, history, catalog, studios) && (
-              <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
-                onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
+            {isOpen && (
+              <div className="tk-ex-body">
+                {showInfo && (
+                  <ExerciseInfo title={e.title} description={description} icon={icon}
+                    images={own ? exerciseImages(own.id) : []} video={videoSearchUrl({ title: e.title, hevyTitle: own?.hevyTitle })}>
+                    <StepLine title={e.title} step={stepHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames)} onChoose={(kg) => chooseStep(e.exerciseId, kg)} />
+                    <button type="button" className="ghost tk-info-close" aria-label="Ausführung ausblenden" onClick={() => toggleInfo(e.rid)}>Ausblenden</button>
+                  </ExerciseInfo>
+                )}
+                {exerciseHasNoWeight(e) && <p className="muted tk-sub">Gewicht nach Gefühl</p>}
+                {e.sets.length > 0 && <SetHead timed={timed} editing={editing === e.rid} />}
+                {e.sets.map((s, si) => (
+                  <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} editing={editing === e.rid} hint={si === nextOpen ? setHint(s, before[si] ?? null, timed, range) : null}
+                    plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
+                    confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
+                    onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
+                    onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now(), catalog) : unconfirmSet(x, e.rid, s.rid)))}
+                    onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
+                ))}
+                {effortOn && asksEffort(w, e.rid, history, catalog, studios) && (
+                  <EffortQuestion title={e.title} onAnswer={(a) => act((x) => setEffort(x, e.rid, a))}
+                    onOff={() => { setEffortOn(false); act((x) => setEffort(x, e.rid, 'skip')); }} />
+                )}
+                {e.effort && e.effort !== 'skip' && <><p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p><p className="muted tk-sub">Danke – das fließt in den nächsten Vorschlag ein.</p></>}
+                {note && <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />}
+              </div>
             )}
-            {e.effort && e.effort !== 'skip' && <><p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p><p className="muted tk-sub">Danke – das fließt in den nächsten Vorschlag ein.</p></>}
-            <div className="tk-row">
-              {needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0 && (
-                <button type="button" className="secondary" aria-label={`Aufwärmen hinzufügen ${e.title}`}
-                  onClick={() => act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog))}>Aufwärmen hinzufügen</button>
-              )}
-              <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
-            </div>
-            <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
           </section>
         );
       })}
-      <div className="tk-row">
+      <div className="tk-end">
         <button type="button" className="secondary" onClick={() => setPicker({ mode: 'add' })}>Übung hinzufügen</button>
-        <span className="spacer" />
-        <button type="button" onClick={() => void end()}>Training beenden</button>
+        <button type="button" className="secondary" onClick={() => void end()}>Training beenden</button>
       </div>
-      {ask && (
-        <div className="tk-ask card" role="group" aria-label="Training beenden">
-          {ask.question === 'open-sets' ? (
-            <>
-              <p>{ask.open === 1 ? 'Ein Satz ist noch offen.' : `${ask.open} Sätze sind noch offen.`} Was soll mit {ask.open === 1 ? 'ihm' : 'ihnen'} passieren?</p>
-              <button type="button" onClick={() => void end('complete')}>Offene Sätze als erledigt markieren</button>
-              <button type="button" className="secondary" onClick={() => void end('omit')}>Offene Sätze weglassen</button>
-              <button type="button" className="ghost" onClick={() => setAsk(null)}>Zurück zum Training</button>
-            </>
-          ) : (
-            <>
-              <p>Noch kein Satz ist als erledigt markiert. Was soll mit dem Training passieren?</p>
-              <button type="button" onClick={() => void end('complete')}>Alle Sätze als erledigt markieren</button>
-              <button type="button" className="secondary" onClick={() => void end('discard')}>Training verwerfen</button>
-              <button type="button" onClick={() => setAsk(null)}>Weiter trainieren</button>
-            </>
-          )}
+      {w.rest && remaining > 0 && !ask && (
+        <div role="timer" aria-label="Satzpause" className="tk-rest">
+          <button type="button" className="tk-rest-main" aria-label="Pause überspringen" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause {clock(remaining)}</button>
+          <button type="button" className="tk-skip" onClick={() => act((x) => extendRest(x))}>+30 s</button>
         </div>
+      )}
+      {topMenu && (
+        <Sheet title="Training" onClose={() => setTopMenu(false)}>
+          <ul className="tk-rows">
+            <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setStudioOpen(true); }}><span className="tk-row-title">Studio wechseln</span><span className="tk-row-value muted">{w.studio ?? '–'}</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
+            <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setCoachAsk((n) => n + 1); }}><span className="tk-row-title">Coach fragen</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
+            <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); void end(); }}><span className="tk-row-title">Training beenden</span></button></li>
+          </ul>
+          <div className="tk-links"><ConfirmLink label="Training verwerfen" question="Training samt erledigter Sätze wirklich verwerfen?" onConfirm={() => { setTopMenu(false); void discard(); }} /></div>
+        </Sheet>
+      )}
+      {studioOpen && (
+        <StudioSheet value={w.studio} known={known} onClose={() => setStudioOpen(false)}
+          onChange={(n, created) => { act((x) => setStudio(x, n ?? '', { history, catalog, studios, overrides })); if (n && created) void rememberStudio(port, n, now()).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }}
+          onRename={(from, to) => { void renameStudio(port, from, to, now()).then(() => act((x) => setStudio(x, to))).catch(() => setNotice('Gerade nicht gespeichert. Versuch es gleich nochmal.')); }} />
+      )}
+      {ask && ask.question === 'open-sets' && (
+        <Sheet title={ask.open === 1 ? 'Ein Satz offen' : `${ask.open} Sätze offen`} onClose={() => setAsk(null)}
+          actions={<>
+            <button type="button" onClick={() => void end('omit')}>Weglassen</button>
+            <button type="button" className="secondary" onClick={() => void end('complete')}>Als erledigt zählen</button>
+            <button type="button" className="link" onClick={() => setAsk(null)}>Zurück</button>
+          </>}>
+          <p>Was soll mit {ask.open === 1 ? 'ihm' : 'ihnen'} passieren?</p>
+        </Sheet>
+      )}
+      {ask && ask.question === 'nothing-confirmed' && (
+        <Sheet title="Noch nichts erledigt" onClose={() => setAsk(null)}
+          actions={<>
+            <button type="button" onClick={() => setAsk(null)}>Weiter trainieren</button>
+            <button type="button" className="secondary" onClick={() => void end('complete')}>Alle Sätze als erledigt markieren</button>
+          </>}>
+          <p>Noch kein Satz ist als erledigt markiert. Was soll mit dem Training passieren?</p>
+          <div className="tk-links"><ConfirmLink label="Training verwerfen" question="Training wirklich verwerfen?" onConfirm={() => void end('discard')} /></div>
+        </Sheet>
       )}
       {picker && (
         <ExercisePicker port={port} now={now} newId={newId} onClose={() => setPicker(null)}
@@ -357,26 +360,31 @@ function OpenCard({ rec, primary, onResume, onEnd, onDiscard }: { rec: TrackedRe
   const [asking, setAsking] = useState(false);
   const sfx = primary ? '' : ` ${w.title} ${dateLabel(w.startMs)}`;
   return (
-    <div className="card tk-open">
-      <h2>{primary ? 'Dein Training ist noch offen' : `${w.title}, offen`}</h2>
-      <p className="muted">{w.title}, gestartet {dateLabel(w.startMs)}. Alles ist gespeichert, du kannst genau dort weitermachen.</p>
-      <div className="tk-row">
-        <button type="button" onClick={onResume}>{`Training fortsetzen${sfx}`}</button>
-        <button type="button" className="secondary" onClick={onEnd}>{`Training beenden${sfx}`}</button>
-        <button type="button" className="ghost" onClick={() => setAsking(true)}>{`Training verwerfen${sfx}`}</button>
+    <section className="card tk-open" aria-label={`${w.title} läuft noch`}>
+      <h2>{w.title} läuft noch</h2>
+      <p className="muted">Gestartet {dateLabel(w.startMs)} · alles gespeichert</p>
+      <button type="button" onClick={onResume}>{`Weitermachen${sfx}`}</button>
+      <div className="tk-links">
+        <button type="button" className="link" aria-label={`Training beenden${sfx}`} onClick={onEnd}>Beenden</button>
+        <button type="button" className="danger-link" aria-label={`Training verwerfen${sfx}`} onClick={() => setAsking(true)}>Verwerfen</button>
       </div>
       {asking && (
         <p className="tk-note">Verwerfen löscht dieses Training samt erledigter Sätze. Wirklich verwerfen?{' '}
-          <button type="button" onClick={() => void onDiscard().then(() => setAsking(false))}>Ja, verwerfen</button>{' '}
-          <button type="button" className="ghost" onClick={() => setAsking(false)}>Behalten</button>
+          <button type="button" className="danger-link" onClick={() => void onDiscard().then(() => setAsking(false))}>Ja, verwerfen</button>{' '}
+          <button type="button" className="link" onClick={() => setAsking(false)}>Behalten</button>
         </p>
       )}
-    </div>
+    </section>
   );
 }
 
-export function WorkoutScreen({ port, plan = null, routine = null, now = Date.now, newId = () => crypto.randomUUID() }: {
-  port: TrackingPort; plan?: GymWorkout | null; routine?: GymWorkout | null; now?: () => number; newId?: () => string;
+export function WorkoutScreen({ port, plan = null, routine = null, resume = false, onActive, now = Date.now, newId = () => crypto.randomUUID() }: {
+  port: TrackingPort; plan?: GymWorkout | null; routine?: GymWorkout | null;
+  /** Open the newest open workout at once (from "Weitermachen" on Heute), once. */
+  resume?: boolean;
+  /** Told whether a workout is running on this screen, so the page around it can drop its own navigation. */
+  onActive?: (active: boolean) => void;
+  now?: () => number; newId?: () => string;
 }) {
   const workoutsQ = usePortRecords(port, 'workout');
   const routinesQ = usePortRecords(port, 'routine');
@@ -393,6 +401,16 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   const openRecs = (workouts ?? []).filter((r) => (r.body as LoggedWorkout).endMs === null).sort((a, b) => (b.body as LoggedWorkout).startMs - (a.body as LoggedWorkout).startMs);
 
   const [chosen, setChosen] = useState<string | undefined>(undefined);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [others, setOthers] = useState(false);
+  const resumed = useRef(false);
+  const running = store !== null;
+  useEffect(() => { onActive?.(running); return () => onActive?.(false); }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!resume || resumed.current || store || !workouts || openRecs.length === 0) return;
+    resumed.current = true;
+    setStore({ s: acquireStore(port, openRecs[0]!, now), autoEnd: false });
+  }, [resume, workouts]); // eslint-disable-line react-hooks/exhaustive-deps
   const logged = (workouts ?? []).filter((r) => !r.deleted).map((r) => r.body as LoggedWorkout);
   const studioRecords = usePortRecords(port, 'studio').records;
   const studios = useMemo(() => studioStateOf(studioRecords ?? []), [studioRecords]);
@@ -452,6 +470,7 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
   }
   if (workouts === null) return <div className="tk-screen"><p className="muted">Einen Moment …</p></div>;
 
+  if (resume && !resumed.current && openRecs.length > 0) return <div className="tk-screen"><p className="muted">Einen Moment …</p></div>; // opening it at once, no card in between
   if (openRecs.length > 0) {
     return (
       <div className="tk-screen">
@@ -471,28 +490,48 @@ export function WorkoutScreen({ port, plan = null, routine = null, now = Date.no
     );
   }
 
+  const routines = routinesQ.records ?? [];
+  const studioKnown = knownStudios(logged, studios.renames, studios.picks, studios.hidden);
   return (
     <div className="tk-screen">
       {message && <p role="status" className="tk-note">{message}</p>}
       {summary && <WorkoutSummary workout={summary} next={nextSteps} onDone={() => { setPendingSummary(null); setSummaryId(null); }} />}
       <SyncNote port={port} />
       <h1 className="tk-title">Training starten</h1>
-      <StudioLine value={studio} known={knownStudios(logged, studios.renames, studios.picks, studios.hidden)}
-        onAway={studio ? { used: logged.some((x) => x.studio && resolveStudio(x.studio, studios.renames).toLowerCase() === resolveStudio(studio, studios.renames).toLowerCase()), run: awayStudio } : undefined}
-        onChange={(n) => { setChosen(n); if (n) void rememberStudio(port, n, now()).catch(saveFailed); }}
-        onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
-      {plan && (
+      {plan ? (
         <section className="card tk-plan-preview" aria-label="Heutiger Plan">
           <h2>{plan.name}</h2>
-          <ul>{plan.exercises.filter((e) => !isExcludedExercise(e, catalog, excluded)).map((e, i) => <li key={i}>{planLine(e)}</li>)}</ul>
-          <button type="button" aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
+          <p className="muted tk-clamp">{plan.exercises.filter((e) => !isExcludedExercise(e, catalog, excluded)).map((e) => e.title).join(', ')}</p>
+          <button type="button" className={summary ? 'secondary' : undefined} aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
         </section>
+      ) : (
+        <button type="button" className={summary ? 'secondary' : undefined} onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
       )}
-      {(routinesQ.records ?? []).map((r) => {
-        const body = r.body as GymWorkout;
-        return <button type="button" key={r.id} className="secondary" onClick={() => void startPlan(body)}>{body.name} starten</button>;
-      })}
-      <button type="button" className="ghost" onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
+      <div className="tk-rows">
+        <StudioRow value={studio} onOpen={() => setStudioOpen(true)} />
+        {(plan || routines.length > 0) && (
+          <button type="button" className="tk-rowbtn tk-choice" onClick={() => setOthers(true)}>
+            <span className="tk-row-title">Anderes Training</span><span className="tk-chevron" aria-hidden="true">›</span>
+          </button>
+        )}
+      </div>
+      {studioOpen && (
+        <StudioSheet value={studio} known={studioKnown} onClose={() => setStudioOpen(false)}
+          onAway={studio ? { used: logged.some((x) => x.studio && resolveStudio(x.studio, studios.renames).toLowerCase() === resolveStudio(studio, studios.renames).toLowerCase()), run: awayStudio } : undefined}
+          onChange={(n) => { setChosen(n); if (n) void rememberStudio(port, n, now()).catch(saveFailed); }}
+          onRename={(from, to) => { setChosen(to); void renameStudio(port, from, to, now()).catch(saveFailed); }} />
+      )}
+      {others && (
+        <Sheet title="Anderes Training" onClose={() => setOthers(false)}>
+          <ul className="tk-rows">
+            {routines.map((r) => {
+              const body = r.body as GymWorkout;
+              return <li key={r.id} className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setOthers(false); void startPlan(body); }}><span className="tk-row-title">{body.name} starten</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>;
+            })}
+            <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setOthers(false); void begin(startEmpty(now(), newId())); }}><span className="tk-row-title">Leeres Training starten</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
+          </ul>
+        </Sheet>
+      )}
       <ExerciseProposals port={port} now={now} newId={newId} />
     </div>
   );
