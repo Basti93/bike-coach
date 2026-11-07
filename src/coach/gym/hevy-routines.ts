@@ -1,5 +1,8 @@
+import { tidyGroups } from '../../shared/superset';
+import { restOf } from '../../shared/rest';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Exercise } from '../../shared/exercises';
 import type { ExerciseTemplate, GymWorkout } from './types';
 
 const API = 'https://api.hevyapp.com';
@@ -99,11 +102,11 @@ export class HevyRoutines {
     return found;
   }
 
-  private body(workout: GymWorkout, folderId: number | null) {
+  private body(workout: GymWorkout, folderId: number | null, catalog?: readonly Exercise[]) {
     return { routine: {
       title: workout.name, ...(folderId !== null ? { folder_id: folderId } : {}), notes: '',
-      exercises: workout.exercises.map((e) => ({
-        exercise_template_id: e.templateId, superset_id: e.supersetId, rest_seconds: e.restS, notes: e.notes,
+      exercises: tidyGroups(workout.exercises).map((e) => ({
+        exercise_template_id: e.templateId, superset_id: e.supersetId, rest_seconds: Math.max(0, Math.min(600, Math.round(restOf(e, catalog)))), notes: e.notes,
         sets: e.sets.map((s) => ({ type: s.type, weight_kg: s.weightKg, reps: s.reps, rep_range: s.repRange ?? null })),
       })),
     } };
@@ -119,9 +122,9 @@ export class HevyRoutines {
    * Caller contract: call `editedSince` before asking the rider to confirm, and call this only after the confirmation,
    * which covers overwriting hand edits. `known.updatedAt` is deliberately not checked here.
    * Updates the known routine or one found in the coach's folder; creates one only when there is none. */
-  async writeRoutine(workout: GymWorkout, known: { routineId: string | null; updatedAt: string | null }): Promise<{ routineId: string; updatedAt: string }> {
+  async writeRoutine(workout: GymWorkout, known: { routineId: string | null; updatedAt: string | null }, catalog?: readonly Exercise[]): Promise<{ routineId: string; updatedAt: string }> {
     const folderId = await this.ensureFolder();
-    const body = this.body(workout, folderId);
+    const body = this.body(workout, folderId, catalog);
     let id = known.routineId;
     if (!id) {
       const mine = await this.pages<RawRoutine>('/v1/routines', 'routines', LIST_PAGE);
@@ -129,7 +132,7 @@ export class HevyRoutines {
     }
     if (id) {
       try {
-        return HevyRoutines.result(await this.call('PUT', `/v1/routines/${encodeURIComponent(id)}`, this.body(workout, null)));
+        return HevyRoutines.result(await this.call('PUT', `/v1/routines/${encodeURIComponent(id)}`, this.body(workout, null, catalog)));
       } catch (e) {
         if (!(e instanceof NotFound)) throw e;
       }

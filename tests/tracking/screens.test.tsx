@@ -667,15 +667,17 @@ test('two exercises can be joined to a superset and taken apart again from the m
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Bankdrücken als Superset mit Kniebeuge' }));
+  const pick = screen.getByRole('combobox', { name: 'Bankdrücken als Superset mit …' });
+  fireEvent.change(pick, { target: { value: (within(pick).getByRole('option', { name: 'Kniebeuge' }) as HTMLOptionElement).value } });
   await waitFor(() => {
     const g = bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId);
     expect(g[0]).not.toBeNull();
     expect(g[0]).toBe(g[1]);
   });
-  expect(screen.getAllByText('Superset')).toHaveLength(2);
+  expect(screen.getAllByText(/^Superset/)).toHaveLength(2);
+  expect(screen.getByText('Superset · Runde 1')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
-  expect(screen.queryByRole('button', { name: /als Superset mit/ })).toBeNull(); // the last exercise has no next one
+  expect(screen.queryByRole('combobox', { name: /als Superset mit/ })).toBeNull(); // no partner left
   fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge aus dem Superset lösen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId)).toEqual([null, null]));
 });
@@ -718,4 +720,16 @@ test('the start screen shows what the plan holds before starting', async () => {
   const card = await screen.findByRole('region', { name: 'Heutiger Plan' });
   expect([...card.querySelectorAll('li')].map((l) => l.textContent)).toEqual(['Bankdrücken · 3 × 8 · 62,5 kg', 'Kniebeuge · 2 × 8–12']);
   expect(within(card).getByRole('button', { name: 'Oberkörper starten' })).toBeTruthy();
+});
+
+test('the rest timer has +30 s, and the per-exercise Pause select sets the rest', async () => {
+  const w = { ...open(), rest: { startMs: 70_000, durationS: 90 } };
+  const { port, map } = fakePort([rec(w as LoggedWorkout)]);
+  render(<WorkoutScreen port={port} {...ids} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Training fortsetzen' }));
+  fireEvent.click(await screen.findByRole('button', { name: '+30 s' }));
+  await waitFor(() => expect((bodyOf(map, 'workout:open1') as unknown as { rest: { durationS: number } }).rest.durationS).toBe(120));
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
+  fireEvent.change(screen.getByLabelText('Pause Bankdrücken'), { target: { value: '180' } });
+  await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
 });

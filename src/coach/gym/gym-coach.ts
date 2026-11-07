@@ -404,7 +404,7 @@ export class GymCoach {
           x.lastError = 'invalid';
           // The rules take over; say so in words instead of the neutral sentence.
           const why = parsed.success ? (checked && !checked.ok ? checked.reason : '') : 'Schema';
-          if (x.next?.source === 'rules') x.next = { ...x.next, reason: this.withTaken(id, `Mein Plan passte nicht zu deinen Grenzen (${reasonPhrase(why)}), deshalb heute ein einfacher Plan. Dauer ${durationNote(x.next.workout)}.`) };
+          if (x.next?.source === 'rules') x.next = { ...x.next, reason: this.withTaken(id, `Mein Plan passte nicht zu deinen Grenzen (${reasonPhrase(why)}), deshalb heute ein einfacher Plan. Dauer ${durationNote(x.next.workout, this.catalog(id))}.`) };
         }
         x.dirty = false; x.planned = true; x.attempts = 0;
         x.seenWorkoutIds = real.map((w) => w.id);
@@ -440,7 +440,7 @@ export class GymCoach {
     const honest = (text: string) => honestFigures(text, figures(real, workout));
     const fallback = s.next?.source === 'rules' ? s.next.reason : NEUTRAL_REASON;
     const reason = clean(a.reason, TEXT_MAX);
-    s.next = { workout, reason: this.withTaken(id, `${((reason && honest(reason)) || fallback).replace(/\s*Dauer ca\. \d+ Min\./, '')} Dauer ${durationNote(workout)}.`), source: 'claude' };
+    s.next = { workout, reason: this.withTaken(id, `${((reason && honest(reason)) || fallback).replace(/\s*Dauer ca\. \d+ Min\./, '')} Dauer ${durationNote(workout, this.catalog(id))}.`), source: 'claude' };
     // A sketch without weights; an answer without one keeps the last sketch rather than none.
     const outlook = readOutlook(a.outlook);
     s.outlook = outlook ? this.withoutExcluded(id, outlook) : s.outlook;
@@ -481,7 +481,7 @@ export class GymCoach {
       }
     } else if (how === 'harder') {
       for (const e of w.exercises) {
-        if (w.exercises.reduce((n, x) => n + x.sets.length, 0) >= MAX_SETS) break;
+        if (w.exercises.reduce((n, x) => n + x.sets.filter((s) => s.type !== 'warmup').length, 0) >= MAX_SETS) break;
         const last = e.sets.map((s, i) => ({ s, i })).filter(({ s, i }) => s.type === 'normal' && !isWidowSet(e, i)).pop();
         if (last && !isWidowmaker(e)) e.sets.push({ ...last.s });
       }
@@ -567,7 +567,7 @@ export class GymCoach {
       if (!this.deps.ready(id) || this.gen(id) !== gen) return 'failed';
       if (!current || fingerprint(current.workout) !== shown.fp) return 'stale';
       const workout = { ...this.toHevy(id, current.workout).workout, name: name.trim().slice(0, NAME_MAX) || current.workout.name };
-      const written = await writer.writeRoutine(workout, { routineId: known?.routineId ?? null, updatedAt: known?.updatedAt ?? null });
+      const written = await writer.writeRoutine(workout, { routineId: known?.routineId ?? null, updatedAt: known?.updatedAt ?? null }, this.catalog(id));
       this.previews.delete(id);
       this.updateIf(gen, id, (s) => { s.routine = { routineId: written.routineId, updatedAt: written.updatedAt }; });
       return 'written';

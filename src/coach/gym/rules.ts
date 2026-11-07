@@ -1,23 +1,40 @@
 import type { ExerciseTemplate, GymExercise, GymWorkout } from './types';
 import { RECENT_DAYS } from './limits';
-import { repRangeOf } from '../../shared/muscle-targets';
-import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
+import { muscleGroupOf, repRangeOf } from '../../shared/muscle-targets';
+import { LEG_MUSCLES, availableExercises, isRepBased, ladderFor, recentLegWork, suggestNext } from './history';
 import { isExcluded } from '../../shared/excluded';
 import { checkWorkout, type GymContext } from './guardrails';
+import { warmupRamp, workingWeightOf } from '../../shared/warmup';
+import { EXERCISES, type Exercise } from '../../shared/exercises';
 import { durationNote, gymLimit, gymMinutes } from '../../shared/duration';
 
 const DAY_MS = 86_400_000;
 const CORE_SIZE = 6;
 const SETS = 3;
 const START_REPS = 10;
-const REST_S = 90;
 const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'front_delts', 'side_delts', 'hamstrings', 'triceps', 'biceps'];
 
 function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t, { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames });
   const range = repRangeOf(t);
   const reps = s.why === 'none' ? Math.min(range.max, Math.max(range.min, START_REPS)) : s.reps;
-  return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
+  const sets = Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps }));
+  return { templateId: t.id, title: t.title, restS: null, supersetId: null, notes: '', sets };
+}
+
+/** The first exercise of each muscle group gets the warm-up ramp before its work sets, when its working weight is known. Warm-up sets are outside the set limit. */
+function withRamps(templates: ExerciseTemplate[], exercises: GymExercise[], ctx: GymContext): GymExercise[] {
+  const seen = new Set<string>();
+  const plan = { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames };
+  return exercises.map((e, i) => {
+    const t = templates[i]!;
+    const group = muscleGroupOf(t);
+    if (seen.has(group)) return e;
+    seen.add(group);
+    const ramp = warmupRamp({ workingKg: workingWeightOf(e), equipment: t.equipment, type: t.type, ladder: ladderFor(t.id, t, ctx.workouts, ctx.nowMs, plan) });
+    if (ramp.length === 0) return e; // warm-ups never count toward the set limit, and never take work sets away
+    return { ...e, sets: [...ramp.map((r) => ({ type: 'warmup' as const, weightKg: r.weightKg, reps: r.reps })), ...e.sets] };
+  });
 }
 
 type Plan = { workout: GymWorkout; reason: string };
@@ -47,7 +64,7 @@ function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
     .slice(0, CORE_SIZE);
   if (!machinesOnly && core.length > 0) {
     return {
-      workout: { name: HISTORY_NAME, exercises: core.map((t) => exerciseOf(t, ctx)) },
+      workout: { name: HISTORY_NAME, exercises: withRamps(core, core.map((t) => exerciseOf(t, ctx)), ctx) },
       reason: legsTired && !recentLegs
         ? 'Deine häufigsten Übungen der letzten Monate, ohne Beinarbeit, damit die Beine geschont bleiben.'
         : legsTired
@@ -60,7 +77,7 @@ function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
   if (picked.length === 0) {
     return { workout: { name: 'Ganzkörper', exercises: [] }, reason: 'Ich habe keine passenden Übungen gefunden, deshalb gibt es gerade kein Training. Sobald Hevy mehr Übungen liefert, geht es weiter.' };
   }
-  const exercises = picked.map((t) => exerciseOf(t, ctx));
+  const exercises = withRamps(picked, picked.map((t) => exerciseOf(t, ctx)), ctx);
   const hasHistory = ctx.workouts.some((w) => w.startMs <= ctx.nowMs);
   const withWeights = exercises.some((e) => e.sets.some((s) => s.weightKg !== null));
   return {
@@ -74,10 +91,10 @@ function plainWorkout(ctx: GymContext, machinesOnly: boolean): Plan {
 }
 
 /** Cuts a workout to the time: first sets beyond 2 per exercise from the last exercises, then the last exercises. */
-function trimToLimit(w: GymWorkout, limit: number): GymWorkout {
+function trimToLimit(w: GymWorkout, limit: number, catalog: readonly Exercise[]): GymWorkout {
   const exercises = w.exercises.map((e) => ({ ...e, sets: [...e.sets] }));
   const out = { ...w, exercises };
-  while (gymMinutes(out) > limit) {
+  while (gymMinutes(out, catalog) > limit) {
     const long = [...exercises].reverse().find((e) => e.sets.length > KEEP_SETS);
     if (long) long.sets.pop();
     else if (exercises.length > 1) exercises.pop();
@@ -95,22 +112,23 @@ function trimToLimit(w: GymWorkout, limit: number): GymWorkout {
  */
 export function ruleWorkout(ctx: GymContext): Plan & { guard?: string } {
   const limit = ctx.budgetMinutes !== undefined ? gymLimit(ctx.budgetMinutes) : Infinity;
-  const finish = (p: Plan, w: GymWorkout): Plan => ({ workout: w, reason: `${p.reason} Dauer ${durationNote(w)}.` });
+  const catalog = ctx.catalog ?? EXERCISES;
+  const finish = (p: Plan, w: GymWorkout): Plan => ({ workout: w, reason: `${p.reason} Dauer ${durationNote(w, catalog)}.` });
   const first = plainWorkout(ctx, false);
   if (first.workout.exercises.length === 0) return first;
   const fromHistory = first.workout.name === HISTORY_NAME;
   let guard: string | undefined;
   if (fromHistory) {
-    const checked = checkWorkout(trimToLimit(first.workout, limit), ctx);
+    const checked = checkWorkout(trimToLimit(first.workout, limit, catalog), ctx);
     if (checked.ok) return finish(first, checked.workout);
     guard = checked.reason;
   }
   const minimal = fromHistory ? plainWorkout(ctx, true) : first;
   if (minimal.workout.exercises.length === 0) return { ...minimal, ...(guard ? { guard } : {}) };
-  const fit = trimToLimit(minimal.workout, limit);
+  const fit = trimToLimit(minimal.workout, limit, catalog);
   const again = checkWorkout(fit, ctx);
   const done = finish(minimal, again.ok ? again.workout : fit);
   // Even the smallest plan is longer than the time: say so instead of a number that looks like it fits.
-  if (ctx.budgetMinutes !== undefined && gymMinutes(done.workout) > limit) done.reason = `${done.reason} Das ist länger als deine ${ctx.budgetMinutes} Min.`;
+  if (ctx.budgetMinutes !== undefined && gymMinutes(done.workout, catalog) > limit) done.reason = `${done.reason} Das ist länger als deine ${ctx.budgetMinutes} Min.`;
   return { ...done, ...(guard ? { guard } : {}) };
 }

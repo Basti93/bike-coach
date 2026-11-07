@@ -4,7 +4,10 @@ import { EXERCISES, exerciseTitles, type Exercise } from '../shared/exercises';
 import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STUDIOS, type StudioState } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
-import { ladderFrom, snapDown, type LoadStepOverrides } from '../shared/loads';
+import { ladderFrom, snapDown, type Ladder, type LoadStepOverrides } from '../shared/loads';
+import { tidyGroups, contiguousGroups } from '../shared/superset';
+import { warmupRamp, workingWeightOf } from '../shared/warmup';
+import { restAfterSet, restChoices, restExtendS } from '../shared/rest';
 import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
@@ -15,7 +18,6 @@ export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets
 /** Stored as the record body. `rest` keeps the timer start, so a reload continues it. Rows have stable ids (`rid`). */
 export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null };
 
-export const DEFAULT_REST_S = 90;
 export const STALE_OPEN_MS = 6 * 3_600_000;
 export type FinishChoice = 'complete' | 'omit' | 'discard';
 export type FinishResult =
@@ -146,12 +148,12 @@ export const startFromRoutine = startFromPlan;
 export const startEmpty = (nowMs: number, id: string, title = 'Training'): TrackedWorkout =>
   ({ id, title, startMs: nowMs, endMs: null, source: 'pandafit', exercises: [], rest: null });
 
-function fromCatalog(e: Exercise, history: LoggedWorkout[], studio: string, keep?: Pick<TrackedExercise, 'supersetId' | 'restS'>, studios: StudioState = NO_STUDIOS): TrackedExercise {
+function fromCatalog(e: Exercise, history: LoggedWorkout[], studio: string, keep?: Pick<TrackedExercise, 'supersetId'>, studios: StudioState = NO_STUDIOS): TrackedExercise {
   const last = lastValues(e.id, history, [e], studio, studios);
   const sets: TrackedSet[] = last.length
     ? last.map((l) => ({ rid: newRid(), type: l.type, weightKg: l.weightKg, reps: l.reps, durationS: l.durationS, doneMs: null }))
     : [blank()];
-  return { rid: newRid(), exerciseId: e.id, title: e.title, supersetId: keep?.supersetId ?? null, notes: '', sets, ...(keep?.restS !== undefined ? { restS: keep.restS } : {}), ...(isTimed(e.type) ? { timed: true } : {}) };
+  return { rid: newRid(), exerciseId: e.id, title: e.title, supersetId: keep?.supersetId ?? null, notes: '', sets, ...(isTimed(e.type) ? { timed: true } : {}) };
 }
 
 /** Applies f to the exercise with that row id. An unknown id (a stale tap) changes nothing and returns the same object. */
@@ -164,16 +166,17 @@ function mapSet(w: TrackedWorkout, ex: string, set: string, f: (s: TrackedSet) =
   return mapEx(w, ex, (x) => ({ ...x, sets: x.sets.map((s) => (s.rid === set ? f(s) : s)) }));
 }
 
-export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: number): TrackedWorkout {
-  const e = w.exercises.find((x) => x.rid === ex);
+export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: number, catalog: readonly Exercise[] = EXERCISES): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: nowMs }));
   if (next === w) return w;
-  // In a superset the rest comes after the last exercise of the round: none while a later one of the group still has an open set.
-  const i = next.exercises.findIndex((x) => x.rid === ex);
-  const group = e?.supersetId ?? null;
-  const goOn = group !== null && next.exercises.slice(i + 1).some((x) => x.supersetId === group && x.sets.some((s) => s.doneMs === null));
-  return { ...next, rest: goOn ? null : { startMs: nowMs, durationS: e?.restS ?? DEFAULT_REST_S } };
+  const setIndex = next.exercises.find((x) => x.rid === ex)?.sets.findIndex((s) => s.rid === set) ?? 0;
+  const durationS = restAfterSet(next, ex, setIndex, catalog);
+  return { ...next, rest: durationS === null ? null : { startMs: nowMs, durationS } };
 }
+/** Adds the extension (30 s) to the running rest. No rest running changes nothing. */
+export const extendRest = (w: TrackedWorkout, s: number = restExtendS()): TrackedWorkout => (w.rest ? { ...w, rest: { ...w.rest, durationS: w.rest.durationS + s } } : w);
+/** Sets the rest of one exercise (one of the offered choices); the next confirmed set uses it. */
+export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s })) : w);
 export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: null }));
   return next === w ? w : { ...next, rest: null };
@@ -187,12 +190,26 @@ export const addSet = (w: TrackedWorkout, ex: string): TrackedWorkout =>
     const l = x.sets[x.sets.length - 1];
     return { ...x, sets: [...x.sets, l ? { ...l, rid: newRid(), doneMs: null } : blank()] };
   });
+/**
+ * Inserts the warm-up ramp before the exercise's first work set (the working weight is that set's weight) as normal, editable
+ * sets of type warmup. Nothing is added without a working weight, or when the exercise already has a warm-up or a done set.
+ */
+export function addWarmup(w: TrackedWorkout, ex: string, ladder: Ladder, catalog: readonly Exercise[] = EXERCISES): TrackedWorkout {
+  const e = w.exercises.find((x) => x.rid === ex);
+  if (!e || e.sets.some((s) => s.type === 'warmup' || s.doneMs !== null)) return w;
+  const own = resolveExercise(e, [...catalog]).exercise;
+  const ramp = warmupRamp({ workingKg: workingWeightOf(e), equipment: own?.equipment ?? 'other', ladder, type: own?.type });
+  if (ramp.length === 0) return w;
+  const first = Math.max(0, e.sets.findIndex((s) => s.type !== 'warmup'));
+  const sets = ramp.map((r): TrackedSet => ({ rid: newRid(), type: 'warmup', weightKg: r.weightKg, reps: r.reps, durationS: null, doneMs: null }));
+  return mapEx(w, ex, (x) => ({ ...x, sets: [...x.sets.slice(0, first), ...sets, ...x.sets.slice(first)] }));
+}
 export const removeSet = (w: TrackedWorkout, ex: string, set: string): TrackedWorkout =>
   mapSet(w, ex, set, (s) => s) === w ? w : mapEx(w, ex, (x) => ({ ...x, sets: x.sets.filter((s) => s.rid !== set) }));
 export const addExercise = (w: TrackedWorkout, e: Exercise, history: LoggedWorkout[], studios: StudioState = NO_STUDIOS): TrackedWorkout =>
   ({ ...w, exercises: [...w.exercises, fromCatalog(e, history, hereKey(w, history, studios), undefined, studios)] });
 export const removeExercise = (w: TrackedWorkout, ex: string): TrackedWorkout =>
-  w.exercises.some((e) => e.rid === ex) ? { ...w, exercises: w.exercises.filter((e) => e.rid !== ex) } : w;
+  w.exercises.some((e) => e.rid === ex) ? { ...w, exercises: tidyGroups(w.exercises.filter((e) => e.rid !== ex)) } : w;
 
 /** What really happened counts: confirmed sets stay with the old exercise, the rest moves to the new one. */
 export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history: LoggedWorkout[], studios: StudioState = NO_STUDIOS): TrackedWorkout {
@@ -202,8 +219,15 @@ export function swapExercise(w: TrackedWorkout, ex: string, e: Exercise, history
   const doneSets = old.sets.filter(isDone);
   const fresh: TrackedExercise = { ...fromCatalog(e, history, hereKey(w, history, studios), old, studios), swappedIn: true };
   const exercises = [...w.exercises];
-  exercises.splice(i, 1, ...(doneSets.length ? [{ ...old, sets: doneSets }, fresh] : [fresh]));
-  return { ...w, exercises };
+  if (!doneSets.length) exercises.splice(i, 1, fresh);
+  else {
+    // The done-set copy leaves the group (it goes right before it), so the group stays contiguous around the new exercise.
+    const copy = { ...old, supersetId: null, sets: doneSets };
+    const at = old.supersetId === null ? i : exercises.findIndex((x) => x.supersetId === old.supersetId);
+    exercises.splice(i, 1, fresh);
+    exercises.splice(at, 0, copy);
+  }
+  return { ...w, exercises: tidyGroups(exercises) };
 }
 
 export const restRemainingS = (w: TrackedWorkout, nowMs: number): number =>
@@ -229,7 +253,7 @@ export function finish(w: TrackedWorkout, nowMs: number, choice?: FinishChoice):
     ? w.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => (isDone(s) ? s : { ...s, doneMs: endMs })) }))
     : w.exercises;
   // The undo data of a coach change is of no use once the workout is over; the ids stay (a second start must not apply them again).
-  const changes = w.changes?.map((c) => ({ id: c.id, atMs: c.atMs, prior: [], pos: [], after: [] }));
+  const changes = w.changes?.map((c) => ({ id: c.id, atMs: c.atMs, prior: [], pos: [], after: [] })); // anchor left out too
   return { status: 'finished', workout: { ...w, exercises, endMs, rest: null, ...(changes ? { changes } : {}) } };
 }
 
@@ -240,16 +264,54 @@ export function durationLabel(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
-/** Joins an exercise with the next one in a superset; the next one joins this one's group, or both start a new group. */
-export function linkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
-  const i = w.exercises.findIndex((x) => x.rid === ex);
-  if (i < 0 || i + 1 >= w.exercises.length) return w;
-  const a = w.exercises[i], b = w.exercises[i + 1];
-  if (a.supersetId !== null && a.supersetId === b.supersetId) return w;
-  const used = w.exercises.map((x) => x.supersetId ?? -1);
-  const id = a.supersetId ?? b.supersetId ?? Math.max(-1, ...used) + 1;
-  const from = b.supersetId; // b's old group moves along with it
-  return { ...w, exercises: w.exercises.map((x, j) => (j === i || j === i + 1 || (from !== null && x.supersetId === from) ? { ...x, supersetId: id } : x)) };
+/**
+ * Joins an exercise with any partner in a superset: the partner (with its own group) moves directly behind the group of `ex`,
+ * all share one group id. The partner must be unstarted (no confirmed set); anything else changes nothing. Rows stay intact.
+ */
+export function linkWith(w: TrackedWorkout, ex: string, partner: string): TrackedWorkout {
+  const a = w.exercises.find((x) => x.rid === ex), p = w.exercises.find((x) => x.rid === partner);
+  if (!a || !p || a === p || (a.supersetId !== null && a.supersetId === p.supersetId)) return w;
+  const groupOf = (x: TrackedExercise) => (x.supersetId === null ? [x] : w.exercises.filter((y) => y.supersetId === x.supersetId));
+  if (groupOf(p).some((x) => x.sets.some(isDone))) return w;
+  const id = a.supersetId ?? p.supersetId ?? Math.max(-1, ...w.exercises.map((x) => x.supersetId ?? -1)) + 1;
+  const moving = (x: TrackedExercise) => x === p || (p.supersetId !== null && x.supersetId === p.supersetId);
+  const base = contiguousGroups(w.exercises.filter((x) => !moving(x)));
+  const into = (x: TrackedExercise) => x.rid === ex || (a.supersetId !== null && x.supersetId === a.supersetId);
+  const last = base.reduce((n, x, k) => (into(x) ? k : n), -1);
+  const joined = w.exercises.filter(moving).map((x) => ({ ...x, supersetId: id }));
+  base.splice(last + 1, 0, ...joined);
+  return { ...w, exercises: base.map((x) => (into(x) ? { ...x, supersetId: id } : x)) };
+}
+
+/** The exercises other than `ex` that can be its partner: unstarted and not already in its group. */
+export const supersetPartners = (w: TrackedWorkout, ex: string): TrackedExercise[] => {
+  const a = w.exercises.find((x) => x.rid === ex);
+  return a ? w.exercises.filter((x) => x !== a && (a.supersetId === null || x.supersetId !== a.supersetId)
+    && !(x.supersetId === null ? x.sets.some(isDone) : w.exercises.some((y) => y.supersetId === x.supersetId && y.sets.some(isDone)))) : [];
+};
+
+/**
+ * The next set to train, in round order: a single exercise by its sets, a superset group round by round (A1 B1 A2 B2).
+ * Members without an open set, or skipped, are passed over. null when nothing is open.
+ */
+export function currentSet(w: TrackedWorkout): { ex: string; set: string; round: number } | null {
+  const skipped = (e: TrackedExercise) => e.supersetId !== null && e.effort === 'skip';
+  const work = (e: TrackedExercise) => e.sets.filter((s) => s.type !== 'warmup');
+  /** The index among work sets of the first open work set; -1 when none. */
+  const open = (e: TrackedExercise) => (skipped(e) ? -1 : work(e).findIndex((s) => !isDone(s)));
+  // A warm-up is open only until the exercise has a done work set; later it never blocks the work.
+  const warm = (e: TrackedExercise) => (skipped(e) || work(e).some(isDone) ? undefined : e.sets.find((s) => s.type === 'warmup' && !isDone(s)));
+  for (const e of w.exercises) {
+    const members = e.supersetId === null ? [e] : w.exercises.filter((x) => x.supersetId === e.supersetId);
+    // Warm-ups come before the first round and pair with nothing.
+    for (const x of members) { const s = warm(x); if (s) return { ex: x.rid, set: s.rid, round: 0 }; }
+    const live = members.filter((x) => open(x) >= 0);
+    if (live.length === 0) continue;
+    const best = live.reduce((m, x) => (open(x) < open(m) ? x : m), live[0]!);
+    const k = open(best);
+    return { ex: best.rid, set: work(best)[k]!.rid, round: k + 1 };
+  }
+  return null;
 }
 
 /** Takes one exercise out of its superset; a group left with one exercise is dissolved. */
@@ -259,4 +321,19 @@ export function unlinkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
   const group = e.supersetId;
   const rest = w.exercises.filter((x) => x.rid !== ex && x.supersetId === group);
   return { ...w, exercises: w.exercises.map((x) => (x.rid === ex || (rest.length === 1 && x.supersetId === group) ? { ...x, supersetId: null } : x)) };
+}
+
+/** Moves an exercise one place up (-1) or down (1). A superset group moves as one block past the neighbouring block (a single exercise or a whole group). Rows stay intact. */
+export function moveExercise(w: TrackedWorkout, ex: string, dir: -1 | 1): TrackedWorkout {
+  const blocks: TrackedExercise[][] = [];
+  for (const e of w.exercises) {
+    const last = blocks[blocks.length - 1];
+    if (last && e.supersetId !== null && last[0]!.supersetId === e.supersetId) last.push(e);
+    else blocks.push([e]);
+  }
+  const i = blocks.findIndex((b) => b.some((e) => e.rid === ex));
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= blocks.length) return w;
+  [blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!];
+  return { ...w, exercises: blocks.flat() };
 }

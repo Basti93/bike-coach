@@ -1,5 +1,5 @@
 import type { LoggedWorkout, TrackedRecord } from '../shared/records';
-import { ladderFrom, loadStepId, loadStepRecord, platesPerSide, type LoadStepOverrides } from '../shared/loads';
+import { extendDown, ladderFrom, loadStepId, loadStepRecord, platesPerSide, type LoadStepOverrides } from '../shared/loads';
 import { mainStudio, NO_STUDIOS, type Renames } from '../shared/studio';
 import { dedupeSessions, onePerSession } from '../shared/history';
 import { ruleNumber } from '../shared/training-policy';
@@ -12,11 +12,17 @@ export { hereKey };
  * person's own choice. Only done sets count, and a session known as a record and as kept copies counts once.
  */
 export function stepHere(exerciseId: string, equipment: string, history: readonly LoggedWorkout[], key: string, overrides: LoadStepOverrides, renames: Renames = NO_STUDIOS.renames): { stepKg: number; own: boolean } {
+  const { ladder, learned } = ladderHere(exerciseId, equipment, history, key, overrides, renames);
+  return { stepKg: ladder.stepKg, own: ladder.stepKg !== learned.stepKg || overrides.has(`${exerciseId}|${key}`) };
+}
+
+/** The ladder of an exercise here (steps and anchor) and the learned one without the person's override. */
+export function ladderHere(exerciseId: string, equipment: string, history: readonly LoggedWorkout[], key: string, overrides: LoadStepOverrides, renames: Renames = NO_STUDIOS.renames) {
   const sessions = onePerSession(dedupeSessions([...history]))
     .map((w) => ({ studio: w.studio, startMs: w.startMs, sets: w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((s) => s.doneMs !== null)), has: w.exercises.some((e) => e.exerciseId === exerciseId) }))
     .filter((s) => s.has);
-  const { ladder, learned } = ladderFrom(sessions, { exerciseId, studio: key, main: mainStudio(history, renames), renames }, equipment, overrides);
-  return { stepKg: ladder.stepKg, own: ladder.stepKg !== learned.stepKg || overrides.has(`${exerciseId}|${key}`) };
+  const r = ladderFrom(sessions, { exerciseId, studio: key, main: mainStudio(history, renames), renames }, equipment, overrides);
+  return { ...r, ladder: extendDown(r.ladder, equipment) };
 }
 
 /** "Gewichtsstufen hier: 5 kg (gelernt)". */

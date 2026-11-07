@@ -34,6 +34,17 @@ export function nextUp(w: number, l: Ladder): number {
   return round2(l.anchorKg + (Math.floor((w - l.anchorKg) / l.stepKg + EPS) + 1) * l.stepKg);
 }
 
+/**
+ * The ladder with its lattice continued below the learned anchor (the lightest weight seen): down to the bar for a barbell, else
+ * down to one step. The anchor stays on the lattice; only warm-ups and step-backs can go lighter than anything seen.
+ */
+export function extendDown(l: Ladder, equipment: string): Ladder {
+  const bar = ruleNumber('load.bar-kg');
+  const floor = equipment === 'barbell' && l.anchorKg >= bar ? bar : 0;
+  const below = floor > 0 ? Math.floor((l.anchorKg - floor) / l.stepKg + EPS) : Math.max(0, Math.ceil(l.anchorKg / l.stepKg - EPS) - 1);
+  return { ...l, anchorKg: round2(l.anchorKg - below * l.stepKg) };
+}
+
 /** The largest reachable weight at or below `w`, never below the anchor. */
 export function snapDown(w: number, l: Ladder): number {
   if (w <= l.anchorKg + EPS) return l.anchorKg;

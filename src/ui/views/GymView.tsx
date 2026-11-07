@@ -3,6 +3,7 @@ import type { GymPublic } from '../../coach/gym/public';
 import type { GymExercise, GymSet, GymWorkout } from '../../coach/gym/types';
 import type { CoachClientMessage, GymConfirmResult } from '../../shared/coach-protocol';
 import type { MobilityView } from '../../coach/mobility/mobility';
+import { restOf } from '../../shared/rest';
 import { MobilityCard } from './MobilityCard';
 import { GymOutlook } from '../../tracking/ui/GymOutlook';
 
@@ -38,7 +39,7 @@ const Exercise = ({ e }: { e: GymExercise }) => (
     <ul className="gym-sets">
       {e.sets.map((s, i) => <li key={i}>Satz {i + 1}: {setText(s)}</li>)}
     </ul>
-    {e.restS ? <p className="muted">Pause {e.restS} s</p> : null}
+    <p className="muted">Pause {restOf(e)} s</p>
     {e.notes && <p className="muted">{e.notes}</p>}
   </li>
 );

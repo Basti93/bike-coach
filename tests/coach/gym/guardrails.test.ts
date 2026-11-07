@@ -43,6 +43,16 @@ describe('checkWorkout', () => {
     refused(wo([]));
     refused(wo([ex('cp', [])]));
   });
+  it('warm-up sets do not count toward the set limit', () => {
+    const warm = Array.from({ length: 4 }, () => set(20, 5, 'warmup'));
+    passes(wo([ex('cp', [...warm, ...Array.from({ length: 30 }, () => set(40, 8))])]));
+    refused(wo([ex('cp', [...warm, ...Array.from({ length: 31 }, () => set(40, 8))])]));
+  });
+  it('the plan keeps all its work sets whatever ramps it adds', () => {
+    const plan = ruleWorkout(CTX).workout;
+    expect(plan.exercises.some((e) => e.sets.some((s) => s.type === 'warmup'))).toBe(true);
+    for (const e of plan.exercises) expect(e.sets.filter((s) => s.type !== 'warmup')).toHaveLength(3);
+  });
   it('a weight above suggestNext plus one reachable step is refused', () => {
     passes(wo([ex('cp', [set(40, 9)])]));
     passes(wo([ex('cp', [set(45, 8)])]));
@@ -164,6 +174,12 @@ describe('ruleWorkout', () => {
   const many = (): StrengthWorkout[] => [
     ...two('cp', 40), ...two('lr', 30), ...two('sp', 20), ...two('cu', 15), ...two('hc', 25), ...two('lp', 100), wk(3, 'db', [[10, 8]]),
   ];
+  it('leaves every rest to restOf (restS null)', () => {
+    const ctx: GymContext = { workouts: [...many(), wk(2, 'cp', [[40, 8]]), wk(1, 'cp', [[40, 8]])].map((w) => ({ ...w, startMs: w.startMs - 5 * DAY })), templates: TEMPLATES, nowMs: NOW };
+    const ex = ruleWorkout(ctx).workout.exercises;
+    expect(ex.length).toBeGreaterThan(0);
+    expect(ex.every((e) => e.restS === null)).toBe(true);
+  });
   it('has a recurring core of up to 6 most frequent recent exercises, passes its own check, and has no weights where history is missing', () => {
     const ctx: GymContext = { workouts: [...many(), wk(2, 'cp', [[40, 8]]), wk(1, 'cp', [[40, 8]])].map((w) => ({ ...w, startMs: w.startMs - 5 * DAY })), templates: TEMPLATES, nowMs: NOW };
     const r = ruleWorkout(ctx);
@@ -257,7 +273,7 @@ describe('time budget', () => {
   });
   it('leaves the rule fallback whole without a budget', () => {
     const r = ruleWorkout(CTX);
-    const sets3 = r.workout.exercises.every((e) => e.sets.length === 3);
+    const sets3 = r.workout.exercises.every((e) => e.sets.filter((s) => s.type !== 'warmup').length === 3);
     expect(sets3).toBe(true);
     expect(r.guard).toBeUndefined();
     expect(r.reason).toMatch(/Dauer ca\. \d+ Min\./);

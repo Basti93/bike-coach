@@ -174,6 +174,21 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: 'Ausführung Kniebeuge' }).click();
     await win.waitForTimeout(200);
   } },
+  { name: 'workout-warmup', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1100, steps: async (win) => {
+    // An open workout whose first exercise (barbell squat, 100 kg planned, 2.5 kg steps learned) has not started: the card offers the warm-up ramp.
+    const t = Date.now();
+    const day = 86400000;
+    const ex = (kgs: number[]) => [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: kgs.map((weightKg) => ({ type: 'normal', weightKg, reps: 5, durationS: null, doneMs: null })) }];
+    const mk = (id: string, startMs: number, endMs: number | null, kgs: number[], done: boolean) => ({ kind: 'workout', id, updatedMs: startMs, deleted: false, body: { id, title: 'Beine A', startMs, endMs, source: 'pandafit', studio: 'Studio Mitte', exercises: ex(kgs).map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s, doneMs: done ? startMs + 600000 : null })) })) } });
+    const rows = [mk('h1', t - 9 * day, t - 9 * day + 3600000, [92.5, 95], true), mk('h2', t - 4 * day, t - 4 * day + 3600000, [97.5, 100], true), mk('open', t - 600000, null, [100, 100, 100], false)];
+    await win.evaluate((rs) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map(rs.map((r) => [`workout:${r.id}`, r])); }, rows);
+    await win.getByRole('button', { name: 'Training starten' }).click();
+    await win.waitForTimeout(200);
+    await win.getByRole('button', { name: 'Training fortsetzen' }).click();
+    await win.waitForTimeout(300);
+    await win.getByRole('button', { name: 'Aufwärmen hinzufügen Kniebeuge' }).click();
+    await win.waitForTimeout(300);
+  } },
   { name: 'tracking-proposals', ride: idle(), coach: coach({ gym: GYM }), pick: true, click: 'Kraft', height: 1100, steps: async (win) => {
     // One proposal to confirm, one to change into a new exercise, and one recent link to change or take back.
     await win.evaluate((t) => {

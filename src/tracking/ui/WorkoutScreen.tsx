@@ -1,3 +1,5 @@
+import { restOf, restChoices } from '../../shared/rest';
+import { needsWarmup, warmupRamp, workingWeightOf } from '../../shared/warmup';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
@@ -9,7 +11,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -33,7 +35,7 @@ import { defaultStudio, knownStudios, studioName, studioStateOf } from '../../sh
 import { rememberStudio, renameStudio } from '../studios';
 import { repRangeOf } from '../../shared/muscle-targets';
 import { loadStepOverrides } from '../../shared/loads';
-import { hereKey, plateLine, stepChange, stepHere } from '../steps';
+import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
 
 const NEW_STUDIO = '\u0000new';
 
@@ -113,7 +115,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const remaining = restRemainingS(w, now());
 
   // Opening (or continuing) a workout scrolls once to the exercise with the next open set.
-  const currentRid = w.exercises.find((x) => x.sets.some((st) => st.doneMs === null))?.rid ?? null;
+  const current = currentSet(w);
+  const currentRid = current?.ex ?? null;
   const screenRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = screenRef.current?.querySelector('[aria-current="step"]');
@@ -195,12 +198,12 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       {w.rest && remaining > 0 && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
+          <button type="button" className="tk-skip" onClick={() => act((x) => extendRest(x))}>+30 s</button>
           <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
-      {w.exercises.map((e, ei) => {
-        const nextEx = w.exercises[ei + 1];
-        const canLink = !!nextEx && (e.supersetId === null || e.supersetId !== nextEx.supersetId);
+      {w.exercises.map((e) => {
+        const partners = supersetPartners(w, e.rid);
         const labels = setLabels(e.sets);
         const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
         const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere, studios));
@@ -214,29 +217,42 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         const icon = <MuscleIcon group={resolved.group} />;
         const showInfo = info.has(e.rid);
         const allDone = e.sets.length > 0 && e.sets.every((st) => st.doneMs !== null);
-        const current = e.rid === currentRid;
+        const isCurrent = e.rid === currentRid;
         return (
-          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${current ? ' tk-ex-current' : ''}`} aria-label={e.title}
-            aria-current={current ? 'step' : undefined}>
+          <section key={e.rid} className={`tk-ex card${allDone ? ' tk-ex-done' : ''}${isCurrent ? ' tk-ex-current' : ''}`} aria-label={e.title}
+            aria-current={isCurrent ? 'step' : undefined}>
             <div className="tk-ex-head">
               <span className="tk-ex-icon">{icon}</span>
               <h2>{allDone && <span className="tk-ex-check" aria-hidden="true">✓ </span>}{e.title}</h2>
               {allDone && <span className="tk-ex-badge">Erledigt</span>}
-              {e.supersetId !== null && <span className="muted">Superset</span>}
+              {e.supersetId !== null && <span className="muted">Superset{isCurrent && current && current.round > 0 ? ` · Runde ${current.round}` : ''}</span>}
               <button type="button" className="ghost tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => setMenu(menu === e.rid ? null : e.rid)}>…</button>
             </div>
             {menu === e.rid && (
               <div className="tk-row tk-menu">
                 <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
                   onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
-                {canLink && (
-                  <button type="button" className="secondary" aria-label={`${e.title} als Superset mit ${nextEx!.title}`}
-                    onClick={() => { setMenu(null); act((x) => linkSuperset(x, e.rid)); }}>Superset mit nächster Übung</button>
+                <button type="button" className="secondary" aria-label={`${e.title} nach oben`} disabled={moveExercise(w, e.rid, -1) === w}
+                  onClick={() => act((x) => moveExercise(x, e.rid, -1))}>Nach oben</button>
+                <button type="button" className="secondary" aria-label={`${e.title} nach unten`} disabled={moveExercise(w, e.rid, 1) === w}
+                  onClick={() => act((x) => moveExercise(x, e.rid, 1))}>Nach unten</button>
+                {partners.length > 0 && (
+                  <label className="tk-rest-pick">Supersatz mit{' '}
+                    <select aria-label={`${e.title} als Superset mit …`} value="" onChange={(ev) => { const p = ev.target.value; if (p) { setMenu(null); act((x) => linkWith(x, e.rid, p)); } }}>
+                      <option value="">…</option>
+                      {partners.map((p) => <option key={p.rid} value={p.rid}>{p.title}</option>)}
+                    </select>
+                  </label>
                 )}
                 {e.supersetId !== null && (
                   <button type="button" className="secondary" aria-label={`${e.title} aus dem Superset lösen`}
                     onClick={() => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }}>Aus Superset lösen</button>
                 )}
+                <label className="tk-rest-pick">Pause{' '}
+                  <select aria-label={`Pause ${e.title}`} value={restOf(e, catalog)} onChange={(ev) => act((x) => setRest(x, e.rid, Number(ev.target.value)))}>
+                    {[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n} s</option>)}
+                  </select>
+                </label>
                 <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
                 <button type="button" className="secondary" aria-label={`${e.title} entfernen`}
                   onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
@@ -263,7 +279,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                 plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
                 confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                 onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
-                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
+                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now(), catalog) : unconfirmSet(x, e.rid, s.rid)))}
                 onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
             {effortOn && asksEffort(w, e.rid, history, catalog, studios) && (
@@ -272,6 +288,10 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
             )}
             {e.effort && e.effort !== 'skip' && <p className="muted tk-sub">Noch möglich: {EFFORT_LABEL[e.effort]}</p>}
             <div className="tk-row">
+              {needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0 && (
+                <button type="button" className="secondary" aria-label={`Aufwärmen hinzufügen ${e.title}`}
+                  onClick={() => act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog))}>Aufwärmen hinzufügen</button>
+              )}
               <button type="button" className="secondary" onClick={() => act((x) => addSet(x, e.rid))}>Satz hinzufügen</button>
             </div>
             <NotesField store={store} label={`Notiz zu ${e.title}`} value={e.notes} onCommit={(text) => act((x) => editNotes(x, e.rid, text))} />
