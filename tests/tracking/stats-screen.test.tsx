@@ -31,6 +31,7 @@ const workouts = [
   workout('w1', new Date(2026, 10, 3, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 3),
   workout('w2', new Date(2026, 9, 27, 18).getTime(), 'hevy-odd', 'Seltsame Maschine', 2),
 ];
+const openMuscles = () => { fireEvent.click(screen.getByRole('button', { name: 'Muskeln' })); return screen.getByRole('dialog', { name: 'Muskeln' }); };
 const BAD = /Serie|Streak|Punkte|musst/;
 
 async function show(seed: TrackedRecord[]) {
@@ -41,14 +42,15 @@ async function show(seed: TrackedRecord[]) {
 }
 const openDetails = () => { fireEvent.click(screen.getByRole('button', { name: 'Details' })); return screen.getByRole('dialog', { name: 'Details' }); };
 
-test('the top is one sentence and the muscle list; the numbers wait behind Details', async () => {
+test('the top is the week sentence, the verdicts and two rows; muscles and numbers wait behind them', async () => {
   const { container } = await show([statsRec(statsBody(days)), ...workouts]);
   expect(screen.getByText(`Stand: ${dateLabel(NOW - 3_600_000)}`)).toBeTruthy();
   const week = screen.getByRole('region', { name: 'Diese Woche' });
   expect(within(week).getByText('Diese Woche: 2 Einheiten, 1 Std 10 Min')).toBeTruthy();
-  expect(within(week).getByText('Brust')).toBeTruthy();
-  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
-  expect(week.textContent).not.toMatch(/Locker|Ruhetage|\d+ Minuten/);
+  expect(screen.getByRole('button', { name: 'Muskeln' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Details' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Brust/ })).toBeNull();
+  expect(container.textContent).not.toMatch(/Wenig|Noch nichts|Locker|Ruhetage|\d+ Minuten|Zielbereich/);
   expect(screen.queryByRole('region', { name: 'Letzte 8 Wochen' })).toBeNull();
   expect(screen.queryByRole('table')).toBeNull();
   expect(screen.queryByText(/Ohne bekannten Muskel/)).toBeNull();
@@ -59,16 +61,15 @@ test('Details opens the chart with bars and dates only, the sport minutes and th
   await show([statsRec(statsBody(days)), ...workouts]);
   const sheet = openDetails();
   const last = within(sheet).getByRole('region', { name: 'Letzte 8 Wochen' });
-  expect(within(last).getByRole('img', { name: 'Woche vom 26.10.: 95 Minuten' })).toBeTruthy();
-  expect(within(last).getByRole('img', { name: 'Woche vom 19.10.: 60 Minuten' })).toBeTruthy();
+  expect(within(last).getByRole('img', { name: 'Woche vom 26.10.: 1 Std 35 Min' })).toBeTruthy();
+  expect(within(last).getByRole('img', { name: 'Woche vom 19.10.: 1 Std' })).toBeTruthy();
   expect(last.textContent).toContain('26.10.');
   expect(last.textContent).not.toMatch(/Die Zahl über dem Balken|Locker|Hart/);
   expect(within(last).queryByText('95')).toBeNull();
-  expect(within(sheet).getByText('30 Minuten')).toBeTruthy();
-  expect(within(sheet).getByText('40 Minuten')).toBeTruthy();
+  expect(within(sheet).getByText('30 Min')).toBeTruthy();
+  expect(within(sheet).getByText('40 Min')).toBeTruthy();
+  expect(sheet.textContent).not.toMatch(/Minuten| : /);
   expect(within(sheet).queryByRole('table')).toBeNull();
-  // Every pair is 0 : 0 over the four weeks: none is shown.
-  expect(within(sheet).queryByText(/0 : 0/)).toBeNull();
   expect(within(sheet).getByText('Ohne bekannten Muskel: Seltsame Maschine')).toBeTruthy();
   fireEvent.click(within(sheet).getByRole('button', { name: 'Schließen' }));
   expect(screen.queryByRole('dialog')).toBeNull();
@@ -78,9 +79,9 @@ test('without a stats record: the note, and still the muscle part', async () => 
   const { container } = await show(workouts);
   expect(screen.getByText('Minuten und harte Tage erscheinen nach dem nächsten Lauf des Coaches.')).toBeTruthy();
   expect(screen.queryByText(/^Stand:/)).toBeNull();
-  const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(week).getByText('Brust')).toBeTruthy();
-  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
+  const muscles = openMuscles();
+  expect(within(muscles).getByText('Brust')).toBeTruthy();
+  expect(within(within(muscles).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
   expect(container.textContent).not.toMatch(BAD);
 });
 
@@ -90,8 +91,9 @@ test('a bike-only profile sees no muscle part at all', async () => {
   expect(within(week).getByText('Diese Woche: 1 Einheit, 40 Min')).toBeTruthy();
   expect(container.textContent).not.toMatch(/Sätze|Brust|Rücken|Ohne bekannten Muskel/);
   const sheet = openDetails();
-  expect(within(sheet).getByText('40 Minuten')).toBeTruthy();
+  expect(within(sheet).getByText('40 Min')).toBeTruthy();
   expect(sheet.textContent).not.toMatch(/Sätze|Brust|Rücken/);
+  expect(screen.queryByRole('button', { name: 'Muskeln' })).toBeNull();
   expect(container.textContent).not.toMatch(BAD);
 });
 
@@ -105,11 +107,12 @@ test('statsVisible: a stats record or a finished workout', () => {
   expect(statsVisible([], [open])).toBe(false);
 });
 
-test('a pair with sets is shown, a pair with none on both sides is not', async () => {
-  await show([workout('w3', new Date(2026, 9, 21, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 4)]);
+test('pairs are not listed as numbers; a short side is one plain sentence at the top', async () => {
+  await show([workout('w3', new Date(2026, 9, 21, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 12)]);
+  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  expect(week.textContent).toMatch(/Rücken kommt zu kurz/);
   const sheet = openDetails();
-  expect(within(sheet).getByText('Brust 4 : 0 Rücken')).toBeTruthy();
-  expect(within(sheet).queryByText(/Oberschenkel vorn 0 : 0/)).toBeNull();
+  expect(sheet.textContent).not.toMatch(/ : |Verhältnis/);
 });
 
 test('broken workout bodies next to a good one do not break the page', async () => {
@@ -121,8 +124,8 @@ test('broken workout bodies next to a good one do not break the page', async () 
     { ...good, id: 'b4', body: { ...(good.body as LoggedWorkout), exercises: [{ exerciseId: 'pf-bench-press', title: 'Bankdrücken', sets: null }] } },
   ];
   await show([...broken, good]);
-  const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
+  const muscles = openMuscles();
+  expect(within(within(muscles).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
   expect(statsVisible([], broken.slice(0, 3))).toBe(false);
   expect(statsVisible([], [...broken, good])).toBe(true);
 });
@@ -144,40 +147,35 @@ test('Fortschritt shows one line per area with data and nothing for the rest', a
   render(<StatsScreen port={port} now={() => at} />);
   await screen.findByRole('heading', { name: 'Statistik' });
   const card = within(openDetails()).getByRole('region', { name: 'Fortschritt' });
-  expect(card.textContent).toContain('FTP 210 W · 3,0 W/kg');
-  expect(card.textContent).toContain('+10 W seit 10 Wochen');
-  expect(card.querySelectorAll('dt')).toHaveLength(1);
+  expect(card.textContent).toContain('Rad: FTP 210 W (3,0 W/kg), 10 W mehr als vor 10 Wochen');
+  expect(card.querySelectorAll('li')).toHaveLength(1);
 });
 
-test('rows exist for trained groups; untrained groups are one muted line', async () => {
+test('rows exist for trained groups in the Muskeln sheet; the rest waits behind a link, no list of "Noch nichts" on top', async () => {
   await show([statsRec(statsBody(days)), ...workouts]);
-  const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(within(week).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
-  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
-  const line = within(week).getByText(/^Noch nichts: /);
-  expect(line.textContent).toMatch(/Rücken.*Bizeps/);
-  expect(line.textContent).not.toMatch(/Brust/);
-  expect(within(week).queryByText('Noch nichts', { selector: '.tk-state *, .tk-state' })).toBeNull();
-  fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
-  expect(within(within(week).getByRole('button', { name: /Rücken/ })).getByText('Noch nichts')).toBeTruthy();
-  expect(within(week).queryByText(/^Noch nichts: /)).toBeNull();
+  const sheet = openMuscles();
+  expect(within(within(sheet).getByRole('button', { name: /Brust/ })).getByText('Wenig')).toBeTruthy();
+  expect(within(sheet).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  expect(within(sheet).queryByText(/^Noch nichts: /)).toBeNull();
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
+  expect(within(within(sheet).getByRole('button', { name: /Rücken/ })).getByText('Noch nichts')).toBeTruthy();
 });
 
 test('a new person with no sets in the last 4 weeks is not flooded with "Noch nichts"', async () => {
   await show([workout('old', new Date(2026, 8, 1, 18).getTime(), 'pf-bench-press', 'Bankdrücken', 3)]);
-  const week = screen.getByRole('region', { name: 'Diese Woche' });
-  expect(within(week).queryByText('Noch nichts')).toBeNull();
-  expect(within(week).getByText('Diese Woche noch keine Sätze.')).toBeTruthy();
-  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
-  fireEvent.click(within(week).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
-  expect(within(week).getByRole('button', { name: /Rücken/ })).toBeTruthy();
-  fireEvent.click(within(week).getByRole('button', { name: 'Weniger Muskelgruppen' }));
-  expect(within(week).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  const sheet = openMuscles();
+  expect(within(sheet).queryByText('Noch nichts')).toBeNull();
+  expect(within(sheet).getByText('Diese Woche noch keine Sätze.')).toBeTruthy();
+  expect(within(sheet).queryByRole('button', { name: /Rücken/ })).toBeNull();
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Alle Muskelgruppen anzeigen' }));
+  expect(within(sheet).getByRole('button', { name: /Rücken/ })).toBeTruthy();
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Weniger Muskelgruppen' }));
+  expect(within(sheet).queryByRole('button', { name: /Rücken/ })).toBeNull();
 });
 
 test('tapping a row shows the sets against the target in words; only one row is open', async () => {
   await show([statsRec(statsBody(days)), ...workouts]);
-  const week = screen.getByRole('region', { name: 'Diese Woche' });
+  const week = openMuscles();
   const row = within(week).getByRole('button', { name: /Brust/ });
   expect(row.getAttribute('aria-expanded')).toBe('false');
   expect(week.textContent).not.toMatch(/Sätzen|direkt/);
