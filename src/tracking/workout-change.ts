@@ -75,6 +75,7 @@ export function takeChange(w: TrackedWorkout, id: string, change: WorkoutChange,
     prior: w.exercises.filter((e) => touched.has(e.rid)),
     pos: w.exercises.flatMap((e, i) => (touched.has(e.rid) ? [i] : [])),
     after: next.exercises.filter(isTouched),
+    anchor: w.exercises[Math.min(...w.exercises.flatMap((e, i) => (touched.has(e.rid) ? [i] : [])), w.exercises.length) - 1]?.rid ?? null,
   };
   return { workout: { ...next, changes: [...(w.changes ?? []), entry] }, line };
 }
@@ -99,7 +100,13 @@ export function undoChange(w: TrackedWorkout, id: string): { workout: TrackedWor
   if (refusal || !c) return { workout: w, refusal };
   const mine = rids(c.after as { rid?: string }[]);
   const exercises = w.exercises.filter((e) => !mine.has(e.rid));
-  (c.prior as TrackedWorkout['exercises']).forEach((e, k) => exercises.splice(Math.min(c.pos[k] ?? exercises.length, exercises.length), 0, e));
+  // Where the first row goes: right after the anchor when it is still there (rows may have moved), else the stored index.
+  const found = c.anchor === undefined ? -1 : c.anchor === null ? 0 : exercises.findIndex((e) => e.rid === c.anchor) + 1;
+  const first = c.pos[0] ?? 0;
+  (c.prior as TrackedWorkout['exercises']).forEach((e, k) => {
+    const i = found >= 0 && (c.anchor === null || found > 0) ? found + (c.pos[k] ?? first) - first : c.pos[k] ?? exercises.length;
+    exercises.splice(Math.max(0, Math.min(i, exercises.length)), 0, e);
+  });
   const changes = (w.changes ?? []).filter((x) => x.id !== id);
   const { changes: _old, ...rest } = w;
   return { workout: { ...rest, exercises, ...(changes.length ? { changes } : {}) }, refusal: null };

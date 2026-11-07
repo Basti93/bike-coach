@@ -10,7 +10,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -231,6 +231,10 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
               <div className="tk-row tk-menu">
                 <button type="button" className="secondary" aria-label={`Ausführung ${e.title}`} aria-expanded={showInfo}
                   onClick={() => { setMenu(null); toggleInfo(e.rid); }}>Ausführung</button>
+                <button type="button" className="secondary" aria-label={`${e.title} nach oben`} disabled={moveExercise(w, e.rid, -1) === w}
+                  onClick={() => act((x) => moveExercise(x, e.rid, -1))}>Nach oben</button>
+                <button type="button" className="secondary" aria-label={`${e.title} nach unten`} disabled={moveExercise(w, e.rid, 1) === w}
+                  onClick={() => act((x) => moveExercise(x, e.rid, 1))}>Nach unten</button>
                 {canLink && (
                   <button type="button" className="secondary" aria-label={`${e.title} als Superset mit ${nextEx!.title}`}
                     onClick={() => { setMenu(null); act((x) => linkSuperset(x, e.rid)); }}>Superset mit nächster Übung</button>

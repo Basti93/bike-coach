@@ -230,7 +230,7 @@ export function finish(w: TrackedWorkout, nowMs: number, choice?: FinishChoice):
     ? w.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => (isDone(s) ? s : { ...s, doneMs: endMs })) }))
     : w.exercises;
   // The undo data of a coach change is of no use once the workout is over; the ids stay (a second start must not apply them again).
-  const changes = w.changes?.map((c) => ({ id: c.id, atMs: c.atMs, prior: [], pos: [], after: [] }));
+  const changes = w.changes?.map((c) => ({ id: c.id, atMs: c.atMs, prior: [], pos: [], after: [] })); // anchor left out too
   return { status: 'finished', workout: { ...w, exercises, endMs, rest: null, ...(changes ? { changes } : {}) } };
 }
 
@@ -260,4 +260,19 @@ export function unlinkSuperset(w: TrackedWorkout, ex: string): TrackedWorkout {
   const group = e.supersetId;
   const rest = w.exercises.filter((x) => x.rid !== ex && x.supersetId === group);
   return { ...w, exercises: w.exercises.map((x) => (x.rid === ex || (rest.length === 1 && x.supersetId === group) ? { ...x, supersetId: null } : x)) };
+}
+
+/** Moves an exercise one place up (-1) or down (1). A superset group moves as one block past the neighbouring block (a single exercise or a whole group). Rows stay intact. */
+export function moveExercise(w: TrackedWorkout, ex: string, dir: -1 | 1): TrackedWorkout {
+  const blocks: TrackedExercise[][] = [];
+  for (const e of w.exercises) {
+    const last = blocks[blocks.length - 1];
+    if (last && e.supersetId !== null && last[0]!.supersetId === e.supersetId) last.push(e);
+    else blocks.push([e]);
+  }
+  const i = blocks.findIndex((b) => b.some((e) => e.rid === ex));
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= blocks.length) return w;
+  [blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!];
+  return { ...w, exercises: blocks.flat() };
 }

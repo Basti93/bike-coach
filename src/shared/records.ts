@@ -13,7 +13,7 @@ export type LoggedExercise = { exerciseId: string; title: string; supersetId: nu
  * A coach change taken during the workout, saved in the same write as the changed rows. `prior`: the touched rows before
  * (`pos`: where each stood), `after`: the rows the change produced. Undo needs both. Old records have none.
  */
-export type WorkoutChangeEntry = { id: string; atMs: number; prior: LoggedExercise[]; pos: number[]; after: LoggedExercise[] };
+export type WorkoutChangeEntry = { id: string; atMs: number; prior: LoggedExercise[]; pos: number[]; after: LoggedExercise[]; /** The rid of the row before the first touched row, null at the start. Old entries have none and use `pos`. */ anchor?: string | null };
 export type LoggedWorkout = { id: string; title: string; startMs: number; endMs: number | null; source: 'pandafit' | 'hevy'; exercises: LoggedExercise[]; /** Where it was done (trimmed, at most 40 characters). Old records have none, see shared/studio. */ studio?: string; /** Set on a kept copy (see tracking/kept-copy): the record this version of the session came from. */ keptCopyOf?: string; /** The `updatedMs` of the last version the writing device knew the server had. See tracking/kept-copy. */ baseMs?: number; /** The versions before `baseMs` on this record's line, at most 20. */ ancestors?: number[]; /** Coach changes taken in this workout, see WorkoutChangeEntry. */ changes?: WorkoutChangeEntry[] };
 
 const CHANGE_RANK: Record<string, number> = { proposed: 0, taken: 1, declined: 1, undone: 2, used: 3 };
