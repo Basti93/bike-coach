@@ -5,6 +5,7 @@ import { defaultStudio, mainStudio, studioName, studioKey, resolveStudio, NO_STU
 import { dedupeSessions, onePerSession } from '../shared/history';
 import type { Effort, LoggedExercise, LoggedSet, LoggedWorkout } from '../shared/records';
 import { ladderFrom, snapDown, type LoadStepOverrides } from '../shared/loads';
+import { restAfterSet, restChoices, restExtendS } from '../shared/rest';
 import { applyNextChanges, LIGHTER_PCT, listedIds, type NextChange } from '../shared/changes';
 import type { GymExercise, GymWorkout } from '../coach/gym/types';
 
@@ -15,7 +16,6 @@ export type TrackedExercise = Omit<LoggedExercise, 'sets'> & { rid: string; sets
 /** Stored as the record body. `rest` keeps the timer start, so a reload continues it. Rows have stable ids (`rid`). */
 export type TrackedWorkout = Omit<LoggedWorkout, 'exercises'> & { exercises: TrackedExercise[]; rest?: { startMs: number; durationS: number } | null };
 
-export const DEFAULT_REST_S = 90;
 export const STALE_OPEN_MS = 6 * 3_600_000;
 export type FinishChoice = 'complete' | 'omit' | 'discard';
 export type FinishResult =
@@ -164,16 +164,17 @@ function mapSet(w: TrackedWorkout, ex: string, set: string, f: (s: TrackedSet) =
   return mapEx(w, ex, (x) => ({ ...x, sets: x.sets.map((s) => (s.rid === set ? f(s) : s)) }));
 }
 
-export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: number): TrackedWorkout {
-  const e = w.exercises.find((x) => x.rid === ex);
+export function confirmSet(w: TrackedWorkout, ex: string, set: string, nowMs: number, catalog: readonly Exercise[] = EXERCISES): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: nowMs }));
   if (next === w) return w;
-  // In a superset the rest comes after the last exercise of the round: none while a later one of the group still has an open set.
-  const i = next.exercises.findIndex((x) => x.rid === ex);
-  const group = e?.supersetId ?? null;
-  const goOn = group !== null && next.exercises.slice(i + 1).some((x) => x.supersetId === group && x.sets.some((s) => s.doneMs === null));
-  return { ...next, rest: goOn ? null : { startMs: nowMs, durationS: e?.restS ?? DEFAULT_REST_S } };
+  const setIndex = next.exercises.find((x) => x.rid === ex)?.sets.findIndex((s) => s.rid === set) ?? 0;
+  const durationS = restAfterSet(next, ex, setIndex, catalog);
+  return { ...next, rest: durationS === null ? null : { startMs: nowMs, durationS } };
 }
+/** Adds the extension (30 s) to the running rest. No rest running changes nothing. */
+export const extendRest = (w: TrackedWorkout, s: number = restExtendS()): TrackedWorkout => (w.rest ? { ...w, rest: { ...w.rest, durationS: w.rest.durationS + s } } : w);
+/** Sets the rest of one exercise (one of the offered choices); the next confirmed set uses it. */
+export const setRest = (w: TrackedWorkout, ex: string, s: number): TrackedWorkout => (restChoices().includes(s) ? mapEx(w, ex, (x) => ({ ...x, restS: s })) : w);
 export function unconfirmSet(w: TrackedWorkout, ex: string, set: string): TrackedWorkout {
   const next = mapSet(w, ex, set, (s) => ({ ...s, doneMs: null }));
   return next === w ? w : { ...next, rest: null };

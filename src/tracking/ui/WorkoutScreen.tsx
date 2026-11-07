@@ -1,3 +1,4 @@
+import { restOf, restChoices } from '../../shared/rest';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GymWorkout } from '../../coach/gym/types';
 import type { Exercise } from '../../shared/exercises';
@@ -9,7 +10,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, confirmSet, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkSuperset, unlinkSuperset, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -195,6 +196,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       {w.rest && remaining > 0 && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
           <span>Pause {clock(remaining)}</span>
+          <button type="button" className="tk-skip" onClick={() => act((x) => extendRest(x))}>+30 s</button>
           <button type="button" className="tk-skip" onClick={() => act((x) => ({ ...x, rest: null }))}>Pause überspringen</button>
         </div>
       )}
@@ -237,6 +239,11 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                   <button type="button" className="secondary" aria-label={`${e.title} aus dem Superset lösen`}
                     onClick={() => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }}>Aus Superset lösen</button>
                 )}
+                <label className="tk-rest-pick">Pause{' '}
+                  <select aria-label={`Pause ${e.title}`} value={restOf(e, catalog)} onChange={(ev) => act((x) => setRest(x, e.rid, Number(ev.target.value)))}>
+                    {[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{n} s</option>)}
+                  </select>
+                </label>
                 <button type="button" className="secondary" aria-label={`${e.title} tauschen`} onClick={() => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }}>Tauschen</button>
                 <button type="button" className="secondary" aria-label={`${e.title} entfernen`}
                   onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button>
@@ -263,7 +270,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                 plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
                 confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                 onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
-                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now()) : unconfirmSet(x, e.rid, s.rid)))}
+                onToggle={() => act((x) => (s.doneMs === null ? confirmSet(x, e.rid, s.rid, now(), catalog) : unconfirmSet(x, e.rid, s.rid)))}
                 onRemove={() => act((x) => removeSet(x, e.rid, s.rid))} />
             ))}
             {effortOn && asksEffort(w, e.rid, history, catalog, studios) && (

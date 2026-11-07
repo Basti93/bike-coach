@@ -4,20 +4,21 @@ import { repRangeOf } from '../../shared/muscle-targets';
 import { LEG_MUSCLES, availableExercises, isRepBased, recentLegWork, suggestNext } from './history';
 import { isExcluded } from '../../shared/excluded';
 import { checkWorkout, type GymContext } from './guardrails';
+import { restOf } from '../../shared/rest';
 import { durationNote, gymLimit, gymMinutes } from '../../shared/duration';
 
 const DAY_MS = 86_400_000;
 const CORE_SIZE = 6;
 const SETS = 3;
 const START_REPS = 10;
-const REST_S = 90;
 const FALLBACK_MUSCLES = ['quadriceps', 'chest', 'lats', 'front_delts', 'side_delts', 'hamstrings', 'triceps', 'biceps'];
 
 function exerciseOf(t: ExerciseTemplate, ctx: GymContext): GymExercise {
   const s = suggestNext(t.id, ctx.workouts, ctx.nowMs, t, { studio: ctx.studio, overrides: ctx.overrides, renames: ctx.renames });
   const range = repRangeOf(t);
   const reps = s.why === 'none' ? Math.min(range.max, Math.max(range.min, START_REPS)) : s.reps;
-  return { templateId: t.id, title: t.title, restS: REST_S, supersetId: null, notes: '', sets: Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps })) };
+  const sets = Array.from({ length: SETS }, () => ({ type: 'normal' as const, weightKg: s.weightKg, reps }));
+  return { templateId: t.id, title: t.title, restS: restOf({ templateId: t.id, title: t.title, sets }, [t]), supersetId: null, notes: '', sets };
 }
 
 type Plan = { workout: GymWorkout; reason: string };
