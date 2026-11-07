@@ -1,4 +1,4 @@
-import { policyRule } from './training-policy';
+import { policyRule, ruleNumber } from './training-policy';
 
 /**
  * Weekly working sets and rep ranges per muscle group.
@@ -59,8 +59,12 @@ export function muscleGroupOf(e: { primaryMuscle: string | null | undefined }): 
 export const repRangeOf = (e: { primaryMuscle: string | null | undefined }): { min: number; max: number } => MUSCLE_TARGETS[muscleGroupOf(e)].reps;
 
 /** The weekly set range for a group: the building range for a muscle goal, the minimum effective range otherwise. */
-export const weeklySetRange = (g: MuscleGroup, goal: string | null | undefined): { min: number; max: number } =>
-  goal === 'muscle' ? MUSCLE_TARGETS[g].muscle : MUSCLE_TARGETS[g].other;
+export function weeklySetRange(g: MuscleGroup, goal: string | null | undefined, focus: readonly MuscleGroup[] = []): { min: number; max: number } {
+  const r = goal === 'muscle' ? MUSCLE_TARGETS[g].muscle : MUSCLE_TARGETS[g].other;
+  if (!focus.includes(g)) return r;
+  const f = ruleNumber('muscle.focus-factor');
+  return { min: Math.round(r.min * f), max: Math.round(r.max * f) };
+}
 
 export type MusclePair = { a: MuscleGroup[]; b: MuscleGroup[]; label: string };
 const sideLabel = (side: MuscleGroup[]) => side.map((g) => LABELS[g]).join(' und ');

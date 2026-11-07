@@ -249,7 +249,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     try { ratings = ratingsOf(id, dates, run.runsFor(id)); } catch { /* no ratings: the advice goes by the plan */ }
     let readiness: TodayContext['readiness'];
     try { const data = garminData(id); if (data) readiness = { restingHrRaised: restingHrRaised(data.days) }; } catch { /* no body data */ }
-    return { ratings, goal: goalOfProfile(records, id), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
+    return { ratings, goal: goalOfProfile(records, id, dateKey(now)), frame: frameOfProfile(records, id, dateKey(now)), ...(readiness ? { readiness } : {}) };
   };
   /** What fits today for a profile, with the bike rides in the ratings; null when it cannot be told. */
   const adviceOf = (id: string): PublishedAdvice | null => {
@@ -267,7 +267,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     const content = statsContent({
       nowMs: nowMs(), rides: coach.state(id).summaries, history: gym.history(id), runs,
       mobility: records.all(id, 'mobility'), activities: garminData(id)?.activities ?? [],
-      ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id).strength,
+      ratings: (dates) => ratingsOf(id, dates, runs), goal: goalOfProfile(records, id, dateKey(nowMs())).strength,
       templateMuscle: (templateId) => gym.templateMuscle(id, templateId),
       ftp: coach.state(id).ftpHistory, weightKg: profiles().find((p) => p.id === id)?.weightKg ?? null,
     });
@@ -279,7 +279,7 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
   const planSeen = new PlanSeen(path.join(coachDir, 'chat', 'plan-seen.json'));
   // A change of the person's rules or goal makes the coaches plan again, like a new week plan. No records: no key, no replan.
   const personalSeen = new PlanSeen(path.join(coachDir, 'chat', 'personal-seen.json'));
-  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'));
+  const personalKey = (id: string): string => personalKeyOf(records.all(id, 'rule'), records.all(id, 'goal'), records.all(id, 'frame'), dateKey(nowMs()));
   // Today's advice changing (a new day, tired legs, a raised pulse) makes the coaches plan again, at most about once a day. The first sighting only counts.
   const adviceSeen = new PlanSeen(path.join(coachDir, 'chat', 'advice-seen.json'));
   // The week conversation and the evening suggestion, only when the rider switched them on.

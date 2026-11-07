@@ -47,7 +47,7 @@ export function ratingsFromRecords(workouts: LoggedWorkout[], runWeeks: RunWeekB
 /** What fits today, from the app's own records. No readiness here. */
 export function useTodayAdvice(port: TrackingPort, nowMs: number): { advice: TodayAdvice; ratings: Record<string, DayRating> } & ReturnType<typeof useFrame> {
   const fr = useFrame(port, nowMs);
-  const goal = useGoal(port);
+  const goal = useGoal(port, nowMs);
   const catalog = useCatalog(port);
   const workouts = usePortRecords(port, 'workout').records;
   const runs = usePortRecords(port, 'run').records;

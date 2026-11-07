@@ -312,7 +312,7 @@ export class RunCoach {
     const numbers = runNumbers(ctx.runs, [...ctx.weeks.values()], now);
     const ask = async (rejection?: string): Promise<unknown> => {
       const raw = await this.deps.ask({
-        prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? '') + personalHint(this.deps.store, id, 'run'),
+        prompt: buildRunPrompt({ rule, runs: ctx.runs, numbers, complaint: ctx.mode, days, nowMs: now, allowedDates, ...(rejection ? { rejection } : {}) }) + (this.deps.planHint?.(id) ?? '') + personalHint(this.deps.store, id, 'run', dateKey(new Date(now))),
         systemPrompt: RUN_SYSTEM_PROMPT, schema: runAnswerJsonSchema,
       });
       // Tasks for the other coaches; never in the way of the run plan.

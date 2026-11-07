@@ -16,6 +16,7 @@ import type { Renames } from '../../shared/studio';
 import { TASKS_GUIDE, zTasks } from '../coach-tasks';
 import { restMid } from '../../shared/rest';
 import { goalOf, priorityLine, wishLine, type GoalBody } from '../../shared/personal';
+import { dateKey } from '../../shared/day-rating';
 
 const EFFORT_WORDS = { none: '0', some: '1–2', plenty: '3 oder mehr' } as const;
 
@@ -96,11 +97,11 @@ export function buildGymPrompt(i: PromptInput): string {
   const titleOf = new Map(i.workouts.flatMap((w) => w.exercises.map((e) => [e.templateId, e.title] as const)));
   const byId = new Map(i.templates.map((t) => [t.id, t]));
   const excluded = i.excluded ?? new Set<string>();
-  const goal = i.goal ?? goalOf([]);
+  const goal = i.goal ?? goalOf([], dateKey(i.nowMs));
   const available = history.filter((a) => { const t = byId.get(a.templateId); return !!t && isRepBased(t) && !excluded.has(a.templateId); });
   const knownIds = new Set(available.map((a) => a.templateId));
   const equipment = new Set(available.filter((a) => a.recent).map((a) => byId.get(a.templateId)?.equipment).filter((e): e is string => !!e));
-  const volume = muscleVolume(i.workouts, i.templates, i.catalog ?? [], i.nowMs, goal.strength);
+  const volume = muscleVolume(i.workouts, i.templates, i.catalog ?? [], i.nowMs, goal.strength, goal.focus);
   const sums = Object.fromEntries(volume.map((g) => [g.group, g.effective28]));
   const blocks = [
     dataBlock('training', shown.map((w) => ({

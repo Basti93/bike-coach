@@ -5,8 +5,8 @@ type Reader = { all(profileId: string, kind?: 'rule' | 'goal'): TrackedRecord[] 
 type Writer = Reader & { put(profileId: string, r: TrackedRecord): unknown };
 
 /** Read only, like the changes: the coaches never write the person's goal or rules (except the one-time migration below). */
-export function goalOfProfile(store: Reader, profileId: string) {
-  try { return goalOf(store.all(profileId, 'goal')); } catch { return goalOf([]); }
+export function goalOfProfile(store: Reader, profileId: string, today: string) {
+  try { return goalOf(store.all(profileId, 'goal'), today); } catch { return goalOf([], today); }
 }
 export function excludedOf(store: Reader, profileId: string): Set<string> {
   try { return excludedIds(store.all(profileId, 'rule')); } catch { return new Set(); }
@@ -16,8 +16,8 @@ export function wishesOf(store: Reader, profileId: string, sport: SportKey): str
 }
 
 /** The run and bike prompt addition: the sport priorities and the wishes for this sport, one line each. '' when there are none. */
-export function personalHint(store: Reader, profileId: string, sport: SportKey): string {
-  const lines = [priorityLine(goalOfProfile(store, profileId)), wishLine(wishesOf(store, profileId, sport))].filter((x): x is string => x !== null);
+export function personalHint(store: Reader, profileId: string, sport: SportKey, today: string): string {
+  const lines = [priorityLine(goalOfProfile(store, profileId, today)), wishLine(wishesOf(store, profileId, sport))].filter((x): x is string => x !== null);
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
 

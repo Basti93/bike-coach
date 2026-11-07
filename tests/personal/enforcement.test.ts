@@ -129,12 +129,12 @@ describe('wishes reach the prompts of their sport', () => {
 
   it('bike and run hints carry their wishes and the priority line only', () => {
     const s = store(records);
-    expect(personalHint(s, 'p', 'bike')).toContain('keine Intervalle am Sonntag');
-    expect(personalHint(s, 'p', 'bike')).toContain('Rad erhalten');
-    expect(personalHint(s, 'p', 'bike')).not.toContain('Wald');
-    expect(personalHint(s, 'p', 'run')).toContain('lieber im Wald');
-    expect(personalHint(s, 'p', 'run')).not.toContain('pausiert');
-    expect(personalHint(store(), 'p', 'run')).toBe('');
+    expect(personalHint(s, 'p', 'bike', '2026-11-04')).toContain('keine Intervalle am Sonntag');
+    expect(personalHint(s, 'p', 'bike', '2026-11-04')).toContain('Rad erhalten');
+    expect(personalHint(s, 'p', 'bike', '2026-11-04')).not.toContain('Wald');
+    expect(personalHint(s, 'p', 'run', '2026-11-04')).toContain('lieber im Wald');
+    expect(personalHint(s, 'p', 'run', '2026-11-04')).not.toContain('pausiert');
+    expect(personalHint(store(), 'p', 'run', '2026-11-04')).toBe('');
   });
 
   it('gym prompt and chat prompt carry them', async () => {

@@ -91,17 +91,17 @@ test('a goal proposal writes the goal record on take, merged into the current go
   const { recs, store, coach } = setup({ kind: 'goal', text: 'Mehr Kraft, Schwerpunkt Brust', sport: 'all', goal: { strength: 'strength', focus: ['chest'] } });
   recs.set('goal:goal', goalRecord({ strength: 'muscle', focus: [], sports: { run: 'keep' } }, 5));
   await coach.tick('p');
-  expect(goalOfProfile(store as never, 'p').strength).toBe('muscle');
+  expect(goalOfProfile(store as never, 'p', '2026-11-04').strength).toBe('muscle');
   const { port, map } = fakePort([...recs.values()]);
   render(<CoachScreen port={port} {...env} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
   await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
-  const g = goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p');
+  const g = goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p', '2026-11-04');
   expect(g).toEqual({ strength: 'strength', focus: ['chest'], sports: { run: 'keep' } });
   // Rückgängig restores the prior goal while it is unchanged since
   fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
   await waitFor(() => expect(map.get('rule:rule-m1')!.deleted).toBe(true));
-  expect(goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p')).toEqual({ strength: 'muscle', focus: [], sports: { run: 'keep' } });
+  expect(goalOfProfile({ all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never, 'p', '2026-11-04')).toEqual({ strength: 'muscle', focus: [], sports: { run: 'keep' } });
 });
 
 test('a goal Rückgängig is refused once the goal changed since', async () => {
@@ -136,4 +136,25 @@ test('an unreadable goal draft is dropped', async () => {
   const { recs, coach } = setup({ kind: 'goal', text: 'x', sport: 'all', goal: { strength: 'bogus' } });
   await coach.tick('p');
   expect([...recs.keys()].some((k) => k.startsWith('rule:'))).toBe(false);
+});
+
+test('a goal proposal with weeks writes a temporary focus and leaves the base; Rückgängig restores it', async () => {
+  const { recs, coach } = setup({ kind: 'goal', text: 'Vier Wochen Rücken', sport: 'all', goal: { focus: ['back'], weeks: 4 } });
+  recs.set('goal:goal', goalRecord({ strength: 'muscle', focus: ['chest'], sports: {} }, 5));
+  await coach.tick('p');
+  expect(recs.get('rule:rule-m1')!.body).toMatchObject({ kind: 'goal', goal: { focus: ['back'], weeks: 4 } });
+  const { port, map } = fakePort([...recs.values()]);
+  render(<CoachScreen port={port} {...env} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Übernehmen' }));
+  await waitFor(() => expect(state(map, 'rule-m1')).toBe('active'));
+  const all = { all: (_i: string, k?: string) => [...map.values()].filter((r) => r.kind === k) } as never;
+  const stored = map.get('goal:goal')!.body as { focus: string[]; temporary: { focus: string[]; until: string } };
+  expect(stored.focus).toEqual(['chest']);
+  expect(stored.temporary).toEqual({ focus: ['back'], until: '2026-12-02' });
+  expect(goalOfProfile(all, 'p', '2026-11-04').focus).toEqual(['back']);
+  expect(goalOfProfile(all, 'p', '2026-12-03').focus).toEqual(['chest']);
+  fireEvent.click(await screen.findByRole('button', { name: 'Rückgängig' }));
+  await waitFor(() => expect(map.get('rule:rule-m1')!.deleted).toBe(true));
+  expect((map.get('goal:goal')!.body as { temporary?: unknown }).temporary).toBeUndefined();
+  expect(goalOfProfile(all, 'p', '2026-11-04').focus).toEqual(['chest']);
 });
