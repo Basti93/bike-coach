@@ -230,3 +230,16 @@ describe('backup-coach.sh with a stub docker', () => {
     expect(spawnSync('sh', ['-c', `ls ${r.dir}/b | grep -c tar.gz`], { encoding: 'utf8' }).stdout.trim()).toBe('0');
   });
 });
+
+test('mail: the coach joins the external mail network; the token comes from .env only', () => {
+  const { services, networks } = compose();
+  const coach = services.coach!;
+  expect(coach.networks).toContain('homeserver-mail');
+  expect(networks['homeserver-mail']).toEqual({ external: true, name: 'homeserver-mail' });
+  expect(coach.environment!.MAIL_URL).toBe('http://homeserver-mail:8080');
+  expect(coach.environment!.MAIL_TOKEN).toBe('${PANDAFIT_MAIL_TOKEN:-}');
+  expect(coach.environment!.PANDAFIT_APP_URL).toBe('${PANDAFIT_APP_URL:-}');
+  expect(services.api!.networks).not.toContain('homeserver-mail');
+  expect(read('web-server/.env.example')).toMatch(/^PANDAFIT_MAIL_TOKEN=$/m);
+  expect(read('web-server/README.md')).toContain('PANDAFIT_MAIL_TOKEN');
+});

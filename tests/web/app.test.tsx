@@ -83,6 +83,38 @@ describe('web app', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /^\p{L}+, \d+\. \p{L}+$/u })).toBeTruthy();
   });
 
+  it('Profil: the e-mail address saves and removes, the weekly switch needs an address', async () => {
+    const a = await boot({ account: 'anna', seed: [] });
+    fireEvent.click(await screen.findByRole('button', { name: 'Profil' }));
+    const sw = await screen.findByRole('switch', { name: 'Wochenübersicht per E-Mail' }) as HTMLInputElement;
+    expect(sw.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /E-Mail\s*keine/ }));
+    const input = await screen.findByLabelText('E-Mail-Adresse');
+    expect(input.getAttribute('type')).toBe('email');
+    expect(input.getAttribute('autocomplete')).toBe('email');
+    fireEvent.change(input, { target: { value: 'kein-mail' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    expect(await screen.findByText('Bitte eine gültige Adresse')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Entfernen' })).toBeNull();
+    fireEvent.change(input, { target: { value: 'a@example.org' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    expect(await screen.findByRole('button', { name: /E-Mail\s*a@example\.org/ })).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole('switch', { name: 'Wochenübersicht per E-Mail' }) as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('switch', { name: 'Wochenübersicht per E-Mail' }));
+    await waitFor(() => expect((screen.getByRole('switch', { name: 'Wochenübersicht per E-Mail' }) as HTMLInputElement).checked).toBe(true));
+    await waitFor(async () => {
+      const s = await openIdb('anna', a.factory);
+      const rec = (await s.list('contact')).find((r) => r.id === 'contact');
+      s.close();
+      expect(rec?.body).toMatchObject({ email: 'a@example.org', weekly: true });
+    });
+    fireEvent.click(screen.getByRole('button', { name: /E-Mail\s*a@example\.org/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Entfernen' }));
+    expect(await screen.findByRole('button', { name: /E-Mail\s*keine/ })).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole('switch', { name: 'Wochenübersicht per E-Mail' }) as HTMLInputElement).disabled).toBe(true));
+    expect((screen.getByRole('switch', { name: 'Wochenübersicht per E-Mail' }) as HTMLInputElement).checked).toBe(false);
+  });
+
   it('storage persistence is requested at login, and a refusal gets a single calm line', async () => {
     const a = await boot({ me: 401, persist: false });
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'anna' } });

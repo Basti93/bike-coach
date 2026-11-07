@@ -6,6 +6,7 @@ import { askRemote } from '../remote-claude-client';
 import { secretKeyFrom } from '../secrets/secret-box';
 import { buildCoachServer } from './http';
 import type { FastifyInstance } from 'fastify';
+import { mailConfigOf, type MailConfig } from '../mail-client';
 import { Household, type HouseholdOptions } from './household';
 
 const SCAN_MS = 10_000;
@@ -18,6 +19,8 @@ export type CoachServerConfig = {
   claudeBin: string | undefined; python: string; garminScripts: string;
   /** The home server's AI service (heimserver ki/). When set, Claude never runs in this container. */
   aiUrl?: string; aiToken?: string;
+  /** The home server's mail service (MAIL_URL, MAIL_TOKEN, PANDAFIT_APP_URL); absent: no mail. */
+  mail?: MailConfig;
   /** The restore drill: no scan, no Claude, no Hevy and no Garmin. */
   dry: boolean;
 };
@@ -31,6 +34,7 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT ist ungültig');
   const aiUrl = env.PANDAFIT_AI_URL || undefined;
   const aiToken = env.PANDAFIT_AI_TOKEN;
+  const mail = mailConfigOf(env);
   if (aiUrl && (typeof aiToken !== 'string' || !HEX_TOKEN.test(aiToken))) throw new Error('PANDAFIT_AI_TOKEN fehlt oder ist ungültig (64 Hex-Zeichen)');
   return {
     port, host: env.HOST ?? '0.0.0.0',
@@ -42,6 +46,7 @@ export const readCoachServerConfig = (env: Record<string, string | undefined>): 
     garminScripts: env.PANDAFIT_GARMIN_SCRIPTS ?? '/app/scripts/garmin',
     dry: env.PANDAFIT_COACH_DRY === '1',
     ...(aiUrl ? { aiUrl, aiToken } : {}),
+    ...(mail ? { mail } : {}),
   };
 };
 
@@ -53,6 +58,8 @@ export const householdOptions = (config: CoachServerConfig): HouseholdOptions =>
     root: config.root, secretKey: config.secretKey, runDir: RUN_DIR,
     python: config.python, garminScripts: config.garminScripts,
     apiUrl: config.apiUrl, internalToken: config.internalToken,
+    // In the dry run nothing leaves the container.
+    ...(config.mail && !config.dry ? { mail: config.mail } : {}),
     // askClaude ends every call at its timeout, so the household's one-at-a-time lock never stays held.
     ask: config.dry ? async () => refuse('Claude')()
       : config.aiUrl ? async (input) => askRemote(input, { url: config.aiUrl as string, token: config.aiToken as string })

@@ -3,7 +3,8 @@ import { STATE_LABELS, type GroupBalance } from '../../shared/muscle-balance';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import { readStats, SPORTS, STATS_ID, type Sport, type StatsBody } from '../../shared/stats';
 import type { TrackingPort } from '../ports';
-import { statsView, wellFormed, type StatsView, type WeekStats } from '../stats';
+import { statsView, weekMinutes, weekSessions, wellFormed, type StatsView, type WeekStats } from '../stats';
+import { durationText } from '../../shared/duration';
 import { finishedWorkouts, useCatalog, useGoal, usePortRecords } from './hooks';
 import { dateLabel } from './labels';
 import { MuscleIcon } from './MuscleIcon';
@@ -13,9 +14,7 @@ import { PageHead, Row, RowList, Sheet } from './kit';
 
 const SPORT_LABEL: Record<Sport, string> = { bike: 'Rad', strength: 'Kraft', run: 'Laufen', mobility: 'Mobility', other: 'Andere' };
 const shortDate = (iso: string) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.`;
-const weekTotal = (w: WeekStats) => SPORTS.reduce((a, s) => a + w.minutes[s], 0);
-/** "2 Std 10 Min", "40 Min". */
-const durationText = (n: number) => { const m = Math.round(n); return m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`; };
+const weekTotal = weekMinutes;
 /** The pair verdict "Schulter vorn 3 Sätze, Schulter hinten 12: Schulter vorn kommt zu kurz." reads without the numbers; other verdicts stay as they are. */
 const verdictText = (t: string) => t.match(/^.+ [\d.,]+ Sätze, .+ [\d.,]+: (.+)$/)?.[1] ?? t;
 /** Finished workouts the page can count; a broken body is skipped. */
@@ -150,9 +149,8 @@ export function StatsScreen({ port, now }: { port: TrackingPort; now: () => numb
   const muscles = workouts.length > 0;
   const weeks = v.weeks.slice(0, v.weeks.length - 1);
   const minutes = v.sports.length > 0;
-  // "Einheiten": the days of this week with any minutes.
   const w = v.thisWeek;
-  const sessions = (stats?.days ?? []).filter((d) => d.date >= w.weekStart && SPORTS.some((x) => d.minutes[x] > 0)).length;
+  const sessions = weekSessions(stats, w);
   const total = weekTotal(w);
   const sentence = total > 0 || sessions > 0
     ? `Diese Woche: ${sessions} ${sessions === 1 ? 'Einheit' : 'Einheiten'}, ${durationText(total)}`

@@ -1,6 +1,15 @@
 import { pathToFileURL } from 'node:url';
 import { createAccount, listDevices, revokeDevice, setPassword } from './auth';
 import { newGeneration, openDb } from './db';
+import { putRecords } from './records';
+import { contactOf, contactRecord, isEmail } from '../src/shared/contact';
+import type { TrackedRecord } from '../src/shared/records';
+
+/** The stored contact record of an account, or undefined. */
+const storedContact = (db: ReturnType<typeof openDb>, accountId: number): TrackedRecord | undefined => {
+  const r = db.prepare("SELECT kind, id, updated_ms, deleted, body FROM records WHERE account_id = ? AND kind = 'contact' AND id = 'contact'").get(accountId) as { kind: 'contact'; id: string; updated_ms: number; deleted: number; body: string } | undefined;
+  return r ? { kind: r.kind, id: r.id, updatedMs: r.updated_ms, deleted: r.deleted === 1, body: JSON.parse(r.body) as unknown } : undefined;
+};
 
 export type Io = { readPassword: () => Promise<string>; out: (s: string) => void };
 
@@ -34,7 +43,19 @@ export const run = async (args: string[], dbPath: string, io: Io): Promise<numbe
       if (!account) throw new Error('list-kept needs the --name of an account');
       const rows = db.prepare('SELECT kind, id, updated_ms, deleted, stale, at_ms, body FROM overwritten WHERE account_id = ? ORDER BY n').all(account.id) as { kind: string; id: string; updated_ms: number; deleted: number; stale: number; at_ms: number; body: string }[];
       for (const r of rows) io.out([r.kind, r.id, r.updated_ms, r.deleted ? 'gelöscht' : 'vorhanden', r.stale ? 'veraltet gesendet' : 'überschrieben', new Date(r.at_ms).toISOString(), r.body].join('\t'));
-    } else throw new Error('commands: create-account --name <n> [--force], set-password --name <n>, list-devices, revoke-device --id <id>, list-kept --name <n>, new-generation');
+    } else if (cmd === 'set-contact') {
+      const [, name, email, w, state] = args;
+      if (!name || !email || (w !== undefined && (w !== 'weekly' || (state !== 'on' && state !== 'off')))) throw new Error('set-contact <profileName> <email|-> [weekly on|off]');
+      if (email !== '-' && !isEmail(email)) throw new Error('not a valid email address');
+      const account = db.prepare('SELECT id FROM accounts WHERE name = ?').get(name) as { id: number } | undefined;
+      if (!account) throw new Error('no such account');
+      const have = storedContact(db, account.id);
+      const was = have && !have.deleted ? contactOf([have]) : { email: null, weekly: false };
+      const next = email === '-' ? { email: null, weekly: false } : { email, weekly: state ? state === 'on' : was.weekly };
+      const res = putRecords(db, account.id, [contactRecord(next, Date.now(), have)], Date.now());
+      if (res.accepted !== 1) throw new Error('the record was not accepted');
+      io.out(next.email === null ? 'contact removed' : `contact saved; weekly mail ${next.weekly ? 'on' : 'off'}`);
+    } else throw new Error('commands: create-account --name <n> [--force], set-password --name <n>, list-devices, revoke-device --id <id>, list-kept --name <n>, set-contact <profileName> <email|-> [weekly on|off], new-generation');
     return 0;
   } catch (e) {
     io.out(`error: ${(e as Error).message}`);

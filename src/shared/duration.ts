@@ -39,3 +39,6 @@ export const gymLimit = (budgetMinutes: number): number => budgetMinutes * (1 + 
 
 /** The words for the plan reason and card. */
 export const durationNote = (w: TimedWorkout, catalog: readonly Exercise[] = EXERCISES): string => `ca. ${gymMinutes(w, catalog)} Min`;
+
+/** "2 Std 10 Min", "40 Min". */
+export const durationText = (n: number): string => { const m = Math.round(n); return m >= 60 ? `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ''}` : `${m} Min`; };

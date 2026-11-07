@@ -249,6 +249,18 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** sechs Tabs bleiben (größer), keine Langdruck-Gesten, „Wie oft pro Woche“ beim Laufen bleibt; Begriffe: Verlauf = vergangene Trainings, Entwicklung = eine Übung über Zeit, Übungen = Katalog.
 
+## Meilenstein M — Brief (07.11.2026)
+
+**Ziel:** Jede Person bekommt am Sonntagabend ihre Wochenübersicht per E-Mail: was die letzte Woche war und was die nächste bringt. Die Adresse steht im Profil und lässt sich dort selbst ändern.
+
+**Abnahme:**
+1. Im Profil gibt es „E-Mail“ (ändern, leeren) und einen Schalter „Wochenübersicht per E-Mail“. Beides ist synchronisiert.
+2. Sonntags ab 18 Uhr (Regelregister) verschickt der Coach-Server einmal pro Person und Woche eine kurze Mail: Rückblick (Einheiten, Zeit, was auffiel), nächste Woche Tag für Tag, offene Vorschläge als Hinweis, Link zur App. Kein Versand ohne Adresse, ohne Schalter oder ohne Mail-Zugang.
+3. Der Mail-Dienst des Heimservers erlaubt einem berechtigten Client genau einen Empfänger pro Mail; Tageslimit und Protokoll bleiben.
+4. Keine Adresse und kein Zugangsschlüssel steht im Repo.
+
+**Von Claude entschieden (07.11.2026):** Sonntag 18 Uhr; Empfänger frei pro Mail nur für Clients mit `allowRecipient`, eine Adresse, geprüftes Format; Adressen als Datensatz pro Profil auf dem Server.
+
 ## Parkplatz
 
 - ~~Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).~~ Erledigt mit K.

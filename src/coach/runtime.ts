@@ -46,10 +46,10 @@ import { frameOfProfile } from './tracking/frame';
 import { longTermHint } from './chat/long-term';
 import { PlanSeen, adviceKey, weekPlanKey } from './chat/plan-seen';
 import { duePrompts, SentPrompts } from './chat/prompts';
-import { addDays, mondayOf, planFor } from '../shared/week-plan';
+import { addDays, mondayOf, planFor, planOfWeek } from '../shared/week-plan';
 import { runView } from '../tracking/ui/run-view';
 import { newestNotes, type ChangeNote } from '../shared/change-notes';
-import type { NextStep, PublishedAdvice, StatsBody } from '../shared/stats';
+import { readStats, STATS_ID, type NextStep, type PublishedAdvice, type StatsBody } from '../shared/stats';
 import { todayAdvice } from '../shared/today';
 import type { RecordLinks } from './tracking/link';
 import { AccountSync } from './tracking/mac-sync';
@@ -58,6 +58,12 @@ import { mergedHealth, mergedStrength } from './tracking/strength-source';
 import { MealCoach, usualTrainingDays, type MealsView } from './meals/meal-coach';
 import type { SecretCodec } from './secrets/secret-box';
 import { plainTokens, type GarminTokens } from './secrets/garmin-tokens';
+import type { MailConfig } from './mail-client';
+import { WeeklyMailer, type WeeklyMailBase } from './weekly-mail';
+import { contactOfProfile } from './tracking/contact';
+import { statsView, weekMinutes, weekSessions } from '../tracking/stats';
+import { chatThread } from '../shared/chat';
+import { openProposals } from '../tracking/ui/chat-open';
 
 export type RuntimeOptions = {
   /** Holds `rides/`, `coach/`, `garmin/`, `hevy/` and `accounts/`. */
@@ -99,6 +105,8 @@ export type RuntimeOptions = {
   hevyCodec?: (profileId: string) => SecretCodec;
   /** Where the Garmin login lives. Default: plain in `<root>/garmin/tokens/<id>`, as on the Mac. */
   garminTokens?: GarminTokens;
+  /** The mail service for the weekly overview. null or missing: no mail. */
+  mail?: MailConfig | null;
 };
 
 export type CoachRuntime = {
@@ -599,6 +607,24 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
     } catch { /* ignore invalid message */ }
   };
 
+  // The weekly overview by email: Sunday evening, only with an address and the switch on. Never disturbs the coaches.
+  const weeklyMailer = opts.mail ? new WeeklyMailer({ mail: opts.mail, file: path.join(coachDir, 'chat', 'mail-sent.json'), nowMs, ...(opts.fetchFn ? { fetchFn: opts.fetchFn } : {}) }) : null;
+  const weeklyMailOf = (id: string) => (): WeeklyMailBase => {
+    const now = nowMs();
+    const monday = addDays(mondayOf(dateKey(now)), 7);
+    const rec = records.all(id, 'stats').find((x) => x.id === STATS_ID && !x.deleted);
+    const stats = rec ? readStats(rec.body) : null;
+    const week = statsView(stats, [], now).thisWeek;
+    return {
+      profileName: profiles().find((p) => p.id === id)?.name ?? '',
+      monday,
+      lastWeek: { sessions: weekSessions(stats, week), minutes: weekMinutes(week) },
+      nextWeek: planOfWeek(records.all(id, 'weekplan'), monday)?.days ?? null,
+      notes: stats?.changes ?? [],
+      openProposals: openProposals(chatThread(records.all(id, 'chat')), records.all(id, 'weekplan'), records.all(id, 'change'), records.all(id, 'rule'), mondayOf(dateKey(now))).length,
+    };
+  };
+
   const scan = (): void => {
     try {
       const all = profiles();
@@ -666,6 +692,8 @@ export const createCoachRuntime = (opts: RuntimeOptions): CoachRuntime => {
       }
       // Chat answers: a message gets its answer even while scheduled runs pause. Never with a ride open.
       if (free) for (const p of list) { try { void chat.tick(p.id).then((wrote) => { if (wrote) mealsChanged([p.id]); }).catch(() => {}).finally(publish); } catch { /* next scan */ } }
+      // Separate safeguard: a mail problem never reaches the coach loop; the mailer catches and logs once.
+      if (weeklyMailer) for (const p of list) { try { void weeklyMailer.tick(p.id, contactOfProfile(records, p.id), weeklyMailOf(p.id)).catch(() => {}); } catch { /* next scan */ } }
       // The stats record for every profile coached here, linked or not: written only when it changes, never with a ride open. Never throws.
       if (free) mealsChanged(exportStats({ store: records, profileIds: list.map((p) => p.id), coachHere, noOpenRide, nowMs: now, content: statsDue }));
       // Separate safeguard: the account sync must never disturb a ride or the coach, and is not awaited here.

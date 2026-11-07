@@ -6,6 +6,7 @@ import { effectiveByGroup, muscleBalance, tally, type BalanceItem, type GroupBal
 import { MUSCLE_TARGETS, pairVerdicts, weeklySetRange, type MuscleGroup } from '../shared/muscle-targets';
 import type { LoggedWorkout } from '../shared/records';
 import { SPORTS, type Sport, type StatsBody } from '../shared/stats';
+import { addDays } from '../shared/week-plan';
 import { resolveExercise } from './exercise-identity';
 
 export type DayCounts = { easy: number; moderate: number; hard: number; rest: number };
@@ -147,3 +148,9 @@ export function statsView(stats: StatsBody | null, workouts: LoggedWorkout[], no
     sports: SPORTS.filter((s) => weeks.some((w) => w.minutes[s] > 0)),
   };
 }
+
+/** All minutes of a week. */
+export const weekMinutes = (w: WeekStats): number => SPORTS.reduce((a, s) => a + w.minutes[s], 0);
+/** "Einheiten" of a week: its days with any minutes. */
+export const weekSessions = (stats: StatsBody | null, w: WeekStats): number =>
+  (stats?.days ?? []).filter((d) => d.date >= w.weekStart && d.date <= addDays(w.weekStart, 6) && SPORTS.some((x) => d.minutes[x] > 0)).length;
