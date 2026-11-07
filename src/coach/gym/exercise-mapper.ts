@@ -90,7 +90,7 @@ export class ExerciseMapper {
    * only counts as a rejection when no link of the person's came later: confirming and then undoing is not a rejection).
    * `undone`: the title once had a link that was taken back; it is only ever proposed again, never linked by itself.
    */
-  private history(profileId: string, now: number): { known: Set<string>; undone: Set<string> } {
+  private history(profileId: string, now: number, catalog: Exercise[]): { known: Set<string>; undone: Set<string> } {
     const known = new Set<string>();
     const undone = new Set<string>();
     const linkAt = new Map<string, number>();
@@ -103,6 +103,8 @@ export class ExerciseMapper {
     for (const r of exercises) {
       const p = isObj(r.body) && isObj(r.body.proposal) ? r.body.proposal : null;
       if (!p || typeof p.forTitle !== 'string') continue;
+      // A waiting proposal whose target is gone is invisible to the person; it does not count, so the title is asked again.
+      if (!r.deleted && p.kind === 'same' && !catalog.some((c) => c.id === p.targetId)) continue;
       if (!r.deleted || (r.updatedMs > (linkAt.get(p.forTitle) ?? -Infinity) && now - r.updatedMs < REJECTED_MS)) known.add(p.forTitle);
     }
     return { known, undone };
@@ -111,7 +113,7 @@ export class ExerciseMapper {
   private unresolved(profileId: string, catalog: Exercise[], state: MapperState, now: number): string[] {
     const records = this.deps.store.all(profileId, 'workout');
     const stats = readStats(this.deps.store.all(profileId, 'stats').find((r) => r.id === STATS_ID && !r.deleted)?.body);
-    const { known, undone } = this.history(profileId, now);
+    const { known, undone } = this.history(profileId, now, catalog);
     const out: string[] = [];
     const seen = new Set<string>();
     for (const r of records) {
@@ -176,7 +178,7 @@ export class ExerciseMapper {
       if (p.success && wanted.has(p.data.title) && this.accepts(p.data, asked.find((a) => a.title === p.data.title)?.candidates ?? [])) valid.push(p.data);
     }
     const existing = this.deps.store.all(profileId, 'exercise');
-    const { undone } = this.history(profileId, now);
+    const { undone } = this.history(profileId, now, catalog);
     const records: TrackedRecord[] = [];
     const done = new Set<string>();
     for (const it of valid) {

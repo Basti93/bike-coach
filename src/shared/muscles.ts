@@ -8,3 +8,8 @@ export const MUSCLES: Record<string, string> = {
   triceps: 'Trizeps', biceps: 'Bizeps', forearms: 'Unterarme', traps: 'Nacken und Trapez',
   lats: 'Latissimus', upper_back: 'Oberer Rücken', lower_back: 'Unterer Rücken', abdominals: 'Bauch', full_body: 'Ganzkörper', cardio: 'Ausdauer', other: 'Sonstiges',
 };
+
+/** Allowed equipment values with their labels. */
+export const EQUIPMENT: Record<string, string> = { barbell: 'Langhantel', dumbbell: 'Kurzhantel', machine: 'Maschine oder Kabel', kettlebell: 'Kettlebell', none: 'Ohne Gerät', other: 'Sonstiges' };
+/** Allowed exercise types with their labels. */
+export const TYPES: Record<string, string> = { weight_reps: 'Gewicht und Wiederholungen', reps_only: 'Nur Wiederholungen', duration: 'Zeit in Sekunden', bodyweight_weighted: 'Körpergewicht plus Zusatzgewicht' };

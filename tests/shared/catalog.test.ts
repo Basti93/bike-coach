@@ -74,3 +74,12 @@ describe('mergeCatalog', () => {
     expect(m[0]!.aliases).toEqual(['Zorbo']);
   });
 });
+
+describe('invalid values in own records', () => {
+  it('fall back instead of making the record unreadable', async () => {
+    const { mergeCatalog } = await import('../../src/shared/catalog');
+    const rec = { kind: 'exercise' as const, id: 'own-1', updatedMs: 1, deleted: false, body: { id: 'own-1', title: 'Mein Zug', primaryMuscle: 'nonsense', equipment: 'rocket', type: 'weird' } };
+    const e = mergeCatalog([], [], [rec]).find((x) => x.id === 'own-1');
+    expect(e).toMatchObject({ title: 'Mein Zug', primaryMuscle: 'other', equipment: 'other', type: 'weight_reps' });
+  });
+});

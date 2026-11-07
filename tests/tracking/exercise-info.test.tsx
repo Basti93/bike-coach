@@ -234,3 +234,13 @@ describe('picker: info toggle per exercise', () => {
     expect(screen.getAllByRole('img', { name: 'Bankdrücken, Ausführung' }).length).toBeGreaterThan(0);
   });
 });
+
+describe('long descriptions', () => {
+  test('over 90 words are cut with a mehr toggle', async () => {
+    const text = Array.from({ length: 120 }, (_, i) => `w${i}`).join(' ');
+    render(<ExerciseInfo title="X" description={{ text, source: { kind: 'own' } }} video="https://example.com" />);
+    expect(screen.queryByText(/w100/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'mehr' }));
+    expect(screen.getByText(/w119/)).toBeTruthy();
+  });
+});

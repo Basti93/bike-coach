@@ -8,7 +8,7 @@ import type { TrackingPort } from '../ports';
 import { matchesSearch } from '../similar';
 import { ExerciseInfo } from './ExerciseInfo';
 import { useCatalog, useExcluded, usePortRecords } from './hooks';
-import { EQUIPMENT, muscleLabel } from './labels';
+import { equipmentSuffix, muscleLabel } from './labels';
 
 /**
  * All exercises of the catalog to browse: search, then the muscle groups (collapsed, with a count), one light line per
@@ -87,7 +87,7 @@ export function CatalogScreen({ port, now = Date.now, newId = () => crypto.rando
                 {list.map((e) => (
                   <div key={e.id} className="tk-pick-item">
                     <button type="button" className="tk-pick tk-cat-line" aria-expanded={info === e.id} onClick={() => setInfo(info === e.id ? null : e.id)}>
-                      {e.title}<small> · {EQUIPMENT[e.equipment] ?? e.equipment}</small>
+                      {e.title}{equipmentSuffix(e.title, e.equipment) && <small> · {equipmentSuffix(e.title, e.equipment)}</small>}
                       {excluded.has(e.id) && <small className="tk-out"> · ausgeschlossen</small>}
                     </button>
                     {info === e.id && details(e)}
