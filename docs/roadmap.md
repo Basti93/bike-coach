@@ -36,7 +36,7 @@ Stand 06.11.2026. Diese Seite ersetzt die parallelen Listen „Auftrag 0–12“
 | ✅ | **I Alltag glätten** | Gewichte passen zum gewählten Studio, Zusammenfassung nach dem Training, Übernommenes wirkt sofort, Studios verwalten, „Heute erledigt“, Rückfrage nach dem Lauf. | Parkplatz C, D, F, G, H |
 | ✅ | **J Coach kennt alle Übungen** | Chat tauscht zuverlässig aus dem ganzen Katalog, ganze Bewegungsfamilien lassen sich ausschließen, Übungen mit Bildern, Katalog zum Stöbern. | Parkplatz A, D, E |
 | ✅ | **K Aufräumen** | Kleinkram aus dem Parkplatz erledigt. | Parkplatz 0, A, B |
-| | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
+| ✅ | **L Ruhige Oberfläche** | Jeder Screen unabhängig geprüft und entschlackt; die Wochenseite ist nicht mehr vom Chat erdrückt. | UX-Probe |
 | | **M Wochenübersicht per E-Mail** | Jede Person bekommt ihre Wochenübersicht per E-Mail an die Adresse aus ihrem Profil (selbst änderbar). | Wunsch 07.11.2026 |
 
 Die Reihenfolge folgt dem Nutzen: A–C machen die Kraftdaten verlässlich, D ist die Voraussetzung dafür, dass E–H dem Coach mehr erlauben.
@@ -234,7 +234,7 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Familien als Datenfeld der Übung (Basis: beim Import abgeleitet, eingebaute: von Hand, KI-Übungen: im Vorschlag); Bilder der gemeinfreien Basis werden beim Bauen verkleinert aus der lokalen Kopie erzeugt und nicht ins Repo gelegt; Katalog als vierter Unterpunkt unter Kraft (höchstens sechs Haupt-Tabs bleibt).
 
-## Meilenstein L — Brief (07.11.2026)
+## Meilenstein L — Brief (umgesetzt 07.11.2026)
 
 **Ziel:** Jeder Screen hat eine Hauptaufgabe und ist ruhig: Zeilen statt Kartenstapel, ein Hauptknopf, Zahlen und Einstellungen erst auf Antippen. Die Wochenseite zeigt die Woche; der Chat ist ein eigener Ort mit fester Eingabe.
 
@@ -307,3 +307,9 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
   - „Wieder erlauben“ pausiert eine Regel ganz, auch wenn sie mehrere Übungen betrifft; der Knopf sagt das nicht.
   - ~~Titel-Auflösung beim Tausch per Chat unterscheidet Groß-/Kleinschreibung.~~ Erledigt mit K.
   - Einordnung einzelner Basis-Übungen (enges Bankdrücken bei Bankdrücken, Hyperextensions bei Sonstige).
+- Aus Meilenstein L:
+  - Eigene Produkte der Einkaufsliste erscheinen nur in der Web-App, nicht in der Mac-Ansicht.
+  - Datumsstil in Laufen/Entwicklung noch gemischt („ab 14. Sept.“ / „26.10. bis 1.11.“).
+  - Native Datums-/Zeitfelder folgen der Gerätesprache (im Test-Browser AM/PM).
+  - Katalog: große Gruppen zeigen zuerst eingebaute/genutzte Übungen; ggf. später Untergruppen.
+  - Shot-Werkzeug erreicht „Haben wir“ auf der Einkaufsliste nicht.
