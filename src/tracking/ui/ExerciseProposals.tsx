@@ -4,7 +4,7 @@ import { EXERCISES, type Exercise } from '../../shared/exercises';
 import { FEDB_EXERCISES } from '../../shared/fedb';
 import type { TrackedRecord } from '../../shared/records';
 import { isObj } from '../../shared/exercise-links';
-import { changeProposal, confirmProposal, proposalOf, recentLinkOf, rejectProposal, relink, undoLink } from '../exercise-proposals';
+import { changeProposal, confirmProposal, proposalOf, recentLinkOf, rejectProposal, relink, undoLinkAndUnused } from '../exercise-proposals';
 import type { TrackingPort } from '../ports';
 import { ExercisePicker } from './ExercisePicker';
 import { usePortRecords } from './hooks';
@@ -33,11 +33,11 @@ export function ExerciseProposals({ port, now = Date.now, newId }: { port: Track
     const cur = stored.find((x) => x.id === r.id);
     return cur && JSON.stringify(proposalOf(cur)) === JSON.stringify(proposalOf(r)) && JSON.stringify(recentLinkOf(cur, now())) === JSON.stringify(recentLinkOf(r, now())) ? cur : null;
   };
-  async function write(make: (stored: TrackedRecord[], cat: Exercise[]) => TrackedRecord[], others: TrackedRecord[] = []) {
+  async function write(make: (stored: TrackedRecord[], cat: Exercise[]) => TrackedRecord[] | Promise<TrackedRecord[]>, others: TrackedRecord[] = []) {
     try {
       const stored = await port.list('exercise');
       const cat = mergeCatalog(EXERCISES, FEDB_EXERCISES, stored);
-      const made = make(stored, cat);
+      const made = await make(stored, cat);
       const twins = made.length === 0 ? [] : others.flatMap((o) => { const cur = stored.find((x) => x.id === o.id); return cur && proposalOf(cur) ? rejectProposal(cur, now()) : []; });
       for (const rec of [...made, ...twins]) await port.put(rec);
       setFailed(false);
@@ -69,7 +69,7 @@ export function ExerciseProposals({ port, now = Date.now, newId }: { port: Track
             <span>‚{l.title}‘ als {title(l.targetId)} eingeordnet</span>
             <span className="tk-proposal-actions">
               <button type="button" className="ghost" onClick={() => setChanging({ r, link: true })}>Ändern</button>
-              <button type="button" className="ghost" onClick={() => void write((stored) => { const cur = current(stored, r); return cur ? undoLink(cur, now()) : []; })}>Rückgängig</button>
+              <button type="button" className="ghost" onClick={() => void write(async (stored) => { const cur = current(stored, r); return cur ? undoLinkAndUnused(cur, now(), stored, await port.list('workout')) : []; })}>Rückgängig</button>
             </span>
           </li>
         ))}

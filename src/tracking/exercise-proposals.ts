@@ -65,3 +65,18 @@ export function relink(link: TrackedRecord, targetId: string, catalog: Exercise[
 export function undoLink(link: TrackedRecord, nowMs: number): TrackedRecord[] {
   return recentLinkOf(link, nowMs) ? [tombstone(link, nowMs)] : [];
 }
+
+/**
+ * Like `undoLink`, and when the link led to an exercise the coach made (`source: 'ai'`) that no workout uses and no other link
+ * points to, that exercise is withdrawn too, so confirming and undoing leaves nothing behind. `exercises` and `workouts` are the stored records.
+ */
+export function undoLinkAndUnused(link: TrackedRecord, nowMs: number, exercises: TrackedRecord[], workouts: TrackedRecord[]): TrackedRecord[] {
+  const out = undoLink(link, nowMs);
+  const l = linkOf(link);
+  if (out.length === 0 || !l) return out;
+  const target = exercises.find((r) => r.id === l.targetId && !r.deleted);
+  if (!target || !isObj(target.body) || target.body.source !== 'ai' || linkOf(target)) return out;
+  const usedByWorkout = workouts.some((w) => !w.deleted && isObj(w.body) && Array.isArray(w.body.exercises) && w.body.exercises.some((e) => isObj(e) && e.exerciseId === target.id));
+  const otherLink = exercises.some((r) => r.id !== link.id && !r.deleted && linkOf(r)?.targetId === target.id);
+  return usedByWorkout || otherLink ? out : [...out, tombstone(target, nowMs)];
+}
