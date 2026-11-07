@@ -11,7 +11,7 @@ import { describeExercise } from '../similar';
 import type { LoggedWorkout, TrackedRecord } from '../../shared/records';
 import type { TrackingPort } from '../ports';
 import {
-  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, durationLabel, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
+  addExercise, addSet, addWarmup, confirmSet, extendRest, setRest, editNotes, editSet, lastValues, removeExercise, removeSet, restRemainingS, linkWith, supersetPartners, currentSet, unlinkSuperset, moveExercise, startEmpty, startFromPlan, isExcludedExercise,
   setEffort, setStudio, swapExercise, unconfirmSet, type FinishChoice, type TrackedWorkout,
 } from '../session';
 import { acquireStore, closeStore, releaseStore } from '../registry';
@@ -29,7 +29,7 @@ import { WorkoutCoach } from './WorkoutCoach';
 import { takenChanges, usedMarks } from '../../shared/changes';
 import { takeChange, undoChange } from '../workout-change';
 import { SetHead, SetRow } from './SetRow';
-import { exerciseHasNoWeight, previousSets, setHint, setLabels } from './setGrid';
+import { exerciseHasNoWeight, previousSets, setLabels, setLastHint, setTargetHint } from './setGrid';
 import { SyncNote } from './SyncNote';
 import { StudioRow, StudioSheet } from './StudioSheet';
 import { ChoiceRow, ConfirmLink, Sheet } from './kit';
@@ -41,6 +41,8 @@ import { loadStepOverrides } from '../../shared/loads';
 import { hereKey, ladderHere, plateLine, stepChange, stepHere } from '../steps';
 
 type Picker = { mode: 'add' } | { mode: 'swap'; ex: string } | null;
+/** "39 Min", from an hour on "1 Std 5 Min". */
+const sinceLabel = (ms: number): string => { const m = Math.max(0, Math.floor(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} Std ${m % 60} Min` : `${m} Min`; };
 type Ask = { question: 'nothing-confirmed' } | { question: 'open-sets'; open: number } | null;
 
 /** A finished workout uses up the taken changes it lists. A workout thrown away never gets here, so its changes stay taken for the next one. */
@@ -54,8 +56,8 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
   const { workout: w, save } = useStoreView(store);
   const [picker, setPicker] = useState<Picker>(null);
   const [ask, setAsk] = useState<Ask>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [menuMore, setMenuMore] = useState(false);
   const [topMenu, setTopMenu] = useState(false);
   const [studioOpen, setStudioOpen] = useState(false);
   const [coachAsk, setCoachAsk] = useState(0);
@@ -179,7 +181,6 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
     <div className="tk-screen tk-live" ref={screenRef}>
       <div className="tk-live-head">
         <h1 className="tk-title">{w.title}</h1>
-        <span role="timer" aria-label="Trainingsdauer" className="tk-elapsed muted">{durationLabel(now() - w.startMs)}</span>
         <button type="button" className="link tk-more" aria-label="Mehr zum Training" onClick={() => setTopMenu(true)}>⋯</button>
       </div>
       {save === 'unsaved' && (
@@ -195,6 +196,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         const partners = supersetPartners(w, e.rid);
         const labels = setLabels(e.sets);
         const nextOpen = e.sets.findIndex((x) => x.doneMs === null);
+        const firstWork = e.sets.findIndex((x) => x.type !== 'warmup');
         const before = previousSets(e.sets, lastValues(e.exerciseId, history, catalog, studioHere, studios));
         const timed = !!e.timed;
         const description = describeExercise(e, catalog);
@@ -210,8 +212,9 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
         const isOpen = openRid === e.rid;
         const counted = e.sets.filter((x) => x.type !== 'warmup');
         const doneCount = counted.filter((x) => x.doneMs !== null).length;
-        const superset = e.supersetId !== null ? `Superset${isCurrent && current && current.round > 0 ? ` · Runde ${current.round}` : ''}` : null;
-        const value = [superset, counted.length > 0 ? `${doneCount}/${counted.length}${allDone ? ' ✓' : ''}` : null].filter(Boolean).join(' · ');
+        const mates = e.supersetId !== null ? w.exercises.filter((x) => x.supersetId === e.supersetId && x.rid !== e.rid).map((x) => x.title) : [];
+        const superset = mates.length > 0 ? `mit ${mates.join(', ')}` : e.supersetId !== null ? 'Supersatz' : null;
+        const value = [superset, counted.length > 0 ? `${doneCount} von ${counted.length}${allDone ? ' ✓' : ''}` : null].filter(Boolean).join(' · ');
         const warmupOffered = needsWarmup(w, e.rid, catalog) && warmupRamp({ workingKg: workingWeightOf(e), equipment, type: own?.type, ladder: ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder }).length > 0;
         const note = notesOpen.has(e.rid) || e.notes !== '';
         const item = (label: string, onClick: () => void, opts: { aria?: string; disabled?: boolean; expanded?: boolean } = {}) => (
@@ -229,35 +232,36 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                   <span className={`tk-chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
                 </button>
               </h2>
-              <button type="button" className="link tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => { if (menu !== e.rid) setOpenRid(e.rid); setMenu(menu === e.rid ? null : e.rid); }}>⋯</button>
+              <button type="button" className="link tk-more" aria-label={`Mehr zu ${e.title}`} aria-expanded={menu === e.rid} onClick={() => { if (menu !== e.rid) setOpenRid(e.rid); setMenuMore(false); setMenu(menu === e.rid ? null : e.rid); }}>⋯</button>
             </div>
             {menu === e.rid && (
-              <Sheet size="small" title={e.title} onClose={() => setMenu(null)}>
-              <ul className="tk-rows tk-menu" aria-label={`Menü ${e.title}`}>
-                {item('Satz hinzufügen', () => { setMenu(null); act((x) => addSet(x, e.rid)); }, { aria: `Satz hinzufügen ${e.title}` })}
-                {warmupOffered && item('Aufwärmen hinzufügen', () => { setMenu(null); act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog)); }, { aria: `Aufwärmen hinzufügen ${e.title}` })}
-                {!note && item('Notiz', () => { setMenu(null); toggleNote(e.rid); }, { aria: `Notiz hinzufügen ${e.title}` })}
-                {item(editing === e.rid ? 'Sätze fertig bearbeiten' : 'Sätze bearbeiten', () => { setMenu(null); setEditing(editing === e.rid ? null : e.rid); }, { aria: `Sätze bearbeiten ${e.title}` })}
-                <li className="tk-rowitem"><ChoiceRow label="Pause" value={restOf(e, catalog)} onChange={(n) => act((x) => setRest(x, e.rid, n))}
-                  options={[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => ({ value: n, label: `${n} s` }))} /></li>
-                {item('Ausführung', () => { setMenu(null); toggleInfo(e.rid); }, { aria: `Ausführung ${e.title}`, expanded: showInfo })}
-                {item('Nach oben', () => act((x) => moveExercise(x, e.rid, -1)), { aria: `${e.title} nach oben`, disabled: moveExercise(w, e.rid, -1) === w })}
-                {item('Nach unten', () => act((x) => moveExercise(x, e.rid, 1)), { aria: `${e.title} nach unten`, disabled: moveExercise(w, e.rid, 1) === w })}
-                {partners.length > 0 && <li className="tk-rowitem"><ChoiceRow label="Supersatz mit" value="" onChange={(p) => { if (p) { setMenu(null); act((x) => linkWith(x, e.rid, p)); } }}
-                  options={[{ value: '', label: '…' }, ...partners.map((p) => ({ value: p.rid, label: p.title }))]} /></li>}
-                {e.supersetId !== null && item('Aus Superset lösen', () => { setMenu(null); act((x) => unlinkSuperset(x, e.rid)); }, { aria: `${e.title} aus dem Superset lösen` })}
-                {item('Tauschen', () => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }, { aria: `${e.title} tauschen` })}
-                <li className="tk-rowitem"><button type="button" className="danger-link" aria-label={`${e.title} entfernen`}
-                  onClick={() => { setMenu(null); if (store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null)) setRemoving(e.rid); else act((x) => removeExercise(x, e.rid)); }}>Entfernen</button></li>
-              </ul>
+              <Sheet size="small" title={e.title} onClose={() => { setMenu(null); setMenuMore(false); }}>
+              {!menuMore ? (
+                <ul className="tk-rows tk-menu" aria-label={`Menü ${e.title}`}>
+                  {item('Satz hinzufügen', () => { setMenu(null); act((x) => addSet(x, e.rid)); }, { aria: `Satz hinzufügen ${e.title}` })}
+                  {!note && item('Notiz', () => { setMenu(null); toggleNote(e.rid); }, { aria: `Notiz hinzufügen ${e.title}` })}
+                  {item('Tauschen', () => { setMenu(null); setPicker({ mode: 'swap', ex: e.rid }); }, { aria: `${e.title} tauschen` })}
+                  <li className="tk-rowitem"><ChoiceRow label="Pause ändern" value={restOf(e, catalog)} onChange={(n) => act((x) => setRest(x, e.rid, n))}
+                    options={[...new Set([...restChoices(), restOf(e, catalog)])].sort((a, b) => a - b).map((n) => ({ value: n, label: `${n} s` }))} /></li>
+                  <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => setMenuMore(true)}><span className="tk-row-title">Mehr</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
+                </ul>
+              ) : (
+                <>
+                <ul className="tk-rows tk-menu" aria-label={`Mehr zu ${e.title}`}>
+                  {warmupOffered && item('Aufwärmen hinzufügen', () => { setMenu(null); setMenuMore(false); act((x) => addWarmup(x, e.rid, ladderHere(e.exerciseId, equipment, history, studioHere, overrides, studios.renames).ladder, catalog)); }, { aria: `Aufwärmen hinzufügen ${e.title}` })}
+                  {item(editing === e.rid ? 'Sätze fertig bearbeiten' : 'Sätze bearbeiten', () => { setMenu(null); setMenuMore(false); setEditing(editing === e.rid ? null : e.rid); }, { aria: `Sätze bearbeiten ${e.title}` })}
+                  {partners.length > 0 && <li className="tk-rowitem"><ChoiceRow label="Supersatz mit" value="" onChange={(p) => { if (p) { setMenu(null); setMenuMore(false); act((x) => linkWith(x, e.rid, p)); } }}
+                    options={[{ value: '', label: '…' }, ...partners.map((p) => ({ value: p.rid, label: p.title }))]} /></li>}
+                  {e.supersetId !== null && item('Aus Superset lösen', () => { setMenu(null); setMenuMore(false); act((x) => unlinkSuperset(x, e.rid)); }, { aria: `${e.title} aus dem Superset lösen` })}
+                  {item('Nach oben', () => act((x) => moveExercise(x, e.rid, -1)), { aria: `${e.title} nach oben`, disabled: moveExercise(w, e.rid, -1) === w })}
+                  {item('Nach unten', () => act((x) => moveExercise(x, e.rid, 1)), { aria: `${e.title} nach unten`, disabled: moveExercise(w, e.rid, 1) === w })}
+                  {item('Ausführung', () => { setMenu(null); setMenuMore(false); toggleInfo(e.rid); }, { aria: `Ausführung ${e.title}`, expanded: showInfo })}
+                </ul>
+                <div className="tk-links"><ConfirmLink label="Entfernen" question={store.current().exercises.find((x) => x.rid === e.rid)?.sets.some((s) => s.doneMs !== null) ? 'Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?' : 'Übung wirklich entfernen?'}
+                  onConfirm={() => { setMenu(null); setMenuMore(false); act((x) => removeExercise(x, e.rid)); }} /></div>
+                </>
+              )}
               </Sheet>
-            )}
-            {removing === e.rid && (
-              <p className="tk-note">
-                Die erledigten Sätze dieser Übung gehen dabei weg. Wirklich entfernen?{' '}
-                <button type="button" className="danger-link" onClick={() => { setRemoving(null); act((x) => removeExercise(x, e.rid)); }}>Ja, entfernen</button>{' '}
-                <button type="button" className="link" onClick={() => setRemoving(null)}>Behalten</button>
-              </p>
             )}
             {isOpen && (
               <div className="tk-ex-body">
@@ -271,7 +275,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
                 {exerciseHasNoWeight(e) && <p className="muted tk-sub">Gewicht nach Gefühl</p>}
                 {e.sets.length > 0 && <SetHead timed={timed} editing={editing === e.rid} />}
                 {e.sets.map((s, si) => (
-                  <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} editing={editing === e.rid} hint={si === nextOpen ? setHint(s, before[si] ?? null, timed, range) : null}
+                  <SetRow key={s.rid} index={si} set={s} timed={timed} label={labels[si]} editing={editing === e.rid} hint={si === nextOpen ? setLastHint(before[si] ?? null, timed) : null} target={si === nextOpen && si === firstWork ? setTargetHint(s, timed, range) : null}
                     plates={s.rid === plateRid ? plateLine(s.weightKg as number) : null}
                     confirmedNow={() => store.current().exercises.find((x) => x.rid === e.rid)?.sets.find((x) => x.rid === s.rid)?.doneMs != null}
                     onEdit={(patch) => act((x) => editSet(x, e.rid, s.rid, patch))}
@@ -291,7 +295,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       })}
       <div className="tk-end">
         <button type="button" className="secondary" onClick={() => setPicker({ mode: 'add' })}>Übung hinzufügen</button>
-        <button type="button" className="secondary" onClick={() => void end()}>Training beenden</button>
+        <button type="button" className="link" onClick={() => void end()}>Training beenden</button>
       </div>
       {w.rest && remaining > 0 && !ask && (
         <div role="timer" aria-label="Satzpause" className="tk-rest">
@@ -301,6 +305,7 @@ function ActiveWorkout({ port, store, history, now, newId, autoEnd, startNotice,
       )}
       {topMenu && (
         <Sheet size="small" title="Training" onClose={() => setTopMenu(false)}>
+          <p role="timer" aria-label="Trainingsdauer" className="muted tk-elapsed">Läuft seit {sinceLabel(now() - w.startMs)}</p>
           <ul className="tk-rows">
             <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setStudioOpen(true); }}><span className="tk-row-title">Studio wechseln</span><span className="tk-row-value muted">{w.studio ?? '–'}</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
             <li className="tk-rowitem"><button type="button" className="tk-rowbtn" onClick={() => { setTopMenu(false); setCoachAsk((n) => n + 1); }}><span className="tk-row-title">Coach fragen</span><span className="tk-chevron" aria-hidden="true">›</span></button></li>
@@ -368,6 +373,8 @@ function OpenCard({ rec, primary, onResume, onEnd, onDiscard }: { rec: TrackedRe
       <button type="button" onClick={onResume}>{`Weitermachen${sfx}`}</button>
       <div className="tk-links">
         <button type="button" className="link" aria-label={`Training beenden${sfx}`} onClick={onEnd}>Beenden</button>
+      </div>
+      <div className="tk-links tk-apart">
         <button type="button" className="danger-link" aria-label={`Training verwerfen${sfx}`} onClick={() => setAsking(true)}>Verwerfen</button>
       </div>
       {asking && (
@@ -494,29 +501,35 @@ export function WorkoutScreen({ port, plan = null, routine = null, resume = fals
 
   const routines = routinesQ.records ?? [];
   const studioKnown = knownStudios(logged, studios.renames, studios.picks, studios.hidden);
+  const manyStudios = studioKnown.length > 1;
   return (
     <div className="tk-screen">
       {message && <p role="status" className="tk-note">{message}</p>}
       {summary && <WorkoutSummary workout={summary} next={nextSteps} onDone={() => { setPendingSummary(null); setSummaryId(null); }} />}
       <SyncNote port={port} />
-      <h1 className="tk-title">Training starten</h1>
-      {plan ? (
-        <section className="card tk-plan-preview" aria-label="Heutiger Plan">
-          <h2>{plan.name}</h2>
-          <p className="muted tk-clamp">{plan.exercises.filter((e) => !isExcludedExercise(e, catalog, excluded)).map((e) => e.title).join(', ')}</p>
-          <button type="button" className={summary ? 'secondary' : undefined} aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
-        </section>
-      ) : (
-        <button type="button" className={summary ? 'secondary' : undefined} onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
+      {!summary && (
+        <>
+          <h1 className="tk-title">Training starten</h1>
+          {plan ? (
+            <section className="card tk-plan-preview" aria-label="Heutiger Plan">
+              <h2>{plan.name}</h2>
+              <p className="muted tk-clamp">{plan.exercises.filter((e) => !isExcludedExercise(e, catalog, excluded)).map((e) => e.title).join(', ')}</p>
+              {manyStudios && <button type="button" className="link tk-studio-line" onClick={() => setStudioOpen(true)}>{studio ?? 'Studio wählen'} ›</button>}
+              <button type="button" aria-label={`${plan.name} starten`} onClick={() => void startPlan(plan)}>Training starten</button>
+            </section>
+          ) : (
+            <button type="button" onClick={() => void begin(startEmpty(now(), newId()))}>Leeres Training starten</button>
+          )}
+          <div className="tk-rows">
+            {!(plan && manyStudios) && <StudioRow value={studio} onOpen={() => setStudioOpen(true)} />}
+            {(plan || routines.length > 0) && (
+              <button type="button" className="tk-rowbtn tk-choice" onClick={() => setOthers(true)}>
+                <span className="tk-row-title">Anderes Training</span><span className="tk-chevron" aria-hidden="true">›</span>
+              </button>
+            )}
+          </div>
+        </>
       )}
-      <div className="tk-rows">
-        <StudioRow value={studio} onOpen={() => setStudioOpen(true)} />
-        {(plan || routines.length > 0) && (
-          <button type="button" className="tk-rowbtn tk-choice" onClick={() => setOthers(true)}>
-            <span className="tk-row-title">Anderes Training</span><span className="tk-chevron" aria-hidden="true">›</span>
-          </button>
-        )}
-      </div>
       {studioOpen && (
         <StudioSheet value={studio} known={studioKnown} onClose={() => setStudioOpen(false)}
           onAway={studio ? { used: logged.some((x) => x.studio && resolveStudio(x.studio, studios.renames).toLowerCase() === resolveStudio(studio, studios.renames).toLowerCase()), run: awayStudio } : undefined}

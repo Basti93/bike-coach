@@ -398,7 +398,7 @@ async function main() {
     await page.getByRole('button', { name: 'Zurück' }).click();
   });
   await step('kraft-verlauf-uebungen', async () => {
-    await page.getByRole('group', { name: 'Ansicht' }).getByRole('button', { name: 'Übungen', exact: true }).click();
+    await page.getByRole('group', { name: 'Ansicht' }).getByRole('button', { name: 'Je Übung', exact: true }).click();
     await shot('kraft-verlauf-uebungen');
     await page.locator('.tk-rows .tk-rowbtn').first().click();
     await shot('kraft-verlauf-uebung-detail');
@@ -455,7 +455,7 @@ async function main() {
     await page.getByRole('button', { name: 'Weitermachen' }).click();
     await page.waitForTimeout(800);
     await shot('kraft-training-active');
-    await step('kraft-training-active-menu', async () => { await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); await shot('kraft-training-active-uebung-menue'); await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); });
+    await step('kraft-training-active-menu', async () => { await page.getByRole('button', { name: 'Mehr zu Bankdrücken' }).click(); await shot('kraft-training-active-uebung-menue'); await page.getByRole('button', { name: 'Mehr', exact: true }).click(); await shot('kraft-training-active-uebung-menue-mehr'); await closeDialog(); });
     await step('kraft-training-active-header-menu', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await shot('kraft-training-active-kopf-menue'); await closeDialog(); });
     await step('kraft-training-active-studio', async () => { await page.evaluate(() => window.scrollTo(0, 0)); await page.getByRole('button', { name: 'Mehr zum Training' }).click(); await page.getByRole('button', { name: /^Studio wechseln/ }).click(); await shot('kraft-training-active-studio'); await closeDialog(); });
     await step('kraft-training-active-picker', async () => { await page.getByRole('button', { name: 'Übung hinzufügen' }).click(); await shot('kraft-training-active-uebung-hinzufuegen'); await closeDialog(); });

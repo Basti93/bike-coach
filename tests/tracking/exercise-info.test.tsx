@@ -32,6 +32,7 @@ describe('workout: Ausführung in the exercise menu', () => {
     await running();
     expect(screen.queryByText(/Füße etwas mehr als hüftbreit/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Kniebeuge' });
     expect(note.textContent).toMatch(/Füße etwas mehr als hüftbreit/);
@@ -44,8 +45,10 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('the menu entry toggles: a second tap hides it', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     const entry = screen.getByRole('button', { name: 'Ausführung Kniebeuge' });
     expect(entry.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(entry);
@@ -55,6 +58,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('an own text shows without a credit line', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Frontkniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Frontkniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Frontkniebeuge' });
     expect(note.textContent).toMatch(/Ellbogen/);
@@ -64,6 +68,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('an exercise without a description still opens: no text yet, but the video link', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Meine Übung' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Meine Übung' }));
     const note = screen.getByRole('note', { name: 'Ausführung Meine Übung' });
     expect(note.textContent).toContain('Noch keine Beschreibung.');
@@ -74,6 +79,7 @@ describe('workout: Ausführung in the exercise menu', () => {
   test('the video link searches the English Hevy name in a new window; no picture means no image', async () => {
     await running();
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
     const note = screen.getByRole('note', { name: 'Ausführung Kniebeuge' });
     const video = within(note).getByRole('link', { name: 'Video ansehen' });
@@ -124,6 +130,7 @@ describe('workout: imported exercises resolve by identity', () => {
   test('a Smith machine squat shows no free-weight text and no pictures', async () => {
     await runningWith([good]);
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Squat (Smith Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Squat (Smith Machine)' }));
     const note = screen.getByRole('note', { name: 'Ausführung Squat (Smith Machine)' });
     expect(note.textContent).toContain('Noch keine Beschreibung.');
@@ -134,6 +141,7 @@ describe('workout: imported exercises resolve by identity', () => {
   test('the machine reverse fly from Hevy shows its machine text', async () => {
     await runningWith([]);
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Rear Delt Reverse Fly (Machine)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' }));
     const note = screen.getByRole('note', { name: 'Ausführung Rear Delt Reverse Fly (Machine)' });
     expect(note.textContent).toContain(exerciseDescription('pf-rear-delt-fly-machine')!.text);

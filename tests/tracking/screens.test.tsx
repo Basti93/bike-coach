@@ -269,7 +269,7 @@ const twoEx = (): LoggedWorkout => open({ exercises: [
 const resume = async () => fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
 // The exercise menu ("⋯"): sets are removed in edit mode, a note appears on request.
 const openMenu = async (title: string) => fireEvent.click(await screen.findByRole('button', { name: `Mehr zu ${title}` }));
-const editSets = async (title: string) => { await openMenu(title); fireEvent.click(screen.getByRole('button', { name: `Sätze bearbeiten ${title}` })); };
+const editSets = async (title: string) => { await openMenu(title); fireEvent.click(screen.getByRole('button', { name: 'Mehr' })); fireEvent.click(screen.getByRole('button', { name: `Sätze bearbeiten ${title}` })); };
 const noteField = async (title: string) => { await openMenu(title); fireEvent.click(screen.getByRole('button', { name: `Notiz hinzufügen ${title}` })); return (await screen.findByLabelText(`Notiz zu ${title}`)) as HTMLTextAreaElement; };
 
 test('a double tap on remove never removes the next row', async () => {
@@ -281,7 +281,9 @@ test('a double tap on remove never removes the next row', async () => {
   fireEvent.click(btn); fireEvent.click(btn);
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises[0].sets).toHaveLength(1));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
-  const ex = await screen.findByRole('button', { name: 'Bankdrücken entfernen' });
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Entfernen' }));
+  const ex = await screen.findByRole('button', { name: 'Ja' });
   fireEvent.click(ex); fireEvent.click(ex);
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.title)).toEqual(['Kniebeuge']));
 });
@@ -452,7 +454,7 @@ test('WorkoutScreen starts a given routine', async () => {
 test('history has a per-exercise view with last values and progress', async () => {
   const { port } = fakePort([rec(finished('a', 5000)), rec(finished('b', 9000))]);
   render(<HistoryScreen port={port} {...ids} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Übungen' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Je Übung' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Kniebeuge' }));
   expect(await screen.findByText('Letztes Mal: 85 kg × 5')).toBeTruthy();
 });
@@ -584,7 +586,7 @@ test('after a failed finish, a successful retry leaves the screen', async () => 
   await screen.findByRole('status');
   state.failPuts = false;
   fireEvent.click(screen.getByRole('button', { name: 'Jetzt nochmal speichern' }));
-  expect(await screen.findByRole('heading', { name: 'Training starten' })).toBeTruthy();
+  expect(await screen.findByRole('region', { name: 'Zusammenfassung' })).toBeTruthy();
   expect(bodyOf(map, 'workout:open1').endMs).not.toBeNull();
 });
 
@@ -633,7 +635,10 @@ test('the workout rows: headers, chips, one grid, a clear done box and last time
   expect(screen.queryByRole('button', { name: 'Kniebeuge tauschen' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
   expect(screen.getByRole('button', { name: 'Kniebeuge tauschen' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Kniebeuge entfernen' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
+  expect(screen.getByRole('button', { name: 'Entfernen' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' })); // closes
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
   // the note is a growing text field, there when asked for
   expect(screen.queryByLabelText('Notiz zu Kniebeuge')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Notiz hinzufügen Kniebeuge' }));
@@ -653,7 +658,8 @@ test('the workout shows how long it has been running', async () => {
   const { port } = fakePort([rec(open())]);
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
-  expect((await screen.findByRole('timer', { name: 'Trainingsdauer' })).textContent).toBe('1:39');
+  fireEvent.click(await screen.findByRole('button', { name: 'Mehr zum Training' }));
+  expect((await screen.findByRole('timer', { name: 'Trainingsdauer' })).textContent).toBe('Läuft seit 1 Min');
 });
 
 const twoExercises = () => open({
@@ -686,7 +692,7 @@ test('finished exercises and the current one are marked', async () => {
   const bench = await screen.findByRole('region', { name: 'Bankdrücken' });
   const squat = screen.getByRole('region', { name: 'Kniebeuge' });
   expect(bench.className).toContain('tk-ex-done');
-  expect(within(bench).getByText('2/2 ✓')).toBeTruthy();
+  expect(within(bench).getByText('2 von 2 ✓')).toBeTruthy();
   expect(bench.getAttribute('aria-current')).toBeNull();
   expect(squat.getAttribute('aria-current')).toBe('step');
   expect(squat.className).not.toContain('tk-ex-done');
@@ -701,6 +707,7 @@ test('two exercises can be joined to a superset and taken apart again from the m
   render(<WorkoutScreen port={port} {...ids} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Weitermachen' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Mehr zu Bankdrücken' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
   fireEvent.click(screen.getByRole('button', { name: /^Supersatz mit/ }));
   fireEvent.click(within(screen.getByRole('dialog', { name: 'Supersatz mit' })).getByRole('button', { name: 'Kniebeuge' }));
   await waitFor(() => {
@@ -708,9 +715,10 @@ test('two exercises can be joined to a superset and taken apart again from the m
     expect(g[0]).not.toBeNull();
     expect(g[0]).toBe(g[1]);
   });
-  expect(screen.getAllByText(/^Superset/)).toHaveLength(2);
-  expect(screen.getByText(/^Superset · Runde 1/)).toBeTruthy();
+  expect(screen.getAllByText(/^mit /)).toHaveLength(2);
+  expect(screen.getByText('mit Kniebeuge · 0 von 1')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
   expect(screen.queryByRole('button', { name: /^Supersatz mit/ })).toBeNull(); // no partner left
   fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge aus dem Superset lösen' }));
   await waitFor(() => expect(bodyOf(map, 'workout:open1').exercises.map((e) => e.supersetId)).toEqual([null, null]));
@@ -774,8 +782,8 @@ test('the rest timer has +30 s, and the per-exercise Pause select sets the rest'
   fireEvent.click(await screen.findByRole('button', { name: '+30 s' }));
   await waitFor(() => expect((bodyOf(map, 'workout:open1') as unknown as { rest: { durationS: number } }).rest.durationS).toBe(120));
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Bankdrücken' }));
-  fireEvent.click(within(screen.getByRole('list', { name: 'Menü Bankdrücken' })).getByRole('button', { name: /^Pause/ }));
-  fireEvent.click(within(screen.getByRole('dialog', { name: 'Pause' })).getByRole('button', { name: '180 s' }));
+  fireEvent.click(within(screen.getByRole('list', { name: 'Menü Bankdrücken' })).getByRole('button', { name: /^Pause ändern/ }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'Pause ändern' })).getByRole('button', { name: '180 s' }));
   await waitFor(() => expect((bodyOf(map, 'workout:open1').exercises[0] as unknown as { restS: number }).restS).toBe(180));
 });
 

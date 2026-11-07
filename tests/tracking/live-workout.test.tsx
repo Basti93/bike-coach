@@ -31,8 +31,8 @@ test('only the current exercise is open; the others are one row with their progr
   await running();
   expect(screen.getByLabelText('Wiederholungen Satz 2')).toBeTruthy();
   expect(screen.getAllByLabelText('Gewicht Satz 1')).toHaveLength(1); // one exercise shows its sets
-  expect(within(screen.getByRole('region', { name: 'Bankdrücken' })).getByText('2/2 ✓')).toBeTruthy();
-  expect(within(screen.getByRole('region', { name: 'Kreuzheben' })).getByText('0/1')).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Bankdrücken' })).getByText('2 von 2 ✓')).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Kreuzheben' })).getByText('0 von 1')).toBeTruthy();
   expect(toggle('Kniebeuge').getAttribute('aria-expanded')).toBe('true');
   expect(toggle('Kreuzheben').getAttribute('aria-expanded')).toBe('false');
 });
@@ -73,6 +73,7 @@ test('the menu actions reach the same functions: add a set, a note on request, m
   fireEvent.click(screen.getByRole('button', { name: 'Notiz hinzufügen Kniebeuge' }));
   expect(screen.getByLabelText('Notiz zu Kniebeuge')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
   fireEvent.click(screen.getByRole('button', { name: 'Kniebeuge nach unten' }));
   await waitFor(() => expect(bodyOf(f.map).exercises.map((e) => e.title)).toEqual(['Bankdrücken', 'Kreuzheben', 'Kniebeuge']));
 });

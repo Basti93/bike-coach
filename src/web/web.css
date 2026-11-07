@@ -137,6 +137,6 @@ button.pm-person:not(.on) .pm-avatar { opacity: .45; }
 /* The live workout header leaves room for the round profile button at the top right. */
 .web-main .tk-live-head { padding-right: 3.2rem; }
 /* A sheet covers everything: the round profile button steps aside while one is open. */
-body:has(.tk-sheet) .web-profile { display: none; }
+body:has(.tk-sheet) .web-profile, body:has(.tk-live) .web-profile { display: none; }
 /* The title block leaves room for the round profile button at the top right. */
 .web-main .tk-pagehead, .web-main > .tk-screen > .tk-title { padding-right: 3.4rem; }

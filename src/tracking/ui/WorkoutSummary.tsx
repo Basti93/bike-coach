@@ -9,8 +9,6 @@ export const setPendingSummary = (id: string | null): void => {
   try { if (id === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, id); } catch { /* private mode: the summary lives until the screen is left */ }
 };
 
-const doneSets = (w: LoggedWorkout): number => w.exercises.reduce((n, e) => n + e.sets.filter((s) => s.doneMs != null && s.type !== 'warmup').length, 0);
-
 /** After a saved finish: what was done, and the coach's next step per exercise (or that it is still coming). One button. */
 export function WorkoutSummary({ workout: w, next, onDone }: { workout: LoggedWorkout; next: readonly NextStep[]; onDone: () => void }) {
   const mine = next.filter((n) => n.forWorkoutId === w.id || n.atMs === w.startMs);
@@ -18,8 +16,7 @@ export function WorkoutSummary({ workout: w, next, onDone }: { workout: LoggedWo
   const rows = w.exercises.map((e) => ({ e, n: nextOf(mine, e) })).filter((r) => r.n);
   return (
     <section className="card tk-summary" aria-label="Zusammenfassung">
-      <h2>Fertig · {w.exercises.length} {w.exercises.length === 1 ? 'Übung' : 'Übungen'} · {minutes} Min</h2>
-      <p className="muted">{doneSets(w)} {doneSets(w) === 1 ? 'Satz' : 'Sätze'} gespeichert</p>
+      <h2>Gut gemacht · {w.exercises.length} {w.exercises.length === 1 ? 'Übung' : 'Übungen'} · {minutes} Min</h2>
       {rows.map(({ e, n }, i) => <p key={i} className="muted tk-sub">{e.title} · {nextLine(n!)}</p>)}
       <button type="button" onClick={onDone}>Fertig</button>
     </section>

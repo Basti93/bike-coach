@@ -50,6 +50,7 @@ describe('plates in the workout', () => {
 describe('the weight step line', () => {
   const info = async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mehr zu Kniebeuge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ausführung Kniebeuge' }));
   };
   const past = (n: number, kg: number[]) => wo(`p${n}`, 100 + n, 200 + n, [ex('pf-squat', 'Kniebeuge', kg.map((k) => s(k, 5)))]);
