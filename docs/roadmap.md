@@ -160,6 +160,22 @@ Lokale Kopien in `~/Projects/pandafit-references/` (nicht im Repo). Übernommen 
 
 **Von Claude entschieden (07.11.2026):** Rahmen als eigener Datensatz (Modus, übliche Minuten, Minuten nur für heute); „Was geht heute“ ist eine feste, erklärbare Regel ohne KI-Aufruf; Kombination nur mit höchstens einem harten Teil; Zeitschätzung Kraft = Aufwärmen + Sätze × (Arbeit + Pause) + Wechsel.
 
+## Meilenstein G — Brief
+
+**Ziel:** Das laufende Training passt sich dem Studio an: Reihenfolge umstellen, beliebige Übungen zum Supersatz verbinden, Aufwärmen dort, wo eine neue Bewegung beginnt, und Pausen, die überall gleich gerechnet werden.
+
+**Abnahme:**
+1. Jede Übung lässt sich nach oben oder unten verschieben; ein Supersatz zieht als Block mit. Erledigte Sätze bleiben unverändert an ihrer Übung, Rückgängig von Coach-Änderungen funktioniert danach weiter.
+2. Zwei beliebige offene Übungen lassen sich zum Supersatz verbinden; der Partner rückt direkt dahinter. Das Training führt rundenweise (A1, B1, A2, B2), Pause erst nach der Runde, erledigte oder ausgelassene Partner werden übersprungen.
+3. Vor der ersten Übung eines neuen Bewegungsblocks bietet die App „Aufwärmen hinzufügen“ an: Steigerung aus dem Arbeitsgewicht auf erreichbaren Stufen (Milestone C), ohne erfundene Kilos, wenn kein Arbeitsgewicht bekannt ist. Der einfache Coach-Plan plant das Aufwärmen gleich mit.
+4. Pausen kommen aus einer Quelle: Plan oder eigene Einstellung, sonst je nach Übung (Grundübung länger, Isolation kürzer). Timer, Zeitschätzung und Coach rechnen gleich; die Pause lässt sich verlängern und pro Übung ändern, ein Neuladen setzt sie nicht zurück.
+
+**Fällt weg:** feste 90 s als Ersatzpause im Timer und 0 s in der Zeitschätzung; Supersatz nur mit der nächsten Übung; Aufwärmsätze, die in der Zeitschätzung wie Arbeitssätze zählen.
+
+**Nicht dabei:** Ziehen per Drag-and-drop, Pausen pro einzelnem Satz, Aufwärmen nach Erfahrung der Person.
+
+**Von Claude entschieden (07.11.2026):** Verschieben mit „Nach oben/unten“ im Übungsmenü statt Ziehen (leicht, sicher auf dem Handy); Bewegungsblock = Muskelgruppe der Übung (B-Gruppen); Aufwärmen in der App nur als Angebot, im einfachen Coach-Plan automatisch; Steigerung 40 %×5, 60 %×3, 80 %×2, bei Langhantel zuerst die leere Stange (Werte im Regelregister).
+
 ## Parkplatz
 
 - Export nach Hevy wählt bei zwei verknüpften Hevy-Vorlagen derselben Übung die zuerst gelistete (aus Review Meilenstein 0).
