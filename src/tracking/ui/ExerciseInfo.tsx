@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, SyntheticEvent } from 'react';
 import { descriptionCredit, type ExerciseDescription } from '../../shared/exercise-descriptions';
 import type { ExerciseImage } from '../../shared/exercise-images';
 import { ruleNumbers } from '../../shared/training-policy';
@@ -13,6 +13,9 @@ const external = { target: '_blank', rel: 'noopener noreferrer' } as const;
  * themselves. wger texts and pictures carry their credit line in small muted text. Without a text it still shows the
  * video link, so every exercise has somewhere to look.
  */
+/** A picture that is not there (generated media missing) takes its frame with it. */
+const hideFigure = (e: SyntheticEvent<HTMLImageElement>) => { const f = e.currentTarget.closest('figure'); if (f) f.hidden = true; };
+
 export function ExerciseInfo({ title, description, images = [], video, icon, children }: {
   title: string; description: ExerciseDescription | null; images?: ExerciseImage[]; video: string;
   icon?: ReactNode; children?: ReactNode;
@@ -22,9 +25,11 @@ export function ExerciseInfo({ title, description, images = [], video, icon, chi
     <div className="tk-info" role="note" aria-label={`Ausführung ${title}`}>
       {images.map((img) => (
         <figure key={img.file} className="tk-info-pic">
-          <img src={imageSrc(img.file)} alt={`${title}, Ausführung`} loading="lazy" decoding="async" />
+          <img src={imageSrc(img.file)} alt={`${title}, Ausführung`} loading="lazy" decoding="async" onError={hideFigure} />
           <figcaption className="muted tk-credit">
-            Bild: <a href={img.sourceUrl} {...external}>wger.de</a>{img.author === 'wger.de' ? '' : `, ${img.author}`}, {img.licence}
+            {img.sourceUrl.includes('wger.de')
+              ? <>Bild: <a href={img.sourceUrl} {...external}>wger.de</a>{img.author === 'wger.de' ? '' : `, ${img.author}`}, {img.licence}</>
+              : <>Bild: <a href={img.sourceUrl} {...external}>{img.author}</a></>}
           </figcaption>
         </figure>
       ))}

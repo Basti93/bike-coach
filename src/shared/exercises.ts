@@ -16,6 +16,8 @@ export type Exercise = {
   fedbId?: string;
   /** The movement family (families.ts); none means `other`. */
   family?: string;
+  /** Base catalog only: the picture paths in the source dataset (exercises/<path>); media:fedb copies them. */
+  images?: string[];
   /** The base catalog's English instructions, kept as source for the German guides (fedb-descriptions-de.json); never shown. */
   proposal?: ExerciseProposal;
 };

@@ -5,13 +5,14 @@
  * The English instructions stay in the source dataset (the app ships the German guides, fedb-descriptions-de.json).
  * scripts/fedb-shoulder-parts.json maps every id with `shoulders` to its part(s) (front_delts, side_delts, rear_delts); an id without a mapping fails loudly.
  * scripts/fedb-families.ts derives the movement family from the English name; no match is `other` (and then no field).
+ * Source-relative image paths are kept as `images`; scripts/fedb-media.ts copies them into the (gitignored) web folder.
  * Entries that a built-in names in `fedbId` are left out (the built-in wins).
  */
 import fs from 'node:fs';
 import { EXERCISES, exerciseTitles, type Exercise } from '../src/shared/exercises';
 import { familyFromName } from './fedb-families';
 
-type Raw = { id: string; name: string; equipment: string | null; primaryMuscles: string[]; secondaryMuscles: string[]; category: string; instructions: string[] };
+type Raw = { id: string; name: string; equipment: string | null; primaryMuscles: string[]; secondaryMuscles: string[]; category: string; instructions: string[]; images?: string[] };
 
 const KEEP = new Set(['strength', 'powerlifting', 'olympic weightlifting', 'strongman', 'plyometrics']);
 const MUSCLE: Record<string, string> = { 'middle back': 'upper_back', 'lower back': 'lower_back', neck: 'traps' };
@@ -58,6 +59,7 @@ for (const r of raw) {
   // The English name is an alias for search, unless a built-in already logs under exactly that title (then the built-in owns it).
   if (!builtIn.has(r.name.toLowerCase())) e.aliases = [r.name];
   if (secondary.length > 0) e.secondaryMuscles = secondary;
+  if (r.images && r.images.length > 0) e.images = r.images;
   const family = familyFromName(r.name);
   if (family !== 'other') e.family = family;
   out.push(e);
