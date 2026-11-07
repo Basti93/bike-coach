@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import type { TrackedRecord } from '../../shared/records';
 import { addDays, dayLabel, HARDNESS_LABEL, hasSport, planFor, SPORT_LABEL, type PlanDay } from '../../shared/week-plan';
+import type { TrackingPort } from '../ports';
+import { TodayOnly } from './FrameControls';
+import { useTodayAdvice } from './frame-hooks';
 import { dateKeyOf, runView } from './run-view';
 
 const RUN_KIND: Record<string, string> = { easy: 'locker', long: 'lang', test: 'Test' };
@@ -14,22 +17,51 @@ const label = (d: PlanDay) => {
 /** Today's sport from the week plan, or null without a plan for today. */
 export const todayPlan = (weekplans: TrackedRecord[] | null, nowMs: number): PlanDay | null => planFor(weekplans ?? [], dateKeyOf(nowMs));
 
-/**
- * Heute from the week plan: what today is for, with the one thing to do for it, and tomorrow in a line. `gym` is the strength
- * plan card, shown on a strength day. Without a plan for today it shows nothing; the caller keeps its own view then.
- */
-export function TodayCard({ weekplans, runs, nowMs, gym, onRun, bike }: {
+type Props = {
   weekplans: TrackedRecord[] | null; runs: TrackedRecord[] | null; nowMs: number; gym: ReactNode; onRun?: () => void;
   /** On the Mac: the bike session to start; elsewhere a note that it starts on the Mac. */
   bike?: ReactNode;
-}) {
-  const today = todayPlan(weekplans, nowMs);
-  if (!today) return null;
-  const tomorrow = planFor(weekplans ?? [], addDays(today.date, 1));
+};
+type Advice = ReturnType<typeof useTodayAdvice>;
+
+/**
+ * Heute from the week plan: what today is for, with the one thing to do for it, and tomorrow in a line. `gym` is the strength
+ * plan card, shown on a strength day. Without a plan for today it shows nothing; the caller keeps its own view then.
+ * With a `port` it also knows the frame: the advice line (in spontaneous mode instead of the plan) and "Heute nur".
+ */
+export function TodayCard(props: Props & { port?: TrackingPort }) {
+  return props.port ? <Connected {...props} port={props.port} /> : <View {...props} />;
+}
+
+function Connected({ port, ...props }: Props & { port: TrackingPort }) {
+  const a = useTodayAdvice(port, props.nowMs);
+  return <View {...props} a={a} />;
+}
+
+function View({ weekplans, runs, nowMs, gym, onRun, bike, a }: Props & { a?: Advice }) {
+  const date = dateKeyOf(nowMs);
+  const spontaneous = a?.frame.mode === 'spontaneous';
+  const planned = todayPlan(weekplans, nowMs);
+  const today: PlanDay | null = spontaneous && a
+    ? { date, sport: a.advice.sport, hardness: a.advice.hardness, fixed: false, ...(a.advice.also ? { also: a.advice.also } : {}) }
+    : planned;
+  const only = a && <TodayOnly frame={a.frame} date={date} onChange={(m) => void a.setToday(m).catch(() => {})} />;
+  if (!today) {
+    if (!a) return null;
+    return (
+      <section className="card tk-today-card" aria-label="Heute">
+        <h2>Heute: {a.advice.label}</h2>
+        <p className="muted">{a.advice.reason}</p>
+        {only}
+      </section>
+    );
+  }
+  const tomorrow = spontaneous ? null : planFor(weekplans ?? [], addDays(today.date, 1));
   const run = hasSport(today, 'run') ? runView(runs ?? [], nowMs).week?.runs.find((r) => r.date === today.date) ?? null : null;
   return (
-    <section className="card tk-today-card" aria-label="Heute laut Wochenplan">
+    <section className="card tk-today-card" aria-label={spontaneous ? 'Heute' : 'Heute laut Wochenplan'}>
       <h2>Heute: {label(today)}</h2>
+      {spontaneous && a ? <p className="muted">{a.advice.reason}</p> : a && !a.advice.fromPlan && <p className="muted">Heute passt: {a.advice.line}</p>}
       {today.note && <p className="muted">{today.note}</p>}
       {hasSport(today, 'gym') && gym}
       {hasSport(today, 'run') && (
@@ -42,6 +74,7 @@ export function TodayCard({ weekplans, runs, nowMs, gym, onRun, bike }: {
       {hasSport(today, 'mobility') && <p>Heute ist Beweglichkeit dran.</p>}
       {today.sport === 'rest' && <p>Ruhetag. Erholung gehört zum Training.</p>}
       {tomorrow && <p className="muted">Morgen: {label(tomorrow)}</p>}
+      {only}
     </section>
   );
 }

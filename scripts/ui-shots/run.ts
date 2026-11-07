@@ -212,6 +212,24 @@ const shots: { name: string; ride: object; coach?: object | null; steps?: (win: 
     await win.getByRole('button', { name: /Schulter seitlich/ }).first().click();
     await win.waitForTimeout(150);
   } },
+  { name: 'today-advice', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1100, steps: async (win) => {
+    // Invented data: a plan with strength today, a leg workout yesterday, so the hard day turns lighter. The advice differs from the plan and says why.
+    const t = Date.now();
+    const key = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    const monday = new Date(t - ((new Date(t).getDay() + 6) % 7) * 86400000);
+    const days = Array.from({ length: 7 }, (_, i) => ({ date: key(new Date(monday.getTime() + i * 86400000)), sport: (new Date(t).getDay() + 6) % 7 === i ? 'gym' : 'rest', hardness: 'hard', fixed: false }));
+    const startMs = t - 86400000;
+    const rows = [
+      { kind: 'weekplan', id: key(monday), updatedMs: 1, deleted: false, body: { weekStart: key(monday), fromMessage: 'm', acceptedMs: 1, days } },
+      { kind: 'workout', id: 'w1', updatedMs: startMs, deleted: false, body: { id: 'w1', title: 'Beine A', startMs, endMs: startMs + 3600000, source: 'pandafit', exercises: [{ exerciseId: 'pf-squat', title: 'Kniebeuge', supersetId: null, notes: '', sets: [] }] } },
+      { kind: 'frame', id: 'frame', updatedMs: 1, deleted: false, body: { mode: 'week', minutes: 45, atMs: 1 } },
+    ];
+    await win.addInitScript((rs) => { (window as unknown as { __db: Map<string, unknown> }).__db = new Map(rs.map((r) => [`${r.kind}:${r.id}`, r])); }, rows);
+    await win.reload();
+    await win.waitForTimeout(300);
+    await win.getByRole('button', { name: /Max/ }).first().click();
+    await win.waitForTimeout(400);
+  } },
   { name: 'week-rules', ride: idle(), coach: coach({ gym: GYM }), pick: true, height: 1100, steps: async (win) => {
     // Invented rules and a goal; the week screen reads the records when it opens.
     const t = Date.now() - 3600000;

@@ -19,6 +19,7 @@ import { FeedbackView } from './views/FeedbackView';
 import { GymView } from './views/GymView';
 import { HistoryScreen, RoutinesScreen, RunLookBack, RunScreen, RunSettingsCard, StatsScreen, WorkoutScreen } from '../tracking/ui';
 import { statsVisible } from '../tracking/ui/StatsScreen';
+import { durationNote } from '../shared/duration';
 import { CoachScreen } from '../tracking/ui/CoachScreen';
 import { TodayCard } from '../tracking/ui/TodayCard';
 import type { TrackingPort } from '../tracking/ports';
@@ -196,8 +197,8 @@ const Page = ({ ride }: { ride: ReturnType<typeof useRide> }) => {
   if (waiting) return <>{notice}<main aria-busy="true" /></>;
   const overviewOpen = home === 'overview' && v.bikeFor !== profile.id && !v.history && coachScreen(coach.state) === 'coach' && !coach.state?.awaitingFeedback;
   if (overviewOpen) return page(<OverviewView name={profile.name} avatar={profile.avatar} bikeNext={coach.state?.next?.session.name} strengthNext={coach.gym?.state.next?.workout.name} onBike={() => go('rad')} onStrength={() => go('kraft')} onHealth={() => go('gesundheit')}
-    today={coach.tracking ? <TodayCard weekplans={weekplanRecords} runs={runRecords} nowMs={Date.now()} onRun={runOn ? () => go('laufen') : undefined}
-      gym={<><p>{coach.gym?.state.next?.workout.name ?? 'Dein Krafttraining'}</p><button type="button" onClick={() => go('kraft')}>Zum Krafttraining</button></>}
+    today={coach.tracking ? <TodayCard port={coach.tracking} weekplans={weekplanRecords} runs={runRecords} nowMs={Date.now()} onRun={runOn ? () => go('laufen') : undefined}
+      gym={<><p>{coach.gym?.state.next?.workout.name ?? 'Dein Krafttraining'}</p>{coach.gym?.state.next?.workout && coach.gym.state.next.workout.exercises.length > 0 && <p className="muted">{durationNote(coach.gym.state.next.workout)}</p>}<button type="button" onClick={() => go('kraft')}>Zum Krafttraining</button></>}
       bike={<><p>{coach.state?.next?.session.name ?? 'Deine Radeinheit'}</p><button type="button" onClick={() => go('rad')}>Zur Radeinheit</button></>} /> : undefined} />);
   return page(
     v.history && coach.state ? <HistoryView state={coach.state} detail={coach.detail} send={coach.send} garminConnected={coach.garmin?.state === 'connected'} lookBack={coach.tracking ? <RunLookBack port={coach.tracking} now={runNow} /> : undefined} /> : coachScreen(coach.state) === 'debrief' && coach.state?.debriefToShow
